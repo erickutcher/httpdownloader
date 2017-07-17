@@ -40,7 +40,7 @@ HWND g_hWnd_status = NULL;
 HWND g_hWnd_tooltip = NULL;
 
 wchar_t *tooltip_buffer = NULL;
-//int last_tooltip_item = -1;				// Prevent our hot tracking from calling the tooltip on the same item.
+int last_tooltip_item = -1;				// Prevent our hot tracking from calling the tooltip on the same item.
 
 NOTIFYICONDATA g_nid;					// Tray icon information.
 
@@ -864,7 +864,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 				{
 					wchar_t msg[ 512 ];
 					__snwprintf( msg, 512, L"HTTP Downloader is made free under the GPLv3 license.\r\n\r\n" \
-										   L"Version 1.0.0.0\r\n\r\n" \
+										   L"Version 1.0.0.1\r\n\r\n" \
 										   L"Built on %s, %s %d, %04d %d:%02d:%02d %s (UTC)\r\n\r\n" \
 										   L"Copyright \xA9 2015-2017 Eric Kutcher", GetDay( g_compile_time.wDayOfWeek ), GetMonth( g_compile_time.wMonth ), g_compile_time.wDay, g_compile_time.wYear, ( g_compile_time.wHour > 12 ? g_compile_time.wHour - 12 : ( g_compile_time.wHour != 0 ? g_compile_time.wHour : 12 ) ), g_compile_time.wMinute, g_compile_time.wSecond, ( g_compile_time.wHour >= 12 ? L"PM" : L"AM" ) );
 
@@ -1180,35 +1180,40 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 
 					_SendMessageW( g_hWnd_files, LVM_HITTEST, 0, ( LPARAM )&lvhti );
 
-					if ( lvhti.iItem != -1 /*&& lvhti.iItem != last_tooltip_item*/ )
+					if ( lvhti.iItem != last_tooltip_item )
 					{
 						// Save the last item that was hovered so we don't have to keep calling everything below.
-						//last_tooltip_item = lvhti.iItem;
+						last_tooltip_item = lvhti.iItem;
 
-						LVITEM lvi;
-						_memzero( &lvi, sizeof( LVITEM ) );
-						lvi.mask = LVIF_PARAM;
-						lvi.iItem = lvhti.iItem;
+						TOOLINFO ti;
+						_memzero( &ti, sizeof( TOOLINFO ) );
+						ti.cbSize = sizeof( TOOLINFO );
+						ti.hwnd = g_hWnd_files;
 
-						_SendMessageW( g_hWnd_files, LVM_GETITEM, 0, ( LPARAM )&lvi );
+						_SendMessageW( g_hWnd_tooltip, TTM_GETTOOLINFO, 0, ( LPARAM )&ti );
 
-						DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )lvi.lParam;
+						ti.lpszText = NULL;	// If we aren't hovered over an item or the download info is NULL, then we'll end up not showing the tooltip text.
 
-						if ( di != NULL )
+						if ( lvhti.iItem != -1 )
 						{
-							TOOLINFO ti;
-							_memzero( &ti, sizeof( TOOLINFO ) );
-							ti.cbSize = sizeof( TOOLINFO );
-							ti.hwnd = g_hWnd_files;
+							LVITEM lvi;
+							_memzero( &lvi, sizeof( LVITEM ) );
+							lvi.mask = LVIF_PARAM;
+							lvi.iItem = lvhti.iItem;
 
-							_SendMessageW( g_hWnd_tooltip, TTM_GETTOOLINFO, 0, ( LPARAM )&ti );
+							_SendMessageW( g_hWnd_files, LVM_GETITEM, 0, ( LPARAM )&lvi );
 
-							__snwprintf( tooltip_buffer, 512, L"Filename: %s\r\nDownloaded: %llu / %llu bytes\r\nAdded: %s", di->file_path + di->filename_offset, di->downloaded, di->file_size, di->w_add_time );
+							DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )lvi.lParam;
 
-							ti.lpszText = tooltip_buffer;
+							if ( di != NULL )
+							{
+								__snwprintf( tooltip_buffer, 512, L"Filename: %s\r\nDownloaded: %llu / %llu bytes\r\nAdded: %s", di->file_path + di->filename_offset, di->downloaded, di->file_size, di->w_add_time );
 
-							_SendMessageW( g_hWnd_tooltip, TTM_UPDATETIPTEXT, 0, ( LPARAM )&ti );
+								ti.lpszText = tooltip_buffer;
+							}
 						}
+
+						_SendMessageW( g_hWnd_tooltip, TTM_UPDATETIPTEXT, 0, ( LPARAM )&ti );
 					}
 				}
 				break;
