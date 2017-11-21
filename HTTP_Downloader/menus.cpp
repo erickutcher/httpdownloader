@@ -67,7 +67,7 @@ void UpdateMenus( bool enable )
 		if ( sel_count == 1 )
 		{
 			if ( di != NULL &&
-				!di->simulate_download )
+				!( di->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
 			{
 				_EnableMenuItem( g_hMenuSub_download, MENU_OPEN_FILE, MF_ENABLED );
 				_EnableMenuItem( g_hMenuSub_download, MENU_OPEN_DIRECTORY, MF_ENABLED );

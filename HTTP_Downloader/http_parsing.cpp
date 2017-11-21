@@ -622,63 +622,70 @@ bool ParseCookies( char *header, dllrbt_tree **cookie_tree, char **cookies, char
 	return true;
 }
 
-bool ParseURL_A( char *url, PROTOCOL &protocol, char **host, unsigned short &port, char **resource )
+bool ParseURL_A( char *url, PROTOCOL &protocol, char **host, unsigned int &host_length, unsigned short &port, char **resource, unsigned int &resource_length )
 {
 	if ( url == NULL )
 	{
 		return false;
 	}
 
+	char *str_pos_start = url;
+
 	// Find the start of the host. (Resource is an absolute URI)
-	char *str_pos_start = _StrStrA( url, "//" );
-	if ( str_pos_start != NULL )
+	// Don't include ":" in the search in case it's a stupid protocol relative URI.
+	char *str_pos_end = _StrStrA( str_pos_start, "//" );
+	if ( str_pos_end != NULL )
 	{
 		protocol = PROTOCOL_RELATIVE;
 
-		if ( _StrCmpNA( url, "http", 4 ) == 0 )
+		if ( ( str_pos_end - str_pos_start ) == 5 && _StrCmpNA( str_pos_start, "http:", 5 ) == 0 )
 		{
-			if ( url[ 4 ] == 's' && url[ 5 ] == ':' )
-			{
-				protocol = PROTOCOL_HTTPS;
-				port = 443;
-			}
-			else if ( url[ 4 ] == ':' )
-			{
-				protocol = PROTOCOL_HTTP;
-				port = 80;
-			}
+			protocol = PROTOCOL_HTTP;
+			port = 80;
+		}
+		else if ( ( str_pos_end - str_pos_start ) == 6 && _StrCmpNA( str_pos_start, "https:", 6 ) == 0 )
+		{
+			protocol = PROTOCOL_HTTPS;
+			port = 443;
 		}
 
-		str_pos_start += 2;
+		str_pos_start = str_pos_end + 2;
 
 		// Find the end of the host.
-		char *str_pos_end = _StrChrA( str_pos_start, '/' );
-		if ( str_pos_end == NULL )
+		str_pos_end = _StrChrA( str_pos_start, '/' );
+		if ( str_pos_end != NULL )
+		{
+			// Save the resource.
+			resource_length = lstrlenA( str_pos_end );
+
+			*resource = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( resource_length + 1 ) );
+			_memcpy_s( *resource, resource_length + 1, str_pos_end, resource_length );
+			*( *resource + resource_length ) = 0;	// Sanity.
+		}
+		else
 		{
 			// See if there's a query string (this would technically not be valid). Would look like: www.test.com?foo=bar
 			str_pos_end = _StrChrA( str_pos_start, '?' );
-			if ( str_pos_end == NULL )
+			if ( str_pos_end != NULL )
 			{
-				str_pos_end = str_pos_start + lstrlenA( str_pos_start );
+				resource_length = lstrlenA( str_pos_end ) + 1;	// Include the starting /.
+
+				*resource = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( resource_length + 1 ) );	
+				*( *resource ) = '/';
+				_memcpy_s( *resource + 1, resource_length, str_pos_end, resource_length );
+				*( *resource + resource_length ) = 0;	// Sanity.
+			}
+			else
+			{
+				str_pos_end = str_pos_start + lstrlenA( str_pos_start );	// New end of host.
+
+				resource_length = 1;
 
 				// Include the / as the resource.
 				*resource = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * 2 );
 				*( *resource ) = '/';
 				*( *resource + 1 ) = 0;	// Sanity.
 			}
-			else
-			{
-				int resource_length = lstrlenA( str_pos_end );
-				*resource = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( resource_length + 2 ) );	// Include the starting /.
-				*( *resource ) = '/';
-				_memcpy_s( *resource + 1, resource_length + 1, str_pos_end, resource_length );
-				*( *resource + ( resource_length + 1 ) ) = 0;	// Sanity.
-			}
-		}
-		else
-		{
-			// Save the resource.
-			*resource = GlobalStrDupA( str_pos_end );
 		}
 
 		// Find the beginning of a port (if it was included).
@@ -708,25 +715,28 @@ bool ParseURL_A( char *url, PROTOCOL &protocol, char **host, unsigned short &por
 			--str_port_start;
 		}
 
-		int host_length = str_pos_end - str_pos_start;
+		host_length = str_pos_end - str_pos_start;
 
 		// Save the host.
 		*host = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( host_length + 1 ) );
 		_memcpy_s( *host, host_length + 1, str_pos_start, host_length );
 		*( *host + host_length ) = 0;	// Sanity
 	}
-	else if ( url[ 0 ] == '/' )	// Resource is a relative URI that starts with a '/'
+	else if ( url[ 0 ] == '/' )	// Resource is a relative URI that starts with a L'/'
 	{
 		// Save the resource.
-		*resource = GlobalStrDupA( url );
+		resource_length = lstrlenA( url );
+
+		*resource = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( resource_length + 1 ) );
+		_memcpy_s( *resource, resource_length + 1, url, resource_length );
+		*( *resource + resource_length ) = 0;	// Sanity.
 	}
-	else	// Resource is a relative URI that does not start with a '/'
+	else	// Resource is a relative URI that does not start with a L'/'
 	{
-		int resource_length = lstrlenA( url ) + 1;	// Include the NULL terminator.
+		resource_length = lstrlenA( url ) + 1;	// Include the L'/'
 
-		*resource = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( resource_length + 1 ) );	// Include the '/'
+		*resource = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( resource_length + 1 ) );
 		*resource[ 0 ] = '/';
-
 		_memcpy_s( *resource + 1, resource_length, url, resource_length );
 		*( *resource + resource_length ) = 0;	// Sanity.
 	}
@@ -734,63 +744,70 @@ bool ParseURL_A( char *url, PROTOCOL &protocol, char **host, unsigned short &por
 	return true;
 }
 
-bool ParseURL_W( wchar_t *url, PROTOCOL &protocol, wchar_t **host, unsigned short &port, wchar_t **resource )
+bool ParseURL_W( wchar_t *url, PROTOCOL &protocol, wchar_t **host, unsigned int &host_length, unsigned short &port, wchar_t **resource, unsigned int &resource_length )
 {
 	if ( url == NULL )
 	{
 		return false;
 	}
 
+	wchar_t *str_pos_start = url;
+
 	// Find the start of the host. (Resource is an absolute URI)
-	wchar_t *str_pos_start = _StrStrW( url, L"//" );
-	if ( str_pos_start != NULL )
+	// Don't include ":" in the search in case it's a stupid protocol relative URI.
+	wchar_t *str_pos_end = _StrStrW( str_pos_start, L"//" );
+	if ( str_pos_end != NULL )
 	{
 		protocol = PROTOCOL_RELATIVE;
 
-		if ( _StrCmpNW( url, L"http", 4 ) == 0 )
+		if ( ( str_pos_end - str_pos_start ) == 5 && _StrCmpNW( str_pos_start, L"http:", 5 ) == 0 )
 		{
-			if ( url[ 4 ] == L's' && url[ 5 ] == L':' )
-			{
-				protocol = PROTOCOL_HTTPS;
-				port = 443;
-			}
-			else if ( url[ 4 ] == L':' )
-			{
-				protocol = PROTOCOL_HTTP;
-				port = 80;
-			}
+			protocol = PROTOCOL_HTTP;
+			port = 80;
+		}
+		else if ( ( str_pos_end - str_pos_start ) == 6 && _StrCmpNW( str_pos_start, L"https:", 6 ) == 0 )
+		{
+			protocol = PROTOCOL_HTTPS;
+			port = 443;
 		}
 
-		str_pos_start += 2;
+		str_pos_start = str_pos_end + 2;
 
 		// Find the end of the host.
-		wchar_t *str_pos_end = _StrChrW( str_pos_start, L'/' );
-		if ( str_pos_end == NULL )
+		str_pos_end = _StrChrW( str_pos_start, L'/' );
+		if ( str_pos_end != NULL )
+		{
+			// Save the resource.
+			resource_length = lstrlenW( str_pos_end );
+
+			*resource = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( resource_length + 1 ) );
+			_wmemcpy_s( *resource, resource_length + 1, str_pos_end, resource_length );
+			*( *resource + resource_length ) = 0;	// Sanity.
+		}
+		else
 		{
 			// See if there's a query string (this would technically not be valid). Would look like: www.test.com?foo=bar
 			str_pos_end = _StrChrW( str_pos_start, L'?' );
-			if ( str_pos_end == NULL )
+			if ( str_pos_end != NULL )
 			{
-				str_pos_end = str_pos_start + lstrlenW( str_pos_start );
+				resource_length = lstrlenW( str_pos_end ) + 1;	// Include the starting /.
+
+				*resource = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( resource_length + 1 ) );	
+				*( *resource ) = L'/';
+				_wmemcpy_s( *resource + 1, resource_length, str_pos_end, resource_length );
+				*( *resource + resource_length ) = 0;	// Sanity.
+			}
+			else
+			{
+				str_pos_end = str_pos_start + lstrlenW( str_pos_start );	// New end of host.
+
+				resource_length = 1;
 
 				// Include the / as the resource.
 				*resource = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * 2 );
 				*( *resource ) = L'/';
 				*( *resource + 1 ) = 0;	// Sanity.
 			}
-			else
-			{
-				int resource_length = lstrlenW( str_pos_end );
-				*resource = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( resource_length + 2 ) );	// Include the starting /.
-				*( *resource ) = L'/';
-				_wmemcpy_s( *resource + 1, resource_length + 1, str_pos_end, resource_length );
-				*( *resource + ( resource_length + 1 ) ) = 0;	// Sanity.
-			}
-		}
-		else
-		{
-			// Save the resource.
-			*resource = GlobalStrDupW( str_pos_end );
 		}
 
 		// Find the beginning of a port (if it was included).
@@ -820,7 +837,7 @@ bool ParseURL_W( wchar_t *url, PROTOCOL &protocol, wchar_t **host, unsigned shor
 			--str_port_start;
 		}
 
-		int host_length = str_pos_end - str_pos_start;
+		host_length = str_pos_end - str_pos_start;
 
 		// Save the host.
 		*host = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( host_length + 1 ) );
@@ -830,15 +847,18 @@ bool ParseURL_W( wchar_t *url, PROTOCOL &protocol, wchar_t **host, unsigned shor
 	else if ( url[ 0 ] == L'/' )	// Resource is a relative URI that starts with a L'/'
 	{
 		// Save the resource.
-		*resource = GlobalStrDupW( url );
+		resource_length = lstrlenW( url );
+
+		*resource = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( resource_length + 1 ) );
+		_wmemcpy_s( *resource, resource_length + 1, url, resource_length );
+		*( *resource + resource_length ) = 0;	// Sanity.
 	}
 	else	// Resource is a relative URI that does not start with a L'/'
 	{
-		int resource_length = lstrlenW( url ) + 1;	// Include the NULL terminator.
+		resource_length = lstrlenW( url ) + 1;	// Include the L'/'
 
-		*resource = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( resource_length + 1 ) );	// Include the L'/'
+		*resource = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( resource_length + 1 ) );
 		*resource[ 0 ] = L'/';
-
 		_wmemcpy_s( *resource + 1, resource_length, url, resource_length );
 		*( *resource + resource_length ) = 0;	// Sanity.
 	}
@@ -956,6 +976,62 @@ unsigned short GetHTTPStatus( char *header )
 	}
 
 	return 0;
+}
+
+unsigned char GetHTTPMethod( char *header )
+{
+	unsigned char method_type = METHOD_NONE;
+
+	char *method_end = _StrChrA( header, ' ' );
+	if ( method_end != NULL )
+	{
+		*method_end = 0;	// Temporary end.
+
+		if ( ( method_end - header ) == 3 && _StrCmpNIA( header, "GET", 3 ) == 0 )
+		{
+			method_type = METHOD_GET;
+		}
+		else if ( ( method_end - header ) == 4 && _StrCmpNIA( header, "POST", 4 ) == 0 )
+		{
+			method_type = METHOD_POST;
+		}
+		else if ( ( method_end - header ) == 7 && _StrCmpNIA( header, "CONNECT", 7 ) == 0 )
+		{
+			method_type = METHOD_CONNECT;
+		}
+		else if ( ( method_end - header ) == 4 && _StrCmpNIA( header, "HEAD", 4 ) == 0 )
+		{
+			method_type = METHOD_HEAD;
+		}
+		else if ( ( method_end - header ) == 3 && _StrCmpNIA( header, "PUT", 3 ) == 0 )
+		{
+			method_type = METHOD_PUT;
+		}
+		else if ( ( method_end - header ) == 6 && _StrCmpNIA( header, "DELETE", 6 ) == 0 )
+		{
+			method_type = METHOD_DELETE;
+		}
+		else if ( ( method_end - header ) == 7 && _StrCmpNIA( header, "OPTIONS", 7 ) == 0 )
+		{
+			method_type = METHOD_OPTIONS;
+		}
+		else if ( ( method_end - header ) == 5 && _StrCmpNIA( header, "TRACE", 5 ) == 0 )
+		{
+			method_type = METHOD_TRACE;
+		}
+		else if ( ( method_end - header ) == 5 && _StrCmpNIA( header, "PATCH", 5 ) == 0 )
+		{
+			method_type = METHOD_PATCH;
+		}
+		else
+		{
+			method_type = METHOD_UNHANDLED;
+		}
+
+		*method_end = ' ';	// Restore.
+	}
+
+	return method_type;
 }
 
 bool GetTransferEncoding( char *header )
@@ -1126,7 +1202,39 @@ void GetLocation( char *header, URL_LOCATION *url_location )
 		char tmp_end = *location_header_end;
 		*location_header_end = 0;	// Sanity
 
-		ParseURL_A( location_header, url_location->protocol, &url_location->host, url_location->port, &url_location->resource );
+		unsigned int host_length = 0;
+		unsigned int resource_length = 0;
+
+		ParseURL_A( location_header, url_location->protocol, &url_location->host, host_length, url_location->port, &url_location->resource, resource_length );
+
+		char *a_resource = url_location->resource;
+		unsigned int a_resource_length = 0;
+
+		while ( *a_resource != NULL )
+		{
+			if ( *a_resource == '#' )
+			{
+				*a_resource = 0;
+				resource_length = a_resource - url_location->resource;
+
+				break;
+			}
+
+			++a_resource;
+		}
+
+		/*a_resource = url_encode_a( url_location->resource, resource_length, &a_resource_length );
+
+		// Did we encode anything?
+		if ( resource_length != a_resource_length )
+		{
+			GlobalFree( url_location->resource );
+			url_location->resource = a_resource;
+		}
+		else
+		{
+			GlobalFree( a_resource );
+		}*/
 
 		*location_header_end = tmp_end;	// Restore.
 	}
@@ -1189,6 +1297,307 @@ unsigned char GetContentEncoding( char *header )
 	return CONTENT_ENCODING_NONE;
 }
 
+void GetAuthorization( char *header, AUTH_INFO *auth_info )
+{
+	char *authorization_header = NULL;
+	char *authorization_header_end = NULL;
+
+	if ( GetHeaderValue( header, "Authorization", 13, &authorization_header, &authorization_header_end ) != NULL )
+	{
+		if ( _StrStrIA( authorization_header, "Basic " ) != NULL )	// The protocol doesn't specify whether "Basic" is case-sensitive or not. Note that the protocol requires a single space (SP) after "Basic".
+		{
+			authorization_header += 6;
+
+			auth_info->auth_type = AUTH_TYPE_BASIC;
+
+			int basic_value_length = authorization_header_end - authorization_header;
+
+			// We'll just use the digest's nonce value to store the key. No need to introduce any extra memory.
+			auth_info->nonce = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( basic_value_length + 1 ) );
+			_memcpy_s( auth_info->nonce, basic_value_length + 1, authorization_header, basic_value_length );
+			auth_info->nonce[ basic_value_length ] = 0;	// Sanity
+		}
+		else if ( _StrStrIA( authorization_header, "Digest " ) != NULL )	// The protocol doesn't specify whether "Digest" is case-sensitive or not. Note that the protocol requires a single space (SP) after "Digest".
+		{
+			char tmp_end = *authorization_header_end;
+			*authorization_header_end = 0;	// Sanity
+
+			authorization_header += 7;
+
+			char *digest_value = NULL;
+			char *digest_value_end = NULL;
+
+			if ( GetDigestValue( authorization_header, "username", 8, &digest_value, &digest_value_end ) != NULL )
+			{
+				char delimiter = digest_value[ 0 ];
+				if ( delimiter == '\"' || delimiter == '\'' )
+				{
+					++digest_value;
+
+					if ( *( digest_value_end - 1 ) == delimiter )
+					{
+						--digest_value_end;
+					}
+				}
+
+				int digest_value_length = digest_value_end - digest_value;
+
+				auth_info->username = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( digest_value_length + 1 ) );
+				_memcpy_s( auth_info->username, digest_value_length + 1, digest_value, digest_value_length );
+				auth_info->username[ digest_value_length ] = 0;	// Sanity
+			}
+
+			if ( GetDigestValue( authorization_header, "realm", 5, &digest_value, &digest_value_end ) != NULL )
+			{
+				char delimiter = digest_value[ 0 ];
+				if ( delimiter == '\"' || delimiter == '\'' )
+				{
+					++digest_value;
+
+					if ( *( digest_value_end - 1 ) == delimiter )
+					{
+						--digest_value_end;
+					}
+				}
+
+				int digest_value_length = digest_value_end - digest_value;
+
+				auth_info->realm = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( digest_value_length + 1 ) );
+				_memcpy_s( auth_info->realm, digest_value_length + 1, digest_value, digest_value_length );
+				auth_info->realm[ digest_value_length ] = 0;	// Sanity
+			}
+
+			if ( GetDigestValue( authorization_header, "nonce", 5, &digest_value, &digest_value_end ) != NULL )
+			{
+				char delimiter = digest_value[ 0 ];
+				if ( delimiter == '\"' || delimiter == '\'' )
+				{
+					++digest_value;
+
+					if ( *( digest_value_end - 1 ) == delimiter )
+					{
+						--digest_value_end;
+					}
+				}
+
+				int digest_value_length = digest_value_end - digest_value;
+
+				auth_info->nonce = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( digest_value_length + 1 ) );
+				_memcpy_s( auth_info->nonce, digest_value_length + 1, digest_value, digest_value_length );
+				auth_info->nonce[ digest_value_length ] = 0;	// Sanity
+			}
+
+			if ( GetDigestValue( authorization_header, "uri", 3, &digest_value, &digest_value_end ) != NULL )
+			{
+				char delimiter = digest_value[ 0 ];
+				if ( delimiter == '\"' || delimiter == '\'' )
+				{
+					++digest_value;
+
+					if ( *( digest_value_end - 1 ) == delimiter )
+					{
+						--digest_value_end;
+					}
+				}
+
+				int digest_value_length = digest_value_end - digest_value;
+
+				auth_info->uri = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( digest_value_length + 1 ) );
+				_memcpy_s( auth_info->uri, digest_value_length + 1, digest_value, digest_value_length );
+				auth_info->uri[ digest_value_length ] = 0;	// Sanity
+			}
+
+			if ( GetDigestValue( authorization_header, "algorithm", 9, &digest_value, &digest_value_end ) != NULL )
+			{
+				char delimiter = digest_value[ 0 ];
+				if ( delimiter == '\"' || delimiter == '\'' )
+				{
+					++digest_value;
+
+					if ( *( digest_value_end - 1 ) == delimiter )
+					{
+						--digest_value_end;
+					}
+				}
+
+				if ( ( digest_value_end - digest_value ) == 8 && _StrCmpNIA( digest_value, "MD5-sess", 8 ) == 0 )
+				{
+					auth_info->algorithm = 2;
+				}
+				else if ( ( digest_value_end - digest_value ) == 3 && _StrCmpNIA( digest_value, "MD5", 3 ) == 0 )
+				{
+					auth_info->algorithm = 1;
+				}
+				else
+				{
+					auth_info->algorithm = 3;	// Unhandled.
+				}
+			}
+
+			if ( GetDigestValue( authorization_header, "response", 8, &digest_value, &digest_value_end ) != NULL )
+			{
+				char delimiter = digest_value[ 0 ];
+				if ( delimiter == '\"' || delimiter == '\'' )
+				{
+					++digest_value;
+
+					if ( *( digest_value_end - 1 ) == delimiter )
+					{
+						--digest_value_end;
+					}
+				}
+
+				int digest_value_length = digest_value_end - digest_value;
+
+				auth_info->response = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( digest_value_length + 1 ) );
+				_memcpy_s( auth_info->response, digest_value_length + 1, digest_value, digest_value_length );
+				auth_info->response[ digest_value_length ] = 0;	// Sanity
+			}
+
+			/*if ( GetDigestValue( authorization_header, "domain", 6, &digest_value, &digest_value_end ) != NULL )
+			{
+				char delimiter = digest_value[ 0 ];
+				if ( delimiter == '\"' || delimiter == '\'' )
+				{
+					++digest_value;
+
+					if ( *( digest_value_end - 1 ) == delimiter )
+					{
+						--digest_value_end;
+					}
+				}
+
+				int digest_value_length = digest_value_end - digest_value;
+
+				auth_info->domain = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( digest_value_length + 1 ) );
+				_memcpy_s( auth_info->domain, digest_value_length + 1, digest_value, digest_value_length );
+				auth_info->domain[ digest_value_length ] = 0;	// Sanity
+			}*/
+
+			if ( GetDigestValue( authorization_header, "opaque", 6, &digest_value, &digest_value_end ) != NULL )
+			{
+				char delimiter = digest_value[ 0 ];
+				if ( delimiter == '\"' || delimiter == '\'' )
+				{
+					++digest_value;
+
+					if ( *( digest_value_end - 1 ) == delimiter )
+					{
+						--digest_value_end;
+					}
+				}
+
+				int digest_value_length = digest_value_end - digest_value;
+
+				auth_info->opaque = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( digest_value_length + 1 ) );
+				_memcpy_s( auth_info->opaque, digest_value_length + 1, digest_value, digest_value_length );
+				auth_info->opaque[ digest_value_length ] = 0;	// Sanity
+			}
+
+			if ( GetDigestValue( authorization_header, "qop", 3, &digest_value, &digest_value_end ) != NULL )
+			{
+				char delimiter = digest_value[ 0 ];
+				if ( delimiter == '\"' || delimiter == '\'' )
+				{
+					++digest_value;
+
+					if ( *( digest_value_end - 1 ) == delimiter )
+					{
+						--digest_value_end;
+					}
+				}
+
+				int digest_value_length = digest_value_end - digest_value;
+
+				auth_info->qop = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( digest_value_length + 1 ) );
+				_memcpy_s( auth_info->qop, digest_value_length + 1, digest_value, digest_value_length );
+				auth_info->qop[ digest_value_length ] = 0;	// Sanity
+
+				char tmp_end = *digest_value_end;
+				*digest_value_end = 0;	// Sanity
+
+				// We need to search for this because there might be additional values for the field.
+				char *qop_type_search = _StrStrIA( digest_value, "auth-int" );
+				if ( qop_type_search != NULL )
+				{
+					qop_type_search[ 0 ] = '-';	// Set the string so we don't get a partial search match below.
+					auth_info->qop_type = 2;
+				}
+
+				// If auth is specified, then we'll use that instead.
+				do
+				{
+					qop_type_search = _StrStrIA( digest_value, "auth" );
+					if ( qop_type_search != NULL )
+					{
+						if ( qop_type_search[ 4 ] == NULL ||
+							 qop_type_search[ 4 ] == ' '  ||
+							 qop_type_search[ 4 ] == '\t' ||
+							 qop_type_search[ 4 ] == '\f' ||
+							 qop_type_search[ 4 ] == ',' )
+						{
+							auth_info->qop_type = 1;
+							break;
+						}
+						else
+						{
+							qop_type_search[ 0 ] = '-';	// Set the string so we don't get a partial search match below.
+						}
+					}
+				}
+				while ( qop_type_search != NULL );
+
+				*digest_value_end = tmp_end;	// Restore.
+			}
+
+			if ( GetDigestValue( authorization_header, "nc", 2, &digest_value, &digest_value_end ) != NULL )
+			{
+				char delimiter = digest_value[ 0 ];
+				if ( delimiter == '\"' || delimiter == '\'' )
+				{
+					++digest_value;
+
+					if ( *( digest_value_end - 1 ) == delimiter )
+					{
+						--digest_value_end;
+					}
+				}
+
+				char cnc[ 21 ];
+				_memzero( cnc, 21 );
+				_memcpy_s( cnc, 21, digest_value, ( ( digest_value_end - digest_value ) > 20 ? 20 : ( digest_value_end - digest_value ) ) );
+				cnc[ 20 ] = 0;	// Sanity
+
+				auth_info->nc = ( unsigned int )strtoull( cnc, true );
+			}
+
+			if ( GetDigestValue( authorization_header, "cnonce", 6, &digest_value, &digest_value_end ) != NULL )
+			{
+				char delimiter = digest_value[ 0 ];
+				if ( delimiter == '\"' || delimiter == '\'' )
+				{
+					++digest_value;
+
+					if ( *( digest_value_end - 1 ) == delimiter )
+					{
+						--digest_value_end;
+					}
+				}
+
+				int digest_value_length = digest_value_end - digest_value;
+
+				auth_info->cnonce = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( digest_value_length + 1 ) );
+				_memcpy_s( auth_info->cnonce, digest_value_length + 1, digest_value, digest_value_length );
+				auth_info->cnonce[ digest_value_length ] = 0;	// Sanity
+			}
+
+			*authorization_header_end = tmp_end;	// Restore.
+
+			auth_info->auth_type = AUTH_TYPE_DIGEST;
+		}
+	}
+}
+
 void GetAuthenticate( char *header, unsigned char auth_header_type, AUTH_INFO *auth_info )
 {
 	char *authenticate_header = NULL;
@@ -1207,11 +1616,11 @@ void GetAuthenticate( char *header, unsigned char auth_header_type, AUTH_INFO *a
 
 	if ( authentication_field != NULL )
 	{
-		if (  _StrStrIA( authenticate_header, "Basic " ) != NULL )	// The protocol doesn't specify whether "Basic" is case-sensitive or not. Note that the protocol requires a single space (SP) after "Basic".
+		if ( _StrStrIA( authenticate_header, "Basic " ) != NULL )	// The protocol doesn't specify whether "Basic" is case-sensitive or not. Note that the protocol requires a single space (SP) after "Basic".
 		{
 			auth_info->auth_type = AUTH_TYPE_BASIC;
 		}
-		else if (  _StrStrIA( authenticate_header, "Digest " ) != NULL )	// The protocol doesn't specify whether "Digest" is case-sensitive or not. Note that the protocol requires a single space (SP) after "Digest".
+		else if ( _StrStrIA( authenticate_header, "Digest " ) != NULL )	// The protocol doesn't specify whether "Digest" is case-sensitive or not. Note that the protocol requires a single space (SP) after "Digest".
 		{
 			char tmp_end = *authenticate_header_end;
 			*authenticate_header_end = 0;	// Sanity
@@ -1406,7 +1815,24 @@ char *GetContentDisposition( char *header, unsigned int &filename_length )
 		content_disposition_header = _StrStrIA( content_disposition_header, "filename" );
 		if ( content_disposition_header != NULL )
 		{
-			content_disposition_header = _StrChrA( content_disposition_header + 8, '=' );
+			content_disposition_header = content_disposition_header + 8;
+
+			// Filename was encoded.
+			if ( *content_disposition_header = '*' )
+			{
+				// Language opening.
+				content_disposition_header = _StrChrA( content_disposition_header + 1, '\'' );
+				if ( content_disposition_header != NULL )
+				{
+					// Language closing.
+					content_disposition_header = _StrChrA( content_disposition_header + 1, '\'' );
+				}
+			}
+			else
+			{
+				content_disposition_header = _StrChrA( content_disposition_header, '=' );
+			}
+
 			if ( content_disposition_header != NULL )
 			{
 				++content_disposition_header;
@@ -1486,7 +1912,7 @@ char *GetETag( char *header )
 //
 //
 //
-int ParseHTTPHeader( SOCKET_CONTEXT *context, char *response_buffer, unsigned int response_buffer_length/*, bool from_beginning*/ )
+int ParseHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int header_buffer_length, bool request )
 {
 	if ( context == NULL )
 	{
@@ -1502,7 +1928,7 @@ int ParseHTTPHeader( SOCKET_CONTEXT *context, char *response_buffer, unsigned in
 	unsigned long long content_length = 0;
 
 	// Try to find the end of the last valid field.
-	char *next_field = _StrStrA( response_buffer, "\r\n" );
+	char *next_field = _StrStrA( header_buffer, "\r\n" );
 	if ( next_field != NULL )
 	{
 		do
@@ -1511,7 +1937,7 @@ int ParseHTTPHeader( SOCKET_CONTEXT *context, char *response_buffer, unsigned in
 
 			last_field = next_field;
 
-			if ( ( unsigned int )( ( next_field + 2 ) - response_buffer ) <= response_buffer_length )
+			if ( ( unsigned int )( ( next_field + 2 ) - header_buffer ) <= header_buffer_length )
 			{
 				// See if we can find the header terminator after the field terminator.
 				if ( next_field[ 0 ] == '\r' && next_field[ 1 ] == '\n' )
@@ -1538,33 +1964,77 @@ int ParseHTTPHeader( SOCKET_CONTEXT *context, char *response_buffer, unsigned in
 			end_of_header = last_field;
 
 			// We'll end up moving the remaining bytes (after this offset) to the beginning of the buffer.
-			buffer_offset = ( last_field - response_buffer );
+			buffer_offset = ( last_field - header_buffer );
 
-			tmp_terminator = response_buffer[ buffer_offset ];
-			response_buffer[ buffer_offset ] = 0;	// Sanity.
+			// The only remaining field is the terminating "\r\n".
+			if ( buffer_offset == 2 && header_buffer[ 0 ] == '\r' && header_buffer[ 1 ] == '\n' )
+			{
+				buffer_offset = 0;
+			}
+			else
+			{
+				tmp_terminator = header_buffer[ buffer_offset ];
+				header_buffer[ buffer_offset ] = 0;	// Sanity.
+			}
 		}
 	}
 	else
 	{
-		return CONTENT_STATUS_FAILED;	// Buffer is too small to work with.
+		context->wsabuf.buf += header_buffer_length;
+		context->wsabuf.len -= header_buffer_length;
+
+		if ( context->wsabuf.len > 0 )
+		{
+			return CONTENT_STATUS_READ_MORE_HEADER;	// Need more header data.
+		}
+		else
+		{
+			return CONTENT_STATUS_FAILED;	// Buffer is too small to work with.
+		}
 	}
 
 	if ( end_of_header != NULL )
 	{
-		if ( context->header_info.http_status == 0 )
+		if ( !request )
 		{
-			context->header_info.http_status = GetHTTPStatus( response_buffer );
-
 			if ( context->header_info.http_status == 0 )
 			{
-				return CONTENT_STATUS_FAILED;
+				context->header_info.http_status = GetHTTPStatus( header_buffer );
+
+				if ( context->header_info.http_status == 0 )
+				{
+					return CONTENT_STATUS_FAILED;
+				}
+			}
+		}
+		else
+		{
+			if ( context->header_info.http_method == METHOD_NONE )
+			{
+				context->header_info.http_method = GetHTTPMethod( header_buffer );
+
+				if ( context->header_info.http_method == METHOD_NONE )
+				{
+					return CONTENT_STATUS_FAILED;
+				}
+			}
+
+			if ( context->header_info.digest_info == NULL )
+			{
+				context->header_info.digest_info = ( AUTH_INFO * )GlobalAlloc( GPTR, sizeof( AUTH_INFO ) );
+			}
+
+			if ( context->header_info.digest_info != NULL &&
+				 context->header_info.digest_info->auth_type == AUTH_TYPE_NONE )
+			{
+				GetAuthorization( header_buffer, context->header_info.digest_info );
 			}
 		}
 
 		char *new_cookies = NULL;
 
 		// This value will be saved
-		if ( !ParseCookies( response_buffer, &context->header_info.cookie_tree, &new_cookies, end_of_header ) )
+		if ( !ParseCookies( header_buffer, &context->header_info.cookie_tree, &new_cookies, end_of_header ) )
 		{
 			GlobalFree( new_cookies );
 			new_cookies = NULL;
@@ -1588,14 +2058,14 @@ int ParseHTTPHeader( SOCKET_CONTEXT *context, char *response_buffer, unsigned in
 
 		if ( !context->header_info.chunked_transfer )
 		{
-			context->header_info.chunked_transfer = GetTransferEncoding( response_buffer );
+			context->header_info.chunked_transfer = GetTransferEncoding( header_buffer );
 		}
 
 		if ( context->header_info.range_info->content_length == 0 )
 		{
-			content_length = GetContentLength( response_buffer );
+			content_length = GetContentLength( header_buffer );
 
-			GetContentRange( response_buffer, context->header_info.range_info );
+			GetContentRange( header_buffer, context->header_info.range_info );
 
 			// Set the content_length and range content_length to the same value. (Use the greater of the two values.)
 			if ( content_length > context->header_info.range_info->content_length )
@@ -1606,7 +2076,7 @@ int ParseHTTPHeader( SOCKET_CONTEXT *context, char *response_buffer, unsigned in
 
 		if ( context->header_info.url_location.host == NULL )
 		{
-			GetLocation( response_buffer, &context->header_info.url_location );
+			GetLocation( header_buffer, &context->header_info.url_location );
 
 			// This is so stupid. Match the relative URI protocol/port with the request URI protocol/port.
 			if ( context->header_info.url_location.protocol == PROTOCOL_RELATIVE )
@@ -1623,7 +2093,7 @@ int ParseHTTPHeader( SOCKET_CONTEXT *context, char *response_buffer, unsigned in
 
 		if ( context->header_info.connection == CONNECTION_NONE )
 		{
-			context->header_info.connection = GetConnection( response_buffer );
+			context->header_info.connection = GetConnection( header_buffer );
 
 			// If the Connection header field does not exist, then by default, it'll be keep-alive.
 			if ( context->header_info.connection == CONNECTION_NONE )
@@ -1634,7 +2104,7 @@ int ParseHTTPHeader( SOCKET_CONTEXT *context, char *response_buffer, unsigned in
 
 		if ( context->header_info.content_encoding == CONTENT_ENCODING_NONE )
 		{
-			context->header_info.content_encoding = GetContentEncoding( response_buffer );
+			context->header_info.content_encoding = GetContentEncoding( header_buffer );
 		}
 
 		if ( context->header_info.http_status == 401 )
@@ -1642,8 +2112,12 @@ int ParseHTTPHeader( SOCKET_CONTEXT *context, char *response_buffer, unsigned in
 			if ( context->header_info.digest_info == NULL )
 			{
 				context->header_info.digest_info = ( AUTH_INFO * )GlobalAlloc( GPTR, sizeof( AUTH_INFO ) );
+			}
 
-				GetAuthenticate( response_buffer, 1, context->header_info.digest_info );
+			if ( context->header_info.digest_info != NULL &&
+				 context->header_info.digest_info->auth_type == AUTH_TYPE_NONE )
+			{
+				GetAuthenticate( header_buffer, 1, context->header_info.digest_info );
 			}
 		}
 
@@ -1655,8 +2129,12 @@ int ParseHTTPHeader( SOCKET_CONTEXT *context, char *response_buffer, unsigned in
 				if ( context->header_info.proxy_digest_info == NULL )
 				{
 					context->header_info.proxy_digest_info = ( AUTH_INFO * )GlobalAlloc( GPTR, sizeof( AUTH_INFO ) );
-				
-					GetAuthenticate( response_buffer, 2, context->header_info.proxy_digest_info );
+				}
+
+				if ( context->header_info.proxy_digest_info != NULL &&
+					 context->header_info.proxy_digest_info->auth_type == AUTH_TYPE_NONE )
+				{
+					GetAuthenticate( header_buffer, 2, context->header_info.proxy_digest_info );
 				}
 			}
 		}
@@ -1665,7 +2143,7 @@ int ParseHTTPHeader( SOCKET_CONTEXT *context, char *response_buffer, unsigned in
 		{
 			unsigned int filename_length = 0;
 
-			char *filename = GetContentDisposition( response_buffer, filename_length );
+			char *filename = GetContentDisposition( header_buffer, filename_length );
 			if ( filename != NULL )
 			{
 				// Remove directory paths.
@@ -1701,7 +2179,7 @@ int ParseHTTPHeader( SOCKET_CONTEXT *context, char *response_buffer, unsigned in
 					}
 
 					// Make sure any existing file hasn't started downloading.
-					if ( !context->download_info->simulate_download &&
+					if ( !( context->download_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) &&
 						  GetFileAttributes( file_path ) != INVALID_FILE_ATTRIBUTES &&
 						  context->download_info->downloaded == 0 )
 					{
@@ -1734,7 +2212,7 @@ int ParseHTTPHeader( SOCKET_CONTEXT *context, char *response_buffer, unsigned in
 
 		/*if ( !context->header_info.etag )
 		{
-			char *etag = GetETag( response_buffer );
+			char *etag = GetETag( header_buffer );
 			if ( etag != NULL )
 			{
 				if ( context->download_info != NULL )
@@ -1763,13 +2241,11 @@ int ParseHTTPHeader( SOCKET_CONTEXT *context, char *response_buffer, unsigned in
 	// If we have an incomplete header, then store the last header field fragment and request more data.
 	if ( buffer_offset > 0 )
 	{
-		response_buffer[ buffer_offset ] = tmp_terminator;	// Restore.
+		header_buffer[ buffer_offset ] = tmp_terminator;	// Restore.
 
 		// Move the fragment at the end of the buffer to the beginning.
-		int fragment_length = response_buffer_length - buffer_offset;
+		int fragment_length = header_buffer_length - buffer_offset;
 		_memmove( context->buffer, context->buffer + buffer_offset, fragment_length );
-
-		buffer_offset = fragment_length;	// The new offset.
 
 		context->wsabuf.buf += fragment_length;
 		context->wsabuf.len -= fragment_length;
@@ -1784,14 +2260,14 @@ int ParseHTTPHeader( SOCKET_CONTEXT *context, char *response_buffer, unsigned in
 	return CONTENT_STATUS_GET_CONTENT;
 }
 
-int GetHTTPHeader( SOCKET_CONTEXT *context, char *response_buffer, unsigned int response_buffer_length )
+int GetHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int header_buffer_length )
 {
 	if ( context == NULL )
 	{
 		return CONTENT_STATUS_FAILED;
 	}
 
-	int content_status = ParseHTTPHeader( context, response_buffer, response_buffer_length );
+	int content_status = ParseHTTPHeader( context, header_buffer, header_buffer_length );
 
 	if ( content_status == CONTENT_STATUS_READ_MORE_HEADER )		// Request more header data.
 	{
@@ -1839,22 +2315,22 @@ int GetHTTPHeader( SOCKET_CONTEXT *context, char *response_buffer, unsigned int 
 			{
 				bool use_keep_alive_connection = false;
 
-				// If we have a keep-alive connection and were sent all of the data,
+				// If we have a keep-alive connection and we've sent all of the data,
 				// then we can reuse the connection and not have to flush any remnant data from the buffer.
 				if ( context->header_info.connection == CONNECTION_KEEP_ALIVE )
 				{
-					response_buffer_length -= ( context->header_info.end_of_header - response_buffer );
-					response_buffer = context->header_info.end_of_header;
+					header_buffer_length -= ( context->header_info.end_of_header - header_buffer );
+					header_buffer = context->header_info.end_of_header;
 
 					// Look for a chunk terminator.
 					if ( context->header_info.chunked_transfer )
 					{
-						if ( ( response_buffer_length >= 5 ) && ( _memcmp( response_buffer + ( response_buffer_length - 5 ), "0\r\n\r\n", 5 ) != 0 ) )
+						if ( ( header_buffer_length >= 5 ) && ( _memcmp( header_buffer + ( header_buffer_length - 5 ), "0\r\n\r\n", 5 ) != 0 ) )
 						{
 							use_keep_alive_connection = true;
 						}
 					}
-					else if ( response_buffer_length >= context->header_info.range_info->content_length )	// See if the response data length is the same as the content length.
+					else if ( header_buffer_length >= context->header_info.range_info->content_length )	// See if the response data length is the same as the content length.
 					{
 						use_keep_alive_connection = true;
 					}
@@ -2033,11 +2509,13 @@ int HandleRedirect( SOCKET_CONTEXT *context )
 
 			//
 
+			redirect_context->range_node = context->range_node;
+
 			redirect_context->context_node.data = redirect_context;
 
 			EnterCriticalSection( &context_list_cs );
 
-			DLL_AddNode( &context_list, &redirect_context->context_node, 0 );
+			DLL_AddNode( &g_context_list, &redirect_context->context_node, 0 );
 
 			LeaveCriticalSection( &context_list_cs );
 
@@ -2180,7 +2658,7 @@ int MakeRangeRequest( SOCKET_CONTEXT *context )
 
 				EnterCriticalSection( &context_list_cs );
 				
-				DLL_AddNode( &context_list, &new_context->context_node, 0 );
+				DLL_AddNode( &g_context_list, &new_context->context_node, 0 );
 
 				LeaveCriticalSection( &context_list_cs );
 
@@ -2194,14 +2672,14 @@ int MakeRangeRequest( SOCKET_CONTEXT *context )
 					++( new_context->download_info->active_parts );
 
 					DoublyLinkedList *range_node = DLL_CreateNode( ( void * )ri );
-					DLL_AddNode( &new_context->download_info->range_info, range_node, -1 );
+					new_context->range_node = range_node;
+					DLL_AddNode( &new_context->download_info->range_list, new_context->range_node, -1 );
 
 					new_context->parts_node.data = new_context;
 					DLL_AddNode( &new_context->download_info->parts_list, &new_context->parts_node, -1 );
 
 					LeaveCriticalSection( &context->download_info->shared_cs );
 				}
-
 
 				new_context->status = STATUS_CONNECTING;
 
@@ -2344,11 +2822,13 @@ int MakeRequest( SOCKET_CONTEXT *context, IO_OPERATION next_operation, bool use_
 
 			//
 
+			new_context->range_node = context->range_node;
+
 			new_context->context_node.data = new_context;
 
 			EnterCriticalSection( &context_list_cs );
 
-			DLL_AddNode( &context_list, &new_context->context_node, 0 );
+			DLL_AddNode( &g_context_list, &new_context->context_node, 0 );
 
 			LeaveCriticalSection( &context_list_cs );
 
@@ -2369,7 +2849,6 @@ int MakeRequest( SOCKET_CONTEXT *context, IO_OPERATION next_operation, bool use_
 				context->download_info = NULL;
 			}
 
-
 			new_context->status = STATUS_CONNECTING;
 
 			if ( !CreateConnection( new_context, new_context->request_info.host, new_context->request_info.port ) )
@@ -2384,6 +2863,138 @@ int MakeRequest( SOCKET_CONTEXT *context, IO_OPERATION next_operation, bool use_
 			context->overlapped.current_operation = ( context->ssl != NULL ? IO_Shutdown : IO_Close );
 
 			PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped );
+		}
+
+		ret = CONTENT_STATUS_NONE;
+	}
+
+	return ret;
+}
+
+int MakeResponse( SOCKET_CONTEXT *context )
+{
+	int ret = CONTENT_STATUS_FAILED;
+
+	if ( context != NULL )
+	{
+		InterlockedIncrement( &context->pending_operations );
+
+		context->wsabuf.buf = context->buffer;
+
+		bool use_keep_alive = false;
+
+		if ( cfg_use_authentication && ( context->header_info.digest_info == NULL ||
+										 context->header_info.digest_info != NULL && context->header_info.digest_info->nc > 0 ) )
+		{
+			if ( context->header_info.connection == CONNECTION_KEEP_ALIVE )
+			{
+				context->content_status = CONTENT_STATUS_READ_MORE_HEADER;
+
+				use_keep_alive = true;
+			}
+
+			if ( cfg_authentication_type == AUTH_TYPE_DIGEST )
+			{
+				context->wsabuf.len = __snprintf( context->wsabuf.buf, BUFFER_SIZE,
+					"HTTP/1.1 401 Unauthorized\r\n" \
+					"Content-Type: text/html\r\n" \
+					"WWW-Authenticate: Digest " \
+									"realm=\"Authorization Required\", " \
+									"algorithm=MD5-sess, " \
+									"qop=\"auth\", " \
+									"nonce=\"%s\", " \
+									"opaque=\"%s\"\r\n" \
+					"Content-Length: 110\r\n" \
+					"Connection: %s\r\n\r\n" \
+					"<!DOCTYPE html><html><head><title>401 Unauthorized</title></head><body><h1>401 Unauthorized</h1></body></html>", g_nonce, g_opaque, ( use_keep_alive ? "keep-alive" : "close" ) );
+			}
+			else
+			{
+				context->wsabuf.len = __snprintf( context->wsabuf.buf, BUFFER_SIZE,
+					"HTTP/1.1 401 Unauthorized\r\n" \
+					"Content-Type: text/html\r\n" \
+					"WWW-Authenticate: Basic realm=\"Authorization Required\"\r\n" \
+					"Content-Length: 110\r\n" \
+					"Connection: %s\r\n\r\n" \
+					"<!DOCTYPE html><html><head><title>401 Unauthorized</title></head><body><h1>401 Unauthorized</h1></body></html>", ( use_keep_alive ? "keep-alive" : "close" ) );
+			}
+		}
+		else if ( context->header_info.http_method == METHOD_GET ||
+				  context->header_info.http_method == METHOD_HEAD ||
+				  context->header_info.http_method == METHOD_POST )
+		{
+			if ( context->header_info.http_status == 200 )
+			{
+				context->header_info.http_status = 0;	// Reset.
+
+				context->wsabuf.len = __snprintf( context->wsabuf.buf, BUFFER_SIZE,
+					"HTTP/1.1 200 OK\r\n" \
+					"Content-Type: text/plain\r\n" \
+					"Content-Length: 11\r\n" \
+					"Connection: close\r\n\r\n" \
+					"DOWNLOADING" );
+			}
+			else
+			{
+				context->wsabuf.len = __snprintf( context->wsabuf.buf, BUFFER_SIZE,
+					"HTTP/1.1 204 No Content\r\n" \
+					"Connection: close\r\n\r\n" );
+			}
+		}
+		else
+		{
+			context->wsabuf.len = __snprintf( context->wsabuf.buf, BUFFER_SIZE,
+				"HTTP/1.1 501 Not Implemented\r\n" \
+				"Content-Type: text/html\r\n" \
+				"Content-Length: 116\r\n" \
+				"Connection: close\r\n\r\n" \
+				"<!DOCTYPE html><html><head><title>501 Not Implemented</title></head><body><h1>501 Not Implemented</h1></body></html>" );
+		}
+
+		bool sent = false;
+		int nRet = 0;
+		DWORD dwFlags = 0;
+
+		if ( context->ssl != NULL )
+		{
+			if ( use_keep_alive )
+			{
+				context->overlapped.next_operation = IO_GetRequest;
+			}
+			else
+			{
+				context->overlapped.next_operation = IO_Shutdown;
+			}
+
+			SSL_WSASend( context, &context->overlapped, &context->wsabuf, sent );
+			if ( !sent )
+			{
+				context->overlapped.current_operation = IO_Shutdown;
+
+				PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped );
+			}
+		}
+		else
+		{
+			context->overlapped.current_operation = IO_Write;
+
+			if ( use_keep_alive )
+			{
+				context->overlapped.next_operation = IO_GetRequest;
+			}
+			else
+			{
+				context->overlapped.next_operation = IO_Close;
+			}
+
+			// We do a regular WSASend here since the connection was not encrypted.
+			nRet = _WSASend( context->socket, &context->wsabuf, 1, NULL, dwFlags, ( OVERLAPPED * )&context->overlapped, NULL );
+			if ( nRet == SOCKET_ERROR && ( _WSAGetLastError() != ERROR_IO_PENDING ) )
+			{
+				context->overlapped.current_operation = IO_Close;
+
+				PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped );
+			}
 		}
 
 		ret = CONTENT_STATUS_NONE;
@@ -2483,7 +3094,7 @@ int AllocateFile( SOCKET_CONTEXT *context )
 
 								InterlockedIncrement( &context->pending_operations );
 
-								context->overlapped.current_operation = IO_ResumeGetContent;//IO_AllocateFile;
+								context->overlapped.current_operation = IO_ResumeGetContent;
 
 								// Adjust the offset back 1.
 								if ( li.QuadPart > 0 )
@@ -2547,7 +3158,7 @@ int AllocateFile( SOCKET_CONTEXT *context )
 	return CONTENT_STATUS_NONE;
 }
 
-int GetHTTPContent( SOCKET_CONTEXT *context, char *response_buffer, unsigned int response_buffer_length )
+int GetHTTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, unsigned int response_buffer_length )
 {
 	if ( context == NULL )
 	{
@@ -2571,7 +3182,7 @@ int GetHTTPContent( SOCKET_CONTEXT *context, char *response_buffer, unsigned int
 		}
 
 		// Once we have the file size, allocate our file.
-		if ( context->download_info != NULL && !context->download_info->simulate_download )
+		if ( context->download_info != NULL && !( context->download_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
 		{
 			// Ignore the prompt of we selected Yes to all.
 			if ( g_rename_file_cmb_ret != CMBIDYESALL )
@@ -2580,8 +3191,8 @@ int GetHTTPContent( SOCKET_CONTEXT *context, char *response_buffer, unsigned int
 				{
 					context->got_filename = 1;
 
-					// If we select No to all, then close the connection.
-					if ( g_rename_file_cmb_ret == CMBIDNOALL )
+					// If we select No to all, or it's a remotely initiated download, then close the connection.
+					if ( g_rename_file_cmb_ret == CMBIDNOALL || context->download_info->download_operations & DOWNLOAD_OPERATION_OVERRIDE_PROMPTS )
 					{
 						context->status = STATUS_SKIPPED;
 
@@ -2637,8 +3248,8 @@ int GetHTTPContent( SOCKET_CONTEXT *context, char *response_buffer, unsigned int
 				{
 					context->show_file_size_prompt = false;	// Ensure it stays false.
 
-					// If we select No to all, then close the connection.
-					if ( g_file_size_cmb_ret == CMBIDNOALL )
+					// If we select No to all, or it's a remotely initiated download, then close the connection.
+					if ( g_file_size_cmb_ret == CMBIDNOALL || context->download_info->download_operations & DOWNLOAD_OPERATION_OVERRIDE_PROMPTS )
 					{
 						context->status = STATUS_SKIPPED;
 
@@ -2730,7 +3341,7 @@ int GetHTTPContent( SOCKET_CONTEXT *context, char *response_buffer, unsigned int
 	// Now we need to decode the buffer in case it was a chunked transfer. Boo!!!
 	if ( context->header_info.chunked_transfer )
 	{
-		if ( context->download_info != NULL && !context->download_info->simulate_download )
+		if ( context->download_info != NULL && !( context->download_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
 		{
 			if ( context->header_info.chunk_buffer == NULL )
 			{
@@ -2848,7 +3459,7 @@ int GetHTTPContent( SOCKET_CONTEXT *context, char *response_buffer, unsigned int
 
 				if ( context->download_info != NULL )
 				{
-					if ( !context->download_info->simulate_download )
+					if ( !( context->download_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
 					{
 						_memcpy_s( context->write_wsabuf.buf + context->write_wsabuf.len, BUFFER_SIZE - context->write_wsabuf.len, output_buffer, output_buffer_length );
 					}
@@ -2888,7 +3499,7 @@ int GetHTTPContent( SOCKET_CONTEXT *context, char *response_buffer, unsigned int
 
 				if ( context->download_info != NULL )
 				{
-					if ( !context->download_info->simulate_download )
+					if ( !( context->download_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
 					{
 						_memcpy_s( context->write_wsabuf.buf + context->write_wsabuf.len, BUFFER_SIZE - context->write_wsabuf.len, output_buffer, output_buffer_length );
 					}
@@ -2937,7 +3548,7 @@ int GetHTTPContent( SOCKET_CONTEXT *context, char *response_buffer, unsigned int
 		{
 			if ( context->download_info != NULL )
 			{
-				if ( !context->download_info->simulate_download )
+				if ( !( context->download_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
 				{
 					unsigned char file_status = 0;	// 0 = failed, 1 = allocate, 2 = already allocated
 
@@ -3057,7 +3668,7 @@ int GetHTTPContent( SOCKET_CONTEXT *context, char *response_buffer, unsigned int
 				}
 			}
 
-			if ( !context->download_info->simulate_download )
+			if ( !( context->download_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
 			{
 				if ( context->download_info->hFile != INVALID_HANDLE_VALUE )
 				{
@@ -3154,4 +3765,379 @@ int GetHTTPContent( SOCKET_CONTEXT *context, char *response_buffer, unsigned int
 	}
 
 	return CONTENT_STATUS_FAILED;	// Close the connection.
+}
+
+int GetPOSTValue( char *post_data, unsigned int post_data_length, unsigned int &post_data_offset, char **value, unsigned int &value_length )
+{
+	if ( post_data == NULL )
+	{
+		return CONTENT_STATUS_FAILED;
+	}
+
+	char *data_end = _StrChrA( post_data, '\x1f' );
+	if ( data_end != NULL )
+	{
+		int data_length = data_end - post_data;
+
+		if ( data_length > 0 )
+		{
+			if ( *value != NULL )
+			{
+				char *reallocated_value = ( char * )GlobalReAlloc( *value, sizeof( char ) * ( value_length + data_length + 1 ), GMEM_MOVEABLE );
+				if ( reallocated_value == NULL )
+				{
+					return CONTENT_STATUS_FAILED;
+				}
+
+				*value = reallocated_value;
+			}
+			else
+			{
+				*value = ( char * )GlobalAlloc( GMEM_FIXED, data_length + 1 );
+			}
+
+			_memcpy_s( *value + value_length, data_length + 1, post_data, data_length );
+			value_length += data_length;
+			*( *value + value_length ) = 0;	// Sanity.
+		}
+
+		post_data_offset = data_length + 1;
+
+		return CONTENT_STATUS_NONE;
+	}
+	else
+	{
+		if ( *value != NULL )
+		{
+			char *reallocated_value = ( char * )GlobalReAlloc( *value, sizeof( char ) * ( value_length + post_data_length + 1 ), GMEM_MOVEABLE );
+			if ( reallocated_value == NULL )
+			{
+				return CONTENT_STATUS_FAILED;
+			}
+
+			*value = reallocated_value;
+		}
+		else
+		{
+			*value = ( char * )GlobalAlloc( GMEM_FIXED, post_data_length + 1 );
+		}
+
+		_memcpy_s( *value + value_length, post_data_length + 1, post_data, post_data_length );
+		value_length += post_data_length;
+		*( *value + value_length ) = 0;	// Sanity.
+	}
+
+	return CONTENT_STATUS_READ_MORE_CONTENT;
+}
+
+int ParsePOSTData( SOCKET_CONTEXT *context, char *post_data, unsigned int post_data_length )
+{
+	if ( context == NULL || post_data == NULL )
+	{
+		return CONTENT_STATUS_FAILED;
+	}
+
+	int status = CONTENT_STATUS_NONE;
+
+	unsigned int value_length = 0;
+	unsigned int post_data_offset = 0;
+	unsigned int offset = 0;
+
+	if ( context->post_info == NULL )
+	{
+		context->post_info = ( POST_INFO * )GlobalAlloc( GPTR, sizeof( POST_INFO ) );
+	}
+
+	char **value_buf[ 7 ];
+	value_buf[ 0 ] = &context->post_info->urls;
+	value_buf[ 1 ] = &context->post_info->username;
+	value_buf[ 2 ] = &context->post_info->password;
+	value_buf[ 3 ] = &context->post_info->parts;
+	value_buf[ 4 ] = &context->post_info->simulate_download;
+	value_buf[ 5 ] = &context->post_info->cookies;
+	value_buf[ 6 ] = &context->post_info->headers;
+
+	for ( unsigned char i = 0; i < 7; ++i )
+	{
+		if ( *value_buf[ i ] == NULL )
+		{
+			value_length = ( unsigned int )context->header_info.chunk_length;
+
+			offset = 0;
+
+			// We'll use chunk_buffer to store any partial values.
+			status = GetPOSTValue( post_data + post_data_offset, post_data_length - post_data_offset, offset, &context->header_info.chunk_buffer, value_length );
+			if ( status != CONTENT_STATUS_NONE )
+			{
+				context->header_info.chunk_length = value_length;
+
+				return status;
+			}
+
+			if ( value_length > 0 )
+			{
+				*value_buf[ i ] = context->header_info.chunk_buffer;
+			}
+			else if ( context->header_info.chunk_buffer != NULL )
+			{
+				GlobalFree( context->header_info.chunk_buffer );
+			}
+
+			// Reset.
+			context->header_info.chunk_buffer = NULL;
+			context->header_info.chunk_length = value_length = 0;
+
+			post_data_offset += offset;
+		}
+	}
+
+	return status;
+}
+
+bool SanitizePOSTHeaders( char *post_headers, char **sanitized_headers )
+{
+	if ( post_headers != NULL && sanitized_headers != NULL )
+	{
+		unsigned int headers_length = lstrlenA( post_headers );
+
+		// Must be at least 2 characters long. "a:" is a valid header name and value.
+		if ( headers_length >= 2 )
+		{
+			char *headers_start = post_headers;
+
+			// Skip newlines that might appear before the field name.
+			while ( *headers_start == '\r' || *headers_start == '\n' )
+			{
+				--headers_length;
+				++headers_start;
+			}
+
+			// Make sure the header has a colon somewhere in it and not at the very beginning.
+			if ( headers_length >= 2 && *headers_start != L':' && _StrChrA( headers_start + 1, L':' ) != NULL )
+			{
+				bool add_newline = false;
+
+				// Make sure the header ends with a \r\n.
+				if ( headers_start[ headers_length - 2 ] != '\r' && headers_start[ headers_length - 1 ] != '\n' )
+				{
+					add_newline = true;
+				}
+
+				// If anything's changed, then create our new header buffer.
+				if ( headers_start != post_headers || add_newline )
+				{
+					*sanitized_headers = ( char * )GlobalAlloc( GMEM_FIXED, headers_length + 1 + ( add_newline ? 2 : 0 ) );
+					_memcpy_s( *sanitized_headers, headers_length + 1, headers_start, headers_length );
+					if ( add_newline )
+					{
+						*( *sanitized_headers + headers_length ) = '\r';
+						*( *sanitized_headers + headers_length + 1 ) = '\n';
+						*( *sanitized_headers + headers_length + 2 ) = 0;	// Sanity.
+					}
+					else
+					{
+						*( *sanitized_headers + headers_length ) = 0;	// Sanity.
+					}
+				}
+
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
+int GetHTTPRequestContent( SOCKET_CONTEXT *context, char *request_buffer, unsigned int request_buffer_length )
+{
+	if ( context == NULL )
+	{
+		return CONTENT_STATUS_FAILED;
+	}
+
+	if ( context->content_status != CONTENT_STATUS_GET_CONTENT )
+	{
+		int content_status = CONTENT_STATUS_GET_CONTENT;	// Assume we're now getting the content.
+
+		// If the return status is CONTENT_STATUS_GET_CONTENT, then our end_of_header pointer will have been set.
+		if ( context->content_status == CONTENT_STATUS_NONE || context->content_status == CONTENT_STATUS_READ_MORE_HEADER )
+		{
+			content_status = context->content_status = ParseHTTPHeader( context, request_buffer, request_buffer_length, true );
+		}
+
+		// For anything else, we'll need to return immediately.
+		if ( content_status != CONTENT_STATUS_GET_CONTENT )
+		{
+			return content_status;
+		}
+
+		if ( context->header_info.end_of_header != NULL )
+		{
+			if ( cfg_use_authentication )
+			{
+				bool valid_authentication = false;
+
+				if ( context->header_info.digest_info != NULL )
+				{
+					if ( cfg_authentication_type == AUTH_TYPE_BASIC && context->header_info.digest_info->auth_type == AUTH_TYPE_BASIC )
+					{
+						// We're using nonce to store the client's key.
+						if ( context->header_info.digest_info->nonce != NULL )
+						{
+							int authentication_length = lstrlenA( context->header_info.digest_info->nonce );
+
+							if ( authentication_length == g_encoded_authentication_length && _StrCmpNA( context->header_info.digest_info->nonce, g_encoded_authentication, g_encoded_authentication_length ) == 0 )
+							{
+								valid_authentication = true;
+							}
+						}
+					}
+					else if ( cfg_authentication_type == AUTH_TYPE_DIGEST && context->header_info.digest_info->auth_type == AUTH_TYPE_DIGEST )
+					{
+						if ( !VerifyDigestAuthorization( g_authentication_username, g_authentication_username_length, g_authentication_password, g_authentication_password_length, g_nonce, g_nonce_length, g_opaque, g_opaque_length, "GET", 3, context->header_info.digest_info ) )
+						{
+							// Reset our info so we can get new values from the client.
+							FreeAuthInfo( &context->header_info.digest_info );
+							context->header_info.digest_info = NULL;
+						}
+						else
+						{
+							valid_authentication = true;
+						}
+					}
+				}
+
+				if ( !valid_authentication )
+				{
+					if ( context->header_info.digest_info != NULL )
+					{
+						++context->header_info.digest_info->nc;	// We're using nc to determine success or failure. 0 = success, > 0 = failure.
+					}
+
+					return CONTENT_STATUS_HANDLE_REQUEST;
+				}
+				else
+				{
+					if ( context->header_info.digest_info != NULL )
+					{
+						context->header_info.digest_info->nc = 0;	// Authorization has succeeded.
+					}
+				}
+			}
+
+			if ( context->header_info.http_method == METHOD_POST )
+			{
+				// Offset our buffer to the content and adjust the new length.
+				request_buffer_length -= ( context->header_info.end_of_header - request_buffer );
+				request_buffer = context->header_info.end_of_header;
+
+				context->content_status = CONTENT_STATUS_GET_CONTENT;
+			}
+			else	// Send a response back.
+			{
+				return CONTENT_STATUS_HANDLE_REQUEST;
+			}
+		}
+		else
+		{
+			return CONTENT_STATUS_FAILED;
+		}
+	}
+
+	// We need a content length value.
+	if ( context->header_info.range_info->content_length > 0 && context->header_info.range_info->content_offset < context->header_info.range_info->content_length )
+	{
+		context->header_info.range_info->content_offset += request_buffer_length;
+
+		// Creates context->post_info and fills its data.
+		// Returns either CONTENT_STATUS_READ_MORE_CONTENT, CONTENT_STATUS_FAILED, or CONTENT_STATUS_NONE.
+		int content_status = ParsePOSTData( context, request_buffer, request_buffer_length );
+		if ( content_status != CONTENT_STATUS_NONE )
+		{
+			context->wsabuf.buf = context->buffer;
+			context->wsabuf.len = BUFFER_SIZE;
+
+			return content_status;
+		}
+
+		if ( context->post_info != NULL )
+		{
+			int urls_length = MultiByteToWideChar( CP_UTF8, 0, context->post_info->urls, -1, NULL, 0 );	// Include the NULL terminator.
+
+			// http://a.b + NULL
+			if ( urls_length >= 11 )
+			{
+				wchar_t *urls = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * urls_length );
+				MultiByteToWideChar( CP_UTF8, 0, context->post_info->urls, -1, urls, urls_length );
+
+				wchar_t *t_download_directory = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * MAX_PATH );
+				_wmemcpy_s( t_download_directory, MAX_PATH, cfg_default_download_directory, g_default_download_directory_length );
+				t_download_directory[ g_default_download_directory_length ] = 0;	// Sanity.
+
+				unsigned int parts = 0;
+				if ( context->post_info->parts != NULL )
+				{
+					parts = ( unsigned int )_strtoul( context->post_info->parts, NULL, 10 );
+				}
+
+				bool simulate_download = ( context->post_info->simulate_download != NULL && *context->post_info->simulate_download == '1' ? true : false );
+
+				char *headers = NULL;
+
+				// If the headers are valid.
+				if ( SanitizePOSTHeaders( context->post_info->headers, &headers ) )
+				{
+					// It may have been sanitize. Replace the old headers.
+					if ( headers != NULL )
+					{
+						GlobalFree( context->post_info->headers );
+						context->post_info->headers = headers;
+					}
+				}
+				else if ( context->post_info->headers != NULL )	// Bad headers.
+				{
+					GlobalFree( context->post_info->headers );
+					context->post_info->headers = NULL;
+				}
+
+				context->header_info.http_status = 200;	// Let our MakeResponse() know that we want to send an HTTP 200 back.
+
+				ADD_INFO *ai = ( ADD_INFO * )GlobalAlloc( GPTR, sizeof( ADD_INFO ) );
+				ai->download_operations |= DOWNLOAD_OPERATION_SIMULATE;
+				if ( parts == 0 )
+				{
+					ai->parts = cfg_default_download_parts;
+				}
+				else if ( parts > 100 )
+				{
+					ai->parts = 100;
+				}
+				else
+				{
+					ai->parts = ( unsigned char )parts;
+				}
+				ai->auth_info.username = context->post_info->username;
+				ai->auth_info.password = context->post_info->password;
+				ai->ssl_version = cfg_default_ssl_version;
+				ai->utf8_cookies = context->post_info->cookies;
+				ai->utf8_headers = context->post_info->headers;
+				ai->download_operations = DOWNLOAD_OPERATION_OVERRIDE_PROMPTS | ( simulate_download ? DOWNLOAD_OPERATION_SIMULATE : DOWNLOAD_OPERATION_NONE );
+				ai->urls = urls;
+				ai->download_directory = t_download_directory;
+
+				// These aren't needed.
+				context->post_info->username = NULL;
+				context->post_info->password = NULL;
+				context->post_info->cookies = NULL;
+				context->post_info->headers = NULL;
+
+				// ai is freed in AddURL.
+				CloseHandle( _CreateThread( NULL, 0, AddURL, ( void * )ai, 0, NULL ) );
+			}
+
+			FreePOSTInfo( &context->post_info );
+		}
+	}
+
+	return CONTENT_STATUS_HANDLE_REQUEST;	// Send a response back.
 }

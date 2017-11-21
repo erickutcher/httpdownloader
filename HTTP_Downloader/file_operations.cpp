@@ -39,8 +39,11 @@ char read_config()
 		DWORD read = 0, pos = 0;
 		DWORD fz = GetFileSize( hFile_cfg, NULL );
 
+		int reserved = 1024 - 142;
+
 		// Our config file is going to be small. If it's something else, we're not going to read it.
-		if ( fz >= 129 && fz < 1024 )
+		// Add 21 for the strings.
+		if ( fz >= ( 142 + 21 ) && fz < 10240 )
 		{
 			char *cfg_buf = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * fz + 1 );
 
@@ -170,6 +173,37 @@ char read_config()
 				_memcpy_s( &cfg_default_ssl_version, sizeof( unsigned char ), next, sizeof( unsigned char ) );
 				next += sizeof( unsigned char );
 
+				//
+
+				_memcpy_s( &cfg_enable_server, sizeof( bool ), next, sizeof( bool ) );
+				next += sizeof( bool );
+
+				_memcpy_s( &cfg_server_address_type, sizeof( unsigned char ), next, sizeof( unsigned char ) );
+				next += sizeof( unsigned char );
+
+				_memcpy_s( &cfg_server_ip_address, sizeof( unsigned long ), next, sizeof( unsigned long ) );
+				next += sizeof( unsigned long );
+
+				_memcpy_s( &cfg_server_port, sizeof( unsigned short ), next, sizeof( unsigned short ) );
+				next += sizeof( unsigned short );
+
+				_memcpy_s( &cfg_use_authentication, sizeof( bool ), next, sizeof( bool ) );
+				next += sizeof( bool );
+
+				_memcpy_s( &cfg_authentication_type, sizeof( unsigned char ), next, sizeof( unsigned char ) );
+				next += sizeof( unsigned char );
+
+				_memcpy_s( &cfg_server_enable_ssl, sizeof( bool ), next, sizeof( bool ) );
+				next += sizeof( bool );
+
+				_memcpy_s( &cfg_certificate_type, sizeof( unsigned char ), next, sizeof( unsigned char ) );
+				next += sizeof( unsigned char );
+
+				_memcpy_s( &cfg_server_ssl_version, sizeof( unsigned char ), next, sizeof( unsigned char ) );
+				next += sizeof( unsigned char );
+
+				//
+
 				_memcpy_s( &cfg_enable_proxy, sizeof( bool ), next, sizeof( bool ) );
 				next += sizeof( bool );
 
@@ -181,6 +215,8 @@ char read_config()
 
 				_memcpy_s( &cfg_port, sizeof( unsigned short ), next, sizeof( unsigned short ) );
 				next += sizeof( unsigned short );
+
+				//
 
 				_memcpy_s( &cfg_enable_proxy_s, sizeof( bool ), next, sizeof( bool ) );
 				next += sizeof( bool );
@@ -194,8 +230,157 @@ char read_config()
 				_memcpy_s( &cfg_port_s, sizeof( unsigned short ), next, sizeof( unsigned short ) );
 				next += sizeof( unsigned short );
 
+				next += reserved;	// Skip past reserved bytes.
+
 				int string_length = 0;
 				int cfg_val_length = 0;
+
+				//
+
+				if ( ( DWORD )( next - cfg_buf ) < read )
+				{
+					// Length of the string - not including the NULL character.
+					_memcpy_s( &string_length, sizeof( unsigned short ), next, sizeof( unsigned short ) );
+					next += sizeof( unsigned short );
+
+					if ( string_length > 0 )
+					{
+						if ( ( ( DWORD )( next - cfg_buf ) + string_length < read ) )
+						{
+							// string_length does not contain the NULL character of the string.
+							char *authentication_username = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( string_length + 1 ) );
+							_memcpy_s( authentication_username, string_length, next, string_length );
+							authentication_username[ string_length ] = 0; // Sanity;
+
+							decode_cipher( authentication_username, string_length );
+
+							// Read username.
+							cfg_val_length = MultiByteToWideChar( CP_UTF8, 0, authentication_username, string_length + 1, NULL, 0 );	// Include the NULL character.
+							cfg_authentication_username = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * cfg_val_length );
+							MultiByteToWideChar( CP_UTF8, 0, authentication_username, string_length + 1, cfg_authentication_username, cfg_val_length );
+
+							GlobalFree( authentication_username );
+
+							next += string_length;
+						}
+						else
+						{
+							read = 0;
+						}
+					}
+				}
+
+				if ( ( DWORD )( next - cfg_buf ) < read )
+				{
+					// Length of the string - not including the NULL character.
+					_memcpy_s( &string_length, sizeof( unsigned short ), next, sizeof( unsigned short ) );
+					next += sizeof( unsigned short );
+
+					if ( string_length > 0 )
+					{
+						if ( ( ( DWORD )( next - cfg_buf ) + string_length < read ) )
+						{
+							// string_length does not contain the NULL character of the string.
+							char *authentication_password = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( string_length + 1 ) );
+							_memcpy_s( authentication_password, string_length, next, string_length );
+							authentication_password[ string_length ] = 0; // Sanity;
+
+							decode_cipher( authentication_password, string_length );
+
+							// Read password.
+							cfg_val_length = MultiByteToWideChar( CP_UTF8, 0, authentication_password, string_length + 1, NULL, 0 );	// Include the NULL character.
+							cfg_authentication_password = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * cfg_val_length );
+							MultiByteToWideChar( CP_UTF8, 0, authentication_password, string_length + 1, cfg_authentication_password, cfg_val_length );
+
+							GlobalFree( authentication_password );
+
+							next += string_length;
+						}
+						else
+						{
+							read = 0;
+						}
+					}
+				}
+
+				if ( ( DWORD )( next - cfg_buf ) < read )
+				{
+					// Length of the string - not including the NULL character.
+					_memcpy_s( &string_length, sizeof( unsigned short ), next, sizeof( unsigned short ) );
+					next += sizeof( unsigned short );
+
+					if ( string_length > 0 )
+					{
+						if ( ( ( DWORD )( next - cfg_buf ) + string_length < read ) )
+						{
+							// string_length does not contain the NULL character of the string.
+							char *certificate_password = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( string_length + 1 ) );
+							_memcpy_s( certificate_password, string_length, next, string_length );
+							certificate_password[ string_length ] = 0; // Sanity;
+
+							decode_cipher( certificate_password, string_length );
+
+							// Read password.
+							cfg_val_length = MultiByteToWideChar( CP_UTF8, 0, certificate_password, string_length + 1, NULL, 0 );	// Include the NULL character.
+							cfg_certificate_pkcs_password = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * cfg_val_length );
+							MultiByteToWideChar( CP_UTF8, 0, certificate_password, string_length + 1, cfg_certificate_pkcs_password, cfg_val_length );
+
+							GlobalFree( certificate_password );
+
+							next += string_length;
+						}
+						else
+						{
+							read = 0;
+						}
+					}
+				}
+
+				if ( ( DWORD )( next - cfg_buf ) < read )
+				{
+					string_length = lstrlenA( next ) + 1;
+
+					cfg_val_length = MultiByteToWideChar( CP_UTF8, 0, next, string_length, NULL, 0 );	// Include the NULL terminator.
+					cfg_server_hostname = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * cfg_val_length );
+					MultiByteToWideChar( CP_UTF8, 0, next, string_length, cfg_server_hostname, cfg_val_length );
+
+					next += string_length;
+				}
+
+				if ( ( DWORD )( next - cfg_buf ) < read )
+				{
+					string_length = lstrlenA( next ) + 1;
+
+					cfg_val_length = MultiByteToWideChar( CP_UTF8, 0, next, string_length, NULL, 0 );	// Include the NULL terminator.
+					cfg_certificate_pkcs_file_name = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * cfg_val_length );
+					MultiByteToWideChar( CP_UTF8, 0, next, string_length, cfg_certificate_pkcs_file_name, cfg_val_length );
+
+					next += string_length;
+				}
+
+				if ( ( DWORD )( next - cfg_buf ) < read )
+				{
+					string_length = lstrlenA( next ) + 1;
+
+					cfg_val_length = MultiByteToWideChar( CP_UTF8, 0, next, string_length, NULL, 0 );	// Include the NULL terminator.
+					cfg_certificate_cer_file_name = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * cfg_val_length );
+					MultiByteToWideChar( CP_UTF8, 0, next, string_length, cfg_certificate_cer_file_name, cfg_val_length );
+
+					next += string_length;
+				}
+
+				if ( ( DWORD )( next - cfg_buf ) < read )
+				{
+					string_length = lstrlenA( next ) + 1;
+
+					cfg_val_length = MultiByteToWideChar( CP_UTF8, 0, next, string_length, NULL, 0 );	// Include the NULL terminator.
+					cfg_certificate_key_file_name = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * cfg_val_length );
+					MultiByteToWideChar( CP_UTF8, 0, next, string_length, cfg_certificate_key_file_name, cfg_val_length );
+
+					next += string_length;
+				}
+
+				//
 
 				if ( ( DWORD )( next - cfg_buf ) < read )
 				{
@@ -262,6 +447,8 @@ char read_config()
 						}
 					}
 				}
+
+				//
 
 				if ( ( DWORD )( next - cfg_buf ) < read )
 				{
@@ -413,6 +600,10 @@ char read_config()
 
 				if ( cfg_default_ssl_version > 4 ) { cfg_default_ssl_version = 4; }	// TLS 1.2.
 
+				if ( cfg_server_port == 0 ) { cfg_server_port = 1; }
+				if ( cfg_server_ssl_version > 4 ) { cfg_server_ssl_version = 4; } // TLS 1.2.
+				if ( cfg_authentication_type != AUTH_TYPE_BASIC && cfg_authentication_type != AUTH_TYPE_DIGEST ) { cfg_authentication_type = AUTH_TYPE_BASIC; }
+
 				if ( cfg_port == 0 ) { cfg_port = 1; }
 				if ( cfg_port_s == 0 ) { cfg_port_s = 1; }
 			}
@@ -453,6 +644,13 @@ char read_config()
 		}
 	}
 
+	if ( cfg_server_hostname == NULL )
+	{
+		cfg_server_hostname = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * 10 );
+		_wmemcpy_s( cfg_server_hostname, 10, L"localhost\0", 10 );
+		cfg_server_hostname[ 9 ] = 0;	// Sanity.
+	}
+
 	if ( cfg_hostname == NULL )
 	{
 		cfg_hostname = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * 10 );
@@ -480,7 +678,8 @@ char save_config()
 	HANDLE hFile_cfg = CreateFile( base_directory, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL );
 	if ( hFile_cfg != INVALID_HANDLE_VALUE )
 	{
-		int size = ( sizeof( int ) * 18 ) + ( sizeof( unsigned short ) * 3 ) + ( sizeof( char ) * 30 ) + ( sizeof( bool ) * 9 ) + ( sizeof( unsigned long ) * 3 );
+		int reserved = 1024 - 142;
+		int size = ( sizeof( int ) * 18 ) + ( sizeof( unsigned short ) * 4 ) + ( sizeof( char ) * 34 ) + ( sizeof( bool ) * 12 ) + ( sizeof( unsigned long ) * 4 ) + reserved;
 		int pos = 0;
 
 		char *write_buf = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * size );
@@ -605,6 +804,37 @@ char save_config()
 		_memcpy_s( write_buf + pos, size - pos, &cfg_default_ssl_version, sizeof( unsigned char ) );
 		pos += sizeof( unsigned char );
 
+		//
+
+		_memcpy_s( write_buf + pos, size - pos, &cfg_enable_server, sizeof( bool ) );
+		pos += sizeof( bool );
+
+		_memcpy_s( write_buf + pos, size - pos, &cfg_server_address_type, sizeof( unsigned char ) );
+		pos += sizeof( unsigned char );
+
+		_memcpy_s( write_buf + pos, size - pos, &cfg_server_ip_address, sizeof( unsigned long ) );
+		pos += sizeof( unsigned long );
+
+		_memcpy_s( write_buf + pos, size - pos, &cfg_server_port, sizeof( unsigned short ) );
+		pos += sizeof( unsigned short );
+
+		_memcpy_s( write_buf + pos, size - pos, &cfg_use_authentication, sizeof( bool ) );
+		pos += sizeof( bool );
+
+		_memcpy_s( write_buf + pos, size - pos, &cfg_authentication_type, sizeof( unsigned char ) );
+		pos += sizeof( unsigned char );
+
+		_memcpy_s( write_buf + pos, size - pos, &cfg_server_enable_ssl, sizeof( bool ) );
+		pos += sizeof( bool );
+
+		_memcpy_s( write_buf + pos, size - pos, &cfg_certificate_type, sizeof( unsigned char ) );
+		pos += sizeof( unsigned char );
+
+		_memcpy_s( write_buf + pos, size - pos, &cfg_server_ssl_version, sizeof( unsigned char ) );
+		pos += sizeof( unsigned char );
+
+		//
+
 		_memcpy_s( write_buf + pos, size - pos, &cfg_enable_proxy, sizeof( bool ) );
 		pos += sizeof( bool );
 
@@ -617,6 +847,8 @@ char save_config()
 		_memcpy_s( write_buf + pos, size - pos, &cfg_port, sizeof( unsigned short ) );
 		pos += sizeof( unsigned short );
 
+		//
+
 		_memcpy_s( write_buf + pos, size - pos, &cfg_enable_proxy_s, sizeof( bool ) );
 		pos += sizeof( bool );
 
@@ -627,7 +859,10 @@ char save_config()
 		pos += sizeof( unsigned long );
 
 		_memcpy_s( write_buf + pos, size - pos, &cfg_port_s, sizeof( unsigned short ) );
-		//pos += sizeof( unsigned short );
+		pos += sizeof( unsigned short );
+
+		// Write Reserved bytes.
+		_memzero( write_buf + pos, size - pos );
 
 		DWORD write = 0;
 		WriteFile( hFile_cfg, write_buf, size, &write, NULL );
@@ -636,6 +871,128 @@ char save_config()
 
 		int cfg_val_length = 0;
 		char *utf8_cfg_val = NULL;
+
+		if ( cfg_authentication_username != NULL )
+		{
+			cfg_val_length = WideCharToMultiByte( CP_UTF8, 0, cfg_authentication_username, -1, NULL, 0, NULL, NULL ) + sizeof( unsigned short );	// Add 2 bytes for our encoded length.
+			utf8_cfg_val = ( char * )GlobalAlloc( GPTR, sizeof( char ) * cfg_val_length ); // Size includes the null character.
+			cfg_val_length = WideCharToMultiByte( CP_UTF8, 0, cfg_authentication_username, -1, utf8_cfg_val + sizeof( unsigned short ), cfg_val_length - sizeof( unsigned short ), NULL, NULL );
+
+			int length = cfg_val_length - 1;	// Exclude the NULL terminator.
+			_memcpy_s( utf8_cfg_val, cfg_val_length, &length, sizeof( unsigned short ) );
+
+			encode_cipher( utf8_cfg_val + sizeof( unsigned short ), length );
+
+			WriteFile( hFile_cfg, utf8_cfg_val, length + sizeof( unsigned short ), &write, NULL );	// Do not write the NULL terminator.
+
+			GlobalFree( utf8_cfg_val );
+		}
+		else
+		{
+			WriteFile( hFile_cfg, "\0\0", 2, &write, NULL );
+		}
+
+		if ( cfg_authentication_password != NULL )
+		{
+			cfg_val_length = WideCharToMultiByte( CP_UTF8, 0, cfg_authentication_password, -1, NULL, 0, NULL, NULL ) + sizeof( unsigned short );	// Add 2 bytes for our encoded length.
+			utf8_cfg_val = ( char * )GlobalAlloc( GPTR, sizeof( char ) * cfg_val_length ); // Size includes the null character.
+			cfg_val_length = WideCharToMultiByte( CP_UTF8, 0, cfg_authentication_password, -1, utf8_cfg_val + sizeof( unsigned short ), cfg_val_length - sizeof( unsigned short ), NULL, NULL );
+
+			int length = cfg_val_length - 1;	// Exclude the NULL terminator.
+			_memcpy_s( utf8_cfg_val, cfg_val_length, &length, sizeof( unsigned short ) );
+
+			encode_cipher( utf8_cfg_val + sizeof( unsigned short ), length );
+
+			WriteFile( hFile_cfg, utf8_cfg_val, length + sizeof( unsigned short ), &write, NULL );	// Do not write the NULL terminator.
+
+			GlobalFree( utf8_cfg_val );
+		}
+		else
+		{
+			WriteFile( hFile_cfg, "\0\0", 2, &write, NULL );
+		}
+
+		if ( cfg_certificate_pkcs_password != NULL )
+		{
+			cfg_val_length = WideCharToMultiByte( CP_UTF8, 0, cfg_certificate_pkcs_password, -1, NULL, 0, NULL, NULL ) + sizeof( unsigned short );	// Add 2 bytes for our encoded length.
+			utf8_cfg_val = ( char * )GlobalAlloc( GPTR, sizeof( char ) * cfg_val_length ); // Size includes the null character.
+			cfg_val_length = WideCharToMultiByte( CP_UTF8, 0, cfg_certificate_pkcs_password, -1, utf8_cfg_val + sizeof( unsigned short ), cfg_val_length - sizeof( unsigned short ), NULL, NULL );
+
+			int length = cfg_val_length - 1;	// Exclude the NULL terminator.
+			_memcpy_s( utf8_cfg_val, cfg_val_length, &length, sizeof( unsigned short ) );
+
+			encode_cipher( utf8_cfg_val + sizeof( unsigned short ), length );
+
+			WriteFile( hFile_cfg, utf8_cfg_val, length + sizeof( unsigned short ), &write, NULL );	// Do not write the NULL terminator.
+
+			GlobalFree( utf8_cfg_val );
+		}
+		else
+		{
+			WriteFile( hFile_cfg, "\0\0", 2, &write, NULL );
+		}
+
+		if ( cfg_server_hostname != NULL )
+		{
+			cfg_val_length = WideCharToMultiByte( CP_UTF8, 0, cfg_server_hostname, -1, NULL, 0, NULL, NULL );
+			utf8_cfg_val = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * cfg_val_length ); // Size includes the null character.
+			cfg_val_length = WideCharToMultiByte( CP_UTF8, 0, cfg_server_hostname, -1, utf8_cfg_val, cfg_val_length, NULL, NULL );
+
+			WriteFile( hFile_cfg, utf8_cfg_val, cfg_val_length, &write, NULL );
+
+			GlobalFree( utf8_cfg_val );
+		}
+		else
+		{
+			WriteFile( hFile_cfg, "\0", 1, &write, NULL );
+		}
+
+		if ( cfg_certificate_pkcs_file_name != NULL )
+		{
+			cfg_val_length = WideCharToMultiByte( CP_UTF8, 0, cfg_certificate_pkcs_file_name, -1, NULL, 0, NULL, NULL );
+			utf8_cfg_val = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * cfg_val_length ); // Size includes the null character.
+			cfg_val_length = WideCharToMultiByte( CP_UTF8, 0, cfg_certificate_pkcs_file_name, -1, utf8_cfg_val, cfg_val_length, NULL, NULL );
+
+			WriteFile( hFile_cfg, utf8_cfg_val, cfg_val_length, &write, NULL );
+
+			GlobalFree( utf8_cfg_val );
+		}
+		else
+		{
+			WriteFile( hFile_cfg, "\0", 1, &write, NULL );
+		}
+
+		if ( cfg_certificate_cer_file_name != NULL )
+		{
+			cfg_val_length = WideCharToMultiByte( CP_UTF8, 0, cfg_certificate_cer_file_name, -1, NULL, 0, NULL, NULL );
+			utf8_cfg_val = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * cfg_val_length ); // Size includes the null character.
+			cfg_val_length = WideCharToMultiByte( CP_UTF8, 0, cfg_certificate_cer_file_name, -1, utf8_cfg_val, cfg_val_length, NULL, NULL );
+
+			WriteFile( hFile_cfg, utf8_cfg_val, cfg_val_length, &write, NULL );
+
+			GlobalFree( utf8_cfg_val );
+		}
+		else
+		{
+			WriteFile( hFile_cfg, "\0", 1, &write, NULL );
+		}
+
+		if ( cfg_certificate_key_file_name != NULL )
+		{
+			cfg_val_length = WideCharToMultiByte( CP_UTF8, 0, cfg_certificate_key_file_name, -1, NULL, 0, NULL, NULL );
+			utf8_cfg_val = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * cfg_val_length ); // Size includes the null character.
+			cfg_val_length = WideCharToMultiByte( CP_UTF8, 0, cfg_certificate_key_file_name, -1, utf8_cfg_val, cfg_val_length, NULL, NULL );
+
+			WriteFile( hFile_cfg, utf8_cfg_val, cfg_val_length, &write, NULL );
+
+			GlobalFree( utf8_cfg_val );
+		}
+		else
+		{
+			WriteFile( hFile_cfg, "\0", 1, &write, NULL );
+		}
+
+		//
 
 		if ( cfg_proxy_auth_username != NULL )
 		{
@@ -676,6 +1033,8 @@ char save_config()
 		{
 			WriteFile( hFile_cfg, "\0\0", 2, &write, NULL );
 		}
+
+		//
 
 		if ( cfg_proxy_auth_username_s != NULL )
 		{
@@ -793,11 +1152,12 @@ char read_download_history( wchar_t *file_path )
 		unsigned int		filename_length;
 
 		wchar_t				*url;
-		DoublyLinkedList	*range_info;
+		DoublyLinkedList	*range_list;
 		unsigned char		parts;
 		unsigned char		status;
 
 		char				*cookies;
+		char				*headers;
 
 		char				*username;
 		char				*password;
@@ -805,7 +1165,7 @@ char read_download_history( wchar_t *file_path )
 		char				ssl_version;
 
 		bool				processed_header;
-		bool				simulate_download;
+		unsigned char		download_operations;
 
 		unsigned char range_count;
 
@@ -825,8 +1185,12 @@ char read_download_history( wchar_t *file_path )
 
 				history_buf[ read ] = 0;	// Guarantee a NULL terminated buffer.
 
-				// Make sure that we have at least part of the entry. Include 3 wide NULL strings and 1 char NULL string. This is the minimum size an entry could be.
-				if ( read < ( ( sizeof( int ) * 2 ) + sizeof( ULONGLONG ) + ( sizeof( unsigned long long ) * 2 ) + ( sizeof( unsigned char ) * 4 ) + ( sizeof( bool ) * 2 ) + ( ( sizeof( wchar_t ) * 3 ) + sizeof( char ) ) ) )
+				// Make sure that we have at least part of the entry. This is the minimum size an entry could be.
+				// Include 3 wide NULL strings and 2 char NULL strings.
+				// Include 1 unsigned char for range info.
+				if ( read < ( ( ( sizeof( int ) * 2 ) + sizeof( ULONGLONG ) + ( sizeof( unsigned long long ) * 2 ) + ( sizeof( unsigned char ) * 4 ) + ( sizeof( bool ) * 1 ) ) +
+							  ( ( sizeof( wchar_t ) * 3 ) + ( sizeof( char ) * 2 ) ) +
+								  sizeof( unsigned char ) ) )
 				{
 					break;
 				}
@@ -853,8 +1217,10 @@ char read_download_history( wchar_t *file_path )
 					filename_length = 0;
 					url = NULL;
 					cookies = NULL;
+					headers = NULL;
 					username = NULL;
 					password = NULL;
+					range_list = NULL;
 
 					// Add Time.
 					offset += sizeof( ULONGLONG );
@@ -898,21 +1264,17 @@ char read_download_history( wchar_t *file_path )
 					_memcpy_s( &processed_header, sizeof( bool ), p, sizeof( bool ) );
 					p += sizeof( bool );
 
-					// Simulate Download
-					offset += sizeof( bool );
+					// Download Operations
+					offset += sizeof( unsigned char );
 					if ( offset >= read ) { goto CLEANUP; }
-					_memcpy_s( &simulate_download, sizeof( bool ), p, sizeof( bool ) );
-					p += sizeof( bool );
+					_memcpy_s( &download_operations, sizeof( unsigned char ), p, sizeof( unsigned char ) );
+					p += sizeof( unsigned char );
 
 					// Download Directory
 					int string_length = lstrlenW( ( wchar_t * )p ) + 1;
 
 					offset += ( string_length * sizeof( wchar_t ) );
 					if ( offset >= read ) { goto CLEANUP; }
-
-					//download_directory = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * string_length );
-					//_wmemcpy_s( download_directory, string_length, p, string_length );
-					//*( download_directory + ( string_length - 1 ) ) = 0;	// Sanity
 
 					download_directory = p;
 					download_directory_length = string_length;
@@ -924,10 +1286,6 @@ char read_download_history( wchar_t *file_path )
 
 					offset += ( string_length * sizeof( wchar_t ) );
 					if ( offset >= read ) { goto CLEANUP; }
-
-					//filename = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * string_length );
-					//_wmemcpy_s( filename, string_length, p, string_length );
-					//*( filename + ( string_length - 1 ) ) = 0;	// Sanity
 
 					filename = p;
 					filename_length = string_length - 1;
@@ -958,6 +1316,22 @@ char read_download_history( wchar_t *file_path )
 						cookies = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * string_length );
 						_memcpy_s( cookies, string_length, p, string_length );
 						*( cookies + ( string_length - 1 ) ) = 0;	// Sanity
+					}
+
+					p += string_length;
+
+					// Headers
+					string_length = lstrlenA( ( char * )p ) + 1;
+
+					offset += string_length;
+					if ( offset >= read ) { goto CLEANUP; }
+
+					// Let's not allocate an empty string.
+					if ( string_length > 1 )
+					{
+						headers = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * string_length );
+						_memcpy_s( headers, string_length, p, string_length );
+						*( headers + ( string_length - 1 ) ) = 0;	// Sanity
 					}
 
 					p += string_length;
@@ -1008,39 +1382,36 @@ char read_download_history( wchar_t *file_path )
 
 					// Range Info.
 					offset += sizeof( unsigned char );
-					if ( offset >= read ) { goto CLEANUP; }
-					range_count = *p;
-					p += sizeof( unsigned char );
-
-					range_info = NULL;
-					for ( unsigned char i = 0; i < range_count; ++i )
+					if ( offset <= read )
 					{
-						//offset += sizeof( RANGE_INFO );
-						offset += ( sizeof( unsigned long long ) * 5 );
-						if ( offset > read ) { goto CLEANUP; }
+						range_count = *p;
+						p += sizeof( unsigned char );
 
-						RANGE_INFO *ri = ( RANGE_INFO * )GlobalAlloc( GPTR, sizeof( RANGE_INFO ) );
+						for ( unsigned char i = 0; i < range_count; ++i )
+						{
+							offset += ( sizeof( unsigned long long ) * 5 );
+							if ( offset > read ) { goto CLEANUP; }
 
-						//_memcpy_s( ri, sizeof( RANGE_INFO ), p, sizeof( RANGE_INFO ) );
-						//p += sizeof( RANGE_INFO );
+							RANGE_INFO *ri = ( RANGE_INFO * )GlobalAlloc( GPTR, sizeof( RANGE_INFO ) );
 
-						_memcpy_s( &ri->range_start, sizeof( unsigned long long ), p, sizeof( unsigned long long ) );
-						p += sizeof( unsigned long long );
+							_memcpy_s( &ri->range_start, sizeof( unsigned long long ), p, sizeof( unsigned long long ) );
+							p += sizeof( unsigned long long );
 
-						_memcpy_s( &ri->range_end, sizeof( unsigned long long ), p, sizeof( unsigned long long ) );
-						p += sizeof( unsigned long long );
+							_memcpy_s( &ri->range_end, sizeof( unsigned long long ), p, sizeof( unsigned long long ) );
+							p += sizeof( unsigned long long );
 
-						_memcpy_s( &ri->content_length, sizeof( unsigned long long ), p, sizeof( unsigned long long ) );
-						p += sizeof( unsigned long long );
+							_memcpy_s( &ri->content_length, sizeof( unsigned long long ), p, sizeof( unsigned long long ) );
+							p += sizeof( unsigned long long );
 
-						_memcpy_s( &ri->content_offset, sizeof( unsigned long long ), p, sizeof( unsigned long long ) );
-						p += sizeof( unsigned long long );
+							_memcpy_s( &ri->content_offset, sizeof( unsigned long long ), p, sizeof( unsigned long long ) );
+							p += sizeof( unsigned long long );
 
-						_memcpy_s( &ri->file_write_offset, sizeof( unsigned long long ), p, sizeof( unsigned long long ) );
-						p += sizeof( unsigned long long );
+							_memcpy_s( &ri->file_write_offset, sizeof( unsigned long long ), p, sizeof( unsigned long long ) );
+							p += sizeof( unsigned long long );
 
-						DoublyLinkedList *range_node = DLL_CreateNode( ( void * )ri );
-						DLL_AddNode( &range_info, range_node, -1 );
+							DoublyLinkedList *range_node = DLL_CreateNode( ( void * )ri );
+							DLL_AddNode( &range_list, range_node, -1 );
+						}
 					}
 
 					last_entry = offset;	// This value is the ending offset of the last valid entry.
@@ -1057,13 +1428,14 @@ char read_download_history( wchar_t *file_path )
 					di->status = status;
 					di->ssl_version = ssl_version;
 					di->processed_header = processed_header;
-					di->simulate_download = simulate_download;
+					di->download_operations = download_operations;
 					di->url = url;
 					di->cookies = cookies;
+					di->headers = headers;
 					di->auth_info.username = username;
 					di->auth_info.password = password;
 
-					di->range_info = range_info;
+					di->range_list = range_list;
 
 					_wmemcpy_s( di->file_path, MAX_PATH, download_directory, download_directory_length );
 					di->file_path[ download_directory_length ] = 0;	// Sanity.
@@ -1134,8 +1506,18 @@ char read_download_history( wchar_t *file_path )
 	CLEANUP:
 					GlobalFree( url );
 					GlobalFree( cookies );
+					GlobalFree( headers );
 					GlobalFree( username );
 					GlobalFree( password );
+
+					while ( range_list != NULL )
+					{
+						DoublyLinkedList *range_node = range_list;
+						range_list = range_list->next;
+
+						GlobalFree( range_node->data );
+						GlobalFree( range_node );
+					}
 
 					// Go back to the last valid entry.
 					if ( total_read < fz )
@@ -1199,19 +1581,18 @@ char save_download_history( wchar_t *file_path )
 			DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )lvi.lParam;
 
 			// lstrlen is safe for NULL values.
-			//int download_directory_length = ( lstrlenW( di->download_directory ) + 1 ) * sizeof( wchar_t );
-			//int filename_length = ( lstrlenW( di->filename ) + 1 ) * sizeof( wchar_t );
 			int download_directory_length = di->filename_offset * sizeof( wchar_t );	// Includes the NULL terminator.
 			int filename_length = ( lstrlenW( di->file_path + di->filename_offset ) + 1 ) * sizeof( wchar_t );
 			int url_length = ( lstrlenW( di->url ) + 1 ) * sizeof( wchar_t );
 
 			int cookies_length = lstrlenA( di->cookies ) + 1;
+			int headers_length = lstrlenA( di->headers ) + 1;
 
 			int username_length = lstrlenA( di->auth_info.username );
 			int password_length = lstrlenA( di->auth_info.password );
 
 			// See if the next entry can fit in the buffer. If it can't, then we dump the buffer.
-			if ( ( signed )( pos + filename_length + download_directory_length + url_length + cookies_length + username_length + password_length + ( sizeof( int ) * 2 ) + sizeof( ULONGLONG ) + ( sizeof( unsigned long long ) * 2 ) + ( sizeof( unsigned char ) * 3 ) + ( sizeof( bool ) * 2 ) ) > size )
+			if ( ( signed )( pos + filename_length + download_directory_length + url_length + cookies_length + headers_length + username_length + password_length + ( sizeof( int ) * 2 ) + sizeof( ULONGLONG ) + ( sizeof( unsigned long long ) * 2 ) + ( sizeof( unsigned char ) * 4 ) + ( sizeof( bool ) * 1 ) ) > size )
 			{
 				// Dump the buffer.
 				WriteFile( hFile_downloads, write_buf, pos, &write, NULL );
@@ -1239,14 +1620,12 @@ char save_download_history( wchar_t *file_path )
 			_memcpy_s( write_buf + pos, size - pos, &di->processed_header, sizeof( bool ) );
 			pos += sizeof( bool );
 
-			_memcpy_s( write_buf + pos, size - pos, &di->simulate_download, sizeof( bool ) );
-			pos += sizeof( bool );
+			_memcpy_s( write_buf + pos, size - pos, &di->download_operations, sizeof( unsigned char ) );
+			pos += sizeof( unsigned char );
 
-			//_memcpy_s( write_buf + pos, size - pos, di->download_directory, download_directory_length );
 			_memcpy_s( write_buf + pos, size - pos, di->file_path, download_directory_length );
 			pos += download_directory_length;
 
-			//_memcpy_s( write_buf + pos, size - pos, di->filename, filename_length );
 			_memcpy_s( write_buf + pos, size - pos, di->file_path + di->filename_offset, filename_length );
 			pos += filename_length;
 
@@ -1255,6 +1634,9 @@ char save_download_history( wchar_t *file_path )
 
 			_memcpy_s( write_buf + pos, size - pos, di->cookies, cookies_length );
 			pos += cookies_length;
+
+			_memcpy_s( write_buf + pos, size - pos, di->headers, headers_length );
+			pos += headers_length;
 
 			if ( di->auth_info.username != NULL )
 			{
@@ -1287,12 +1669,12 @@ char save_download_history( wchar_t *file_path )
 			}
 
 			unsigned char range_count = 0;
-			DoublyLinkedList *tmp_range_info = di->range_info;
-			while ( tmp_range_info != NULL )
+			DoublyLinkedList *range_list = di->range_list;
+			while ( range_list != NULL )
 			{
 				++range_count;
 
-				tmp_range_info = tmp_range_info->next;
+				range_list = range_list->next;
 			}
 
 			// See if the next entry can fit in the buffer. If it can't, then we dump the buffer.
@@ -1306,10 +1688,10 @@ char save_download_history( wchar_t *file_path )
 			_memcpy_s( write_buf + pos, size - pos, &range_count, sizeof( unsigned char ) );
 			pos += sizeof( unsigned char );
 
-			tmp_range_info = di->range_info;
-			while ( tmp_range_info != NULL )
+			range_list = di->range_list;
+			while ( range_list != NULL )
 			{
-				RANGE_INFO *ri = ( RANGE_INFO * )tmp_range_info->data;
+				RANGE_INFO *ri = ( RANGE_INFO * )range_list->data;
 
 				//_memcpy_s( write_buf + pos, size - pos, ri, sizeof( RANGE_INFO ) );
 				//pos += sizeof( RANGE_INFO );
@@ -1329,7 +1711,7 @@ char save_download_history( wchar_t *file_path )
 				_memcpy_s( write_buf + pos, size - pos, &ri->file_write_offset, sizeof( unsigned long long ) );
 				pos += sizeof( unsigned long long );
 
-				tmp_range_info = tmp_range_info->next;
+				range_list = range_list->next;
 			}
 		}
 

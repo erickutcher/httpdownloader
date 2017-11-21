@@ -221,6 +221,31 @@ extern unsigned char cfg_default_download_parts;
 
 extern wchar_t *cfg_default_download_directory;
 
+// Server
+
+extern bool cfg_enable_server;
+extern unsigned char cfg_server_address_type;
+extern unsigned long cfg_server_ip_address;
+extern wchar_t *cfg_server_hostname;
+extern unsigned short cfg_server_port;
+
+extern unsigned char cfg_server_ssl_version;
+
+extern bool cfg_server_enable_ssl;
+
+extern unsigned char cfg_certificate_type;
+
+extern wchar_t *cfg_certificate_pkcs_file_name;
+extern wchar_t *cfg_certificate_pkcs_password;
+
+extern wchar_t *cfg_certificate_cer_file_name;
+extern wchar_t *cfg_certificate_key_file_name;
+
+extern bool cfg_use_authentication;
+extern wchar_t *cfg_authentication_username;
+extern wchar_t *cfg_authentication_password;
+extern unsigned char cfg_authentication_type;
+
 // HTTP proxy
 extern bool cfg_enable_proxy;
 extern unsigned char cfg_address_type;	// 0 = Host name, 1 = IP address

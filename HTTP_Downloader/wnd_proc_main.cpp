@@ -506,7 +506,7 @@ DWORD WINAPI UpdateWindow( LPVOID WorkThreadContext )
 	CloseHandle( g_timer_semaphore );
 	g_timer_semaphore = NULL;
 
-	ExitThread( 0 );
+	_ExitThread( 0 );
 	return 0;
 }
 
@@ -669,7 +669,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 						_SendMessageW( g_hWnd_files, LVM_GETITEM, 0, ( LPARAM )&lvi );
 
 						DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )lvi.lParam;
-						if ( di != NULL && !di->simulate_download )
+						if ( di != NULL && !( di->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
 						{
 							bool destroy = true;
 							#ifndef OLE32_USE_STATIC_LIB
@@ -853,7 +853,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 				{
 					if ( g_hWnd_options == NULL )
 					{
-						g_hWnd_options = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"options", ST_Options, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU, ( ( _GetSystemMetrics( SM_CXSCREEN ) - 385 ) / 2 ), ( ( _GetSystemMetrics( SM_CYSCREEN ) - 345 ) / 2 ), 385, 345, NULL, NULL, NULL, NULL );
+						g_hWnd_options = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"options", ST_Options, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU, ( ( _GetSystemMetrics( SM_CXSCREEN ) - 390 ) / 2 ), ( ( _GetSystemMetrics( SM_CYSCREEN ) - 350 ) / 2 ), 390, 350, NULL, NULL, NULL, NULL );
 						_ShowWindow( g_hWnd_options, SW_SHOWNORMAL );
 					}
 					_SetForegroundWindow( g_hWnd_options );
@@ -864,7 +864,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 				{
 					wchar_t msg[ 512 ];
 					__snwprintf( msg, 512, L"HTTP Downloader is made free under the GPLv3 license.\r\n\r\n" \
-										   L"Version 1.0.0.1\r\n\r\n" \
+										   L"Version 1.0.0.2\r\n\r\n" \
 										   L"Built on %s, %s %d, %04d %d:%02d:%02d %s (UTC)\r\n\r\n" \
 										   L"Copyright \xA9 2015-2017 Eric Kutcher", GetDay( g_compile_time.wDayOfWeek ), GetMonth( g_compile_time.wMonth ), g_compile_time.wDay, g_compile_time.wYear, ( g_compile_time.wHour > 12 ? g_compile_time.wHour - 12 : ( g_compile_time.wHour != 0 ? g_compile_time.wHour : 12 ) ), g_compile_time.wMinute, g_compile_time.wSecond, ( g_compile_time.wHour >= 12 ? L"PM" : L"AM" ) );
 
@@ -1207,9 +1207,21 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 
 							if ( di != NULL )
 							{
-								__snwprintf( tooltip_buffer, 512, L"Filename: %s\r\nDownloaded: %llu / %llu bytes\r\nAdded: %s", di->file_path + di->filename_offset, di->downloaded, di->file_size, di->w_add_time );
+								if ( di->file_size > 0 )
+								{
+									__snwprintf( tooltip_buffer, 512, L"Filename: %s\r\nDownloaded: %llu / %llu bytes\r\nAdded: %s", di->file_path + di->filename_offset, di->downloaded, di->file_size, di->w_add_time );
+								}
+								else
+								{
+									__snwprintf( tooltip_buffer, 512, L"Filename: %s\r\nDownloaded: %llu / ? bytes\r\nAdded: %s", di->file_path + di->filename_offset, di->downloaded, di->w_add_time );
+								}
 
 								ti.lpszText = tooltip_buffer;
+
+								if ( di->status == STATUS_DOWNLOADING )
+								{
+									last_tooltip_item = -2;	// Allow active downloads to update the tooltip if their item is rehovered.
+								}
 							}
 						}
 
@@ -1455,7 +1467,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 							{
 								DT_ALIGN = DT_LEFT;
 
-								if ( !di->simulate_download )
+								if ( !( di->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
 								{
 									buf = di->file_path;
 								}
@@ -2115,6 +2127,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 					GlobalFree( di->url );
 					GlobalFree( di->w_add_time );
 					GlobalFree( di->cookies );
+					GlobalFree( di->headers );
 					//GlobalFree( di->etag );
 					GlobalFree( di->auth_info.username );
 					GlobalFree( di->auth_info.password );
@@ -2124,10 +2137,10 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 						CloseHandle( di->hFile );
 					}
 
-					while ( di->range_info != NULL )
+					while ( di->range_list != NULL )
 					{
-						DoublyLinkedList *range_node = di->range_info;
-						di->range_info = di->range_info->next;
+						DoublyLinkedList *range_node = di->range_list;
+						di->range_list = di->range_list->next;
 
 						GlobalFree( range_node->data );
 						GlobalFree( range_node );

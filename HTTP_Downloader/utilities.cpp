@@ -89,6 +89,31 @@ wchar_t *cfg_default_download_directory = NULL;
 
 unsigned int g_default_download_directory_length = 0;
 
+// Server
+
+bool cfg_enable_server = false;
+unsigned char cfg_server_address_type = 0;	// 0 = Host name, 1 = IP address
+unsigned long cfg_server_ip_address = 2130706433;	// 127.0.0.1
+wchar_t *cfg_server_hostname = NULL;
+unsigned short cfg_server_port = 80;
+
+unsigned char cfg_server_ssl_version = 2;	// TLS 1.0
+
+bool cfg_server_enable_ssl = false;
+
+unsigned char cfg_certificate_type = 0;	// PKCS
+
+wchar_t *cfg_certificate_pkcs_file_name = NULL;
+wchar_t *cfg_certificate_pkcs_password = NULL;
+
+wchar_t *cfg_certificate_cer_file_name = NULL;
+wchar_t *cfg_certificate_key_file_name = NULL;
+
+bool cfg_use_authentication = false;
+wchar_t *cfg_authentication_username = NULL;
+wchar_t *cfg_authentication_password = NULL;
+unsigned char cfg_authentication_type = AUTH_TYPE_BASIC;
+
 // HTTP proxy
 bool cfg_enable_proxy = false;
 unsigned char cfg_address_type = 0;	// 0 = Host name, 1 = IP address
@@ -99,13 +124,6 @@ unsigned short cfg_port = 80;
 wchar_t *cfg_proxy_auth_username = NULL;
 wchar_t *cfg_proxy_auth_password = NULL;
 
-wchar_t *g_punycode_hostname = NULL;
-
-char *g_proxy_auth_username = NULL;
-char *g_proxy_auth_password = NULL;
-char *g_proxy_auth_key = NULL;
-unsigned long g_proxy_auth_key_length = 0;
-
 // HTTPS proxy
 bool cfg_enable_proxy_s = false;
 unsigned char cfg_address_type_s = 0;	// 0 = Host name, 1 = IP address
@@ -115,13 +133,6 @@ unsigned short cfg_port_s = 443;
 
 wchar_t *cfg_proxy_auth_username_s = NULL;
 wchar_t *cfg_proxy_auth_password_s = NULL;
-
-wchar_t *g_punycode_hostname_s = NULL;
-
-char *g_proxy_auth_username_s = NULL;
-char *g_proxy_auth_password_s = NULL;
-char *g_proxy_auth_key_s = NULL;
-unsigned long g_proxy_auth_key_length_s = 0;
 
 //
 
@@ -613,13 +624,22 @@ unsigned long get_file_extension_offset( wchar_t *filename, unsigned long length
 	return filename + length;
 }*/
 
-char to_hex( char code )
+char *GetUTF8Domain( wchar_t *domain )
+{
+	int domain_length = WideCharToMultiByte( CP_UTF8, 0, domain, -1, NULL, 0, NULL, NULL );
+	char *utf8_domain = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * domain_length ); // Size includes the null character.
+	WideCharToMultiByte( CP_UTF8, 0, domain, -1, utf8_domain, domain_length, NULL, NULL );
+
+	return utf8_domain;
+}
+
+char to_hex_a( char code )
 {
 	static char hex[] = "0123456789ABCDEF";
 	return hex[ code & 15 ];
 }
 
-wchar_t to_hex_a( char code )
+wchar_t to_hex_w( char code )
 {
 	static wchar_t hex[] = L"0123456789ABCDEF";
 	return hex[ code & 15 ];
@@ -696,18 +716,40 @@ char *url_encode_a( char *str, unsigned int str_len, unsigned int *enc_len )
 		{
 			*pbuf++ = *pstr;
 		}
-		else */if ( *pstr == ' ' )
+		else if ( *pstr == ' ' )
 		{
 			*pbuf++ = '%';
 			*pbuf++ = '2';
 			*pbuf++ = '0';
 		}
-		/*else
+		else
 		{
 			*pbuf++ = '%';
-			*pbuf++ = to_hex( *pstr >> 4 );
-			*pbuf++ = to_hex( *pstr & 15 );
+			*pbuf++ = to_hex_a( *pstr >> 4 );
+			*pbuf++ = to_hex_a( *pstr & 15 );
 		}*/
+
+		if ( *pstr == ' ' ||
+			 *pstr == '<' ||
+			 *pstr == '>' ||
+			 *pstr == '#' ||
+			 *pstr == '%' ||
+			 *pstr == '\"' ||
+			 *pstr == '{' ||
+			 *pstr == '}' ||
+			 *pstr == '|' ||
+			 *pstr == '\\' ||
+			 *pstr == '^' ||
+			 *pstr == '[' ||
+			 *pstr == ']' ||
+			 *pstr == '`' ||
+			 *pstr == 0x7F ||
+			 ( *pstr >= 0x00 && *pstr <= 0x1F ) )
+		{
+			*pbuf++ = L'%';
+			*pbuf++ = to_hex_a( *pstr >> 4 );
+			*pbuf++ = to_hex_a( *pstr & 15 );
+		}
 		else
 		{
 			*pbuf++ = *pstr;
@@ -738,18 +780,40 @@ wchar_t *url_encode_w( wchar_t *str, unsigned int str_len, unsigned int *enc_len
 		{
 			*pbuf++ = *pstr;
 		}
-		else */if ( *pstr == L' ' )
+		else if ( *pstr == L' ' )
 		{
 			*pbuf++ = L'%';
 			*pbuf++ = L'2';
 			*pbuf++ = L'0';
 		}
-		/*else
+		else
 		{
 			*pbuf++ = L'%';
 			*pbuf++ = to_hex_w( *pstr >> 4 );
 			*pbuf++ = to_hex_w( *pstr & 15 );
 		}*/
+
+		if ( *pstr == L' ' ||
+			 *pstr == L'<' ||
+			 *pstr == L'>' ||
+			 *pstr == L'#' ||
+			 *pstr == L'%' ||
+			 *pstr == L'\"' ||
+			 *pstr == L'{' ||
+			 *pstr == L'}' ||
+			 *pstr == L'|' ||
+			 *pstr == L'\\' ||
+			 *pstr == L'^' ||
+			 *pstr == L'[' ||
+			 *pstr == L']' ||
+			 *pstr == L'`' ||
+			 *pstr == 0x7F ||
+			 ( *pstr >= 0x00 && *pstr <= 0x1F ) )
+		{
+			*pbuf++ = L'%';
+			*pbuf++ = to_hex_w( *pstr >> 4 );
+			*pbuf++ = to_hex_w( *pstr & 15 );
+		}
 		else
 		{
 			*pbuf++ = *pstr;
@@ -1052,6 +1116,71 @@ void GetMD5String( HCRYPTHASH *hHash, char **md5, DWORD *md5_length )
 	}
 }
 
+void CreateDigestAuthorizationInfo( char **nonce, unsigned long &nonce_length, char **opaque, unsigned long &opaque_length )
+{
+	char *HA1 = NULL;
+
+	if ( *nonce != NULL )
+	{
+		GlobalFree( *nonce );
+		*nonce = NULL;
+	}
+
+	nonce_length = 0;
+
+	if ( *opaque != NULL )
+	{
+		GlobalFree( *opaque );
+		*opaque = NULL;
+	}
+
+	opaque_length = 0;
+
+	HCRYPTPROV hProv = NULL;
+	if ( _CryptAcquireContextW( &hProv, NULL, NULL, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT ) )
+	{
+		HCRYPTHASH hHash = NULL;
+
+		BYTE rbuffer[ 16 ];
+
+		if ( _CryptCreateHash( hProv, CALG_MD5, 0, 0, &hHash ) )
+		{
+			_CryptGenRandom( hProv, 16, ( BYTE * )&rbuffer );
+
+			_CryptHashData( hHash, rbuffer, 16, 0 );
+
+			GetMD5String( &hHash, nonce, &nonce_length );
+		}
+
+		if ( hHash != NULL )
+		{
+			_CryptDestroyHash( hHash );
+			hHash = NULL;
+		}
+
+		if ( _CryptCreateHash( hProv, CALG_MD5, 0, 0, &hHash ) )
+		{
+			_CryptGenRandom( hProv, 16, ( BYTE * )&rbuffer );
+
+			_CryptHashData( hHash, rbuffer, 16, 0 );
+
+			GetMD5String( &hHash, opaque, &opaque_length );
+		}
+
+		if ( hHash != NULL )
+		{
+			_CryptDestroyHash( hHash );
+		}
+	}
+
+	if ( hProv != NULL )
+	{
+		_CryptReleaseContext( hProv, 0 );
+	}
+
+	GlobalFree( HA1 );
+}
+
 void CreateDigestAuthorizationKey( char *username, char *password, char *method, char *resource, AUTH_INFO *auth_info, char **auth_key, DWORD *auth_key_length )
 {
 	*auth_key = NULL;
@@ -1283,6 +1412,176 @@ void CreateBasicAuthorizationKey( char *username, int username_length, char *pas
 	GlobalFree( key );
 }
 
+bool VerifyDigestAuthorization( char *username, unsigned long username_length, char *password, unsigned long password_length, char *nonce, unsigned long nonce_length, char *opaque, unsigned long opaque_length, char *method, unsigned long method_length, AUTH_INFO *auth_info )
+{
+	bool ret = false;
+
+	char *HA1 = NULL;
+	DWORD HA1_length = 0;
+
+	char *HA2 = NULL;
+	DWORD HA2_length = 0;
+
+	char *response = NULL;
+	DWORD response_length = 0;
+
+	int client_response_length = lstrlenA( auth_info->response );
+	int client_nonce_length = lstrlenA( auth_info->nonce );
+	int client_opaque_length = lstrlenA( auth_info->opaque );
+
+	int cnonce_length = lstrlenA( auth_info->cnonce );
+	int realm_length = lstrlenA( auth_info->realm );
+	int uri_length = lstrlenA( auth_info->uri );
+	int qop_length = lstrlenA( auth_info->qop );
+
+	// We can verify realm, nonce, and opaque to ensure the client responded correctly.
+	if ( realm_length != 22 || _StrCmpNA( auth_info->realm, "Authorization Required", 22 != 0 ) )
+	{
+		return false;
+	}
+
+	if ( client_nonce_length != nonce_length || _StrCmpNA( auth_info->nonce, nonce, nonce_length ) != 0 )
+	{
+		return false;
+	}
+
+	if ( client_opaque_length != opaque_length || _StrCmpNA( auth_info->opaque, opaque, opaque_length ) != 0 )
+	{
+		return false;
+	}
+
+	HCRYPTPROV hProv = NULL;
+	if ( _CryptAcquireContextW( &hProv, NULL, NULL, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT ) )
+	{
+		HCRYPTHASH hHash = NULL;
+
+		// If auth_info->algorithm is not set, then assume it's MD5.
+
+		// Create HA1.
+		if ( _CryptCreateHash( hProv, CALG_MD5, 0, 0, &hHash ) )
+		{
+			_CryptHashData( hHash, ( BYTE * )username, username_length, 0 );
+			_CryptHashData( hHash, ( BYTE * )":", 1, 0 );
+			_CryptHashData( hHash, ( BYTE * )auth_info->realm, realm_length, 0 );
+			_CryptHashData( hHash, ( BYTE * )":", 1, 0 );
+			_CryptHashData( hHash, ( BYTE * )password, password_length, 0 );
+
+			GetMD5String( &hHash, &HA1, &HA1_length );
+
+			// MD5-sess
+			if ( auth_info->algorithm == 2 )
+			{
+				if ( hHash != NULL )
+				{
+					_CryptDestroyHash( hHash );
+					hHash = NULL;
+				}
+
+				if ( _CryptCreateHash( hProv, CALG_MD5, 0, 0, &hHash ) )
+				{
+					_CryptHashData( hHash, ( BYTE * )HA1, HA1_length, 0 );
+					_CryptHashData( hHash, ( BYTE * )":", 1, 0 );
+					_CryptHashData( hHash, ( BYTE * )nonce, nonce_length, 0 );
+					_CryptHashData( hHash, ( BYTE * )":", 1, 0 );
+					_CryptHashData( hHash, ( BYTE * )auth_info->cnonce, cnonce_length, 0 );
+
+					GlobalFree( HA1 );
+					HA1 = NULL;
+					HA1_length = 0;
+
+					GetMD5String( &hHash, &HA1, &HA1_length );
+				}
+			}
+		}
+
+		if ( hHash != NULL )
+		{
+			_CryptDestroyHash( hHash );
+			hHash = NULL;
+		}
+
+		// Create HA2.
+		if ( _CryptCreateHash( hProv, CALG_MD5, 0, 0, &hHash ) )
+		{
+			_CryptHashData( hHash, ( BYTE * )method, method_length, 0 );
+			_CryptHashData( hHash, ( BYTE * )":", 1, 0 );
+			_CryptHashData( hHash, ( BYTE * )auth_info->uri, uri_length, 0 );
+
+			// auth-int
+			// We're not supporting this.
+			// We'd have to stream in the HTTP payload body and who knows how large that could be. Forget it!
+			if ( auth_info->qop_type == 2 )
+			{
+				char *entity_body = NULL;
+				int entity_body_length = 0;
+
+				_CryptHashData( hHash, ( BYTE * )":", 1, 0 );
+				_CryptHashData( hHash, ( BYTE * )entity_body, entity_body_length, 0 );
+			}
+
+			GetMD5String( &hHash, &HA2, &HA2_length );
+		}
+
+		if ( hHash != NULL )
+		{
+			_CryptDestroyHash( hHash );
+			hHash = NULL;
+		}
+
+		// Create response.
+		if ( _CryptCreateHash( hProv, CALG_MD5, 0, 0, &hHash ) )
+		{
+			_CryptHashData( hHash, ( BYTE * )HA1, HA1_length, 0 );
+			_CryptHashData( hHash, ( BYTE * )":", 1, 0 );
+			_CryptHashData( hHash, ( BYTE * )nonce, nonce_length, 0 );
+			_CryptHashData( hHash, ( BYTE * )":", 1, 0 );
+
+			if ( auth_info->qop_type != 0 )
+			{
+				char ncount[ 9 ];
+				__snprintf( ncount, 9, "%08x", auth_info->nc );	// Hex must be lowercase.
+
+				_CryptHashData( hHash, ( BYTE * )ncount, 8, 0 );
+				_CryptHashData( hHash, ( BYTE * )":", 1, 0 );
+				_CryptHashData( hHash, ( BYTE * )auth_info->cnonce, cnonce_length, 0 );
+				_CryptHashData( hHash, ( BYTE * )":", 1, 0 );
+				_CryptHashData( hHash, ( BYTE * )auth_info->qop, qop_length, 0 );
+				_CryptHashData( hHash, ( BYTE * )":", 1, 0 );
+			}
+
+			_CryptHashData( hHash, ( BYTE * )HA2, HA2_length, 0 );
+
+			GetMD5String( &hHash, &response, &response_length );
+		}
+
+		if ( hHash != NULL )
+		{
+			_CryptDestroyHash( hHash );
+			hHash = NULL;
+		}
+	}
+
+	if ( hProv != NULL )
+	{
+		_CryptReleaseContext( hProv, 0 );
+	}
+
+	GlobalFree( HA1 );
+	GlobalFree( HA2 );
+
+	if ( response != NULL )
+	{
+		if ( response_length == client_response_length && _StrCmpNA( response, auth_info->response, response_length ) == 0 )
+		{
+			ret = true;
+		}
+
+		GlobalFree( response );
+	}
+
+	return ret;
+}
+
 void ConstructRequest( SOCKET_CONTEXT *context, bool use_connect )
 {
 	unsigned int request_length = 0;
@@ -1339,6 +1638,13 @@ void ConstructRequest( SOCKET_CONTEXT *context, bool use_connect )
 						"If-Match: %s\r\n", context->download_info->etag );
 			}
 		}*/
+
+		// Add extra headers.
+		if ( context->download_info != NULL && context->download_info->headers != NULL )
+		{
+			request_length += __snprintf( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length,
+					"%s", context->download_info->headers );
+		}
 
 		if ( context->header_info.digest_info != NULL )
 		{

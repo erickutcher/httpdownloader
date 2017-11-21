@@ -99,6 +99,7 @@
 	#define _ReleaseDC				ReleaseDC
 	//#define _RemoveMenu				RemoveMenu
 	//#define _ScreenToClient			ScreenToClient
+	#define _ScrollWindow			ScrollWindow
 	#define _SendMessageA			SendMessageA
 	#define _SendMessageW			SendMessageW
 	//#define _SendNotifyMessageW		SendNotifyMessageW
@@ -112,6 +113,8 @@
 	#define _SetMenu				SetMenu
 	//#define _SetMenuItemInfoW		SetMenuItemInfoW
 	//#define _SetRect				SetRect
+	#define _SetScrollInfo			SetScrollInfo
+	#define _SetScrollPos			SetScrollPos
 	#define _SetTimer				SetTimer
 	#define _SetWindowLongW			SetWindowLongW
 	#define _SetWindowPos			SetWindowPos
@@ -189,6 +192,8 @@
 	typedef int ( WINAPI *pMessageBoxA )( HWND hWnd, LPCSTR lpText, LPCSTR lpCaption, UINT uType );
 	typedef int ( WINAPI *pMessageBoxW )( HWND hWnd, LPCTSTR lpText, LPCTSTR lpCaption, UINT uType );
 	typedef BOOL ( WINAPI *pOffsetRect )( LPRECT lprc, int dx, int dy );
+	typedef int ( WINAPI *pSetScrollInfo )( HWND hwnd, int fnBar, LPCSCROLLINFO lpsi, BOOL fRedraw );
+	typedef int ( WINAPI *pSetScrollPos )( HWND hWnd, int nBar, int nPos, BOOL bRedraw );
 	//typedef BOOL ( WINAPI *pOpenClipboard )( HWND hWndNewOwner );
 	typedef BOOL ( WINAPI *pPostMessageW )( HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lParam );
 	typedef VOID ( WINAPI *pPostQuitMessage )( int nExitCode );
@@ -198,6 +203,7 @@
 	typedef int ( WINAPI *pReleaseDC )( HWND hWnd, HDC hDC );
 	//typedef BOOL ( WINAPI *pRemoveMenu )( HMENU hMenu, UINT uPosition, UINT uFlags );
 	//typedef BOOL ( WINAPI *pScreenToClient )( HWND hWnd, LPPOINT lpPoint );
+	typedef BOOL ( WINAPI *pScrollWindow )( HWND hWnd, int XAmount, int YAmount, const RECT *lpRect, const RECT *lpClipRect );
 	typedef LRESULT ( WINAPI *pSendMessageA )( HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lParam );
 	typedef LRESULT ( WINAPI *pSendMessageW )( HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lParam );
 	//typedef BOOL ( WINAPI *pSendNotifyMessageW )( HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lParam );
@@ -281,6 +287,8 @@
 	extern pMessageBoxA				_MessageBoxA;
 	extern pMessageBoxW				_MessageBoxW;
 	extern pOffsetRect				_OffsetRect;
+	extern pSetScrollInfo			_SetScrollInfo;
+	extern pSetScrollPos			_SetScrollPos
 	//extern pOpenClipboard			_OpenClipboard;
 	extern pPostMessageW			_PostMessageW;
 	extern pPostQuitMessage			_PostQuitMessage;
@@ -290,6 +298,7 @@
 	extern pReleaseDC				_ReleaseDC;
 	//extern pRemoveMenu				_RemoveMenu;
 	//extern pScreenToClient			_ScreenToClient;
+	extern pScrollWindow			_ScrollWindow;
 	extern pSendMessageA			_SendMessageA;
 	extern pSendMessageW			_SendMessageW;
 	//extern pSendNotifyMessageW		_SendNotifyMessageW;

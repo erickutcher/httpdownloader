@@ -42,7 +42,53 @@ WSAEVENT g_cleanup_event[ 1 ];
 
 bool g_end_program = false;
 
-DoublyLinkedList *context_list = NULL;
+DoublyLinkedList *g_context_list = NULL;
+
+PCCERT_CONTEXT g_pCertContext = NULL;
+
+SOCKET g_listen_socket = INVALID_SOCKET;
+SOCKET_CONTEXT *g_listen_context = NULL;
+
+// Server
+
+char *g_server_domain = NULL;
+unsigned short g_server_port = 80;
+bool g_server_use_ipv6 = false;
+
+char *g_authentication_username = NULL;
+char *g_authentication_password = NULL;
+unsigned int g_authentication_username_length = 0;
+unsigned int g_authentication_password_length = 0;
+
+char *g_encoded_authentication = NULL;
+DWORD g_encoded_authentication_length = 0;
+
+wchar_t *g_server_punycode_hostname = NULL;
+
+extern char *g_nonce = NULL;
+unsigned long g_nonce_length = 0;
+extern char *g_opaque = NULL;
+unsigned long g_opaque_length = 0;
+
+// HTTP Proxy
+
+wchar_t *g_punycode_hostname = NULL;
+
+char *g_proxy_auth_username = NULL;
+char *g_proxy_auth_password = NULL;
+char *g_proxy_auth_key = NULL;
+unsigned long g_proxy_auth_key_length = 0;
+
+// HTTPS Proxy
+
+wchar_t *g_punycode_hostname_s = NULL;
+
+char *g_proxy_auth_username_s = NULL;
+char *g_proxy_auth_password_s = NULL;
+char *g_proxy_auth_key_s = NULL;
+unsigned long g_proxy_auth_key_length_s = 0;
+
+////////////////////
 
 unsigned long total_downloading = 0;
 DoublyLinkedList *download_queue = NULL;
@@ -53,8 +99,6 @@ DoublyLinkedList *file_size_prompt_list = NULL;	// List of downloads that need t
 
 DoublyLinkedList *rename_file_prompt_list = NULL;	// List of downloads that need to be prompted to continue.
 
-void FreeContexts();
-
 HANDLE g_timeout_semaphore = NULL;
 
 CRITICAL_SECTION context_list_cs;				// Guard access to the global context list.
@@ -64,6 +108,7 @@ CRITICAL_SECTION file_size_prompt_list_cs;		// Guard access to the file size pro
 CRITICAL_SECTION rename_file_prompt_list_cs;	// Guard access to the rename file prompt list.
 CRITICAL_SECTION cleanup_cs;
 
+LPFN_ACCEPTEX _AcceptEx = NULL;
 LPFN_CONNECTEX _ConnectEx = NULL;
 
 bool file_size_prompt_active = false;
@@ -123,7 +168,7 @@ DWORD WINAPI Timeout( LPVOID WorkThreadContext )
 
 		if ( TryEnterCriticalSection( &context_list_cs ) == TRUE )
 		{
-			DoublyLinkedList *context_node = context_list;
+			DoublyLinkedList *context_node = g_context_list;
 
 			// Go through the list of active connections.
 			while ( context_node != NULL )
@@ -153,7 +198,7 @@ DWORD WINAPI Timeout( LPVOID WorkThreadContext )
 
 							if ( context->cleanup == 0 )
 							{
-								context->cleanup = 2;
+								context->cleanup = 2;	// Force the cleanup.
 
 								InterlockedIncrement( &context->pending_operations );
 
@@ -181,8 +226,152 @@ DWORD WINAPI Timeout( LPVOID WorkThreadContext )
 	CloseHandle( g_timeout_semaphore );
 	g_timeout_semaphore = NULL;
 
-	ExitThread( 0 );
+	_ExitThread( 0 );
 	return 0;
+}
+
+void InitializeServerInfo()
+{
+	if ( cfg_server_enable_ssl )
+	{
+		if ( cfg_certificate_type == 1 )	// Public/Private Key Pair.
+		{
+			g_pCertContext = LoadPublicPrivateKeyPair( cfg_certificate_cer_file_name, cfg_certificate_key_file_name );
+		}
+		else	// PKCS #12 File.
+		{
+			g_pCertContext = LoadPKCS12( cfg_certificate_pkcs_file_name, cfg_certificate_pkcs_password );
+		}
+	}
+
+	if ( cfg_use_authentication )
+	{
+		if ( cfg_authentication_username != NULL )
+		{
+			g_authentication_username_length = WideCharToMultiByte( CP_UTF8, 0, cfg_authentication_username, -1, NULL, 0, NULL, NULL );
+			g_authentication_username = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * g_authentication_username_length ); // Size includes the null character.
+			g_authentication_username_length = WideCharToMultiByte( CP_UTF8, 0, cfg_authentication_username, -1, g_authentication_username, g_authentication_username_length, NULL, NULL ) - 1;
+		}
+
+		if ( cfg_authentication_password != NULL )
+		{
+			g_authentication_password_length = WideCharToMultiByte( CP_UTF8, 0, cfg_authentication_password, -1, NULL, 0, NULL, NULL );
+			g_authentication_password = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * g_authentication_password_length ); // Size includes the null character.
+			g_authentication_password_length = WideCharToMultiByte( CP_UTF8, 0, cfg_authentication_password, -1, g_authentication_password, g_authentication_password_length, NULL, NULL ) - 1;
+		}
+
+		if ( cfg_authentication_type == AUTH_TYPE_DIGEST )
+		{
+			CreateDigestAuthorizationInfo( &g_nonce, g_nonce_length, &g_opaque, g_opaque_length );
+		}
+		else
+		{
+			CreateBasicAuthorizationKey( g_authentication_username, g_authentication_username_length, g_authentication_password, g_authentication_password_length, &g_encoded_authentication, &g_encoded_authentication_length );
+		}
+	}
+
+	if ( normaliz_state == NORMALIZ_STATE_RUNNING )
+	{
+		if ( cfg_server_address_type == 0 )	// Hostname.
+		{
+			int hostname_length = lstrlenW( cfg_server_hostname ) + 1;	// Include the NULL terminator.
+			int punycode_length = _IdnToAscii( 0, cfg_server_hostname, hostname_length, NULL, 0 );
+
+			if ( punycode_length > hostname_length )
+			{
+				g_server_punycode_hostname = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * punycode_length );
+				_IdnToAscii( 0, cfg_server_hostname, hostname_length, g_server_punycode_hostname, punycode_length );
+			}
+		}
+	}
+}
+
+void CleanupServerInfo()
+{
+	if ( g_authentication_username != NULL )
+	{
+		GlobalFree( g_authentication_username );
+		g_authentication_username = NULL;
+	}
+
+	g_authentication_username_length = 0;
+
+	if ( g_authentication_password != NULL )
+	{
+		GlobalFree( g_authentication_password );
+		g_authentication_password = NULL;
+	}
+
+	g_authentication_password_length = 0;
+
+	if ( g_encoded_authentication != NULL )
+	{
+		GlobalFree( g_encoded_authentication );
+		g_encoded_authentication = NULL;
+	}
+
+	if ( g_nonce != NULL )
+	{
+		GlobalFree( g_nonce );
+		g_nonce = NULL;
+	}
+
+	g_nonce_length = 0;
+
+	if ( g_opaque != NULL )
+	{
+		GlobalFree( g_opaque );
+		g_opaque = NULL;
+	}
+
+	g_opaque_length = 0;
+
+	if ( g_server_punycode_hostname != NULL )
+	{
+		GlobalFree( g_server_punycode_hostname );
+		g_server_punycode_hostname = NULL;
+	}
+
+	if ( g_server_domain != NULL )
+	{
+		GlobalFree( g_server_domain );
+		g_server_domain = NULL;
+	}
+
+	if ( cfg_server_enable_ssl )
+	{
+		if ( g_pCertContext != NULL )
+		{
+			_CertFreeCertificateContext( g_pCertContext );
+			g_pCertContext = NULL;
+		}
+	}
+}
+
+void StartServer()
+{
+	g_listen_socket = CreateListenSocket();
+
+	// Create the accept socket.
+	if ( g_listen_socket != INVALID_SOCKET )
+	{
+		CreateAcceptSocket( g_listen_socket, g_server_use_ipv6 );
+	}
+}
+
+void CleanupServer()
+{
+	// When we shutdown/close g_listen_socket, g_listen_context will complete with a status of FALSE and we can then clean it up.
+	if ( g_listen_socket != INVALID_SOCKET )
+	{
+		SOCKET del_listen_socket = g_listen_socket;
+		g_listen_socket = INVALID_SOCKET;
+
+		g_listen_context = NULL;	// Freed in CleanupConnection.
+
+		_shutdown( del_listen_socket, SD_BOTH );
+		_closesocket( del_listen_socket );
+	}
 }
 
 DWORD WINAPI IOCPDownloader( LPVOID pArgs )
@@ -213,6 +402,11 @@ DWORD WINAPI IOCPDownloader( LPVOID pArgs )
 		{
 			goto HARD_CLEANUP;
 		}
+	}
+
+	if ( cfg_enable_server )
+	{
+		InitializeServerInfo();
 	}
 
 	g_ThreadHandles = ( HANDLE * )GlobalAlloc( GMEM_FIXED, sizeof( HANDLE ) * dwThreadCount );
@@ -250,6 +444,11 @@ DWORD WINAPI IOCPDownloader( LPVOID pArgs )
 
 		g_ThreadHandles[ dwCPU ] = hThread;
 		hThread = INVALID_HANDLE_VALUE;
+	}
+
+	if ( cfg_enable_server )
+	{
+		StartServer();
 	}
 
 	if ( downloader_ready_semaphore != NULL )
@@ -295,6 +494,16 @@ DWORD WINAPI IOCPDownloader( LPVOID pArgs )
 		ReleaseSemaphore( g_timeout_semaphore, 1, NULL );
 	}
 
+	if ( g_listen_socket != INVALID_SOCKET )
+	{
+		_shutdown( g_listen_socket, SD_BOTH );
+		_closesocket( g_listen_socket );
+		g_listen_socket = INVALID_SOCKET;
+	}
+
+	// Clean up our listen context.
+	FreeListenContext();
+
 	// Clean up our context list.
 	FreeContexts();
 
@@ -332,7 +541,6 @@ HARD_CLEANUP:
 	return 0;
 }
 
-
 bool LoadConnectEx()
 {
 	bool ret = false;
@@ -357,6 +565,246 @@ bool LoadConnectEx()
 	}
 
 	return ret;
+}
+
+SOCKET_CONTEXT *UpdateCompletionPort( SOCKET socket, bool is_listen_socket )
+{
+	SOCKET_CONTEXT *context = CreateSocketContext();
+	if ( context )
+	{
+		context->socket = socket;
+
+		context->overlapped.current_operation = IO_Accept;
+
+		// Create an SSL/TLS object for incoming SSL/TLS connections, but not for SSL/TLS tunnel connections.
+		if ( !is_listen_socket && cfg_server_enable_ssl )
+		{
+			DWORD protocol = 0;
+			switch ( cfg_server_ssl_version )
+			{
+				case 4:	protocol |= SP_PROT_TLS1_2;
+				case 3:	protocol |= SP_PROT_TLS1_1;
+				case 2:	protocol |= SP_PROT_TLS1;
+				case 1:	protocol |= SP_PROT_SSL3;
+				case 0:	{ if ( cfg_server_ssl_version < 4 ) { protocol |= SP_PROT_SSL2; } }
+			}
+
+			SSL *ssl = SSL_new( protocol, true );
+			if ( ssl == NULL )
+			{
+				DeleteCriticalSection( &context->context_cs );
+
+				GlobalFree( context );
+				context = NULL;
+
+				return NULL;
+			}
+
+			ssl->s = socket;
+
+			context->ssl = ssl;
+		}
+
+		g_hIOCP = CreateIoCompletionPort( ( HANDLE )socket, g_hIOCP, ( DWORD_PTR )context, 0 );
+		if ( g_hIOCP == NULL )
+		{
+			DeleteCriticalSection( &context->context_cs );
+
+			GlobalFree( context );
+			context = NULL;
+		}
+		else if ( !is_listen_socket )
+		{
+			RANGE_INFO *ri = ( RANGE_INFO * )GlobalAlloc( GPTR, sizeof( RANGE_INFO ) );
+			context->header_info.range_info = ri;
+
+			context->context_node.data = context;
+
+			EnterCriticalSection( &context_list_cs );
+
+			// Add to the global download list.
+			DLL_AddNode( &g_context_list, &context->context_node, 0 );
+
+			LeaveCriticalSection( &context_list_cs );
+		}
+	}
+
+	return context;
+}
+
+SOCKET CreateListenSocket()
+{
+	int nRet = 0;
+
+	DWORD bytes = 0;
+	GUID acceptex_guid = WSAID_ACCEPTEX;	// GUID to Microsoft specific extensions
+
+	struct addrinfoW hints;
+	struct addrinfoW *addrlocal = NULL;
+
+	// Resolve the interface
+	_memzero( &hints, sizeof( addrinfoW ) );
+	hints.ai_flags = AI_PASSIVE;
+	hints.ai_family = AF_INET;
+	hints.ai_socktype = SOCK_STREAM;
+	hints.ai_protocol = IPPROTO_IP;
+
+	SOCKET listen_socket = INVALID_SOCKET;
+
+	wchar_t cport[ 6 ];
+	__snwprintf( cport, 6, L"%hu", cfg_server_port );
+
+	g_server_use_ipv6 = false;
+
+	g_server_port = cfg_server_port;
+
+	if ( g_server_domain != NULL )
+	{
+		GlobalFree( g_server_domain );
+		g_server_domain = NULL;
+	}
+
+	// Use Hostname or IPv6 Address.
+	if ( cfg_server_address_type == 0 )
+	{
+		wchar_t *hostname = ( g_server_punycode_hostname != NULL ? g_server_punycode_hostname : cfg_server_hostname );
+
+		g_server_domain = GetUTF8Domain( hostname );
+
+		nRet = _GetAddrInfoW( hostname, cport, &hints, &addrlocal );
+		if ( nRet == WSAHOST_NOT_FOUND )
+		{
+			g_server_use_ipv6 = true;
+
+			hints.ai_family = AF_INET6;	// Try IPv6
+			nRet = _GetAddrInfoW( hostname, cport, &hints, &addrlocal );
+		}
+
+		if ( nRet != 0 )
+		{
+			goto CLEANUP;
+		}
+
+		// Check the IPv6 address' formatting. It should be surrounded by brackets.
+		// GetAddrInfoW supports it with or without, but we want it to have it.
+		if ( g_server_use_ipv6 )
+		{
+			if ( g_server_domain != NULL && *g_server_domain != '[' )
+			{
+				int g_server_domain_length = lstrlenA( g_server_domain );
+				char *new_g_server_domain = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( g_server_domain_length + 3 ) );	// 2 brackets and the NULL character.
+				new_g_server_domain[ 0 ] = '[';
+				_memcpy_s( new_g_server_domain + 1, g_server_domain_length + 2, g_server_domain, g_server_domain_length );
+				new_g_server_domain[ g_server_domain_length + 1 ] = ']';
+				new_g_server_domain[ g_server_domain_length + 2 ] = 0;	// Sanity.
+
+				GlobalFree( g_server_domain );
+				g_server_domain = new_g_server_domain;
+			}
+		}
+	}
+	else	// Use IPv4 Address.
+	{
+		struct sockaddr_in src_addr;
+		_memzero( &src_addr, sizeof( sockaddr_in ) );
+
+		src_addr.sin_family = AF_INET;
+		src_addr.sin_addr.s_addr = _htonl( cfg_server_ip_address );
+
+		wchar_t wcs_ip[ 16 ];
+		DWORD wcs_ip_length = 16;
+		_WSAAddressToStringW( ( SOCKADDR * )&src_addr, sizeof( struct sockaddr_in ), NULL, wcs_ip, &wcs_ip_length );
+
+		g_server_domain = GetUTF8Domain( wcs_ip );
+
+		if ( _GetAddrInfoW( wcs_ip, cport, &hints, &addrlocal ) != 0 )
+		{
+			goto CLEANUP;
+		}
+	}
+
+	if ( addrlocal == NULL )
+	{
+		goto CLEANUP;
+	}
+
+	SOCKET socket = CreateSocket( g_server_use_ipv6 );
+	if ( socket == INVALID_SOCKET )
+	{
+		goto CLEANUP;
+	}
+
+	nRet = _bind( socket, addrlocal->ai_addr, ( int )addrlocal->ai_addrlen );
+	if ( nRet == SOCKET_ERROR )
+	{
+		goto CLEANUP;
+	}
+
+	nRet = _listen( socket, SOMAXCONN );
+	if ( nRet == SOCKET_ERROR )
+	{
+		goto CLEANUP;
+	}
+
+	// We need only do this once.
+	if ( _AcceptEx == NULL )
+	{
+		// Load the AcceptEx extension function from the provider.
+		// It doesn't matter what socket we use so long as it's valid.
+		nRet = _WSAIoctl( socket, SIO_GET_EXTENSION_FUNCTION_POINTER, &acceptex_guid, sizeof( acceptex_guid ), &_AcceptEx, sizeof( _AcceptEx ), &bytes, NULL, NULL );
+		if ( nRet == SOCKET_ERROR )
+		{
+			goto CLEANUP;
+		}
+	}
+
+	listen_socket = socket;
+	socket = INVALID_SOCKET;
+
+CLEANUP:
+
+	if ( socket != INVALID_SOCKET )
+	{
+		_closesocket( socket );
+	}
+
+	if ( addrlocal != NULL )
+	{
+		_FreeAddrInfoW( addrlocal );
+	}
+
+	return listen_socket;
+}
+
+char CreateAcceptSocket( SOCKET listen_socket, bool use_ipv6 )
+{
+	int nRet = 0;
+	DWORD dwRecvNumBytes = 0;
+
+	if ( g_listen_context == NULL )
+	{
+		g_listen_context = UpdateCompletionPort( listen_socket, true );
+		if ( g_listen_context == NULL )
+		{
+			return LA_STATUS_FAILED;
+		}
+	}
+
+	// The accept socket will inherit the listen socket's properties when it completes. IPv6 doesn't actually have to be set here.
+	g_listen_context->socket = CreateSocket( use_ipv6 );
+	if ( g_listen_context->socket == INVALID_SOCKET )
+	{
+		return LA_STATUS_FAILED;
+	}
+
+	// Accept a connection without waiting for any data. (dwReceiveDataLength = 0)
+	nRet = _AcceptEx( listen_socket, g_listen_context->socket, ( LPVOID )( g_listen_context->buffer ), 0, sizeof( SOCKADDR_STORAGE ) + 16, sizeof( SOCKADDR_STORAGE ) + 16, &dwRecvNumBytes, ( OVERLAPPED * )&g_listen_context->overlapped );
+	if ( nRet == SOCKET_ERROR && ( _WSAGetLastError() != ERROR_IO_PENDING ) )
+	{
+		return LA_STATUS_FAILED;
+	}
+
+	return LA_STATUS_OK;
 }
 
 SOCKET CreateSocket( bool IPv6 )
@@ -724,30 +1172,33 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 
 		InterlockedExchange( &context->timeout, 0 );	// Reset timeout counter.
 
-		InterlockedDecrement( &context->pending_operations );
-
 		use_ssl = ( context->ssl != NULL ? true : false );
+
+		if ( *current_operation != IO_Accept )
+		{
+			InterlockedDecrement( &context->pending_operations );
+		}
 
 		if ( completion_status == FALSE )
 		{
+			EnterCriticalSection( &context->context_cs );
+
+			context->cleanup = 1;	// Auto cleanup.
+
+			LeaveCriticalSection( &context->context_cs );
+
 			if ( context->pending_operations > 0 )
 			{
-				EnterCriticalSection( &context->context_cs );
-
-				context->cleanup = 1;
-
-				LeaveCriticalSection( &context->context_cs );
-
 				continue;
 			}
-			else if ( *current_operation != IO_Shutdown && *current_operation != IO_Close )
+			else// if ( *current_operation != IO_Shutdown && *current_operation != IO_Close )
 			{
 				if ( *current_operation == IO_Connect )	// We couldn't establish a connection.
 				{
 					context->timed_out = TIME_OUT_RETRY;
 				}
 
-				*current_operation = ( use_ssl ? IO_Shutdown : IO_Close );
+				*current_operation = IO_Close;//( use_ssl ? IO_Shutdown : IO_Close );
 			}
 		}
 		else
@@ -803,6 +1254,112 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 
 		switch ( *current_operation )
 		{
+			case IO_Accept:
+			{
+				EnterCriticalSection( &context->context_cs );
+
+				if ( context->cleanup == 0 )
+				{
+					// Allow the accept socket to inherit the properties of the listen socket.
+					// The context here is actually from listen_context->data or listen_context_s->data.
+					nRet = _setsockopt( context->socket, SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT, ( char * )&g_listen_socket, sizeof( g_listen_socket ) );
+					if ( nRet != SOCKET_ERROR )
+					{
+						// Create a new socket context with the inherited socket.
+						SOCKET_CONTEXT *new_context = UpdateCompletionPort( context->socket, false );
+						if ( new_context != NULL )
+						{
+							EnterCriticalSection( &cleanup_cs );
+
+							EnableTimers( true );
+
+							LeaveCriticalSection( &cleanup_cs );
+
+							InterlockedIncrement( &new_context->pending_operations );
+
+							// Accept incoming SSL/TLS connections.
+							if ( cfg_server_enable_ssl )
+							{
+								new_context->overlapped.current_operation = IO_ServerHandshakeReply;
+
+								SSL_WSAAccept( new_context, &new_context->overlapped, sent );
+							}
+							else	// Non-encrypted connections.
+							{
+								sent = true;
+
+								new_context->overlapped.current_operation = IO_GetRequest;
+
+								new_context->wsabuf.buf = new_context->buffer;
+								new_context->wsabuf.len = BUFFER_SIZE;
+
+								nRet = _WSARecv( new_context->socket, &new_context->wsabuf, 1, NULL, &dwFlags, ( WSAOVERLAPPED * )&new_context->overlapped, NULL );
+								if ( nRet == SOCKET_ERROR && ( _WSAGetLastError() != ERROR_IO_PENDING ) )
+								{
+									sent = false;
+								}
+							}
+
+							if ( !sent )
+							{
+								new_context->overlapped.current_operation = IO_Close;
+
+								PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )new_context, ( WSAOVERLAPPED * )&new_context->overlapped );
+							}
+						}
+						else	// Clean up the listen context.
+						{
+							if ( context->socket != INVALID_SOCKET )
+							{
+								_shutdown( context->socket, SD_BOTH );
+								_closesocket( context->socket );
+								context->socket = INVALID_SOCKET;
+							}
+
+							GlobalFree( context );
+							context = NULL;
+						}
+					}
+					else	// Clean up the listen context.
+					{
+						if ( context->socket != INVALID_SOCKET )
+						{
+							_shutdown( context->socket, SD_BOTH );
+							_closesocket( context->socket );
+							context->socket = INVALID_SOCKET;
+						}
+
+						GlobalFree( context );
+						context = NULL;
+					}
+
+					// Post another outstanding AcceptEx.
+					CreateAcceptSocket( g_listen_socket, g_server_use_ipv6 );
+					/*if ( CreateAcceptSocket( g_listen_socket, g_server_use_ipv6 ) != LA_STATUS_OK )
+					{
+						_WSASetEvent( g_cleanup_event[ 0 ] );
+
+						_ExitThread( 0 );
+						return 0;
+					}*/
+				}
+				else if ( context->cleanup == 2 )	// If we've forced the cleanup, then allow it to continue its steps.
+				{
+					context->cleanup = 1;	// Auto cleanup.
+				}
+				else	// We've already shutdown and/or closed the connection.
+				{
+					InterlockedIncrement( &context->pending_operations );
+
+					*current_operation = IO_Close;
+
+					PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
+				}
+
+				LeaveCriticalSection( &context->context_cs );
+			}
+			break;
+
 			case IO_Connect:
 			{
 				bool connection_failed = false;
@@ -829,7 +1386,7 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 								case 0:	{ if ( shared_protocol < 4 ) { protocol |= SP_PROT_SSL2_CLIENT; } }
 							}
 
-							SSL *ssl = SSL_new( protocol );
+							SSL *ssl = SSL_new( protocol, false );
 							if ( ssl == NULL )
 							{
 								connection_failed = true;
@@ -867,7 +1424,7 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 							// If it's an HTTPS request and we're not going through a SSL/TLS proxy, then begin the SSL/TLS handshake.
 							if ( context->request_info.protocol == PROTOCOL_HTTPS && !cfg_enable_proxy_s )
 							{
-								*next_operation = IO_HandshakeResponse;
+								*next_operation = IO_ClientHandshakeResponse;
 
 								SSL_WSAConnect( context, overlapped, context->request_info.host, sent );
 								if ( !sent )
@@ -911,9 +1468,9 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 				}
 				else if ( context->cleanup == 2 )	// If we've forced the cleanup, then allow it to continue its steps.
 				{
-					context->cleanup = 1;
+					context->cleanup = 1;	// Auto cleanup.
 				}
-				else
+				else	// We've already shutdown and/or closed the connection.
 				{
 					connection_failed = true;
 				}
@@ -929,8 +1486,8 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 			}
 			break;
 
-			case IO_HandshakeResponse:
-			case IO_HandshakeReply:
+			case IO_ClientHandshakeResponse:
+			case IO_ClientHandshakeReply:
 			{
 				EnterCriticalSection( &context->context_cs );
 
@@ -941,14 +1498,14 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 
 					InterlockedIncrement( &context->pending_operations );
 
-					if ( *current_operation == IO_HandshakeReply )
+					if ( *current_operation == IO_ClientHandshakeReply )
 					{
 						context->ssl->cbIoBuffer += io_size;
 
 						if ( context->ssl->cbIoBuffer > 0 )
 						{
-							*current_operation = IO_HandshakeResponse;
-							*next_operation = IO_HandshakeResponse;
+							*current_operation = IO_ClientHandshakeResponse;
+							*next_operation = IO_ClientHandshakeResponse;
 
 							scRet = SSL_WSAConnect_Reply( context, overlapped, sent );
 						}
@@ -959,18 +1516,18 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 					}
 					else
 					{
-						*current_operation = IO_HandshakeReply;
+						*current_operation = IO_ClientHandshakeReply;
 
 						scRet = SSL_WSAConnect_Response( context, overlapped, sent );
 					}
 
+					if ( !sent )
+					{
+						InterlockedDecrement( &context->pending_operations );
+					}
+
 					if ( scRet == SEC_E_OK )
 					{
-						if ( !sent )
-						{
-							InterlockedDecrement( &context->pending_operations );
-						}
-
 						// Post request.
 
 						InterlockedIncrement( &context->pending_operations );
@@ -994,11 +1551,6 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 					{
 						// Have seen SEC_E_ILLEGAL_MESSAGE (for a bad target name in InitializeSecurityContext), SEC_E_BUFFER_TOO_SMALL, and SEC_E_MESSAGE_ALTERED.
 
-						if ( !sent )
-						{
-							InterlockedDecrement( &context->pending_operations );
-						}
-
 						InterlockedIncrement( &context->pending_operations );
 
 						*current_operation = IO_Close;
@@ -1008,9 +1560,134 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 				}
 				else if ( context->cleanup == 2 )	// If we've forced the cleanup, then allow it to continue its steps.
 				{
-					context->cleanup = 1;
+					context->cleanup = 1;	// Auto cleanup.
 				}
-				else
+				else	// We've already shutdown and/or closed the connection.
+				{
+					InterlockedIncrement( &context->pending_operations );
+
+					*current_operation = IO_Close;
+
+					PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
+				}
+
+				LeaveCriticalSection( &context->context_cs );
+			}
+			break;
+
+			case IO_ServerHandshakeResponse:
+			case IO_ServerHandshakeReply:
+			{
+				EnterCriticalSection( &context->context_cs );
+
+				if ( context->cleanup == 0 )
+				{
+					// We process data from the client and write our reply.
+					InterlockedIncrement( &context->pending_operations );
+
+					if ( *current_operation == IO_ServerHandshakeReply )
+					{
+						context->ssl->cbIoBuffer += io_size;
+
+						*current_operation = IO_ServerHandshakeResponse;
+						*next_operation = IO_ServerHandshakeResponse;
+
+						scRet = SSL_WSAAccept_Reply( context, overlapped, sent );
+					}
+					else
+					{
+						*current_operation = IO_ServerHandshakeReply;
+
+						scRet = SSL_WSAAccept_Response( context, overlapped, sent );
+					}
+
+					if ( !sent )
+					{
+						InterlockedDecrement( &context->pending_operations );
+					}
+
+					if ( scRet == SEC_E_OK )	// If true, then no send was made.
+					{
+						InterlockedIncrement( &context->pending_operations );
+
+						*current_operation = IO_GetRequest;
+
+						if ( context->ssl->cbIoBuffer > 0 )
+						{
+							// The request was sent with the handshake.
+							PostQueuedCompletionStatus( hIOCP, context->ssl->cbIoBuffer, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
+						}
+						else
+						{
+							context->wsabuf.buf = context->buffer;
+							context->wsabuf.len = BUFFER_SIZE;
+
+							/*scRet =*/ SSL_WSARecv( context, overlapped, sent );
+							if ( /*scRet != SEC_E_OK ||*/ !sent )
+							{
+								*current_operation = IO_Shutdown;
+
+								PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
+							}
+						}
+					}
+					else if ( scRet == SEC_E_INCOMPLETE_MESSAGE && *current_operation == IO_ServerHandshakeResponse )
+					{
+						// An SEC_E_INCOMPLETE_MESSAGE after SSL_WSAAccept_Reply can indicate that it doesn't support SSL/TLS, but sent the request as plaintext.
+
+						/*InterlockedIncrement( &context->pending_operations );
+
+						context->wsabuf.buf = context->buffer;
+						context->wsabuf.len = BUFFER_SIZE;
+
+						DWORD bytes_read = min( BUFFER_SIZE, context->ssl->cbIoBuffer );
+
+						_memcpy_s( context->wsabuf.buf, BUFFER_SIZE, context->ssl->pbIoBuffer, bytes_read );
+						*current_operation = IO_GetRequest;
+
+						SSL_free( context->ssl );
+						context->ssl = NULL;
+
+						PostQueuedCompletionStatus( hIOCP, bytes_read, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );*/
+
+						*current_operation = IO_Write;
+						*next_operation = IO_Close;	// This is closed because the SSL connection was never established. An SSL shutdown would just fail.
+
+						InterlockedIncrement( &context->pending_operations );
+
+						context->wsabuf.buf = context->buffer;
+
+						context->wsabuf.len = __snprintf( context->wsabuf.buf, BUFFER_SIZE,
+							"HTTP/1.1 301 Moved Permanently\r\n" \
+							"Location: https://%s:%hu/\r\n"
+							"Content-Type: text/html\r\n" \
+							"Content-Length: 120\r\n" \
+							"Connection: close\r\n\r\n" \
+							"<!DOCTYPE html><html><head><title>301 Moved Permanently</title></head><body><h1>301 Moved Permanently</h1></body></html>", g_server_domain, g_server_port );
+
+						// We do a regular WSASend here since the connection was not encrypted.
+						nRet = _WSASend( context->socket, &context->wsabuf, 1, NULL, dwFlags, ( WSAOVERLAPPED * )overlapped, NULL );
+						if ( nRet == SOCKET_ERROR && ( _WSAGetLastError() != ERROR_IO_PENDING ) )
+						{
+							*current_operation = IO_Close;
+
+							PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
+						}
+					}
+					else if ( scRet != SEC_I_CONTINUE_NEEDED && scRet != SEC_E_INCOMPLETE_MESSAGE && scRet != SEC_I_INCOMPLETE_CREDENTIALS )	// Stop handshake and close the connection.
+					{
+						InterlockedIncrement( &context->pending_operations );
+
+						*current_operation = IO_Close;
+
+						PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
+					}
+				}
+				else if ( context->cleanup == 2 )	// If we've forced the cleanup, then allow it to continue its steps.
+				{
+					context->cleanup = 1;	// Auto cleanup.
+				}
+				else	// We've already shutdown and/or closed the connection.
 				{
 					InterlockedIncrement( &context->pending_operations );
 
@@ -1090,7 +1767,7 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 
 							InterlockedIncrement( &context->pending_operations );
 
-							*next_operation = IO_HandshakeResponse;
+							*next_operation = IO_ClientHandshakeResponse;
 
 							SSL_WSAConnect( context, overlapped, context->request_info.host, sent );
 							if ( !sent )
@@ -1169,9 +1846,9 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 				}
 				else if ( context->cleanup == 2 )	// If we've forced the cleanup, then allow it to continue its steps.
 				{
-					context->cleanup = 1;
+					context->cleanup = 1;	// Auto cleanup.
 				}
-				else
+				else	// We've already shutdown and/or closed the connection.
 				{
 					InterlockedIncrement( &context->pending_operations );
 
@@ -1186,6 +1863,7 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 
 			case IO_GetContent:
 			case IO_ResumeGetContent:
+			case IO_GetRequest:
 			{
 				EnterCriticalSection( &context->context_cs );
 
@@ -1195,7 +1873,8 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 
 					DWORD bytes_decrypted = io_size;
 
-					if ( *current_operation == IO_GetContent )
+					//if ( *current_operation == IO_GetContent || *current_operation == IO_GetRequest )
+					if ( *current_operation != IO_ResumeGetContent )
 					{
 						context->current_bytes_read = 0;
 
@@ -1213,7 +1892,8 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 
 					if ( bytes_decrypted > 0 )
 					{
-						if ( *current_operation == IO_GetContent )
+						//if ( *current_operation == IO_GetContent || *current_operation == IO_GetRequest )
+						if ( *current_operation != IO_ResumeGetContent )
 						{
 							context->current_bytes_read = bytes_decrypted + ( context->wsabuf.buf - context->buffer );
 
@@ -1227,7 +1907,14 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 							*current_operation = IO_GetContent;
 						}
 
-						content_status = GetHTTPContent( context, context->wsabuf.buf, context->current_bytes_read );
+						if ( *current_operation == IO_GetContent )
+						{
+							content_status = GetHTTPResponseContent( context, context->wsabuf.buf, context->current_bytes_read );
+						}
+						else// if ( *current_operation == IO_GetRequest )
+						{
+							content_status = GetHTTPRequestContent( context, context->wsabuf.buf, context->current_bytes_read );
+						}
 					}
 					else if ( use_ssl )
 					{
@@ -1273,11 +1960,24 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 							PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
 						}
 					}
-					else if ( content_status == CONTENT_STATUS_READ_MORE_CONTENT || content_status == CONTENT_STATUS_READ_MORE_HEADER ) // Read more header information, or continue to read more content. Do not reset context->wsabuf since may have been offset to handle partial data.
+					else if ( content_status == CONTENT_STATUS_HANDLE_REQUEST )
+					{
+						context->content_status = CONTENT_STATUS_GET_CONTENT;
+
+						if ( MakeResponse( context ) == CONTENT_STATUS_FAILED )
+						{
+							InterlockedIncrement( &context->pending_operations );
+
+							*current_operation = ( use_ssl ? IO_Shutdown : IO_Close );
+
+							PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
+						}
+					}
+					else if ( content_status == CONTENT_STATUS_READ_MORE_CONTENT || content_status == CONTENT_STATUS_READ_MORE_HEADER ) // Read more header information, or continue to read more content. Do not reset context->wsabuf since it may have been offset to handle partial data.
 					{
 						InterlockedIncrement( &context->pending_operations );
 
-						*current_operation = IO_GetContent;
+						//*current_operation = IO_GetContent;
 
 						if ( use_ssl )
 						{
@@ -1312,9 +2012,9 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 				}
 				else if ( context->cleanup == 2 )	// If we've forced the cleanup, then allow it to continue its steps.
 				{
-					context->cleanup = 1;
+					context->cleanup = 1;	// Auto cleanup.
 				}
-				else
+				else	// We've already shutdown and/or closed the connection.
 				{
 					InterlockedIncrement( &context->pending_operations );
 
@@ -1472,9 +2172,9 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 				}
 				else if ( context->cleanup == 2 )	// If we've forced the cleanup, then allow it to continue its steps.
 				{
-					context->cleanup = 1;
+					context->cleanup = 1;	// Auto cleanup.
 				}
-				else
+				else	// We've already shutdown and/or closed the connection.
 				{
 					InterlockedIncrement( &context->pending_operations );
 
@@ -1491,8 +2191,13 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 			{
 				EnterCriticalSection( &context->context_cs );
 
-				if ( context->cleanup == 0 )
+				if ( context->cleanup == 0 || context->cleanup >= 10 )
 				{
+					if ( context->cleanup >= 10 )
+					{
+						context->cleanup -= 10;
+					}
+
 					// Make sure we've sent everything before we do anything else.
 					if ( io_size < context->wsabuf.len )
 					{
@@ -1519,7 +2224,8 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 						context->wsabuf.buf = context->buffer;
 						context->wsabuf.len = BUFFER_SIZE;
 
-						if ( *current_operation == IO_HandshakeResponse ||
+						if ( *current_operation == IO_ServerHandshakeResponse ||
+							 *current_operation == IO_ClientHandshakeResponse ||
 							 *current_operation == IO_Shutdown ||
 							 *current_operation == IO_Close )
 						{
@@ -1552,9 +2258,9 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 				}
 				else if ( context->cleanup == 2 )	// If we've forced the cleanup, then allow it to continue its steps.
 				{
-					context->cleanup = 1;
+					context->cleanup = 1;	// Auto cleanup.
 				}
-				else
+				else	// We've already shutdown and/or closed the connection.
 				{
 					InterlockedIncrement( &context->pending_operations );
 
@@ -1573,32 +2279,40 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 
 				EnterCriticalSection( &context->context_cs );
 
-				*next_operation = IO_Close;
-
-				InterlockedIncrement( &context->pending_operations );
-
-				context->wsabuf.buf = context->buffer;
-				context->wsabuf.len = BUFFER_SIZE;
-
-				SSL_WSAShutdown( context, overlapped, sent );
-
-				// We'll fall through the IO_Shutdown to IO_Close.
-				if ( !sent )
+				if ( context->cleanup == 0 || context->cleanup == 2 )
 				{
-					InterlockedDecrement( &context->pending_operations );
+					context->cleanup += 10;	// Allow IO_Write to continue to process.
 
-					*current_operation = IO_Close;
-				}
-				else	// The shutdown sent data. IO_Close will be called in IO_Write.
-				{
-					fall_through = false;
-				}
-
-				/*if ( scRet != SEC_E_OK )
-				{
-					*current_operation = IO_Close;
+					*next_operation = IO_Close;
 
 					InterlockedIncrement( &context->pending_operations );
+
+					context->wsabuf.buf = context->buffer;
+					context->wsabuf.len = BUFFER_SIZE;
+
+					SSL_WSAShutdown( context, overlapped, sent );
+
+					// We'll fall through the IO_Shutdown to IO_Close.
+					if ( !sent )
+					{
+						context->cleanup -= 10;
+
+						InterlockedDecrement( &context->pending_operations );
+
+						*current_operation = IO_Close;
+					}
+					else	// The shutdown sent data. IO_Close will be called in IO_Write.
+					{
+						fall_through = false;
+					}
+				}
+				/*else	// We've already shutdown and/or closed the connection.
+				{
+					fall_through = false;
+
+					InterlockedIncrement( &context->pending_operations );
+
+					*current_operation = IO_Close;
 
 					PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
 				}*/
@@ -1613,13 +2327,15 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 
 			case IO_Close:
 			{
+				bool cleanup = true;
+
+				EnterCriticalSection( &context->context_cs );
+
 				if ( context->pending_operations > 0 )
 				{
-					EnterCriticalSection( &context->context_cs );
+					cleanup = false;
 
-					context->cleanup = 1;
-
-					LeaveCriticalSection( &context->context_cs );
+					context->cleanup = 1;	// Auto cleanup.
 
 					if ( context->socket != INVALID_SOCKET )
 					{
@@ -1629,7 +2345,10 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 						_closesocket( s );	// Saves us from having to post if there's already a pending IO operation. Should force the operation to complete.
 					}
 				}
-				else
+
+				LeaveCriticalSection( &context->context_cs );
+
+				if ( cleanup )
 				{
 					// Attempt to connect to a new address if we time out.
 					if ( context->timed_out == TIME_OUT_RETRY && 
@@ -1698,7 +2417,7 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 		}
 	}
 
-	ExitThread( 0 );
+	_ExitThread( 0 );
 	return 0;
 }
 
@@ -1885,6 +2604,163 @@ bool CreateConnection( SOCKET_CONTEXT *context, char *host, unsigned short port 
 	return true;
 }
 
+void UpdateRangeList( DOWNLOAD_INFO *di )
+{
+	if ( di == NULL )
+	{
+		return;
+	}
+
+	RANGE_INFO *ri = NULL;
+	DoublyLinkedList *range_node = di->range_list;
+
+	if ( range_node != NULL )
+	{
+		unsigned char range_info_count = 0;
+
+		// Determine the number of ranges that still need downloading.
+		while ( range_node != NULL )
+		{
+			ri = ( RANGE_INFO * )range_node->data;
+
+			// Check if our range still needs to download.
+			if ( ri != NULL && ( ri->content_offset < ( ( ri->range_end - ri->range_start ) + 1 ) ) )
+			{
+				++range_info_count;
+
+				range_node = range_node->next;
+			}
+			else	// Remove the range if there's nothing to download.
+			{
+				DoublyLinkedList *tmp_range_node = range_node;
+
+				range_node = range_node->next;
+
+				DLL_RemoveNode( &di->range_list, tmp_range_node );
+
+				GlobalFree( tmp_range_node->data );
+				GlobalFree( tmp_range_node );
+			}
+		}
+
+		// Can we split any remaining parts to fill the total?
+		if ( range_info_count > 0 && range_info_count < di->parts )
+		{
+			unsigned char total_rem_parts = di->parts;
+			unsigned char parts = di->parts;
+			unsigned char rem_parts = 0;
+
+			// Avoids having to do a mod to get the remainder.
+			__asm
+			{
+				mov		al, parts			;// Dividend
+				mov		ah, 0				;// Remainder
+				div		range_info_count	;// Divide the 8bit byte by an 8bit byte
+				mov		parts, al			;// Store the results
+				mov		rem_parts, ah		;// Store the remainder
+			}
+
+			DoublyLinkedList *range_list = NULL;
+			range_node = di->range_list;
+
+			// Go through each available unfinished range.
+			for ( unsigned char i = 0; i < range_info_count && range_node != NULL; ++i )
+			{
+				unsigned char t_parts = parts;
+
+				// Distribute any remainder parts amongst the remaining ranges.
+				if ( rem_parts > 0 )
+				{
+					++t_parts;
+					--rem_parts;
+				}
+
+				DoublyLinkedList *tmp_range_node = range_node;
+
+				ri = ( RANGE_INFO * )range_node->data;
+
+				range_node = range_node->next;
+
+				// Reuse the range node.
+				tmp_range_node->next = NULL;
+				tmp_range_node->prev = NULL;
+				DLL_AddNode( &range_list, tmp_range_node, -1 );
+
+				unsigned long long remaining_length = ( ( ri->range_end - ri->range_start ) + 1 ) - ri->content_offset;
+
+				// We'll only use 1 part for this range since it's too small to split up and the remainder of parts will be used for the next range.
+				if ( remaining_length < t_parts )
+				{
+					--total_rem_parts;
+
+					unsigned char rem_range_info_count = range_info_count - ( i + 1 );
+
+					if ( rem_range_info_count > 0 )
+					{
+						// Avoids having to do a mod to get the remainder.
+						__asm
+						{
+							mov		al, total_rem_parts		;// Dividend
+							mov		ah, 0					;// Remainder
+							div		rem_range_info_count	;// Divide the 8bit byte by an 8bit byte
+							mov		parts, al				;// Store the results
+							mov		rem_parts, ah			;// Store the remainder
+						}
+					}
+				}
+				else
+				{
+					total_rem_parts -= t_parts;
+
+					unsigned long long range_size = remaining_length / t_parts;
+					unsigned long long range_offset = ri->range_start + ri->content_offset;
+
+					unsigned long long range_end = ri->range_end;
+
+					// Reuse this range info.
+					ri->content_length = 0;
+					ri->content_offset = 0;
+					ri->range_start = range_offset;
+					ri->range_end = range_offset + range_size;
+					ri->file_write_offset = ri->range_start;
+
+					range_offset += range_size;
+
+					for ( unsigned char j = 2; j <= t_parts; ++j )
+					{
+						ri = ( RANGE_INFO * )GlobalAlloc( GPTR, sizeof( RANGE_INFO ) );
+
+						ri->range_start = range_offset + 1;
+
+						if ( j < t_parts )
+						{
+							range_offset += range_size;
+							ri->range_end = range_offset;
+						}
+						else	// Make sure we have an accurate range end for the last part.
+						{
+							ri->range_end = range_end;
+						}
+
+						ri->file_write_offset = ri->range_start;
+
+						DoublyLinkedList *new_range_node = DLL_CreateNode( ( void * )ri );
+						DLL_AddNode( &range_list, new_range_node, -1 );
+					}
+				}
+			}
+
+			di->range_list = range_list;
+		}
+	}
+	else
+	{
+		ri = ( RANGE_INFO * )GlobalAlloc( GPTR, sizeof( RANGE_INFO ) );
+		range_node = DLL_CreateNode( ( void * )ri );
+		DLL_AddNode( &di->range_list, range_node, -1 );
+	}
+}
+
 void StartDownload( DOWNLOAD_INFO *di, bool check_if_file_exists )
 {
 	if ( di == NULL )
@@ -1914,46 +2790,56 @@ void StartDownload( DOWNLOAD_INFO *di, bool check_if_file_exists )
 			file_path[ di->filename_offset - 1 ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
 		}
 
+		// See if the file exits.
 		if ( GetFileAttributes( file_path ) != INVALID_FILE_ATTRIBUTES )
 		{
-			// If the last return value was not set to remember our choice, then prompt again.
-			if ( g_rename_file_cmb_ret != CMBIDRENAMEALL && g_rename_file_cmb_ret != CMBIDOVERWRITEALL && g_rename_file_cmb_ret != CMBIDSKIPALL )
-			{
-				__snwprintf( prompt_message, MAX_PATH + 100, L"%s already exists.\r\n\r\nWhat operation would you like to perform?", file_path );
-
-				g_rename_file_cmb_ret = CMessageBoxW( g_hWnd_main, prompt_message, PROGRAM_CAPTION, CMB_ICONWARNING | CMB_RENAMEOVERWRITESKIPALL );
-			}
-
-			// Rename the file and try again.
-			if ( g_rename_file_cmb_ret == CMBIDRENAME || g_rename_file_cmb_ret == CMBIDRENAMEALL )
-			{
-				// Creates a tree of active and queued downloads.
-				dllrbt_tree *add_files_tree = CreateFilenameTree();
-
-				bool rename_succeeded = RenameFile( di, add_files_tree );
-
-				// The tree is only used to determine duplicate filenames.
-				DestroyFilenameTree( add_files_tree );
-
-				if ( !rename_succeeded )
-				{
-					if ( g_rename_file_cmb_ret2 != CMBIDOKALL )
-					{
-						__snwprintf( prompt_message, MAX_PATH + 100, L"%s could not be renamed.\r\n\r\nYou will need to choose a different save directory.", file_path );
-
-						g_rename_file_cmb_ret2 = CMessageBoxW( g_hWnd_main, prompt_message, PROGRAM_CAPTION, CMB_ICONWARNING | CMB_OKALL );
-					}
-
-					di->status = STATUS_SKIPPED;
-
-					skip_start = true;
-				}
-			}
-			else if ( g_rename_file_cmb_ret == CMBIDFAIL || g_rename_file_cmb_ret == CMBIDSKIP || g_rename_file_cmb_ret == CMBIDSKIPALL ) // Skip the rename or overwrite if the return value fails, or the user selected skip.
+			if ( di->download_operations & DOWNLOAD_OPERATION_OVERRIDE_PROMPTS )
 			{
 				di->status = STATUS_SKIPPED;
 
 				skip_start = true;
+			}
+			else
+			{
+				// If the last return value was not set to remember our choice, then prompt again.
+				if ( g_rename_file_cmb_ret != CMBIDRENAMEALL && g_rename_file_cmb_ret != CMBIDOVERWRITEALL && g_rename_file_cmb_ret != CMBIDSKIPALL )
+				{
+					__snwprintf( prompt_message, MAX_PATH + 100, L"%s already exists.\r\n\r\nWhat operation would you like to perform?", file_path );
+
+					g_rename_file_cmb_ret = CMessageBoxW( g_hWnd_main, prompt_message, PROGRAM_CAPTION, CMB_ICONWARNING | CMB_RENAMEOVERWRITESKIPALL );
+				}
+
+				// Rename the file and try again.
+				if ( g_rename_file_cmb_ret == CMBIDRENAME || g_rename_file_cmb_ret == CMBIDRENAMEALL )
+				{
+					// Creates a tree of active and queued downloads.
+					dllrbt_tree *add_files_tree = CreateFilenameTree();
+
+					bool rename_succeeded = RenameFile( di, add_files_tree );
+
+					// The tree is only used to determine duplicate filenames.
+					DestroyFilenameTree( add_files_tree );
+
+					if ( !rename_succeeded )
+					{
+						if ( g_rename_file_cmb_ret2 != CMBIDOKALL )
+						{
+							__snwprintf( prompt_message, MAX_PATH + 100, L"%s could not be renamed.\r\n\r\nYou will need to choose a different save directory.", file_path );
+
+							g_rename_file_cmb_ret2 = CMessageBoxW( g_hWnd_main, prompt_message, PROGRAM_CAPTION, CMB_ICONWARNING | CMB_OKALL );
+						}
+
+						di->status = STATUS_SKIPPED;
+
+						skip_start = true;
+					}
+				}
+				else if ( g_rename_file_cmb_ret == CMBIDFAIL || g_rename_file_cmb_ret == CMBIDSKIP || g_rename_file_cmb_ret == CMBIDSKIPALL ) // Skip the rename or overwrite if the return value fails, or the user selected skip.
+				{
+					di->status = STATUS_SKIPPED;
+
+					skip_start = true;
+				}
 			}
 		}
 
@@ -1965,16 +2851,47 @@ void StartDownload( DOWNLOAD_INFO *di, bool check_if_file_exists )
 		}
 	}
 
-	ParseURL_W( di->url, protocol, &host, port, &resource );
+	unsigned int host_length = 0;
+	unsigned int resource_length = 0;
 
-	int host_length = lstrlenW( host );
-	int resource_length = lstrlenW( resource );
+	ParseURL_W( di->url, protocol, &host, host_length, port, &resource, resource_length );
+
+	wchar_t *w_resource = resource;
+	unsigned int w_resource_length = 0;
+
+	while ( *w_resource != NULL )
+	{
+		if ( *w_resource == L'#' )
+		{
+			*w_resource = 0;
+			resource_length = w_resource - resource;
+
+			break;
+		}
+
+		++w_resource;
+	}
+
+	/*w_resource = url_encode_w( resource, resource_length, &w_resource_length );
+
+	// Did we encode anything?
+	if ( resource_length != w_resource_length )
+	{
+		GlobalFree( resource );
+		resource = w_resource;
+
+		resource_length = w_resource_length;
+	}
+	else
+	{
+		GlobalFree( w_resource );
+	}*/
 
 	if ( normaliz_state == NORMALIZ_STATE_RUNNING )
 	{
 		int punycode_length = _IdnToAscii( 0, host, host_length, NULL, 0 );
 
-		if ( punycode_length > host_length )
+		if ( ( unsigned int )punycode_length > host_length )
 		{
 			wchar_t *punycode = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( punycode_length + 1 ) );
 			host_length = _IdnToAscii( 0, host, host_length, punycode, punycode_length );
@@ -1989,13 +2906,18 @@ void StartDownload( DOWNLOAD_INFO *di, bool check_if_file_exists )
 
 	EnterCriticalSection( &cleanup_cs );
 
-	DoublyLinkedList *range_node = di->range_info;
+	// If the number of ranges is less than the total number of parts that's been set for the download,
+	// then the remaining ranges will be split to equal the total number of parts.
+	UpdateRangeList( di );
+
+	DoublyLinkedList *range_node = di->range_list;
+
 	while ( range_node != NULL )
 	{
-		RANGE_INFO *range_info = ( RANGE_INFO * )range_node->data;
+		RANGE_INFO *ri = ( RANGE_INFO * )range_node->data;
 
 		// Check if our range still needs to download.
-		if ( range_info != NULL && ( range_info->content_offset <= ( range_info->range_end - range_info->range_start ) ) )
+		if ( ri != NULL && ( ri->content_offset < ( ( ri->range_end - ri->range_start ) + 1 ) ) )
 		{
 			// Check the state of our downloads/queue once.
 			if ( add_state == 0 )
@@ -2078,10 +3000,10 @@ void StartDownload( DOWNLOAD_INFO *di, bool check_if_file_exists )
 
 				context->download_info = di;
 
-				range_info->range_start += range_info->content_offset;	// Begin where we left off.
-				range_info->content_offset = 0;	// Reset.
+				ri->range_start += ri->content_offset;	// Begin where we left off.
+				ri->content_offset = 0;	// Reset.
 
-				context->header_info.range_info = range_info;
+				context->header_info.range_info = ri;
 
 				if ( di->cookies != NULL )
 				{
@@ -2109,6 +3031,9 @@ void StartDownload( DOWNLOAD_INFO *di, bool check_if_file_exists )
 					}
 				}
 
+				// Self reference so we can free the range info in our cleanup code.
+				context->range_node = range_node;
+
 				// Add to the parts list.
 				context->parts_node.data = context;
 				DLL_AddNode( &context->download_info->parts_list, &context->parts_node, -1 );
@@ -2118,7 +3043,7 @@ void StartDownload( DOWNLOAD_INFO *di, bool check_if_file_exists )
 				EnterCriticalSection( &context_list_cs );
 
 				// Add to the global download list.
-				DLL_AddNode( &context_list, &context->context_node, 0 );
+				DLL_AddNode( &g_context_list, &context->context_node, 0 );
 
 				LeaveCriticalSection( &context_list_cs );
 
@@ -2157,7 +3082,7 @@ void StartDownload( DOWNLOAD_INFO *di, bool check_if_file_exists )
 
 			range_node = range_node->next;
 
-			DLL_RemoveNode( &di->range_info, tmp_range_node );
+			DLL_RemoveNode( &di->range_list, tmp_range_node );
 
 			GlobalFree( tmp_range_node->data );
 			GlobalFree( tmp_range_node );
@@ -2364,16 +3289,17 @@ DWORD WINAPI AddURL( void *add_info )
 
 	wchar_t *host = NULL;
 	wchar_t *resource = NULL;
-	
+
 	PROTOCOL protocol = PROTOCOL_UNKNOWN;
 	unsigned short port = 0;
 
-	int host_length = 0;
-	int resource_length = 0;
+	unsigned int host_length = 0;
+	unsigned int resource_length = 0;
 
 	int username_length = 0;
 	int password_length = 0;
 	int cookies_length = 0;
+	int headers_length = 0;
 
 	if ( ai->auth_info.username != NULL )
 	{
@@ -2388,6 +3314,11 @@ DWORD WINAPI AddURL( void *add_info )
 	if ( ai->utf8_cookies != NULL )
 	{
 		cookies_length = lstrlenA( ai->utf8_cookies );
+	}
+
+	if ( ai->utf8_headers != NULL )
+	{
+		headers_length = lstrlenA( ai->utf8_headers );
 	}
 
 	SHFILEINFO *sfi = ( SHFILEINFO * )GlobalAlloc( GMEM_FIXED, sizeof( SHFILEINFO ) );
@@ -2443,16 +3374,13 @@ DWORD WINAPI AddURL( void *add_info )
 		host_length = 0;
 		resource_length = 0;
 
-		ParseURL_W( current_url, protocol, &host, port, &resource );
+		ParseURL_W( current_url, protocol, &host, host_length, port, &resource, resource_length );
 
 		if ( ( protocol == PROTOCOL_HTTP || protocol == PROTOCOL_HTTPS ) && host != NULL && resource != NULL && port != 0 )
 		{
-			host_length = lstrlenW( host );
-			resource_length = lstrlenW( resource );
-
 			DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )GlobalAlloc( GPTR, sizeof( DOWNLOAD_INFO ) );
 
-			if ( !ai->simulate_download )
+			if ( !( ai->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
 			{
 				di->filename_offset = lstrlenW( ai->download_directory );
 				_wmemcpy_s( di->file_path, MAX_PATH, ai->download_directory, di->filename_offset );
@@ -2468,7 +3396,7 @@ DWORD WINAPI AddURL( void *add_info )
 			unsigned int directory_length = 0;
 			wchar_t *directory = url_decode_w( resource, resource_length, &directory_length );
 
-			int w_filename_length = 0;
+			unsigned int w_filename_length = 0;
 
 			if ( directory != NULL )
 			{
@@ -2484,12 +3412,9 @@ DWORD WINAPI AddURL( void *add_info )
 				}
 				else
 				{
-					wchar_t *previous_directory = NULL;
-					wchar_t *last_directory = directory;
 					wchar_t *current_directory = directory;
+					wchar_t *last_directory = directory;
 
-					// Skip to the last directory.
-					// Exit if we've reached the start of any URL parameters, or fragment.
 					while ( *current_directory != NULL )
 					{
 						if ( *current_directory == L'?' || *current_directory == L'#' )
@@ -2500,53 +3425,26 @@ DWORD WINAPI AddURL( void *add_info )
 						}
 						else if ( *current_directory == L'/' )
 						{
-							previous_directory = last_directory;
-							last_directory = current_directory + 1;
+							last_directory = current_directory + 1; 
 						}
-						
+
 						++current_directory;
 					}
 
-					if ( *last_directory != NULL )
+					w_filename_length = current_directory - last_directory;
+
+					if ( *last_directory == NULL )
 					{
-						w_filename_length = lstrlenW( last_directory );
-						w_filename_length = min( w_filename_length, ( int )( MAX_PATH - di->filename_offset - 1 ) );
-
-						_wmemcpy_s( di->file_path + di->filename_offset, MAX_PATH - di->filename_offset, last_directory, w_filename_length );
-						di->file_path[ di->filename_offset + w_filename_length ] = 0;	// Sanity.
-
-						EscapeFilename( di->file_path + di->filename_offset );
+						w_filename_length = host_length;
+						last_directory = host;
 					}
-					else if ( previous_directory != NULL )
-					{
-						// Remove any trailing slash.
-						wchar_t *end_of_filename = _StrChrW( previous_directory, L'/' );
-						if ( end_of_filename != NULL )
-						{
-							*end_of_filename = 0;	// Sanity.
-						}
 
-						if ( previous_directory != end_of_filename )
-						{
-							w_filename_length = lstrlenW( previous_directory );
-						}
-						else
-						{
-							w_filename_length = host_length;
-							previous_directory = host;
-						}
-						w_filename_length = min( w_filename_length, ( int )( MAX_PATH - di->filename_offset - 1 ) );
+					w_filename_length = min( w_filename_length, ( int )( MAX_PATH - di->filename_offset - 1 ) );
 
-						_wmemcpy_s( di->file_path + di->filename_offset, MAX_PATH - di->filename_offset, previous_directory, w_filename_length );
-						di->file_path[ di->filename_offset + w_filename_length ] = 0;	// Sanity.
+					_wmemcpy_s( di->file_path + di->filename_offset, MAX_PATH - di->filename_offset, last_directory, w_filename_length );
+					di->file_path[ di->filename_offset + w_filename_length ] = 0;	// Sanity.
 
-						EscapeFilename( di->file_path + di->filename_offset );
-					}
-					else
-					{
-						w_filename_length = 11;
-						_wmemcpy_s( di->file_path + di->filename_offset, MAX_PATH - di->filename_offset, L"NO_FILENAME\0", 12 );
-					}
+					EscapeFilename( di->file_path + di->filename_offset );
 				}
 
 				GlobalFree( directory );
@@ -2577,27 +3475,34 @@ DWORD WINAPI AddURL( void *add_info )
 
 			di->ssl_version = ai->ssl_version;
 
-			di->simulate_download = ai->simulate_download;
+			di->download_operations = ai->download_operations;
 
-			if ( ai->auth_info.username != NULL )
+			if ( ai->auth_info.username != NULL && username_length > 0 )
 			{
 				di->auth_info.username = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( username_length + 1 ) );
 				_memcpy_s( di->auth_info.username, username_length + 1, ai->auth_info.username, username_length );
 				di->auth_info.username[ username_length ] = 0;	// Sanity.
 			}
 
-			if ( ai->auth_info.password != NULL )
+			if ( ai->auth_info.password != NULL && password_length > 0 )
 			{
 				di->auth_info.password = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( password_length + 1 ) );
 				_memcpy_s( di->auth_info.password, password_length + 1, ai->auth_info.password, password_length );
 				di->auth_info.password[ password_length ] = 0;	// Sanity.
 			}
 
-			if ( ai->utf8_cookies != NULL )
+			if ( ai->utf8_cookies != NULL && cookies_length > 0 )
 			{
 				di->cookies = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( cookies_length + 1 ) );
 				_memcpy_s( di->cookies, cookies_length + 1, ai->utf8_cookies, cookies_length );
 				di->cookies[ cookies_length ] = 0;	// Sanity.
+			}
+
+			if ( ai->utf8_headers != NULL && headers_length > 0 )
+			{
+				di->headers = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( headers_length + 1 ) );
+				_memcpy_s( di->headers, headers_length + 1, ai->utf8_headers, headers_length );
+				di->headers[ headers_length ] = 0;	// Sanity.
 			}
 
 			SYSTEMTIME st;
@@ -2623,13 +3528,13 @@ DWORD WINAPI AddURL( void *add_info )
 			__snwprintf( di->w_add_time, buffer_length, L"%s, %s %d, %04d %d:%02d:%02d %s", GetDay( st.wDayOfWeek ), GetMonth( st.wMonth ), st.wDay, st.wYear, ( st.wHour > 12 ? st.wHour - 12 : ( st.wHour != 0 ? st.wHour : 12 ) ), st.wMinute, st.wSecond, ( st.wHour >= 12 ? L"PM" : L"AM" ) );
 
 			// Add our range info to the download info.
-			RANGE_INFO *ri = ( RANGE_INFO * )GlobalAlloc( GPTR, sizeof( RANGE_INFO ) );
+			/*RANGE_INFO *ri = ( RANGE_INFO * )GlobalAlloc( GPTR, sizeof( RANGE_INFO ) );
 			DoublyLinkedList *range_node = DLL_CreateNode( ( void * )ri );
-			DLL_AddNode( &di->range_info, range_node, -1 );
+			DLL_AddNode( &di->range_info, range_node, -1 );*/
 
 			EnterCriticalSection( &cleanup_cs );
 
-			StartDownload( di, !di->simulate_download );
+			StartDownload( di, !( di->download_operations & DOWNLOAD_OPERATION_SIMULATE ) );
 
 			LVITEM lvi;
 			_memzero( &lvi, sizeof( LVITEM ) );
@@ -2652,6 +3557,7 @@ DWORD WINAPI AddURL( void *add_info )
 
 	GlobalFree( sfi );
 
+	GlobalFree( ai->utf8_headers );
 	GlobalFree( ai->utf8_cookies );
 	GlobalFree( ai->auth_info.username );
 	GlobalFree( ai->auth_info.password );
@@ -2721,12 +3627,27 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 
 		EnterCriticalSection( &context->context_cs );
 
+		// If we've forced the cleanup, then skip everything below and wait for the pending operation to enter CleanupConnection to clean things up.
 		if ( context->cleanup == 2 )
+		{
+			context->cleanup = 1;	// All pending operations will shutdown/close and enter CleanupConnection to clean things up.
+
+			skip_cleanup = true;
+		}
+		else if ( context->cleanup == 12 )	// We forced the cleanup and are waiting for IO_Write to complete.
+		{
+			context->cleanup = 10;	// Let IO_Write do its thing.
+
+			skip_cleanup = true;
+		}
+		else if ( context->cleanup == 10 )
 		{
 			skip_cleanup = true;
 		}
-
-		context->cleanup = 1;
+		else	// 0 or 1
+		{
+			context->cleanup = 1;	// All pending operations will shutdown/close and enter CleanupConnection to clean things up.
+		}
 
 		LeaveCriticalSection( &context->context_cs );
 
@@ -2744,7 +3665,7 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 		EnterCriticalSection( &context_list_cs );
 
 		// Remove from the global download list.
-		DLL_RemoveNode( &context_list, &context->context_node );
+		DLL_RemoveNode( &g_context_list, &context->context_node );
 
 		LeaveCriticalSection( &context_list_cs );
 
@@ -2753,80 +3674,85 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 		{
 			if ( context->download_info != NULL )
 			{
-				if ( context->retries < cfg_retry_parts_count &&
+				bool incomplete_part = false;
+
+				if ( context->header_info.range_info != NULL &&  
+				   ( context->header_info.range_info->content_offset < ( ( context->header_info.range_info->range_end - context->header_info.range_info->range_start ) + 1 ) ) )
+				{
+					incomplete_part = true;
+				}
+
+				if ( incomplete_part &&
+					 context->retries < cfg_retry_parts_count &&
 				   ( context->status == STATUS_CONNECTING ||
 					 context->status == STATUS_DOWNLOADING ||
 					 context->status == STATUS_PAUSED ) )
 				{
-					if ( context->header_info.range_info != NULL &&  
-					   ( context->header_info.range_info->content_offset < ( ( context->header_info.range_info->range_end - context->header_info.range_info->range_start ) + 1 ) ) )
+					++context->retries;
+
+					if ( context->socket != INVALID_SOCKET )
 					{
-						++context->retries;
+						_shutdown( context->socket, SD_BOTH );
+						_closesocket( context->socket );
+						context->socket = INVALID_SOCKET;
+					}
 
-						if ( context->socket != INVALID_SOCKET )
-						{
-							_shutdown( context->socket, SD_BOTH );
-							_closesocket( context->socket );
-							context->socket = INVALID_SOCKET;
-						}
+					if ( context->ssl != NULL )
+					{
+						SSL_free( context->ssl );
+						context->ssl = NULL;
+					}
 
-						if ( context->ssl != NULL )
-						{
-							SSL_free( context->ssl );
-							context->ssl = NULL;
-						}
+					EnterCriticalSection( &context_list_cs );
+
+					DLL_AddNode( &g_context_list, &context->context_node, 0 );
+
+					LeaveCriticalSection( &context_list_cs );
+
+					// If we're going to restart the download, then we need to reset these values.
+					context->header_info.chunk_length = 0;
+					context->header_info.end_of_header = NULL;
+					context->header_info.http_status = 0;
+					context->header_info.connection = CONNECTION_NONE;
+					context->header_info.content_encoding = CONTENT_ENCODING_NONE;
+					context->header_info.chunked_transfer = false;
+					//context->header_info.etag = false;
+					context->header_info.got_chunk_start = false;
+					context->header_info.got_chunk_terminator = false;
+
+					context->header_info.range_info->content_length = 0;	// We must reset this to get the real request length (not the length of the 401/407 request).
+
+					if ( context->header_info.range_info != NULL )
+					{
+						context->header_info.range_info->range_start += context->header_info.range_info->content_offset;	// Begin where we left off.
+						context->header_info.range_info->content_offset = 0;	// Reset.
+					}
+
+					context->content_status = CONTENT_STATUS_NONE;
+
+					// Remember if we timed out in case we failed to connect.
+					unsigned char timed_out = context->timed_out;
+
+					context->timed_out = TIME_OUT_FALSE;
+
+					context->status = STATUS_CONNECTING;
+
+					// Connect to the remote server.
+					if ( !CreateConnection( context, context->request_info.host, context->request_info.port ) )
+					{
+						context->status = STATUS_FAILED;
+
+						context->timed_out = timed_out;
 
 						EnterCriticalSection( &context_list_cs );
 
-						DLL_AddNode( &context_list, &context->context_node, 0 );
+						DLL_RemoveNode( &g_context_list, &context->context_node );
 
 						LeaveCriticalSection( &context_list_cs );
-
-						// If we're going to restart the download, then we need to reset these values.
-						context->header_info.chunk_length = 0;
-						context->header_info.end_of_header = NULL;
-						context->header_info.http_status = 0;
-						context->header_info.connection = CONNECTION_NONE;
-						context->header_info.content_encoding = CONTENT_ENCODING_NONE;
-						context->header_info.chunked_transfer = false;
-						//context->header_info.etag = false;
-						context->header_info.got_chunk_start = false;
-						context->header_info.got_chunk_terminator = false;
-
-						context->header_info.range_info->content_length = 0;	// We must reset this to get the real request length (not the length of the 401/407 request).
-
-						if ( context->header_info.range_info != NULL )
-						{
-							context->header_info.range_info->range_start += context->header_info.range_info->content_offset;	// Begin where we left off.
-							context->header_info.range_info->content_offset = 0;	// Reset.
-						}
-
-						context->content_status = CONTENT_STATUS_NONE;
-
-						// Remember if we timed out in case we failed to connect.
-						unsigned char timed_out = context->timed_out;
-
-						context->timed_out = TIME_OUT_FALSE;
-
-						context->status = STATUS_CONNECTING;
-
-						// Connect to the remote server.
-						if ( !CreateConnection( context, context->request_info.host, context->request_info.port ) )
-						{
-							context->status = STATUS_FAILED;
-
-							context->timed_out = timed_out;
-
-							EnterCriticalSection( &context_list_cs );
-
-							DLL_RemoveNode( &context_list, &context->context_node );
-
-							LeaveCriticalSection( &context_list_cs );
-						}
-						else
-						{
-							retry_context_connection = true;
-						}
+					}
+					else
+					{
+						retry_context_connection = true;
 					}
 				}
 
@@ -2847,6 +3773,14 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 
 					DLL_RemoveNode( &context->download_info->parts_list, &context->parts_node );
 
+					// Let's not remove the range info if the parts hasn't completed.
+					if ( !incomplete_part )
+					{
+						DLL_RemoveNode( &context->download_info->range_list, context->range_node );
+						GlobalFree( context->range_node->data );
+						GlobalFree( context->range_node );
+					}
+
 					if ( context->download_info->active_parts > 0 )
 					{
 						--context->download_info->active_parts;
@@ -2854,10 +3788,10 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 						// There are no more active connections.
 						if ( context->download_info->active_parts == 0 )
 						{
-							bool incomplete_download = false;
+							/*bool incomplete_download = false;
 
 							// Go through our range list and see if any connections have not fully completed.
-							DoublyLinkedList *range_node = context->download_info->range_info;
+							DoublyLinkedList *range_node = context->download_info->range_list;
 							while ( range_node != NULL )
 							{
 								RANGE_INFO *range_info = ( RANGE_INFO * )range_node->data;
@@ -2869,7 +3803,9 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 								}
 								
 								range_node = range_node->next;
-							}
+							}*/
+
+							bool incomplete_download = ( context->download_info->range_list != NULL ? true : false );
 
 							if ( incomplete_download )
 							{
@@ -2960,14 +3896,15 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 								GlobalFree( context->download_info->url );
 								GlobalFree( context->download_info->w_add_time );
 								GlobalFree( context->download_info->cookies );
+								GlobalFree( context->download_info->headers );
 								//GlobalFree( context->download_info->etag );
 								GlobalFree( context->download_info->auth_info.username );
 								GlobalFree( context->download_info->auth_info.password );
 
-								while ( context->download_info->range_info != NULL )
+								while ( context->download_info->range_list != NULL )
 								{
-									DoublyLinkedList *range_node = context->download_info->range_info;
-									context->download_info->range_info = context->download_info->range_info->next;
+									DoublyLinkedList *range_node = context->download_info->range_list;
+									context->download_info->range_list = context->download_info->range_list->next;
 
 									GlobalFree( range_node->data );
 									GlobalFree( range_node );
@@ -2987,6 +3924,31 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 										++context->download_info->retries;
 
 										StartDownload( context->download_info, false );
+									}
+								}
+								else if ( context->download_info->status == STATUS_COMPLETED )
+								{
+									// All of this is safe to clean up when the download state is complete.
+									// For every other state we'll keep these in case we want to resume/restart the download.
+
+									GlobalFree( context->download_info->cookies );
+									context->download_info->cookies = NULL;
+									GlobalFree( context->download_info->headers );
+									context->download_info->headers = NULL;
+									//GlobalFree( context->download_info->etag );
+									//context->download_info->etag = NULL;
+									GlobalFree( context->download_info->auth_info.username );
+									context->download_info->auth_info.username = NULL;
+									GlobalFree( context->download_info->auth_info.password );
+									context->download_info->auth_info.password = NULL;
+
+									while ( context->download_info->range_list != NULL )
+									{
+										DoublyLinkedList *range_node = context->download_info->range_list;
+										context->download_info->range_list = context->download_info->range_list->next;
+
+										GlobalFree( range_node->data );
+										GlobalFree( range_node );
 									}
 								}
 
@@ -3034,6 +3996,8 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 			if ( context->decompressed_buf != NULL ) { GlobalFree( context->decompressed_buf ); }
 			if ( zlib1_state == ZLIB1_STATE_RUNNING ) { _inflateEnd( &context->stream ); }
 
+			FreePOSTInfo( &context->post_info );
+
 			FreeAuthInfo( &context->header_info.digest_info );
 			FreeAuthInfo( &context->header_info.proxy_digest_info );
 
@@ -3073,6 +4037,24 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 	}
 }
 
+void FreePOSTInfo( POST_INFO **post_info )
+{
+	if ( *post_info != NULL )
+	{
+		if ( ( *post_info )->urls != NULL ) { GlobalFree( ( *post_info )->urls ); }
+		if ( ( *post_info )->username != NULL ) { GlobalFree( ( *post_info )->username ); }
+		if ( ( *post_info )->password != NULL ) { GlobalFree( ( *post_info )->password ); }
+		if ( ( *post_info )->cookies != NULL ) { GlobalFree( ( *post_info )->cookies ); }
+		if ( ( *post_info )->headers != NULL ) { GlobalFree( ( *post_info )->headers ); }
+		if ( ( *post_info )->parts != NULL ) { GlobalFree( ( *post_info )->parts ); }
+		if ( ( *post_info )->simulate_download != NULL ) { GlobalFree( ( *post_info )->simulate_download ); }
+
+		GlobalFree( *post_info );
+
+		*post_info = NULL;
+	}
+}
+
 void FreeAuthInfo( AUTH_INFO **auth_info )
 {
 	if ( *auth_info != NULL )
@@ -3083,16 +4065,21 @@ void FreeAuthInfo( AUTH_INFO **auth_info )
 		if ( ( *auth_info )->qop != NULL ) { GlobalFree( ( *auth_info )->qop ); }
 		if ( ( *auth_info )->realm != NULL ) { GlobalFree( ( *auth_info )->realm ); }
 
-		GlobalFree( *auth_info );
-	}
+		if ( ( *auth_info )->cnonce != NULL ) { GlobalFree( ( *auth_info )->cnonce ); }
+		if ( ( *auth_info )->uri != NULL ) { GlobalFree( ( *auth_info )->uri ); }
+		if ( ( *auth_info )->response != NULL ) { GlobalFree( ( *auth_info )->response ); }
+		if ( ( *auth_info )->username != NULL ) { GlobalFree( ( *auth_info )->username ); }
 
-	*auth_info = NULL;
+		GlobalFree( *auth_info );
+
+		*auth_info = NULL;
+	}
 }
 
 // Free all context structures in the global list of context structures.
 void FreeContexts()
 {
-	DoublyLinkedList *context_node = context_list;
+	DoublyLinkedList *context_node = g_context_list;
 	DoublyLinkedList *del_context_node = NULL;
 
 	while ( context_node != NULL )
@@ -3103,7 +4090,15 @@ void FreeContexts()
 		CleanupConnection( ( SOCKET_CONTEXT * )del_context_node->data );
 	}
 
-	context_list = NULL;
+	g_context_list = NULL;
+}
 
-	return;
+void FreeListenContext()
+{
+	if ( g_listen_context != NULL )
+	{
+		CleanupConnection( g_listen_context );
+
+		g_listen_context = NULL;
+	}
 }

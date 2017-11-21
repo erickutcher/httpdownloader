@@ -1,0 +1,43 @@
+{
+	"description": "Download files with HTTP Downloader.",
+	"manifest_version": 2,
+	"name": "HTTP Downloader",
+	"version": "1.0.0",
+	"homepage_url": "https://erickutcher.github.io/",
+
+	"icons":
+	{
+		"64": "icons/icon-64.png"
+	},
+
+	"content_scripts":
+	[
+		{
+			"matches": [ "https://erickutcher.github.io/noop/" ],
+			"js": [ "download.js" ]
+		}
+	],
+
+	"background":
+	{
+		"scripts":
+		[
+			"background.js"
+		]
+	},
+
+	"options_ui":
+	{
+		"page": "options.html"
+	},
+
+	"permissions":
+	[
+		"<all_urls>",
+		"activeTab",
+		"webRequest",
+		"contextMenus",
+		"cookies",
+		"storage"
+	]
+}

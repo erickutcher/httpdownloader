@@ -605,6 +605,7 @@ HRESULT STDMETHODCALLTYPE Drop( IDropTarget *This, IDataObject *pDataObj, DWORD 
 			{
 				// Reallocate the data buffer since it doesn't include a NULL terminator. (STUPID!!!)
 				size_t data_size = GlobalSize( stgm.hGlobal );
+
 				HGLOBAL reallocated_data = GlobalReAlloc( data, data_size + sizeof( char ), GMEM_ZEROINIT );
 				if ( reallocated_data != NULL )
 				{

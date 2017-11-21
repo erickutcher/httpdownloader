@@ -62,6 +62,8 @@
 
 	#define _socket			socket
 	#define _connect		connect
+	#define _listen			listen
+	#define _accept			accept
 	#define _bind			bind
 	#define _shutdown		shutdown
 	#define _closesocket	closesocket
@@ -108,6 +110,8 @@
 
 	typedef SOCKET ( WSAAPI *psocket )( int af, int type, int protocol );
 	typedef int ( WSAAPI *pconnect )( SOCKET s, const struct sockaddr *name, int namelen );
+	typedef int ( WSAAPI *plisten )( SOCKET s, int backlog );
+	typedef SOCKET ( WSAAPI *paccept )( SOCKET s, struct sockaddr *addr, int *addrlen );
 	typedef int ( WSAAPI *pbind )( SOCKET s, const struct sockaddr *name, int namelen );
 	typedef int ( WSAAPI *pshutdown )( SOCKET s, int how );
 	typedef int ( WSAAPI *pclosesocket )( SOCKET s );
@@ -152,6 +156,8 @@
 
 	extern psocket			_socket;
 	extern pconnect			_connect;
+	extern plisten			_listen;
+	extern paccept			_accept;
 	extern pbind			_bind;
 	extern pshutdown		_shutdown;
 	extern pclosesocket		_closesocket;

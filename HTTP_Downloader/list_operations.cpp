@@ -152,7 +152,7 @@ THREAD_RETURN remove_items( void *pArguments )
 
 						if ( context->cleanup == 0 )
 						{
-							context->cleanup = 2;
+							context->cleanup = 2;	// Force the cleanup.
 
 							InterlockedIncrement( &context->pending_operations );
 
@@ -211,6 +211,7 @@ THREAD_RETURN remove_items( void *pArguments )
 				GlobalFree( di->url );
 				GlobalFree( di->w_add_time );
 				GlobalFree( di->cookies );
+				GlobalFree( di->headers );
 				//GlobalFree( di->etag );
 				GlobalFree( di->auth_info.username );
 				GlobalFree( di->auth_info.password );
@@ -220,10 +221,10 @@ THREAD_RETURN remove_items( void *pArguments )
 					CloseHandle( di->hFile );
 				}
 
-				while ( di->range_info != NULL )
+				while ( di->range_list != NULL )
 				{
-					DoublyLinkedList *range_node = di->range_info;
-					di->range_info = di->range_info->next;
+					DoublyLinkedList *range_node = di->range_list;
+					di->range_list = di->range_list->next;
 
 					GlobalFree( range_node->data );
 					GlobalFree( range_node );
@@ -429,7 +430,7 @@ THREAD_RETURN handle_download_list( void *pArguments )
 
 								if ( context->cleanup == 0 )
 								{
-									context->cleanup = 2;
+									context->cleanup = 2;	// Force the cleanup.
 
 									InterlockedIncrement( &context->pending_operations );
 
@@ -533,6 +534,7 @@ THREAD_RETURN handle_download_list( void *pArguments )
 					GlobalFree( di->url );
 					GlobalFree( di->w_add_time );
 					GlobalFree( di->cookies );
+					GlobalFree( di->headers );
 					//GlobalFree( di->etag );
 					GlobalFree( di->auth_info.username );
 					GlobalFree( di->auth_info.password );
@@ -542,10 +544,10 @@ THREAD_RETURN handle_download_list( void *pArguments )
 						CloseHandle( di->hFile );
 					}
 
-					while ( di->range_info != NULL )
+					while ( di->range_list != NULL )
 					{
-						DoublyLinkedList *range_node = di->range_info;
-						di->range_info = di->range_info->next;
+						DoublyLinkedList *range_node = di->range_list;
+						di->range_list = di->range_list->next;
 
 						GlobalFree( range_node->data );
 						GlobalFree( range_node );
@@ -580,38 +582,24 @@ THREAD_RETURN handle_download_list( void *pArguments )
 				{
 					download_history_changed = true;
 
-					// Save the first range info node (we'll reuse it).
-					DoublyLinkedList *range_node = di->range_info;
-
-					// Remove it from our range_info list.
-					DLL_RemoveNode( &di->range_info, range_node );
-
-					// Free the remaining range info nodes from the list.
-					DoublyLinkedList *tmp_range_node = di->range_info;
-					while ( tmp_range_node != NULL )
+					while ( di->range_list != NULL )
 					{
-						DoublyLinkedList *del_range_node = tmp_range_node;
+						DoublyLinkedList *range_node = di->range_list;
+						di->range_list = di->range_list->next;
 
-						tmp_range_node = tmp_range_node->next;
-
-						GlobalFree( del_range_node->data );
-						GlobalFree( del_range_node );
+						GlobalFree( range_node->data );
+						GlobalFree( range_node );
 					}
-
-					// Reset our download values to restart the download.
-					RANGE_INFO *range_info = ( RANGE_INFO * )range_node->data;
-					range_info->content_length = 0;
-					range_info->range_end = 0;
-					range_info->range_start = 0;
-					range_info->content_offset = 0;
-					range_info->file_write_offset = 0;
 
 					di->processed_header = false;
 
-					di->range_info = range_node;
 					di->downloaded = 0;
 
-					di->retries = 0;	// If we manually start a download, then set the incomplete retry attempts back to 0.
+					// If we manually start a download, then set the incomplete retry attempts back to 0.
+					di->retries = 0;
+
+					// If we manually start a download that was added remotely, then allow the prompts to display.
+					di->download_operations &= ~DOWNLOAD_OPERATION_OVERRIDE_PROMPTS;
 
 					StartDownload( di, false );
 				}
@@ -720,7 +708,7 @@ THREAD_RETURN handle_connection( void *pArguments )
 
 								if ( context->cleanup == 0 )
 								{
-									context->cleanup = 2;
+									context->cleanup = 2;	// Force the cleanup.
 
 									InterlockedIncrement( &context->pending_operations );
 
@@ -805,7 +793,11 @@ THREAD_RETURN handle_connection( void *pArguments )
 									DLL_RemoveNode( &download_queue, &di->queue_node );
 									di->queue_node.data = NULL;
 
-									di->retries = 0;	// If we manually start a download, then set the incomplete retry attempts back to 0.
+									// If we manually start a download, then set the incomplete retry attempts back to 0.
+									di->retries = 0;
+
+									// If we manually start a download that was added remotely, then allow the prompts to display.
+									di->download_operations &= ~DOWNLOAD_OPERATION_OVERRIDE_PROMPTS;
 
 									StartDownload( di, false );
 								}
@@ -838,7 +830,7 @@ THREAD_RETURN handle_connection( void *pArguments )
 
 									if ( context->cleanup == 0 )
 									{
-										context->cleanup = 2;
+										context->cleanup = 2;	// Force the cleanup.
 
 										InterlockedIncrement( &context->pending_operations );
 
@@ -892,7 +884,11 @@ THREAD_RETURN handle_connection( void *pArguments )
 					{
 						download_history_changed = true;
 
-						di->retries = 0;	// If we manually start a download, then set the incomplete retry attempts back to 0.
+						// If we manually start a download, then set the incomplete retry attempts back to 0.
+						di->retries = 0;
+
+						// If we manually start a download that was added remotely, then allow the prompts to display.
+						di->download_operations &= ~DOWNLOAD_OPERATION_OVERRIDE_PROMPTS;
 
 						StartDownload( di, false );
 					}
@@ -904,7 +900,11 @@ THREAD_RETURN handle_connection( void *pArguments )
 					{
 						download_history_changed = true;
 
-						di->retries = 0;	// If we manually start a download, then set the incomplete retry attempts back to 0.
+						// If we manually start a download, then set the incomplete retry attempts back to 0.
+						di->retries = 0;
+
+						// If we manually start a download that was added remotely, then allow the prompts to display.
+						di->download_operations &= ~DOWNLOAD_OPERATION_OVERRIDE_PROMPTS;
 
 						StartDownload( di, true );
 					}

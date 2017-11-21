@@ -39,22 +39,43 @@
 #define SP_PROT_TLS1_2_CLIENT		0x00000800
 #define SP_PROT_TLS1_2				( SP_PROT_TLS1_2_SERVER | SP_PROT_TLS1_2_CLIENT )
 
-
-struct CONNECT_DATA
+/*struct ACCEPT_DATA
 {
-	SecBuffer       InBuffers[ 2 ];
-	SecBuffer       OutBuffers[ 1 ];
+	SecBuffer		InBuffers[ 2 ];
+	SecBuffer		OutBuffers[ 1 ];
 
 	SECURITY_STATUS scRet;
 
+	bool			fInitContext;
+	bool			fDoRead;
+};
+
+struct CONNECT_DATA
+{
+	SecBuffer		InBuffers[ 2 ];
+	SecBuffer		OutBuffers[ 1 ];
+
+	SECURITY_STATUS	scRet;
+
+	bool			fDoRead;
+};*/
+
+struct ACCEPT_CONNECT_DATA
+{
+	SecBuffer		InBuffers[ 2 ];
+	SecBuffer		OutBuffers[ 1 ];
+
+	SECURITY_STATUS	scRet;
+
+	bool			fInitContext;
 	bool			fDoRead;
 };
 
 struct RECV_DATA
 {
-	SecBuffer       Buffers[ 4 ];
+	SecBuffer		Buffers[ 4 ];
 
-	SECURITY_STATUS scRet;
+	SECURITY_STATUS	scRet;
 };
 
 struct SEND_DATA
@@ -66,15 +87,15 @@ struct SEND_DATA
 
 struct SHUTDOWN_DATA
 {
-    SecBuffer       OutBuffers[ 1 ];
+    SecBuffer		OutBuffers[ 1 ];
 };
 
 struct SSL
 {
-	SEND_DATA		sd;
-	CONNECT_DATA	cd;
-	RECV_DATA		rd;
-	SHUTDOWN_DATA	sdd;
+	SEND_DATA				sd;
+	ACCEPT_CONNECT_DATA		acd;
+	RECV_DATA				rd;
+	SHUTDOWN_DATA			sdd;
 
 	CtxtHandle hContext;
 
@@ -91,14 +112,23 @@ struct SSL
 	DWORD cbIoBuffer;
 	DWORD sbIoBuffer;
 
+	bool is_server;
 	bool continue_decrypt;
 };
 
 int SSL_library_init( void );
 int SSL_library_uninit( void );
 
-SSL *SSL_new( DWORD protocol );
+SSL *SSL_new( DWORD protocol, bool is_server );
 void SSL_free( SSL *ssl );
+
+void ResetServerCredentials();
+void ResetClientCredentials();
+
+PCCERT_CONTEXT LoadPublicPrivateKeyPair( wchar_t *cer, wchar_t *key );
+PCCERT_CONTEXT LoadPKCS12( wchar_t *p12_file, wchar_t *password );
+
+extern PCCERT_CONTEXT g_pCertContext;
 
 extern unsigned char ssl_state;
 

@@ -21,21 +21,21 @@
 
 #ifndef CRYPT32_USE_STATIC_LIB
 
-	//pCertFindCertificateInStore	_CertFindCertificateInStore;
-	//pCertCloseStore	_CertCloseStore;
-	//pCertFreeCertificateContext	_CertFreeCertificateContext;
+	pCertFindCertificateInStore	_CertFindCertificateInStore;
+	pCertCloseStore	_CertCloseStore;
+	pCertFreeCertificateContext	_CertFreeCertificateContext;
 
-	//pPFXImportCertStore	_PFXImportCertStore;
+	pPFXImportCertStore	_PFXImportCertStore;
 
 	pCryptBinaryToStringA	_CryptBinaryToStringA;
 
 
-	//pCryptMsgClose			_CryptMsgClose;
-	//pCertSetCertificateContextProperty	_CertSetCertificateContextProperty;
+	pCryptMsgClose			_CryptMsgClose;
+	pCertSetCertificateContextProperty	_CertSetCertificateContextProperty;
 
-	//pCryptDecodeObjectEx	_CryptDecodeObjectEx;
-	//pCryptStringToBinaryA	_CryptStringToBinaryA;
-	//pCryptQueryObject		_CryptQueryObject;
+	pCryptDecodeObjectEx	_CryptDecodeObjectEx;
+	pCryptStringToBinaryA	_CryptStringToBinaryA;
+	pCryptQueryObject		_CryptQueryObject;
 
 	HMODULE hModule_crypt32 = NULL;
 
@@ -55,22 +55,21 @@
 			return false;
 		}
 
-		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_crypt32, ( void ** )&_CertFindCertificateInStore, "CertFindCertificateInStore" ) )
-		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_crypt32, ( void ** )&_CertCloseStore, "CertCloseStore" ) )
-		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_crypt32, ( void ** )&_CertFreeCertificateContext, "CertFreeCertificateContext" ) )
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_crypt32, ( void ** )&_CertFindCertificateInStore, "CertFindCertificateInStore" ) )
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_crypt32, ( void ** )&_CertCloseStore, "CertCloseStore" ) )
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_crypt32, ( void ** )&_CertFreeCertificateContext, "CertFreeCertificateContext" ) )
 
-		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_crypt32, ( void ** )&_PFXImportCertStore, "PFXImportCertStore" ) )
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_crypt32, ( void ** )&_PFXImportCertStore, "PFXImportCertStore" ) )
 
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_crypt32, ( void ** )&_CryptBinaryToStringA, "CryptBinaryToStringA" ) )
 
 
-		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_crypt32, ( void ** )&_CryptMsgClose, "CryptMsgClose" ) )
-		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_crypt32, ( void ** )&_CertSetCertificateContextProperty, "CertSetCertificateContextProperty" ) )
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_crypt32, ( void ** )&_CryptMsgClose, "CryptMsgClose" ) )
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_crypt32, ( void ** )&_CertSetCertificateContextProperty, "CertSetCertificateContextProperty" ) )
 
-		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_crypt32, ( void ** )&_CryptDecodeObjectEx, "CryptDecodeObjectEx" ) )
-		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_crypt32, ( void ** )&_CryptStringToBinaryA, "CryptStringToBinaryA" ) )
-		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_crypt32, ( void ** )&_CryptQueryObject, "CryptQueryObject" ) )
-
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_crypt32, ( void ** )&_CryptDecodeObjectEx, "CryptDecodeObjectEx" ) )
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_crypt32, ( void ** )&_CryptStringToBinaryA, "CryptStringToBinaryA" ) )
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_crypt32, ( void ** )&_CryptQueryObject, "CryptQueryObject" ) )
 
 		crypt32_state = CRYPT32_STATE_RUNNING;
 

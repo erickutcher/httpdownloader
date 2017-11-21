@@ -43,6 +43,9 @@
 	pCryptGetHashParam		_CryptGetHashParam;
 	pCryptDestroyHash		_CryptDestroyHash;
 
+	pCryptDestroyKey		_CryptDestroyKey;
+	pCryptImportKey			_CryptImportKey;
+
 	HMODULE hModule_advapi32 = NULL;
 
 	unsigned char advapi32_state = 0;	// 0 = Not running, 1 = running.
@@ -82,6 +85,9 @@
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_advapi32, ( void ** )&_CryptHashData, "CryptHashData" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_advapi32, ( void ** )&_CryptGetHashParam, "CryptGetHashParam" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_advapi32, ( void ** )&_CryptDestroyHash, "CryptDestroyHash" ) )
+
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_advapi32, ( void ** )&_CryptDestroyKey, "CryptDestroyKey" ) )
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_advapi32, ( void ** )&_CryptImportKey, "CryptImportKey" ) )
 
 		advapi32_state = ADVAPI32_STATE_RUNNING;
 

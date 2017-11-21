@@ -23,10 +23,11 @@
 
 #include "file_operations.h"
 
-#include "ssl_client.h"
+#include "ssl.h"
 
 #include "lite_shell32.h"
 #include "lite_advapi32.h"
+#include "lite_comdlg32.h"
 #include "lite_crypt32.h"
 #include "lite_comdlg32.h"
 #include "lite_gdi32.h"
@@ -101,6 +102,9 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 	#endif
 	#ifndef ADVAPI32_USE_STATIC_LIB
 		if ( !InitializeAdvApi32() ){ goto UNLOAD_DLLS; }
+	#endif
+	#ifndef COMDLG32_USE_STATIC_LIB
+		if ( !InitializeComDlg32() ){ return false; }
 	#endif
 	#ifndef CRYPT32_USE_STATIC_LIB
 		if ( !InitializeCrypt32() ){ goto UNLOAD_DLLS; }
@@ -536,8 +540,8 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 		goto CLEANUP;
 	}
 
-	wcex.lpfnWndProc    = DownloadTabWndProc;
-	wcex.lpszClassName  = L"download_tab";
+	wcex.lpfnWndProc    = ConnectionTabWndProc;
+	wcex.lpszClassName  = L"connection_tab";
 
 	if ( !_RegisterClassExW( &wcex ) )
 	{
@@ -593,11 +597,6 @@ CLEANUP:
 	if ( g_proxy_auth_username != NULL ) { GlobalFree( g_proxy_auth_username ); }
 	if ( g_proxy_auth_password != NULL ) { GlobalFree( g_proxy_auth_password ); }
 	if ( g_proxy_auth_key != NULL ) { GlobalFree( g_proxy_auth_key ); }
-	/*if ( g_digest_info != NULL )
-	{
-		FreeDigestInfo( g_digest_info );
-		GlobalFree( g_digest_info );
-	}*/
 
 	if ( cfg_hostname_s != NULL ) { GlobalFree( cfg_hostname_s ); }
 	if ( g_punycode_hostname_s != NULL ) { GlobalFree( g_punycode_hostname_s ); }
@@ -607,11 +606,21 @@ CLEANUP:
 	if ( g_proxy_auth_username_s != NULL ) { GlobalFree( g_proxy_auth_username_s ); }
 	if ( g_proxy_auth_password_s != NULL ) { GlobalFree( g_proxy_auth_password_s ); }
 	if ( g_proxy_auth_key_s != NULL ) { GlobalFree( g_proxy_auth_key_s ); }
-	/*if ( g_digest_info_s != NULL )
-	{
-		FreeDigestInfo( g_digest_info_s );
-		GlobalFree( g_digest_info_s );
-	}*/
+
+	// Server
+
+	CleanupServerInfo();
+
+	if ( cfg_server_hostname != NULL ) { GlobalFree( cfg_server_hostname ); }
+
+	if ( cfg_certificate_pkcs_file_name != NULL ) { GlobalFree( cfg_certificate_pkcs_file_name ); }
+	if ( cfg_certificate_pkcs_password != NULL ) { GlobalFree( cfg_certificate_pkcs_password ); }
+
+	if ( cfg_certificate_cer_file_name != NULL ) { GlobalFree( cfg_certificate_cer_file_name ); }
+	if ( cfg_certificate_key_file_name != NULL ) { GlobalFree( cfg_certificate_key_file_name ); }
+
+	if ( cfg_authentication_username != NULL ) { GlobalFree( cfg_authentication_username ); }
+	if ( cfg_authentication_password != NULL ) { GlobalFree( cfg_authentication_password ); }
 
 	node_type *node = dllrbt_get_head( icon_handles );
 	while ( node != NULL )
@@ -681,6 +690,9 @@ UNLOAD_DLLS:
 	#endif
 	#ifndef CRYPT32_USE_STATIC_LIB
 		UnInitializeCrypt32();
+	#endif
+	#ifndef COMDLG32_USE_STATIC_LIB
+		UnInitializeComDlg32();
 	#endif
 	#ifndef ADVAPI32_USE_STATIC_LIB
 		UnInitializeAdvApi32();

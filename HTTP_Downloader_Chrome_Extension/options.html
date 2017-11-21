@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<style>
+			fieldset
+			{
+				border: 1px solid grey;
+				display: inline-block;
+			}
+		</style>
+		<script src="options.js"></script>
+	</head>
+	<body>
+		<div>
+			<div><label for="server">Server:</label></div>
+			<div><input type="text" id="server" size="50"></div>
+		</div>
+		<div style="padding-top: 10px;">
+			<fieldset>
+				<legend>Server Authentication</legend>
+				<div style="float: left; margin-right: 10px;">
+					<div><label for="username">Username:</label></div>
+					<input type="text" id="username" value="">
+				</div>
+				<div style="float: left;">
+					<div><label for="password">Password:</label></div>
+					<input type="password" id="password" value="">
+				</div>
+			</fieldset>
+		<div>
+		<div style="padding-top: 10px;">
+			<div><label for="parts">Default download parts:</label></div>
+			<div><input type="number" id="parts" value="" min="0" max="100" style="text-align: center;"></div>
+		</div>
+		<div style="float:right; padding: 10px 0px 10px 0px;">
+			<button type="button" id="ok">OK</button>
+			<button type="button" id="cancel">Cancel</button>
+			<button type="button" id="apply">Apply</button>
+		</div>
+	</body>
+</html>

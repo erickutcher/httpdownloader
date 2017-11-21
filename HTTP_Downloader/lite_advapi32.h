@@ -53,6 +53,9 @@
 	#define _CryptGetHashParam			CryptGetHashParam
 	#define _CryptDestroyHash			CryptDestroyHash
 
+	#define _CryptDestroyKey		CryptDestroyKey
+	#define _CryptImportKey			CryptImportKey
+
 #else
 
 	#define ADVAPI32_STATE_SHUTDOWN		0
@@ -80,6 +83,8 @@
 	typedef BOOL ( WINAPI *pCryptGetHashParam )( HCRYPTHASH hHash, DWORD dwParam, BYTE *pbData, DWORD *pdwDataLen, DWORD dwFlags );
 	typedef BOOL ( WINAPI *pCryptDestroyHash )( HCRYPTHASH hHash );
 
+	typedef BOOL ( WINAPI *pCryptDestroyKey )( HCRYPTKEY hKey );
+	typedef BOOL ( WINAPI *pCryptImportKey )( HCRYPTPROV hProv, BYTE *pbData, DWORD dwDataLen, HCRYPTKEY hPubKey, DWORD dwFlags, HCRYPTKEY *phKey );
 
 	extern pCryptAcquireContextW	_CryptAcquireContextW;
 	extern pCryptGenRandom			_CryptGenRandom;
@@ -102,6 +107,9 @@
 	extern pCryptHashData			_CryptHashData;
 	extern pCryptGetHashParam		_CryptGetHashParam;
 	extern pCryptDestroyHash		_CryptDestroyHash;
+
+	extern pCryptDestroyKey			_CryptDestroyKey;
+	extern pCryptImportKey			_CryptImportKey;
 
 	extern unsigned char advapi32_state;
 

@@ -230,6 +230,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\lite_comdlg32.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\lite_crypt32.cpp"
 				>
 			</File>
@@ -251,6 +255,10 @@
 			</File>
 			<File
 				RelativePath=".\lite_ole32.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\lite_rpcrt4.cpp"
 				>
 			</File>
 			<File
@@ -282,7 +290,7 @@
 				>
 			</File>
 			<File
-				RelativePath=".\ssl_client.cpp"
+				RelativePath=".\ssl.cpp"
 				>
 			</File>
 			<File
@@ -376,6 +384,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\lite_comdlg32.h"
+				>
+			</File>
+			<File
 				RelativePath=".\lite_crypt32.h"
 				>
 			</File>
@@ -397,6 +409,10 @@
 			</File>
 			<File
 				RelativePath=".\lite_ole32.h"
+				>
+			</File>
+			<File
+				RelativePath=".\lite_rpcrt4.h"
 				>
 			</File>
 			<File
@@ -428,7 +444,7 @@
 				>
 			</File>
 			<File
-				RelativePath=".\ssl_client.h"
+				RelativePath=".\ssl.h"
 				>
 			</File>
 			<File

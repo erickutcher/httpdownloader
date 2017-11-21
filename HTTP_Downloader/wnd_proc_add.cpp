@@ -27,7 +27,7 @@
 
 #include "string_tables.h"
 
-#define BTN_ADD					1000
+#define BTN_DOWNLOAD			1000
 #define BTN_ADD_CANCEL			1001
 #define EDIT_DOWNLOAD_PARTS		1003
 #define BTN_DOWNLOAD_DIRECTORY	1004
@@ -60,9 +60,12 @@ HWND g_hWnd_edit_password = NULL;
 HWND g_hWnd_static_cookies = NULL;
 HWND g_hWnd_edit_cookies = NULL;
 
+HWND g_hWnd_static_headers = NULL;
+HWND g_hWnd_edit_headers = NULL;
+
 HWND g_hWnd_btn_advanced = NULL;
 
-HWND g_hWnd_btn_add = NULL;
+HWND g_hWnd_btn_download = NULL;
 HWND g_hWnd_cancel = NULL;
 
 bool g_show_advanced = false;
@@ -153,14 +156,19 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			g_hWnd_static_cookies = _CreateWindowW( WC_STATIC, ST_Cookies_, WS_CHILD, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 			g_hWnd_edit_cookies = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, L"", WS_CHILD | WS_TABSTOP | ES_AUTOHSCROLL | ES_MULTILINE | WS_HSCROLL | WS_VSCROLL, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 
+			g_hWnd_static_headers = _CreateWindowW( WC_STATIC, ST_Headers_, WS_CHILD, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+			g_hWnd_edit_headers = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, L"", WS_CHILD | WS_TABSTOP | ES_AUTOHSCROLL | ES_MULTILINE | WS_HSCROLL | WS_VSCROLL, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+
 			g_hWnd_chk_simulate_download = _CreateWindowW( WC_BUTTON, ST_Simulate_download, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP, 0, 0, 0, 0, hWnd, ( HMENU )CHK_SIMULATE_DOWNLOAD, NULL, NULL );
 
 			g_hWnd_btn_advanced = _CreateWindowW( WC_BUTTON, ST_Advanced_BB, WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, ( HMENU )BTN_ADVANCED, NULL, NULL );
 
-			g_hWnd_btn_add = _CreateWindowW( WC_BUTTON, ST_Add, WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, ( HMENU )BTN_ADD, NULL, NULL );
+			g_hWnd_btn_download = _CreateWindowW( WC_BUTTON, ST_Download, WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, ( HMENU )BTN_DOWNLOAD, NULL, NULL );
 			g_hWnd_cancel = _CreateWindowW( WC_BUTTON, ST_Cancel, WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, ( HMENU )BTN_ADD_CANCEL, NULL, NULL );
 
-			_SendMessageW( g_hWnd_btn_add, WM_SETFONT, ( WPARAM )hFont, 0 );
+			_SetFocus( g_hWnd_edit_add );
+
+			_SendMessageW( g_hWnd_btn_download, WM_SETFONT, ( WPARAM )hFont, 0 );
 			_SendMessageW( g_hWnd_cancel, WM_SETFONT, ( WPARAM )hFont, 0 );
 			_SendMessageW( hWnd_static_urls, WM_SETFONT, ( WPARAM )hFont, 0 );
 			_SendMessageW( g_hWnd_edit_add, WM_SETFONT, ( WPARAM )hFont, 0 );
@@ -179,6 +187,8 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			_SendMessageW( g_hWnd_edit_password, WM_SETFONT, ( WPARAM )hFont, 0 );
 			_SendMessageW( g_hWnd_static_cookies, WM_SETFONT, ( WPARAM )hFont, 0 );
 			_SendMessageW( g_hWnd_edit_cookies, WM_SETFONT, ( WPARAM )hFont, 0 );
+			_SendMessageW( g_hWnd_static_headers, WM_SETFONT, ( WPARAM )hFont, 0 );
+			_SendMessageW( g_hWnd_edit_headers, WM_SETFONT, ( WPARAM )hFont, 0 );
 			_SendMessageW( g_hWnd_btn_advanced, WM_SETFONT, ( WPARAM )hFont, 0 );
 
 			t_download_directory = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * MAX_PATH );
@@ -188,6 +198,7 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			URLProc = ( WNDPROC )_GetWindowLongW( g_hWnd_edit_add, GWL_WNDPROC );
 			_SetWindowLongW( g_hWnd_edit_add, GWL_WNDPROC, ( LONG )URLSubProc );
 			_SetWindowLongW( g_hWnd_edit_cookies, GWL_WNDPROC, ( LONG )URLSubProc );
+			_SetWindowLongW( g_hWnd_edit_headers, GWL_WNDPROC, ( LONG )URLSubProc );
 
 			#ifndef OLE32_USE_STATIC_LIB
 				if ( ole32_state == OLE32_STATE_SHUTDOWN )
@@ -271,41 +282,44 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			_GetClientRect( hWnd, &rc );
 
 			// Allow our controls to move in relation to the parent window.
-			HDWP hdwp = _BeginDeferWindowPos( 20 );
-			_DeferWindowPos( hdwp, g_hWnd_edit_add, HWND_TOP, 20, 35, rc.right - 40, rc.bottom - ( g_show_advanced ? 320 : 130 ), SWP_NOZORDER );
+			HDWP hdwp = _BeginDeferWindowPos( 22 );
+			_DeferWindowPos( hdwp, g_hWnd_edit_add, HWND_TOP, 20, 35, rc.right - 40, rc.bottom - ( g_show_advanced ? 420 : 130 ), SWP_NOZORDER );
 
-			_DeferWindowPos( hdwp, g_hWnd_static_download_directory, HWND_TOP, 20, rc.bottom - ( g_show_advanced ? 275 : 85 ), 150, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_download_directory, HWND_TOP, 20, rc.bottom - ( g_show_advanced ? 260 : 70 ), rc.right - 80, 20, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_btn_download_directory, HWND_TOP, rc.right - 55, rc.bottom - ( g_show_advanced ? 260 : 70 ), 35, 20, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_static_download_directory, HWND_TOP, 20, rc.bottom - ( g_show_advanced ? 375 : 85 ), 150, 15, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_download_directory, HWND_TOP, 20, rc.bottom - ( g_show_advanced ? 360 : 70 ), rc.right - 80, 20, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_btn_download_directory, HWND_TOP, rc.right - 55, rc.bottom - ( g_show_advanced ? 360 : 70 ), 35, 20, SWP_NOZORDER );
 
-			_DeferWindowPos( hdwp, g_hWnd_static_download_parts, HWND_TOP, 20, rc.bottom - 230, 100, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_download_parts, HWND_TOP, 20, rc.bottom - 215, 85, 20, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_ud_download_parts, HWND_TOP, 105, rc.bottom - 216, _GetSystemMetrics( SM_CXVSCROLL ), 22, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_static_download_parts, HWND_TOP, 20, rc.bottom - 330, 100, 15, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_download_parts, HWND_TOP, 20, rc.bottom - 315, 85, 20, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_ud_download_parts, HWND_TOP, 105, rc.bottom - 316, _GetSystemMetrics( SM_CXVSCROLL ), 22, SWP_NOZORDER );
 
-			_DeferWindowPos( hdwp, g_hWnd_static_ssl_version, HWND_TOP, 130, rc.bottom - 230, 100, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_ssl_version, HWND_TOP, 130, rc.bottom - 215, 100, 20, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_static_ssl_version, HWND_TOP, 130, rc.bottom - 330, 100, 15, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_ssl_version, HWND_TOP, 130, rc.bottom - 315, 100, 20, SWP_NOZORDER );
 
-			_DeferWindowPos( hdwp, g_hWnd_btn_authentication, HWND_TOP, 240, rc.bottom - 230, 230, 65, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_static_username, HWND_TOP, 250, rc.bottom - 215, 100, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_edit_username, HWND_TOP, 250, rc.bottom - 200, 100, 20, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_static_password, HWND_TOP, 360, rc.bottom - 215, 100, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_edit_password, HWND_TOP, 360, rc.bottom - 200, 100, 20, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_btn_authentication, HWND_TOP, 240, rc.bottom - 330, 230, 65, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_static_username, HWND_TOP, 250, rc.bottom - 315, 100, 15, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_edit_username, HWND_TOP, 250, rc.bottom - 300, 100, 20, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_static_password, HWND_TOP, 360, rc.bottom - 315, 100, 15, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_edit_password, HWND_TOP, 360, rc.bottom - 300, 100, 20, SWP_NOZORDER );
 
-			_DeferWindowPos( hdwp, g_hWnd_static_cookies, HWND_TOP, 20, rc.bottom - 165, 100, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_edit_cookies, HWND_TOP, 20, rc.bottom - 150, rc.right - 40, 75, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_static_cookies, HWND_TOP, 20, rc.bottom - 265, 100, 15, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_edit_cookies, HWND_TOP, 20, rc.bottom - 250, rc.right - 40, 75, SWP_NOZORDER );
+
+			_DeferWindowPos( hdwp, g_hWnd_static_headers, HWND_TOP, 20, rc.bottom - 165, 100, 15, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_edit_headers, HWND_TOP, 20, rc.bottom - 150, rc.right - 40, 75, SWP_NOZORDER );
 
 			_DeferWindowPos( hdwp, g_hWnd_chk_simulate_download, HWND_TOP, 20, rc.bottom - 65, 120, 20, SWP_NOZORDER );
 
 			_DeferWindowPos( hdwp, g_hWnd_btn_advanced, HWND_TOP, 10, rc.bottom - 32, 95, 23, SWP_NOZORDER );
 
-			_DeferWindowPos( hdwp, g_hWnd_btn_add, HWND_TOP, rc.right - 175, rc.bottom - 32, 80, 23, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_btn_download, HWND_TOP, rc.right - 175, rc.bottom - 32, 80, 23, SWP_NOZORDER );
 			_DeferWindowPos( hdwp, g_hWnd_cancel, HWND_TOP, rc.right - 90, rc.bottom - 32, 80, 23, SWP_NOZORDER );
 			_EndDeferWindowPos( hdwp );
 
 			rc.left = 5;
 			rc.top = 5;
 			rc.right -= 65;
-			rc.bottom -= ( g_show_advanced ? 340 : 150 );
+			rc.bottom -= ( g_show_advanced ? 440 : 150 );
 			_SendMessageW( g_hWnd_edit_add, EM_SETRECT, 0, ( LPARAM )&rc );
 
 			return 0;
@@ -316,7 +330,7 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 		{
 			// Set the minimum dimensions that the window can be sized to.
 			( ( MINMAXINFO * )lParam )->ptMinTrackSize.x = 505;
-			( ( MINMAXINFO * )lParam )->ptMinTrackSize.y = ( g_show_advanced ? 430 : 240 );
+			( ( MINMAXINFO * )lParam )->ptMinTrackSize.y = ( g_show_advanced ? 530 : 240 );
 
 			return 0;
 		}
@@ -326,11 +340,11 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 		{
 			switch( LOWORD( wParam ) )
 			{
-				case BTN_ADD:
+				case BTN_DOWNLOAD:
 				{
-					bool simulate_download = ( _SendMessageW( g_hWnd_chk_simulate_download, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
+					unsigned char download_operations = ( _SendMessageW( g_hWnd_chk_simulate_download, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? DOWNLOAD_OPERATION_SIMULATE : DOWNLOAD_OPERATION_NONE );
 
-					if ( !simulate_download && t_download_directory == NULL )
+					if ( !( download_operations & DOWNLOAD_OPERATION_SIMULATE ) && t_download_directory == NULL )
 					{
 						_MessageBoxW( hWnd, ST_You_must_supply_download_directory, PROGRAM_CAPTION, MB_APPLMODAL | MB_ICONWARNING );
 
@@ -351,7 +365,7 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 						ai->ssl_version = ( char )_SendMessageW( g_hWnd_ssl_version, CB_GETCURSEL, 0, 0 );
 
-						ai->simulate_download = simulate_download;
+						ai->download_operations = download_operations;
 
 						char value[ 11 ];
 						_SendMessageA( g_hWnd_download_parts, WM_GETTEXT, 11, ( LPARAM )value );
@@ -426,6 +440,44 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 							ai->utf8_cookies = NULL;
 						}
 
+						// Must be at least 2 characters long. "a:" is a valid header name and value.
+						edit_length = _SendMessageW( g_hWnd_edit_headers, WM_GETTEXTLENGTH, 0, 0 );
+						if ( edit_length >= 2 )
+						{
+							edit = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( edit_length + 1 + 2 ) );	// Add 2 for \r\n
+							_SendMessageW( g_hWnd_edit_headers, WM_GETTEXT, edit_length + 1, ( LPARAM )edit );
+
+							wchar_t *edit_start = edit;
+
+							// Skip newlines that might appear before the field name.
+							while ( *edit_start == L'\r' || *edit_start == L'\n' )
+							{
+								--edit_length;
+								++edit_start;
+							}
+
+							// Make sure the header has a colon somewhere in it and not at the very beginning.
+							if ( edit_length >= 2 && *edit_start != L':' && _StrChrW( edit_start + 1, L':' ) != NULL )
+							{
+								// Make sure the header ends with a \r\n.
+								if ( edit_start[ edit_length - 2 ] != '\r' && edit_start[ edit_length - 1 ] != '\n' )
+								{
+									edit_start[ edit_length ] = '\r';
+									edit_start[ edit_length + 1 ] = '\n';
+									edit_start[ edit_length + 2 ] = 0;	// Sanity.
+								}
+
+								utf8_length = WideCharToMultiByte( CP_UTF8, 0, edit_start, -1, NULL, 0, NULL, NULL );	// Size includes NULL character.
+								ai->utf8_headers = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * utf8_length ); // Size includes the NULL character.
+								WideCharToMultiByte( CP_UTF8, 0, edit_start, -1, ai->utf8_headers, utf8_length, NULL, NULL );
+							}
+
+							GlobalFree( edit );
+						}
+						else
+						{
+							ai->utf8_headers = NULL;
+						}
 
 						// ai is freed in AddURL.
 						CloseHandle( _CreateThread( NULL, 0, AddURL, ( void * )ai, 0, NULL ) );
@@ -566,6 +618,8 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 					_ShowWindow( g_hWnd_edit_password, sw_type );
 					_ShowWindow( g_hWnd_static_cookies, sw_type );
 					_ShowWindow( g_hWnd_edit_cookies, sw_type );
+					_ShowWindow( g_hWnd_static_headers, sw_type );
+					_ShowWindow( g_hWnd_edit_headers, sw_type );
 
 					// Adjust the window height.
 					RECT rc;

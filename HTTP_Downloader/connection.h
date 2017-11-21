@@ -20,7 +20,7 @@
 #define _CONNECTION_H
 
 #include "globals.h"
-#include "ssl_client.h"
+#include "ssl.h"
 #include "doublylinkedlist.h"
 #include "dllrbt.h"
 #include "zlib.h"
@@ -51,6 +51,18 @@
 #define CONNECTION_KEEP_ALIVE	1
 #define CONNECTION_CLOSE		2
 
+#define METHOD_NONE			0
+#define METHOD_GET			1
+#define METHOD_POST			2
+#define METHOD_CONNECT		3
+#define METHOD_HEAD			4
+#define METHOD_PUT			5
+#define METHOD_DELETE		6
+#define METHOD_OPTIONS		7
+#define METHOD_TRACE		8
+#define METHOD_PATCH		9
+#define METHOD_UNHANDLED	10
+
 #define CONTENT_ENCODING_NONE		0
 #define CONTENT_ENCODING_GZIP		1
 #define CONTENT_ENCODING_DEFLATE	2
@@ -71,10 +83,20 @@
 #define CONTENT_STATUS_FILE_SIZE_PROMPT		6
 #define CONTENT_STATUS_ALLOCATE_FILE		7
 #define CONTENT_STATUS_HANDLE_RESPONSE		8	// Deals with HTTP status 206 and 401 responses.
+#define CONTENT_STATUS_HANDLE_REQUEST		9
 
 #define TIME_OUT_FALSE		0
 #define TIME_OUT_TRUE		1
 #define TIME_OUT_RETRY		2
+
+// For listen and accept functions
+#define LA_STATUS_FAILED			   -1
+#define LA_STATUS_UNKNOWN				0
+#define LA_STATUS_OK					1
+
+#define DOWNLOAD_OPERATION_NONE				0
+#define DOWNLOAD_OPERATION_SIMULATE			1
+#define DOWNLOAD_OPERATION_OVERRIDE_PROMPTS	2
 
 enum PROTOCOL
 {
@@ -86,13 +108,16 @@ enum PROTOCOL
 
 enum IO_OPERATION
 {
+	IO_Accept,
 	IO_Connect,
-	IO_HandshakeReply,
-	IO_HandshakeResponse,
+	IO_ClientHandshakeReply,
+	IO_ClientHandshakeResponse,
+	IO_ServerHandshakeResponse,
+	IO_ServerHandshakeReply,
 	IO_GetCONNECTResponse,
+	IO_GetRequest,
 	IO_GetContent,
 	IO_ResumeGetContent,
-	/*IO_AllocateFile,*/
 	IO_WriteFile,
 	IO_Write,
 	IO_Shutdown,
@@ -122,9 +147,13 @@ struct AUTH_INFO
 {
 	char				*realm;
 	char				*nonce;
+	char				*cnonce;
 	char				*domain;
 	char				*opaque;
 	char				*qop;
+	char				*uri;
+	char				*username;
+	char				*response;
 	unsigned int		nc;
 	char				qop_type;		// 0 = not found, 1 = auth, 2 = auth-int, 3 = unhandled
 	char				algorithm;		// 0 = not found, 1 = MD5, 2 = MD5-sess, 3 = unhandled
@@ -144,6 +173,7 @@ struct HEADER_INFO
 	AUTH_INFO			*digest_info;
 	AUTH_INFO			*proxy_digest_info;
 	unsigned short		http_status;
+	unsigned char		http_method;
 	unsigned char		connection;			// 0 = none/not found, 1 = keep-alive, 2 = close
 	unsigned char		content_encoding;	// 0 = none/not found, 1 = gzip, 2 = deflate, 3 = unhandled
 	bool				chunked_transfer;
@@ -156,6 +186,17 @@ struct AUTH_CREDENTIALS
 {
 	char				*username;
 	char				*password;
+};
+
+struct POST_INFO
+{
+	char				*urls;
+	char				*username;
+	char				*password;
+	char				*cookies;
+	char				*headers;
+	char				*parts;
+	char				*simulate_download;
 };
 
 struct SOCKET_CONTEXT;
@@ -185,19 +226,23 @@ struct SOCKET_CONTEXT
 	OVERLAPPEDEX		overlapped;
 	OVERLAPPEDEX		overlapped_close;
 
-	DoublyLinkedList	context_node;	// Self reference to the context_list.
-	DoublyLinkedList	parts_node;
+	DoublyLinkedList	context_node;	// Self reference to the g_context_list.
+	DoublyLinkedList	parts_node;		// Self reference to the parts_list of this context's download_info.
 
 	WSABUF				wsabuf;
 	WSABUF				write_wsabuf;
 
 	unsigned long long	content_offset;
 
+	DoublyLinkedList	*range_node;	// Self reference to the range_list of this context's download_info.
+
 	addrinfoW			*address_info;
 
 	char				*decompressed_buf;
 
 	DOWNLOAD_INFO		*download_info;
+
+	POST_INFO			*post_info;
 
 	SSL					*ssl;
     SOCKET				socket;
@@ -240,9 +285,10 @@ struct ADD_INFO
 	wchar_t				*download_directory;
 	wchar_t				*urls;
 	char				*utf8_cookies;
+	char				*utf8_headers;
 	unsigned char		parts;
+	unsigned char		download_operations;
 	char				ssl_version;
-	bool				simulate_download;
 };
 
 struct DOWNLOAD_INFO
@@ -262,10 +308,11 @@ struct DOWNLOAD_INFO
 	AUTH_CREDENTIALS	auth_info;
 	wchar_t				*url;
 	wchar_t				*w_add_time;
-	DoublyLinkedList	*range_info;
-	DoublyLinkedList	*parts_list;		// The other contexts that make up each download part.
+	DoublyLinkedList	*range_list;		// The ranges that make up each download part.
+	DoublyLinkedList	*parts_list;		// The contexts that make up each download part.
 	HICON				*icon;
 	char				*cookies;
+	char				*headers;
 	//char				*etag;
 	HANDLE				hFile;
 	unsigned int		filename_offset;
@@ -274,17 +321,21 @@ struct DOWNLOAD_INFO
 	unsigned char		active_parts;
 	unsigned char		status;
 	unsigned char		retries;			// The number of times a download has been retried.
+	unsigned char		download_operations;
 	char				ssl_version;
 	bool				processed_header;
-	bool				simulate_download;
 };
+
+SECURITY_STATUS SSL_WSAAccept( SOCKET_CONTEXT *context, OVERLAPPEDEX *overlapped, bool &sent );
+SECURITY_STATUS SSL_WSAAccept_Reply( SOCKET_CONTEXT *context, OVERLAPPEDEX *overlapped, bool &sent );
+SECURITY_STATUS SSL_WSAAccept_Response( SOCKET_CONTEXT *context, OVERLAPPEDEX *overlapped, bool &sent );
 
 SECURITY_STATUS SSL_WSAConnect( SOCKET_CONTEXT *context, OVERLAPPEDEX *overlapped, char *host, bool &sent );
 SECURITY_STATUS SSL_WSAConnect_Response( SOCKET_CONTEXT *context, OVERLAPPEDEX *overlapped, bool &sent );
 SECURITY_STATUS SSL_WSAConnect_Reply( SOCKET_CONTEXT *context, OVERLAPPEDEX *overlapped, bool &sent );
 
-SECURITY_STATUS WSAAPI SSL_WSASend( SOCKET_CONTEXT *context, OVERLAPPEDEX *overlapped, WSABUF *send_buf, bool &sent );
-SECURITY_STATUS WSAAPI SSL_WSARecv( SOCKET_CONTEXT *context, OVERLAPPEDEX *overlapped, bool &sent );
+SECURITY_STATUS SSL_WSASend( SOCKET_CONTEXT *context, OVERLAPPEDEX *overlapped, WSABUF *send_buf, bool &sent );
+SECURITY_STATUS SSL_WSARecv( SOCKET_CONTEXT *context, OVERLAPPEDEX *overlapped, bool &sent );
 
 SECURITY_STATUS SSL_WSARecv_Decrypt( SSL *ssl, LPWSABUF lpBuffers, DWORD &lpNumberOfBytesDecrypted );
 
@@ -293,12 +344,19 @@ SECURITY_STATUS SSL_WSAShutdown( SOCKET_CONTEXT *context, OVERLAPPEDEX *overlapp
 DWORD WINAPI IOCPDownloader( LPVOID pArgs );
 DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext );
 
+SOCKET CreateListenSocket();
+char CreateAcceptSocket( SOCKET listen_socket, bool use_ipv6 );
+SOCKET_CONTEXT *UpdateCompletionPort( SOCKET socket, bool is_listen_socket );
+
 SOCKET_CONTEXT *CreateSocketContext();
 bool CreateConnection( SOCKET_CONTEXT *context, char *host, unsigned short port );
 bool LoadConnectEx();
 void CleanupConnection( SOCKET_CONTEXT *context );
 
 SOCKET CreateSocket( bool IPv6 = false );
+
+void FreeContexts();
+void FreeListenContext();
 
 void EnableTimers( bool timer_state );
 
@@ -314,7 +372,14 @@ THREAD_RETURN FileSizePrompt( void *pArguments );
 
 ICON_INFO *CacheIcon( DOWNLOAD_INFO *di, SHFILEINFO *sfi );
 
+void FreePOSTInfo( POST_INFO **post_info );
+
 void FreeAuthInfo( AUTH_INFO **auth_info );
+
+void InitializeServerInfo();
+void CleanupServerInfo();
+void StartServer();
+void CleanupServer();
 
 extern HANDLE g_hIOCP;
 
@@ -329,7 +394,7 @@ extern CRITICAL_SECTION file_size_prompt_list_cs;	// Guard access to the file si
 extern CRITICAL_SECTION rename_file_prompt_list_cs;	// Guard access to the rename file prompt list.
 extern CRITICAL_SECTION cleanup_cs;
 
-extern DoublyLinkedList *context_list;
+extern DoublyLinkedList *g_context_list;
 
 extern unsigned long total_downloading;
 extern DoublyLinkedList *download_queue;
@@ -346,5 +411,22 @@ extern int g_file_size_cmb_ret;		// Message box prompt for large files sizes.
 extern bool rename_file_prompt_active;
 extern int g_rename_file_cmb_ret;	// Message box prompt to rename files.
 extern int g_rename_file_cmb_ret2;	// Message box prompt to rename files.
+
+// Server
+
+extern wchar_t *g_server_punycode_hostname;
+
+extern char *g_authentication_username;
+extern char *g_authentication_password;
+extern unsigned int g_authentication_username_length;
+extern unsigned int g_authentication_password_length;
+
+extern char *g_encoded_authentication;
+extern DWORD g_encoded_authentication_length;
+
+extern char *g_nonce;
+extern unsigned long g_nonce_length;
+extern char *g_opaque;
+extern unsigned long g_opaque_length;
 
 #endif

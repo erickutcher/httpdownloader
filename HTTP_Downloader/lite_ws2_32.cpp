@@ -50,6 +50,8 @@ unsigned char ws2_32_state = 0;	// 0 = Not running, 1 = running.
 
 	psocket			_socket;
 	pconnect		_connect;
+	plisten			_listen;
+	paccept			_accept;
 	pbind			_bind;
 	pshutdown		_shutdown;
 	pclosesocket	_closesocket;
@@ -110,6 +112,8 @@ unsigned char ws2_32_state = 0;	// 0 = Not running, 1 = running.
 
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_ws2_32, ( void ** )&_socket, "socket" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_ws2_32, ( void ** )&_connect, "connect" ) )
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_ws2_32, ( void ** )&_listen, "listen" ) )
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_ws2_32, ( void ** )&_accept, "accept" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_ws2_32, ( void ** )&_bind, "bind" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_ws2_32, ( void ** )&_shutdown, "shutdown" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_ws2_32, ( void ** )&_closesocket, "closesocket" ) )

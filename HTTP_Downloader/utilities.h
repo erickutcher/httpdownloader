@@ -55,6 +55,8 @@ unsigned long get_file_extension_offset( wchar_t *filename, unsigned long length
 
 unsigned long long strtoull( char *str, bool base16 = false );
 
+char *GetUTF8Domain( wchar_t *domain );
+
 char *url_encode_a( char *str, unsigned int str_len, unsigned int *enc_len );
 char *url_decode_a( char *str, unsigned int str_len, unsigned int *dec_len );
 
@@ -68,8 +70,10 @@ THREAD_RETURN cleanup( void *pArguments );
 char *CreateMD5( BYTE *input, DWORD input_len );
 void CreateCNonce( char **cnonce, DWORD *cnonce_length );
 void GetMD5String( HCRYPTHASH *hHash, char **md5, DWORD *md5_length );
+void CreateDigestAuthorizationInfo( char **nonce, unsigned long &nonce_length, char **opaque, unsigned long &opaque_length );
 void CreateDigestAuthorizationKey( char *username, char *password, char *method, char *resource, AUTH_INFO *auth_info, char **auth_key, DWORD *auth_key_length );
 void CreateBasicAuthorizationKey( char *username, int username_length, char *password, int password_length, char **auth_key, DWORD *auth_key_length );
+bool VerifyDigestAuthorization( char *username, unsigned long username_length, char *password, unsigned long password_length, char *nonce, unsigned long nonce_length, char *opaque, unsigned long opaque_length, char *method, unsigned long method_length, AUTH_INFO *auth_info );
 void ConstructRequest( SOCKET_CONTEXT *context, bool use_connect );
 
 #endif

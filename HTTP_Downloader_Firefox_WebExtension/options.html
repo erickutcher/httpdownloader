@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<style>
+			body
+			{
+				padding: 5px;
+			}
+
+			fieldset
+			{
+				border: 1px solid grey;
+				display: inline-block;
+			}
+		</style>
+		<script src="options.js"></script>
+	</head>
+	<body>
+		<div class="browser-style">
+			<div><label for="server">Server:</label></div>
+			<input type="text" id="server" size="50">
+		</div>
+		<div style="padding-top: 10px;">
+			<fieldset>
+				<legend>Server Authentication</legend>
+				<div class="browser-style" style="float: left; margin-right: 10px;">
+					<div><label for="username">Username:</label></div>
+					<input type="text" id="username" value="">
+				</div>
+				<div class="browser-style" style="float: left;">
+					<div><label for="password">Password:</label></div>
+					<input type="password" id="password" value="">
+				</div>
+			</fieldset>
+		<div>
+		<div class="browser-style" style="padding-top: 10px;">
+			<div><label for="parts">Default download parts:</label></div>
+			<input type="number" id="parts" value="" min="0" max="100" style="text-align: center;">
+		</div>
+		<div style="padding-top: 20px;">
+			<button type="button" id="save" class="browser-style">Save</button>
+		</div>
+	</body>
+</html>

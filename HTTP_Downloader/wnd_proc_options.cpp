@@ -18,6 +18,7 @@
 
 #include "globals.h"
 
+#include "lite_comdlg32.h"
 #include "lite_ole32.h"
 #include "lite_gdi32.h"
 #include "lite_normaliz.h"
@@ -77,6 +78,29 @@
 #define EDIT_AUTH_USERNAME_S	1031
 #define EDIT_AUTH_PASSWORD_S	1032
 
+#define BTN_ENABLE_SERVER				1033
+#define BTN_TYPE_SERVER_HOST			1034
+#define BTN_TYPE_SERVER_IP_ADDRESS		1035
+#define EDIT_SERVER_HOST				1036
+#define EDIT_SERVER_IP_ADDRESS			1037
+#define EDIT_SERVER_PORT				1038
+#define BTN_USE_AUTHENTICATION			1039
+#define EDIT_AUTHENTICATION_USERNAME	1040
+#define EDIT_AUTHENTICATION_PASSWORD	1041
+#define BTN_AUTH_TYPE_BASIC				1042
+#define BTN_AUTH_TYPE_DIGEST			1043
+
+#define BTN_SERVER_ENABLE_SSL			1044
+#define BTN_TYPE_PKCS					1045
+#define BTN_TYPE_PAIR					1046
+#define EDIT_CERTIFICATE_PKCS			1047
+#define BTN_CERTIFICATE_PKCS			1048
+#define EDIT_CERTIFICATE_PKCS_PASSWORD	1049
+#define EDIT_CERTIFICATE_CER			1050
+#define BTN_CERTIFICATE_CER				1051
+#define EDIT_CERTIFICATE_KEY			1052
+#define BTN_CERTIFICATE_KEY				1053
+#define CB_SERVER_SSL_VERSION			1054
 
 
 HWND g_hWnd_options = NULL;
@@ -86,19 +110,78 @@ bool options_state_changed = false;
 
 wchar_t *t_default_download_directory = NULL;
 
-HFONT hFont_copy = NULL;
+// Free these when done.
+wchar_t *certificate_pkcs_file_name = NULL;
+wchar_t *certificate_cer_file_name = NULL;
+wchar_t *certificate_key_file_name = NULL;
+
+unsigned int certificate_pkcs_file_name_length = 0;
+unsigned int certificate_cer_file_name_length = 0;
+unsigned int certificate_key_file_name_length = 0;
+
+HFONT hFont_copy_proxy = NULL;
+HFONT hFont_copy_connection = NULL;
 
 
 // Options Window
 HWND g_hWnd_options_tab = NULL;
 HWND g_hWnd_general_tab = NULL;
-HWND g_hWnd_download_tab = NULL;
+HWND g_hWnd_connection_tab = NULL;
 HWND g_hWnd_proxy_tab = NULL;
 
 HWND g_hWnd_apply = NULL;
 
 
 // Connection Tab
+HWND g_hWnd_max_downloads = NULL;
+
+HWND g_hWnd_retry_downloads_count = NULL;
+HWND g_hWnd_retry_parts_count = NULL;
+
+HWND g_hWnd_timeout = NULL;
+
+HWND g_hWnd_default_ssl_version = NULL;
+HWND g_hWnd_default_download_parts = NULL;
+
+HWND g_hWnd_chk_enable_server = NULL;
+HWND g_hWnd_static_hoz1 = NULL;
+HWND g_hWnd_chk_type_server_hostname = NULL;
+HWND g_hWnd_chk_type_server_ip_address = NULL;
+HWND g_hWnd_server_hostname = NULL;
+HWND g_hWnd_server_ip_address = NULL;
+HWND g_hWnd_static_server_colon = NULL;
+HWND g_hWnd_static_server_port = NULL;
+HWND g_hWnd_server_port = NULL;
+HWND g_hWnd_chk_use_authentication = NULL;
+HWND g_hWnd_static_authentication_username = NULL;
+HWND g_hWnd_authentication_username = NULL;
+HWND g_hWnd_static_authentication_password = NULL;
+HWND g_hWnd_authentication_password = NULL;
+HWND g_hWnd_chk_authentication_type_basic = NULL;
+HWND g_hWnd_chk_authentication_type_digest = NULL;
+
+HWND g_hWnd_chk_server_enable_ssl = NULL;
+HWND g_hWnd_static_hoz2 = NULL;
+HWND g_hWnd_chk_type_pkcs = NULL;
+HWND g_hWnd_chk_type_pair = NULL;
+HWND g_hWnd_static_certificate_pkcs_location = NULL;
+HWND g_hWnd_certificate_pkcs_location = NULL;
+HWND g_hWnd_btn_certificate_pkcs_location = NULL;
+HWND g_hWnd_static_certificate_pkcs_password = NULL;
+HWND g_hWnd_certificate_pkcs_password = NULL;
+HWND g_hWnd_static_certificate_cer_location = NULL;
+HWND g_hWnd_certificate_cer_location = NULL;
+HWND g_hWnd_btn_certificate_cer_location = NULL;
+HWND g_hWnd_static_certificate_key_location = NULL;
+HWND g_hWnd_certificate_key_location = NULL;
+HWND g_hWnd_btn_certificate_key_location = NULL;
+HWND g_hWnd_static_server_ssl_version = NULL;
+HWND g_hWnd_server_ssl_version = NULL;
+
+int connection_tab_height = 0;
+int connection_tab_scroll_pos = 0;
+
+// Proxy Tab
 // HTTP proxy
 HWND g_hWnd_chk_proxy = NULL;
 
@@ -135,19 +218,6 @@ HWND g_hWnd_auth_username_s = NULL;
 HWND g_hWnd_static_auth_password_s = NULL;
 HWND g_hWnd_auth_password_s = NULL;
 
-//
-
-HWND g_hWnd_max_downloads = NULL;
-
-HWND g_hWnd_retry_downloads_count = NULL;
-HWND g_hWnd_retry_parts_count = NULL;
-
-HWND g_hWnd_timeout = NULL;
-
-HWND g_hWnd_default_ssl_version = NULL;
-HWND g_hWnd_default_download_parts = NULL;
-
-
 // General Tab
 HWND g_hWnd_chk_tray_icon = NULL;
 HWND g_hWnd_chk_minimize = NULL;
@@ -162,6 +232,541 @@ HWND g_hWnd_thread_count = NULL;
 HWND g_hWnd_default_download_directory = NULL;
 HWND g_hWnd_btn_default_download_directory = NULL;
 
+void Enable_Disable_Windows( BOOL enable )
+{
+	_EnableWindow( g_hWnd_static_hoz1, enable );
+	_EnableWindow( g_hWnd_static_hoz2, enable );
+
+	_EnableWindow( g_hWnd_chk_type_server_hostname, enable );
+	_EnableWindow( g_hWnd_chk_type_server_ip_address, enable );
+
+	_EnableWindow( g_hWnd_server_hostname, enable );
+	_EnableWindow( g_hWnd_server_ip_address, enable );
+
+	_EnableWindow( g_hWnd_static_server_colon, enable );
+
+	_EnableWindow( g_hWnd_static_server_port, enable );
+	_EnableWindow( g_hWnd_server_port, enable );
+
+	_EnableWindow( g_hWnd_chk_use_authentication, enable );
+
+	_EnableWindow( g_hWnd_chk_server_enable_ssl, enable );
+}
+
+void Enable_Disable_SSL_Windows( BOOL enable )
+{
+	_EnableWindow( g_hWnd_chk_type_pkcs, enable );
+	_EnableWindow( g_hWnd_chk_type_pair, enable );
+
+	_EnableWindow( g_hWnd_static_certificate_pkcs_location, enable );
+	_EnableWindow( g_hWnd_certificate_pkcs_location, enable );
+	_EnableWindow( g_hWnd_btn_certificate_pkcs_location, enable );
+
+	_EnableWindow( g_hWnd_static_certificate_pkcs_password, enable );
+	_EnableWindow( g_hWnd_certificate_pkcs_password, enable );
+
+	_EnableWindow( g_hWnd_static_certificate_cer_location, enable );
+	_EnableWindow( g_hWnd_certificate_cer_location, enable );
+	_EnableWindow( g_hWnd_btn_certificate_cer_location, enable );
+
+	_EnableWindow( g_hWnd_static_certificate_key_location, enable );
+	_EnableWindow( g_hWnd_certificate_key_location, enable );
+	_EnableWindow( g_hWnd_btn_certificate_key_location, enable );
+
+	_EnableWindow( g_hWnd_static_server_ssl_version, enable );
+	_EnableWindow( g_hWnd_server_ssl_version, enable );
+}
+
+void Enable_Disable_Authentication_Windows( BOOL enable )
+{
+	_EnableWindow( g_hWnd_static_authentication_username, enable );
+	_EnableWindow( g_hWnd_authentication_username, enable );
+	_EnableWindow( g_hWnd_static_authentication_password, enable );
+	_EnableWindow( g_hWnd_authentication_password, enable );
+	_EnableWindow( g_hWnd_chk_authentication_type_basic, enable );
+	_EnableWindow( g_hWnd_chk_authentication_type_digest, enable );
+}
+
+void Set_Window_Settings()
+{
+	if ( cfg_server_address_type == 1 )
+	{
+		_SendMessageW( g_hWnd_chk_type_server_ip_address, BM_SETCHECK, BST_CHECKED, 0 );
+		_SendMessageW( g_hWnd_chk_type_server_hostname, BM_SETCHECK, BST_UNCHECKED, 0 );
+
+		_ShowWindow( g_hWnd_server_hostname, SW_HIDE );
+		_ShowWindow( g_hWnd_server_ip_address, SW_SHOW );
+	}
+	else
+	{
+		_SendMessageW( g_hWnd_chk_type_server_hostname, BM_SETCHECK, BST_CHECKED, 0 );
+		_SendMessageW( g_hWnd_chk_type_server_ip_address, BM_SETCHECK, BST_UNCHECKED, 0 );
+
+		_ShowWindow( g_hWnd_server_ip_address, SW_HIDE );
+		_ShowWindow( g_hWnd_server_hostname, SW_SHOW );	
+	}
+
+	if ( cfg_server_hostname == NULL )
+	{
+		_SendMessageW( g_hWnd_server_hostname, WM_SETTEXT, 0, ( LPARAM )L"localhost" );
+	}
+	else
+	{
+		_SendMessageW( g_hWnd_server_hostname, WM_SETTEXT, 0, ( LPARAM )cfg_server_hostname );
+	}
+
+	_SendMessageW( g_hWnd_server_ip_address, IPM_SETADDRESS, 0, cfg_server_ip_address );
+
+	char value[ 21 ];
+	_memzero( value, sizeof( char ) * 21 );
+	__snprintf( value, 21, "%hu", cfg_server_port );
+	_SendMessageA( g_hWnd_server_port, WM_SETTEXT, 0, ( LPARAM )value );
+
+	_SendMessageW( g_hWnd_chk_server_enable_ssl, BM_SETCHECK, ( cfg_server_enable_ssl ? BST_CHECKED : BST_UNCHECKED ), 0 );
+
+	_SendMessageW( g_hWnd_chk_use_authentication, BM_SETCHECK, ( cfg_use_authentication ? BST_CHECKED : BST_UNCHECKED ), 0 );
+
+	_SendMessageW( g_hWnd_authentication_username, WM_SETTEXT, 0, ( LPARAM )cfg_authentication_username );
+	_SendMessageW( g_hWnd_authentication_password, WM_SETTEXT, 0, ( LPARAM )cfg_authentication_password );
+
+	if ( cfg_authentication_type == AUTH_TYPE_DIGEST )
+	{
+		_SendMessageW( g_hWnd_chk_authentication_type_basic, BM_SETCHECK, BST_UNCHECKED, 0 );
+		_SendMessageW( g_hWnd_chk_authentication_type_digest, BM_SETCHECK, BST_CHECKED, 0 );
+	}
+	else
+	{
+		_SendMessageW( g_hWnd_chk_authentication_type_basic, BM_SETCHECK, BST_CHECKED, 0 );
+		_SendMessageW( g_hWnd_chk_authentication_type_digest, BM_SETCHECK, BST_UNCHECKED, 0 );
+	}
+
+	if ( cfg_certificate_type == 1 )
+	{
+		_SendMessageW( g_hWnd_chk_type_pair, BM_SETCHECK, BST_CHECKED, 0 );
+		_SendMessageW( g_hWnd_chk_type_pkcs, BM_SETCHECK, BST_UNCHECKED, 0 );
+
+		_ShowWindow( g_hWnd_static_certificate_pkcs_location, SW_HIDE );
+		_ShowWindow( g_hWnd_certificate_pkcs_location, SW_HIDE );
+		_ShowWindow( g_hWnd_btn_certificate_pkcs_location, SW_HIDE );
+
+		_ShowWindow( g_hWnd_static_certificate_pkcs_password, SW_HIDE );
+		_ShowWindow( g_hWnd_certificate_pkcs_password, SW_HIDE );
+
+		_ShowWindow( g_hWnd_static_certificate_cer_location, SW_SHOW );
+		_ShowWindow( g_hWnd_certificate_cer_location, SW_SHOW );
+		_ShowWindow( g_hWnd_btn_certificate_cer_location, SW_SHOW );
+
+		_ShowWindow( g_hWnd_static_certificate_key_location, SW_SHOW );
+		_ShowWindow( g_hWnd_certificate_key_location, SW_SHOW );
+		_ShowWindow( g_hWnd_btn_certificate_key_location, SW_SHOW );
+	}
+	else
+	{
+		_SendMessageW( g_hWnd_chk_type_pkcs, BM_SETCHECK, BST_CHECKED, 0 );
+		_SendMessageW( g_hWnd_chk_type_pair, BM_SETCHECK, BST_UNCHECKED, 0 );
+
+		_ShowWindow( g_hWnd_static_certificate_cer_location, SW_HIDE );
+		_ShowWindow( g_hWnd_certificate_cer_location, SW_HIDE );
+		_ShowWindow( g_hWnd_btn_certificate_cer_location, SW_HIDE );
+
+		_ShowWindow( g_hWnd_static_certificate_key_location, SW_HIDE );
+		_ShowWindow( g_hWnd_certificate_key_location, SW_HIDE );
+		_ShowWindow( g_hWnd_btn_certificate_key_location, SW_HIDE );
+
+		_ShowWindow( g_hWnd_static_certificate_pkcs_location, SW_SHOW );
+		_ShowWindow( g_hWnd_certificate_pkcs_location, SW_SHOW );
+		_ShowWindow( g_hWnd_btn_certificate_pkcs_location, SW_SHOW );
+
+		_ShowWindow( g_hWnd_static_certificate_pkcs_password, SW_SHOW );
+		_ShowWindow( g_hWnd_certificate_pkcs_password, SW_SHOW );
+	}
+
+	_SendMessageW( g_hWnd_certificate_pkcs_location, WM_SETTEXT, 0, ( LPARAM )cfg_certificate_pkcs_file_name );
+	_SendMessageW( g_hWnd_certificate_pkcs_password, WM_SETTEXT, 0, ( LPARAM )cfg_certificate_pkcs_password );
+
+	_SendMessageW( g_hWnd_certificate_cer_location, WM_SETTEXT, 0, ( LPARAM )cfg_certificate_cer_file_name );
+	_SendMessageW( g_hWnd_certificate_key_location, WM_SETTEXT, 0, ( LPARAM )cfg_certificate_key_file_name );
+
+	_SendMessageW( g_hWnd_server_ssl_version, CB_SETCURSEL, cfg_server_ssl_version, 0 );
+
+	if ( cfg_enable_server )
+	{
+		_SendMessageW( g_hWnd_chk_enable_server, BM_SETCHECK, BST_CHECKED, 0 );
+		Enable_Disable_Windows( TRUE );
+
+		Enable_Disable_SSL_Windows( ( ( cfg_server_enable_ssl ) ? TRUE : FALSE ) );
+		Enable_Disable_Authentication_Windows( ( ( cfg_use_authentication ) ? TRUE : FALSE ) );
+	}
+	else
+	{
+		_SendMessageW( g_hWnd_chk_enable_server, BM_SETCHECK, BST_UNCHECKED, 0 );
+		Enable_Disable_Windows( FALSE );
+
+		Enable_Disable_SSL_Windows( FALSE );
+		Enable_Disable_Authentication_Windows( FALSE );
+	}
+}
+
+void SetServerSettings()
+{
+	bool ssl_info_changed = false;
+	bool server_info_changed = false;
+	bool auth_info_changed = false;
+
+	// SERVER
+
+	bool enable_server = cfg_enable_server;
+	cfg_enable_server = ( _SendMessageW( g_hWnd_chk_enable_server, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
+	if ( cfg_enable_server != enable_server )
+	{
+		server_info_changed = true;
+	}
+
+	unsigned char server_address_type = cfg_server_address_type;
+	cfg_server_address_type = ( _SendMessageW( g_hWnd_chk_type_server_ip_address, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? 1 : 0 );
+	if ( cfg_server_address_type != server_address_type )
+	{
+		server_info_changed = true;
+	}
+
+	unsigned int server_hostname_length = _SendMessageW( g_hWnd_server_hostname, WM_GETTEXTLENGTH, 0, 0 );
+	wchar_t *server_hostname = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( server_hostname_length + 1 ) );
+	_SendMessageW( g_hWnd_server_hostname, WM_GETTEXT, server_hostname_length + 1, ( LPARAM )server_hostname );
+
+	if ( cfg_server_hostname != NULL )
+	{
+		unsigned int cfg_server_hostname_length = lstrlenW( cfg_server_hostname );
+
+		if ( cfg_server_hostname_length != server_hostname_length || _StrCmpNW( cfg_server_hostname, server_hostname, server_hostname_length ) != 0 )
+		{
+			GlobalFree( cfg_server_hostname );
+
+			cfg_server_hostname = server_hostname;
+
+			server_info_changed = true;
+		}
+		else
+		{
+			GlobalFree( server_hostname );
+		}
+	}
+	else
+	{
+		cfg_server_hostname = server_hostname;
+
+		server_info_changed = true;
+	}
+
+	if ( normaliz_state == NORMALIZ_STATE_RUNNING )
+	{
+		if ( cfg_server_address_type == 0 )
+		{
+			if ( g_server_punycode_hostname != NULL )
+			{
+				GlobalFree( g_server_punycode_hostname );
+				g_server_punycode_hostname = NULL;
+			}
+
+			int punycode_length = _IdnToAscii( 0, cfg_server_hostname, server_hostname_length, NULL, 0 );
+
+			if ( punycode_length > ( int )server_hostname_length )
+			{
+				g_server_punycode_hostname = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * punycode_length );
+				_IdnToAscii( 0, cfg_server_hostname, server_hostname_length, g_server_punycode_hostname, punycode_length );
+			}
+		}
+	}
+
+	unsigned long server_ip_address = cfg_server_ip_address;
+	_SendMessageW( g_hWnd_server_ip_address, IPM_GETADDRESS, 0, ( LPARAM )&cfg_server_ip_address );
+	if ( cfg_server_ip_address != server_ip_address )
+	{
+		server_info_changed = true;
+	}
+
+	char value[ 11 ];
+	_SendMessageA( g_hWnd_server_port, WM_GETTEXT, 6, ( LPARAM )value );
+	unsigned short server_port = cfg_server_port;
+	cfg_server_port = ( unsigned short )_strtoul( value, NULL, 10 );
+	if ( cfg_server_port != server_port )
+	{
+		server_info_changed = true;
+	}
+
+	// AUTH
+
+	bool use_authentication = cfg_use_authentication;
+	cfg_use_authentication = ( _SendMessageW( g_hWnd_chk_use_authentication, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
+	if ( cfg_use_authentication != use_authentication )
+	{
+		auth_info_changed = true;
+	}
+
+	unsigned int authentication_username_length = _SendMessageW( g_hWnd_authentication_username, WM_GETTEXTLENGTH, 0, 0 );
+	wchar_t *authentication_username = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( authentication_username_length + 1 ) );
+	_SendMessageW( g_hWnd_authentication_username, WM_GETTEXT, authentication_username_length + 1, ( LPARAM )authentication_username );
+
+	if ( cfg_authentication_username != NULL )
+	{
+		unsigned int cfg_authentication_username_length = lstrlenW( cfg_authentication_username );
+
+		if ( cfg_authentication_username_length != authentication_username_length || _StrCmpNW( cfg_authentication_username, authentication_username, authentication_username_length ) != 0 )
+		{
+			GlobalFree( cfg_authentication_username );
+
+			cfg_authentication_username = authentication_username;
+
+			auth_info_changed = true;
+		}
+		else
+		{
+			GlobalFree( authentication_username );
+		}
+	}
+	else
+	{
+		cfg_authentication_username = authentication_username;
+
+		auth_info_changed = true;
+	}
+
+	unsigned int authentication_password_length = _SendMessageW( g_hWnd_authentication_password, WM_GETTEXTLENGTH, 0, 0 );
+	wchar_t *authentication_password = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( authentication_password_length + 1 ) );
+	_SendMessageW( g_hWnd_authentication_password, WM_GETTEXT, authentication_password_length + 1, ( LPARAM )authentication_password );
+
+	if ( cfg_authentication_password != NULL )
+	{
+		unsigned int cfg_authentication_password_length = lstrlenW( cfg_authentication_password );
+
+		if ( cfg_authentication_password_length != authentication_password_length || _StrCmpNW( cfg_authentication_password, authentication_password, authentication_password_length ) != 0 )
+		{
+			GlobalFree( cfg_authentication_password );
+
+			cfg_authentication_password = authentication_password;
+
+			auth_info_changed = true;
+		}
+		else
+		{
+			GlobalFree( authentication_password );
+		}
+	}
+	else
+	{
+		cfg_authentication_password = authentication_password;
+
+		auth_info_changed = true;
+	}
+
+	unsigned char authentication_type = cfg_authentication_type;
+	cfg_authentication_type = ( _SendMessageW( g_hWnd_chk_authentication_type_basic, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? AUTH_TYPE_BASIC : AUTH_TYPE_DIGEST );
+	if ( cfg_authentication_type != authentication_type )
+	{
+		auth_info_changed = true;
+	}
+
+	// SSL
+
+	bool server_enable_ssl = cfg_server_enable_ssl;
+	cfg_server_enable_ssl = ( _SendMessageW( g_hWnd_chk_server_enable_ssl, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
+	if ( cfg_server_enable_ssl != server_enable_ssl )
+	{
+		ssl_info_changed = true;
+	}
+
+
+	unsigned char certificate_type = cfg_certificate_type;
+	cfg_certificate_type = ( _SendMessageW( g_hWnd_chk_type_pair, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? 1 : 0 );
+	if ( cfg_certificate_type != certificate_type )
+	{
+		ssl_info_changed = true;
+	}
+
+	if ( cfg_certificate_pkcs_file_name != NULL )
+	{
+		unsigned int cfg_certificate_pkcs_file_name_length = lstrlenW( cfg_certificate_pkcs_file_name );
+
+		if ( cfg_certificate_pkcs_file_name_length != certificate_pkcs_file_name_length || _StrCmpNW( cfg_certificate_pkcs_file_name, certificate_pkcs_file_name, cfg_certificate_pkcs_file_name_length ) != 0 )
+		{
+			GlobalFree( cfg_certificate_pkcs_file_name );
+
+			cfg_certificate_pkcs_file_name = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t * ) * ( certificate_pkcs_file_name_length + 1 ) );
+			_wmemcpy_s( cfg_certificate_pkcs_file_name, certificate_pkcs_file_name_length, certificate_pkcs_file_name, certificate_pkcs_file_name_length );
+			cfg_certificate_pkcs_file_name[ certificate_pkcs_file_name_length ] = 0;	// Sanity.
+
+			ssl_info_changed = true;
+		}
+	}
+	else
+	{
+		cfg_certificate_pkcs_file_name = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t * ) * ( certificate_pkcs_file_name_length + 1 ) );
+		_wmemcpy_s( cfg_certificate_pkcs_file_name, certificate_pkcs_file_name_length, certificate_pkcs_file_name, certificate_pkcs_file_name_length );
+		cfg_certificate_pkcs_file_name[ certificate_pkcs_file_name_length ] = 0;	// Sanity.
+
+		ssl_info_changed = true;
+	}
+
+	unsigned int certificate_pkcs_password_length = _SendMessageW( g_hWnd_certificate_pkcs_password, WM_GETTEXTLENGTH, 0, 0 );
+	wchar_t *certificate_pkcs_password = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( certificate_pkcs_password_length + 1 ) );
+	_SendMessageW( g_hWnd_certificate_pkcs_password, WM_GETTEXT, certificate_pkcs_password_length + 1, ( LPARAM )certificate_pkcs_password );
+
+	if ( cfg_certificate_pkcs_password != NULL )
+	{
+		unsigned int cfg_certificate_pkcs_password_length = lstrlenW( cfg_certificate_pkcs_password );
+
+		if ( cfg_certificate_pkcs_password_length != certificate_pkcs_password_length || _StrCmpNW( cfg_certificate_pkcs_password, certificate_pkcs_password, cfg_certificate_pkcs_password_length ) != 0 )
+		{
+			GlobalFree( cfg_certificate_pkcs_password );
+
+			cfg_certificate_pkcs_password = certificate_pkcs_password;
+
+			ssl_info_changed = true;
+		}
+		else
+		{
+			GlobalFree( certificate_pkcs_password );
+		}
+	}
+	else
+	{
+		cfg_certificate_pkcs_password = certificate_pkcs_password;
+
+		ssl_info_changed = true;
+	}
+
+	if ( cfg_certificate_cer_file_name != NULL )
+	{
+		unsigned int cfg_certificate_cer_file_name_length = lstrlenW( cfg_certificate_cer_file_name );
+
+		if ( cfg_certificate_cer_file_name_length != certificate_cer_file_name_length || _StrCmpNW( cfg_certificate_cer_file_name, certificate_cer_file_name, cfg_certificate_cer_file_name_length ) != 0 )
+		{
+			GlobalFree( cfg_certificate_cer_file_name );
+
+			cfg_certificate_cer_file_name = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t * ) * ( certificate_cer_file_name_length + 1 ) );
+			_wmemcpy_s( cfg_certificate_cer_file_name, certificate_cer_file_name_length, certificate_cer_file_name, certificate_cer_file_name_length );
+			cfg_certificate_cer_file_name[ certificate_cer_file_name_length ] = 0;	// Sanity.
+
+			ssl_info_changed = true;
+		}
+	}
+	else
+	{
+		cfg_certificate_cer_file_name = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t * ) * ( certificate_cer_file_name_length + 1 ) );
+		_wmemcpy_s( cfg_certificate_cer_file_name, certificate_cer_file_name_length, certificate_cer_file_name, certificate_cer_file_name_length );
+		cfg_certificate_cer_file_name[ certificate_cer_file_name_length ] = 0;	// Sanity.
+
+		ssl_info_changed = true;
+	}
+
+
+	if ( cfg_certificate_key_file_name != NULL )
+	{
+		unsigned int cfg_certificate_key_file_name_length = lstrlenW( cfg_certificate_key_file_name );
+
+		if ( cfg_certificate_key_file_name_length != certificate_key_file_name_length || _StrCmpNW( cfg_certificate_key_file_name, certificate_key_file_name, cfg_certificate_key_file_name_length ) != 0 )
+		{
+			GlobalFree( cfg_certificate_key_file_name );
+
+			cfg_certificate_key_file_name = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t * ) * ( certificate_key_file_name_length + 1 ) );
+			_wmemcpy_s( cfg_certificate_key_file_name, certificate_key_file_name_length, certificate_key_file_name, certificate_key_file_name_length );
+			cfg_certificate_key_file_name[ certificate_key_file_name_length ] = 0;	// Sanity.
+
+			ssl_info_changed = true;
+		}
+	}
+	else
+	{
+		cfg_certificate_key_file_name = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t * ) * ( certificate_key_file_name_length + 1 ) );
+		_wmemcpy_s( cfg_certificate_key_file_name, certificate_key_file_name_length, certificate_key_file_name, certificate_key_file_name_length );
+		cfg_certificate_key_file_name[ certificate_key_file_name_length ] = 0;	// Sanity.
+
+		ssl_info_changed = true;
+	}
+
+	unsigned char server_ssl_version = cfg_server_ssl_version;
+	cfg_server_ssl_version = ( unsigned char )_SendMessageW( g_hWnd_server_ssl_version, CB_GETCURSEL, 0, 0 );
+	if ( cfg_server_ssl_version != server_ssl_version )
+	{
+		ssl_info_changed = true;
+	}
+
+	if ( auth_info_changed )
+	{
+		if ( g_authentication_username != NULL ) { GlobalFree( g_authentication_username ); }
+		g_authentication_username_length = 0;
+
+		if ( g_authentication_password != NULL ) { GlobalFree( g_authentication_password ); }
+		g_authentication_password_length = 0;
+
+		if ( g_nonce != NULL ) { GlobalFree( g_nonce ); }
+		g_nonce_length = 0;
+
+		if ( g_opaque != NULL ) { GlobalFree( g_opaque ); }
+		g_opaque_length = 0;
+
+		if ( g_encoded_authentication != NULL ) { GlobalFree( g_encoded_authentication ); }
+		g_encoded_authentication_length = 0;
+
+		if ( cfg_use_authentication )
+		{
+			if ( cfg_authentication_username != NULL )
+			{
+				g_authentication_username_length = WideCharToMultiByte( CP_UTF8, 0, cfg_authentication_username, -1, NULL, 0, NULL, NULL );
+				g_authentication_username = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * g_authentication_username_length ); // Size includes the null character.
+				g_authentication_username_length = WideCharToMultiByte( CP_UTF8, 0, cfg_authentication_username, -1, g_authentication_username, g_authentication_username_length, NULL, NULL ) - 1;
+			}
+
+			if ( cfg_authentication_password != NULL )
+			{
+				g_authentication_password_length = WideCharToMultiByte( CP_UTF8, 0, cfg_authentication_password, -1, NULL, 0, NULL, NULL );
+				g_authentication_password = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * g_authentication_password_length ); // Size includes the null character.
+				g_authentication_password_length = WideCharToMultiByte( CP_UTF8, 0, cfg_authentication_password, -1, g_authentication_password, g_authentication_password_length, NULL, NULL ) - 1;
+			}
+
+			if ( cfg_authentication_type == AUTH_TYPE_DIGEST )
+			{
+				CreateDigestAuthorizationInfo( &g_nonce, g_nonce_length, &g_opaque, g_opaque_length );
+			}
+			else
+			{
+				CreateBasicAuthorizationKey( g_authentication_username, g_authentication_username_length, g_authentication_password, g_authentication_password_length, &g_encoded_authentication, &g_encoded_authentication_length );
+			}
+		}
+	}
+
+	if ( ssl_info_changed )
+	{
+		if ( g_pCertContext != NULL )
+		{
+			_CertFreeCertificateContext( g_pCertContext );
+			g_pCertContext = NULL;
+		}
+
+		if ( cfg_server_enable_ssl )
+		{
+			if ( cfg_certificate_type == 1 )	// Public/Private Key Pair.
+			{
+				g_pCertContext = LoadPublicPrivateKeyPair( cfg_certificate_cer_file_name, cfg_certificate_key_file_name );
+			}
+			else	// PKCS #12 File.
+			{
+				g_pCertContext = LoadPKCS12( cfg_certificate_pkcs_file_name, cfg_certificate_pkcs_password );
+			}
+		}
+
+		ResetServerCredentials();
+	}
+
+	if ( server_info_changed )
+	{
+		CleanupServer();	// Stop the server.
+
+		if ( cfg_enable_server )
+		{
+			StartServer();
+		}
+	}
+}
 
 
 LRESULT CALLBACK GeneralTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
@@ -378,7 +983,7 @@ LRESULT CALLBACK GeneralTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 	return TRUE;
 }
 
-LRESULT CALLBACK DownloadTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
+LRESULT CALLBACK ConnectionTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
 {
     switch ( msg )
     {
@@ -470,12 +1075,129 @@ LRESULT CALLBACK DownloadTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 
 			//
 
+			g_hWnd_chk_enable_server = _CreateWindowW( WC_BUTTON, ST_Enable_server_, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 135, 200, 20, hWnd, ( HMENU )BTN_ENABLE_SERVER, NULL, NULL );
+
+			g_hWnd_static_hoz1 = _CreateWindowW( WC_STATIC, NULL, SS_ETCHEDHORZ | WS_CHILD | WS_VISIBLE, 0, 160, rc.right - 10, 5, hWnd, NULL, NULL, NULL );
+
+			g_hWnd_chk_type_server_hostname = _CreateWindowW( WC_BUTTON, ST_Hostname___IPv6_address_, BS_AUTORADIOBUTTON | WS_CHILD | WS_GROUP | WS_TABSTOP | WS_VISIBLE, 0, 165, 150, 20, hWnd, ( HMENU )BTN_TYPE_SERVER_HOST, NULL, NULL );
+			g_hWnd_chk_type_server_ip_address = _CreateWindowW( WC_BUTTON, ST_IPv4_address_, BS_AUTORADIOBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 150, 165, 95, 20, hWnd, ( HMENU )BTN_TYPE_SERVER_IP_ADDRESS, NULL, NULL );
+
+			g_hWnd_server_hostname = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 185, 235, 20, hWnd, ( HMENU )EDIT_SERVER_HOST, NULL, NULL );
+			g_hWnd_server_ip_address = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_IPADDRESS, NULL, WS_CHILD | WS_TABSTOP, 0, 185, 235, 20, hWnd, ( HMENU )EDIT_SERVER_IP_ADDRESS, NULL, NULL );
 
 
+			g_hWnd_static_server_colon = _CreateWindowW( WC_STATIC, ST__, WS_CHILD | WS_VISIBLE, 239, 187, 75, 15, hWnd, NULL, NULL, NULL );
 
 
+			g_hWnd_static_server_port = _CreateWindowW( WC_STATIC, ST_Port_, WS_CHILD | WS_VISIBLE, 245, 170, 75, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_server_port = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 245, 185, 60, 20, hWnd, ( HMENU )EDIT_SERVER_PORT, NULL, NULL );
+
+			g_hWnd_chk_use_authentication = _CreateWindowW( WC_BUTTON, ST_Require_authentication_, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 215, 200, 20, hWnd, ( HMENU )BTN_USE_AUTHENTICATION, NULL, NULL );
+
+			g_hWnd_chk_authentication_type_basic = _CreateWindowW( WC_BUTTON, ST_Basic_Authentication, BS_AUTORADIOBUTTON | WS_CHILD | WS_GROUP | WS_TABSTOP | WS_VISIBLE, 15, 237, 135, 20, hWnd, ( HMENU )BTN_AUTH_TYPE_BASIC, NULL, NULL );
+			g_hWnd_chk_authentication_type_digest = _CreateWindowW( WC_BUTTON, ST_Digest_Authentication, BS_AUTORADIOBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 150, 237, 135, 20, hWnd, ( HMENU )BTN_AUTH_TYPE_DIGEST, NULL, NULL );
+
+			g_hWnd_static_authentication_username = _CreateWindowW( WC_STATIC, ST_Username_, WS_CHILD | WS_VISIBLE, 15, 260, 90, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_authentication_username = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 15, 275, 100, 20, hWnd, ( HMENU )EDIT_AUTHENTICATION_USERNAME, NULL, NULL );
+
+			g_hWnd_static_authentication_password = _CreateWindowW( WC_STATIC, ST_Password_, WS_CHILD | WS_VISIBLE, 120, 260, 90, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_authentication_password = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_PASSWORD | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 120, 275, 100, 20, hWnd, ( HMENU )EDIT_AUTHENTICATION_PASSWORD, NULL, NULL );
 
 
+			g_hWnd_chk_server_enable_ssl = _CreateWindowW( WC_BUTTON, ST_Enable_SSL___TLS_, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 305, 150, 20, hWnd, ( HMENU )BTN_SERVER_ENABLE_SSL, NULL, NULL );
+
+			g_hWnd_static_hoz2 = _CreateWindowW( WC_STATIC, NULL, SS_ETCHEDHORZ | WS_CHILD | WS_VISIBLE, 0, 330, rc.right - 10, 5, hWnd, NULL, NULL, NULL );
+
+
+			g_hWnd_chk_type_pkcs = _CreateWindowW( WC_BUTTON, ST_PKCS_NUM12_, BS_AUTORADIOBUTTON | WS_CHILD | WS_GROUP | WS_TABSTOP | WS_VISIBLE, 0, 335, 90, 20, hWnd, ( HMENU )BTN_TYPE_PKCS, NULL, NULL );
+			g_hWnd_chk_type_pair = _CreateWindowW( WC_BUTTON, ST_Public___Private_key_pair_, BS_AUTORADIOBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 90, 335, 150, 20, hWnd, ( HMENU )BTN_TYPE_PAIR, NULL, NULL );
+
+
+			g_hWnd_static_certificate_pkcs_location = _CreateWindowW( WC_STATIC, ST_PKCS_NUM12_file_, WS_CHILD | WS_VISIBLE, 15, 360, 150, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_certificate_pkcs_location = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_READONLY | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 15, 375, rc.right - 65, 20, hWnd, ( HMENU )EDIT_CERTIFICATE_PKCS, NULL, NULL );
+			g_hWnd_btn_certificate_pkcs_location = _CreateWindowW( WC_BUTTON, ST_BTN___, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 45, 375, 35, 20, hWnd, ( HMENU )BTN_CERTIFICATE_PKCS, NULL, NULL );
+
+			g_hWnd_static_certificate_pkcs_password = _CreateWindowW( WC_STATIC, ST_PKCS_NUM12_password_, WS_CHILD | WS_VISIBLE, 15, 400, 150, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_certificate_pkcs_password = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_PASSWORD | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 15, 415, rc.right - 65, 20, hWnd, ( HMENU )EDIT_CERTIFICATE_PKCS_PASSWORD, NULL, NULL );
+
+			g_hWnd_static_certificate_cer_location = _CreateWindowW( WC_STATIC, ST_Certificate_file_, WS_CHILD | WS_VISIBLE, 15, 360, 150, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_certificate_cer_location = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_READONLY | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 15, 375, rc.right - 65, 20, hWnd, ( HMENU )EDIT_CERTIFICATE_CER, NULL, NULL );
+			g_hWnd_btn_certificate_cer_location = _CreateWindowW( WC_BUTTON, ST_BTN___, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 45, 375, 35, 20, hWnd, ( HMENU )BTN_CERTIFICATE_CER, NULL, NULL );
+
+			g_hWnd_static_certificate_key_location = _CreateWindowW( WC_STATIC, ST_Key_file_, WS_CHILD | WS_VISIBLE, 15, 400, 150, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_certificate_key_location = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_READONLY | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 15, 415, rc.right - 65, 20, hWnd, ( HMENU )EDIT_CERTIFICATE_KEY, NULL, NULL );
+			g_hWnd_btn_certificate_key_location = _CreateWindowW( WC_BUTTON, ST_BTN___, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 45, 415, 35, 20, hWnd, ( HMENU )BTN_CERTIFICATE_KEY, NULL, NULL );
+
+			g_hWnd_static_server_ssl_version = _CreateWindowW( WC_STATIC, ST_Server_SSL___TLS_version_, WS_CHILD | WS_VISIBLE, 0, 445, 150, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_server_ssl_version = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_COMBOBOX, NULL, CBS_AUTOHSCROLL | CBS_DROPDOWNLIST | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE, 0, 460, 100, 20, hWnd, ( HMENU )CB_SERVER_SSL_VERSION, NULL, NULL );
+			_SendMessageW( g_hWnd_server_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_SSL_2_0 );
+			_SendMessageW( g_hWnd_server_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_SSL_3_0 );
+			_SendMessageW( g_hWnd_server_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_TLS_1_0 );
+			_SendMessageW( g_hWnd_server_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_TLS_1_1 );
+			_SendMessageW( g_hWnd_server_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_TLS_1_2 );
+
+			_SendMessageW( g_hWnd_server_hostname, EM_LIMITTEXT, 254, 0 );
+			_SendMessageW( g_hWnd_server_port, EM_LIMITTEXT, 5, 0 );
+			_SendMessageW( g_hWnd_certificate_pkcs_password, EM_LIMITTEXT, 1024, 0 );	// 1024 characters + 1 NULL
+
+			//
+
+			connection_tab_scroll_pos = 0;
+			connection_tab_height = ( rc.bottom - rc.top ) + 295;
+
+			SCROLLINFO si;
+			si.cbSize = sizeof( SCROLLINFO );
+			si.fMask = SIF_ALL;
+			si.nMin = 0;
+			si.nMax = connection_tab_height;
+			si.nPage = ( ( connection_tab_height / 2 ) + ( ( connection_tab_height % 2 ) != 0 ) );
+			si.nPos = 0;
+			_SetScrollInfo( hWnd, SB_VERT, &si, TRUE );
+
+			//
+
+			_SendMessageW( g_hWnd_chk_enable_server, WM_SETFONT, ( WPARAM )hFont, 0 );
+
+			_SendMessageW( g_hWnd_chk_type_server_hostname, WM_SETFONT, ( WPARAM )hFont, 0 );
+			_SendMessageW( g_hWnd_chk_type_server_ip_address, WM_SETFONT, ( WPARAM )hFont, 0 );
+
+			_SendMessageW( g_hWnd_server_hostname, WM_SETFONT, ( WPARAM )hFont, 0 );
+
+			_SendMessageW( g_hWnd_static_server_colon, WM_SETFONT, ( WPARAM )hFont, 0 );
+
+			_SendMessageW( g_hWnd_static_server_port, WM_SETFONT, ( WPARAM )hFont, 0 );
+			_SendMessageW( g_hWnd_server_port, WM_SETFONT, ( WPARAM )hFont, 0 );
+
+			_SendMessageW( g_hWnd_chk_use_authentication, WM_SETFONT, ( WPARAM )hFont, 0 );
+			_SendMessageW( g_hWnd_static_authentication_username, WM_SETFONT, ( WPARAM )hFont, 0 );
+			_SendMessageW( g_hWnd_authentication_username, WM_SETFONT, ( WPARAM )hFont, 0 );
+			_SendMessageW( g_hWnd_static_authentication_password, WM_SETFONT, ( WPARAM )hFont, 0 );
+			_SendMessageW( g_hWnd_authentication_password, WM_SETFONT, ( WPARAM )hFont, 0 );
+			_SendMessageW( g_hWnd_chk_authentication_type_basic, WM_SETFONT, ( WPARAM )hFont, 0 );
+			_SendMessageW( g_hWnd_chk_authentication_type_digest, WM_SETFONT, ( WPARAM )hFont, 0 );
+
+			_SendMessageW( g_hWnd_chk_server_enable_ssl, WM_SETFONT, ( WPARAM )hFont, 0 );
+
+			_SendMessageW( g_hWnd_chk_type_pkcs, WM_SETFONT, ( WPARAM )hFont, 0 );
+			_SendMessageW( g_hWnd_chk_type_pair, WM_SETFONT, ( WPARAM )hFont, 0 );
+
+			_SendMessageW( g_hWnd_static_certificate_pkcs_location, WM_SETFONT, ( WPARAM )hFont, 0 );
+			_SendMessageW( g_hWnd_certificate_pkcs_location, WM_SETFONT, ( WPARAM )hFont, 0 );
+			_SendMessageW( g_hWnd_btn_certificate_pkcs_location, WM_SETFONT, ( WPARAM )hFont, 0 );
+
+			_SendMessageW( g_hWnd_static_certificate_pkcs_password, WM_SETFONT, ( WPARAM )hFont, 0 );
+			_SendMessageW( g_hWnd_certificate_pkcs_password, WM_SETFONT, ( WPARAM )hFont, 0 );
+
+			_SendMessageW( g_hWnd_static_certificate_cer_location, WM_SETFONT, ( WPARAM )hFont, 0 );
+			_SendMessageW( g_hWnd_certificate_cer_location, WM_SETFONT, ( WPARAM )hFont, 0 );
+			_SendMessageW( g_hWnd_btn_certificate_cer_location, WM_SETFONT, ( WPARAM )hFont, 0 );
+
+			_SendMessageW( g_hWnd_static_certificate_key_location, WM_SETFONT, ( WPARAM )hFont, 0 );
+			_SendMessageW( g_hWnd_certificate_key_location, WM_SETFONT, ( WPARAM )hFont, 0 );
+			_SendMessageW( g_hWnd_btn_certificate_key_location, WM_SETFONT, ( WPARAM )hFont, 0 );
+
+			_SendMessageW( g_hWnd_static_server_ssl_version, WM_SETFONT, ( WPARAM )hFont, 0 );
+			_SendMessageW( g_hWnd_server_ssl_version, WM_SETFONT, ( WPARAM )hFont, 0 );
 
 			_SendMessageW( hWnd_static_max_downloads, WM_SETFONT, ( WPARAM )hFont, 0 );
 			_SendMessageW( g_hWnd_max_downloads, WM_SETFONT, ( WPARAM )hFont, 0 );
@@ -497,6 +1219,41 @@ LRESULT CALLBACK DownloadTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 			_SendMessageW( g_hWnd_timeout, WM_SETFONT, ( WPARAM )hFont, 0 );
 			_SendMessageW( hWnd_ud_timeout, WM_SETFONT, ( WPARAM )hFont, 0 );
 
+			// Stupid control likes to delete the font object. :-/
+			// We'll make a copy.
+			LOGFONT lf;
+			_memzero( &lf, sizeof( LOGFONT ) );
+			_GetObjectW( hFont, sizeof( LOGFONT ), &lf );
+			hFont_copy_connection = _CreateFontIndirectW( &lf );
+			_SendMessageW( g_hWnd_server_ip_address, WM_SETFONT, ( WPARAM )hFont_copy_connection, 0 );
+
+
+			if ( cfg_certificate_pkcs_file_name != NULL )
+			{
+				certificate_pkcs_file_name_length = lstrlenW( cfg_certificate_pkcs_file_name );
+				certificate_pkcs_file_name = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t * ) * ( certificate_pkcs_file_name_length + 1 ) );
+				_wmemcpy_s( certificate_pkcs_file_name, certificate_pkcs_file_name_length, cfg_certificate_pkcs_file_name, certificate_pkcs_file_name_length );
+				certificate_pkcs_file_name[ certificate_pkcs_file_name_length ] = 0;	// Sanity.
+			}
+
+			if ( cfg_certificate_cer_file_name != NULL )
+			{
+				certificate_cer_file_name_length = lstrlenW( cfg_certificate_cer_file_name );
+				certificate_cer_file_name = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t * ) * ( certificate_cer_file_name_length + 1 ) );
+				_wmemcpy_s( certificate_cer_file_name, certificate_cer_file_name_length, cfg_certificate_cer_file_name, certificate_cer_file_name_length );
+				certificate_cer_file_name[ certificate_cer_file_name_length ] = 0;	// Sanity.
+			}
+
+			if ( cfg_certificate_key_file_name != NULL )
+			{
+				certificate_key_file_name_length = lstrlenW( cfg_certificate_key_file_name );
+				certificate_key_file_name = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t * ) * ( certificate_key_file_name_length + 1 ) );
+				_wmemcpy_s( certificate_key_file_name, certificate_key_file_name_length, cfg_certificate_key_file_name, certificate_key_file_name_length );
+				certificate_key_file_name[ certificate_key_file_name_length ] = 0;	// Sanity.
+			}
+
+			Set_Window_Settings();
+
 			return 0;
 		}
 		break;
@@ -504,6 +1261,68 @@ LRESULT CALLBACK DownloadTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 		case WM_CTLCOLORSTATIC:
 		{
 			return ( LRESULT )( _GetSysColorBrush( COLOR_WINDOW ) );
+		}
+		break;
+
+		case WM_MBUTTONUP:
+		case WM_LBUTTONUP:
+		case WM_RBUTTONUP:
+		{
+			_SetFocus( hWnd );
+
+			return 0;
+		}
+		break;
+
+		case WM_MOUSEWHEEL:
+		case WM_VSCROLL:
+		{
+			int delta = 0;
+
+			if ( msg == WM_VSCROLL )
+			{
+				// Only process the standard scroll bar.
+				if ( lParam != NULL )
+				{
+					return _DefWindowProcW( hWnd, msg, wParam, lParam );
+				}
+
+				switch ( LOWORD( wParam ) )
+				{
+					case SB_LINEUP: { delta = -10; } break;
+					case SB_LINEDOWN: { delta = 10; } break;
+					case SB_PAGEUP: { delta = -50; } break;
+					case SB_PAGEDOWN: { delta = 50; } break;
+					//case SB_THUMBPOSITION:
+					case SB_THUMBTRACK: { delta = ( int )HIWORD( wParam ) - connection_tab_scroll_pos; } break;
+					default: { return 0; } break;
+				}
+			}
+			else if ( msg == WM_MOUSEWHEEL )
+			{
+				delta = -( GET_WHEEL_DELTA_WPARAM( wParam ) / WHEEL_DELTA ) * 20;
+			}
+
+			connection_tab_scroll_pos += delta;
+
+			if ( connection_tab_scroll_pos < 0 )
+			{
+				delta -= connection_tab_scroll_pos;
+				connection_tab_scroll_pos = 0;
+			}
+			else if ( connection_tab_scroll_pos > ( ( connection_tab_height / 2 ) + ( ( connection_tab_height % 2 ) != 0 ) ) )
+			{
+				delta -= ( connection_tab_scroll_pos - ( ( connection_tab_height / 2 ) + ( ( connection_tab_height % 2 ) != 0 ) ) );
+				connection_tab_scroll_pos = ( ( connection_tab_height / 2 ) + ( ( connection_tab_height % 2 ) != 0 ) );
+			}
+
+			if ( delta != 0 )
+			{
+				_SetScrollPos( hWnd, SB_VERT, connection_tab_scroll_pos, TRUE );
+				_ScrollWindow( hWnd, 0, -delta, NULL, NULL );
+			}
+
+			return 0;
 		}
 		break;
 
@@ -673,7 +1492,383 @@ LRESULT CALLBACK DownloadTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 					}
 				}
 				break;
+
+				case BTN_ENABLE_SERVER:
+				{
+					if ( _SendMessageW( g_hWnd_chk_enable_server, BM_GETCHECK, 0, 0 ) == BST_CHECKED )
+					{
+						Enable_Disable_Windows( TRUE );
+						Enable_Disable_SSL_Windows( ( ( _SendMessageW( g_hWnd_chk_server_enable_ssl, BM_GETCHECK, 0, 0 ) == BST_CHECKED ) ? TRUE : FALSE ) );
+						Enable_Disable_Authentication_Windows( ( ( _SendMessageW( g_hWnd_chk_use_authentication, BM_GETCHECK, 0, 0 ) == BST_CHECKED ) ? TRUE : FALSE ) );
+					}
+					else
+					{
+						Enable_Disable_Windows( FALSE );
+						Enable_Disable_SSL_Windows( FALSE );
+						Enable_Disable_Authentication_Windows( FALSE );
+					}
+
+					options_state_changed = true;
+					_EnableWindow( g_hWnd_apply, TRUE );
+				}
+				break;
+
+				case EDIT_SERVER_PORT:
+				{
+					if ( HIWORD( wParam ) == EN_UPDATE )
+					{
+						DWORD sel_start = 0;
+
+						char value[ 11 ];
+						_SendMessageA( ( HWND )lParam, WM_GETTEXT, 6, ( LPARAM )value );
+						unsigned long num = _strtoul( value, NULL, 10 );
+
+						if ( num > 65535 )
+						{
+							_SendMessageA( ( HWND )lParam, EM_GETSEL, ( WPARAM )&sel_start, NULL );
+
+							_SendMessageA( ( HWND )lParam, WM_SETTEXT, 0, ( LPARAM )"65535" );
+
+							_SendMessageA( ( HWND )lParam, EM_SETSEL, sel_start, sel_start );
+						}
+						else if ( num == 0 )
+						{
+							_SendMessageA( ( HWND )lParam, EM_GETSEL, ( WPARAM )&sel_start, NULL );
+
+							_SendMessageA( ( HWND )lParam, WM_SETTEXT, 0, ( LPARAM )"1" );
+
+							_SendMessageA( ( HWND )lParam, EM_SETSEL, sel_start, sel_start );
+						}
+
+						if ( num != cfg_server_port )
+						{
+							options_state_changed = true;
+							_EnableWindow( g_hWnd_apply, TRUE );
+						}
+					}
+				}
+				break;
+
+				case EDIT_AUTHENTICATION_USERNAME:
+				case EDIT_AUTHENTICATION_PASSWORD:
+				case EDIT_CERTIFICATE_PKCS_PASSWORD:
+				case EDIT_SERVER_HOST:
+				{
+					if ( HIWORD( wParam ) == EN_UPDATE )
+					{
+						options_state_changed = true;
+						_EnableWindow( g_hWnd_apply, TRUE );
+					}
+				}
+				break;
+
+				case EDIT_SERVER_IP_ADDRESS:
+				{
+					if ( HIWORD( wParam ) == EN_CHANGE )
+					{
+						options_state_changed = true;
+						_EnableWindow( g_hWnd_apply, TRUE );
+					}
+				}
+				break;
+
+				case BTN_TYPE_SERVER_HOST:
+				{
+					if ( _SendMessageW( g_hWnd_chk_type_server_hostname, BM_GETCHECK, 0, 0 ) == BST_CHECKED )
+					{
+						_ShowWindow( g_hWnd_server_ip_address, SW_HIDE );
+						_ShowWindow( g_hWnd_server_hostname, SW_SHOW );
+					}
+
+					options_state_changed = true;
+					_EnableWindow( g_hWnd_apply, TRUE );
+				}
+				break;
+
+				case BTN_TYPE_SERVER_IP_ADDRESS:
+				{
+					if ( _SendMessageW( g_hWnd_chk_type_server_ip_address, BM_GETCHECK, 0, 0 ) == BST_CHECKED )
+					{
+						_ShowWindow( g_hWnd_server_hostname, SW_HIDE );
+						_ShowWindow( g_hWnd_server_ip_address, SW_SHOW );
+					}
+
+					options_state_changed = true;
+					_EnableWindow( g_hWnd_apply, TRUE );
+				}
+				break;
+
+				case BTN_USE_AUTHENTICATION:
+				{
+					if ( _SendMessageW( g_hWnd_chk_use_authentication, BM_GETCHECK, 0, 0 ) == BST_CHECKED )
+					{
+						Enable_Disable_Authentication_Windows( TRUE );
+					}
+					else
+					{
+						Enable_Disable_Authentication_Windows( FALSE );
+					}
+
+					options_state_changed = true;
+					_EnableWindow( g_hWnd_apply, TRUE );
+				}
+				break;
+
+				case BTN_AUTH_TYPE_BASIC:
+				case BTN_AUTH_TYPE_DIGEST:
+				{
+					options_state_changed = true;
+					_EnableWindow( g_hWnd_apply, TRUE );
+				}
+				break;
+
+				case BTN_SERVER_ENABLE_SSL:
+				{
+					if ( _SendMessageW( g_hWnd_chk_server_enable_ssl, BM_GETCHECK, 0, 0 ) == BST_CHECKED )
+					{
+						// Revert to saved port of ssl is already enabled.
+						if ( cfg_server_enable_ssl )
+						{
+							char port[ 6 ];
+							_memzero( port, sizeof( char ) * 6 );
+							__snprintf( port, 6, "%hu", cfg_server_port );
+							_SendMessageA( g_hWnd_server_port, WM_SETTEXT, 0, ( LPARAM )port );
+						}
+						else	// Otherwise, use the default https port.
+						{
+							_SendMessageA( g_hWnd_server_port, WM_SETTEXT, 0, ( LPARAM )"443" );
+						}
+						Enable_Disable_SSL_Windows( TRUE );
+					}
+					else
+					{
+						// Revert to saved port if ssl is disabled.
+						if ( !cfg_server_enable_ssl )
+						{
+							char port[ 6 ];
+							_memzero( port, sizeof( char ) * 6 );
+							__snprintf( port, 6, "%hu", cfg_server_port );
+							_SendMessageA( g_hWnd_server_port, WM_SETTEXT, 0, ( LPARAM )port );
+						}
+						else	// Otherwise, use the default http port.
+						{
+							_SendMessageA( g_hWnd_server_port, WM_SETTEXT, 0, ( LPARAM )"80" );
+						}
+						Enable_Disable_SSL_Windows( FALSE );
+					}
+
+					options_state_changed = true;
+					_EnableWindow( g_hWnd_apply, TRUE );
+				}
+				break;
+
+				case BTN_TYPE_PKCS:
+				{
+					if ( _SendMessageW( g_hWnd_chk_type_pkcs, BM_GETCHECK, 0, 0 ) == BST_CHECKED )
+					{
+						_ShowWindow( g_hWnd_static_certificate_cer_location, SW_HIDE );
+						_ShowWindow( g_hWnd_certificate_cer_location, SW_HIDE );
+						_ShowWindow( g_hWnd_btn_certificate_cer_location, SW_HIDE );
+
+						_ShowWindow( g_hWnd_static_certificate_key_location, SW_HIDE );
+						_ShowWindow( g_hWnd_certificate_key_location, SW_HIDE );
+						_ShowWindow( g_hWnd_btn_certificate_key_location, SW_HIDE );
+
+						_ShowWindow( g_hWnd_static_certificate_pkcs_location, SW_SHOW );
+						_ShowWindow( g_hWnd_certificate_pkcs_location, SW_SHOW );
+						_ShowWindow( g_hWnd_btn_certificate_pkcs_location, SW_SHOW );
+
+						_ShowWindow( g_hWnd_static_certificate_pkcs_password, SW_SHOW );
+						_ShowWindow( g_hWnd_certificate_pkcs_password, SW_SHOW );
+					}
+
+					options_state_changed = true;
+					_EnableWindow( g_hWnd_apply, TRUE );
+				}
+				break;
+
+				case BTN_TYPE_PAIR:
+				{
+					if ( _SendMessageW( g_hWnd_chk_type_pair, BM_GETCHECK, 0, 0 ) == BST_CHECKED )
+					{
+						_ShowWindow( g_hWnd_static_certificate_pkcs_location, SW_HIDE );
+						_ShowWindow( g_hWnd_certificate_pkcs_location, SW_HIDE );
+						_ShowWindow( g_hWnd_btn_certificate_pkcs_location, SW_HIDE );
+
+						_ShowWindow( g_hWnd_static_certificate_pkcs_password, SW_HIDE );
+						_ShowWindow( g_hWnd_certificate_pkcs_password, SW_HIDE );
+
+						_ShowWindow( g_hWnd_static_certificate_cer_location, SW_SHOW );
+						_ShowWindow( g_hWnd_certificate_cer_location, SW_SHOW );
+						_ShowWindow( g_hWnd_btn_certificate_cer_location, SW_SHOW );
+
+						_ShowWindow( g_hWnd_static_certificate_key_location, SW_SHOW );
+						_ShowWindow( g_hWnd_certificate_key_location, SW_SHOW );
+						_ShowWindow( g_hWnd_btn_certificate_key_location, SW_SHOW );
+					}
+
+					options_state_changed = true;
+					_EnableWindow( g_hWnd_apply, TRUE );
+				}
+				break;
+
+				case BTN_CERTIFICATE_PKCS:
+				{
+					wchar_t *file_name = ( wchar_t * )GlobalAlloc( GPTR, sizeof( wchar_t ) * MAX_PATH );
+
+					if ( certificate_pkcs_file_name != NULL )
+					{
+						_wcsncpy_s( file_name, MAX_PATH, certificate_pkcs_file_name, MAX_PATH );
+						file_name[ MAX_PATH - 1 ] = 0;	// Sanity.
+					}
+
+					OPENFILENAME ofn;
+					_memzero( &ofn, sizeof( OPENFILENAME ) );
+					ofn.lStructSize = sizeof( OPENFILENAME );
+					ofn.hwndOwner = hWnd;
+					ofn.lpstrFilter = L"Personal Information Exchange (*.pfx;*.p12)\0*.pfx;*.p12\0All Files (*.*)\0*.*\0";
+					ofn.lpstrTitle = ST_Load_PKCS_NUM12_File;
+					ofn.lpstrFile = file_name;
+					ofn.nMaxFile = MAX_PATH;
+					ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_READONLY;
+
+					if ( _GetOpenFileNameW( &ofn ) )
+					{
+						if ( certificate_pkcs_file_name != NULL )
+						{
+							GlobalFree( certificate_pkcs_file_name );
+						}
+
+						certificate_pkcs_file_name = file_name;
+						certificate_pkcs_file_name_length = lstrlenW( certificate_pkcs_file_name );
+
+						_SendMessageW( g_hWnd_certificate_pkcs_location, WM_SETTEXT, 0, ( LPARAM )certificate_pkcs_file_name );
+
+						options_state_changed = true;
+						_EnableWindow( g_hWnd_apply, TRUE );
+					}
+					else
+					{
+						GlobalFree( file_name );
+					}
+				}
+				break;
+
+				case BTN_CERTIFICATE_CER:
+				{
+					wchar_t *file_name = ( wchar_t * )GlobalAlloc( GPTR, sizeof( wchar_t ) * MAX_PATH );
+
+					if ( certificate_cer_file_name != NULL )
+					{
+						_wcsncpy_s( file_name, MAX_PATH, certificate_cer_file_name, MAX_PATH );
+						file_name[ MAX_PATH - 1 ] = 0;	// Sanity.
+					}
+
+					OPENFILENAME ofn;
+					_memzero( &ofn, sizeof( OPENFILENAME ) );
+					ofn.lStructSize = sizeof( OPENFILENAME );
+					ofn.hwndOwner = hWnd;
+					ofn.lpstrFilter = L"X.509 Certificate (*.cer;*.crt)\0*.cer;*.crt\0All Files (*.*)\0*.*\0";
+					ofn.lpstrTitle = ST_Load_X_509_Certificate_File;
+					ofn.lpstrFile = file_name;
+					ofn.nMaxFile = MAX_PATH;
+					ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_READONLY;
+
+					if ( _GetOpenFileNameW( &ofn ) )
+					{
+						if ( certificate_cer_file_name != NULL )
+						{
+							GlobalFree( certificate_cer_file_name );
+						}
+
+						certificate_cer_file_name = file_name;
+						certificate_cer_file_name_length = lstrlenW( certificate_cer_file_name );
+
+						_SendMessageW( g_hWnd_certificate_cer_location, WM_SETTEXT, 0, ( LPARAM )certificate_cer_file_name );
+
+						options_state_changed = true;
+						_EnableWindow( g_hWnd_apply, TRUE );
+					}
+					else
+					{
+						GlobalFree( file_name );
+					}
+				}
+				break;
+
+				case BTN_CERTIFICATE_KEY:
+				{
+					wchar_t *file_name = ( wchar_t * )GlobalAlloc( GPTR, sizeof( wchar_t ) * MAX_PATH );
+
+					if ( certificate_key_file_name != NULL )
+					{
+						_wcsncpy_s( file_name, MAX_PATH, certificate_key_file_name, MAX_PATH );
+						file_name[ MAX_PATH - 1 ] = 0;	// Sanity.
+					}
+
+					OPENFILENAME ofn;
+					_memzero( &ofn, sizeof( OPENFILENAME ) );
+					ofn.lStructSize = sizeof( OPENFILENAME );
+					ofn.hwndOwner = hWnd;
+					ofn.lpstrFilter = L"Private Key (*.key)\0*.key\0All Files (*.*)\0*.*\0";
+					ofn.lpstrTitle = ST_Load_Private_Key_File;
+					ofn.lpstrFile = file_name;
+					ofn.nMaxFile = MAX_PATH;
+					ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_READONLY;
+
+					if ( _GetOpenFileNameW( &ofn ) )
+					{
+						if ( certificate_key_file_name != NULL )
+						{
+							GlobalFree( certificate_key_file_name );
+						}
+
+						certificate_key_file_name = file_name;
+						certificate_key_file_name_length = lstrlenW( certificate_key_file_name );
+
+						_SendMessageW( g_hWnd_certificate_key_location, WM_SETTEXT, 0, ( LPARAM )certificate_key_file_name );
+
+						options_state_changed = true;
+						_EnableWindow( g_hWnd_apply, TRUE );
+					}
+					else
+					{
+						GlobalFree( file_name );
+					}
+				}
+				break;
+
+				case CB_SERVER_SSL_VERSION:
+				{
+					if ( HIWORD( wParam ) == CBN_SELCHANGE )
+					{
+						options_state_changed = true;
+						_EnableWindow( g_hWnd_apply, TRUE );
+					}
+				}
+				break;
 			}
+
+			return 0;
+		}
+		break;
+
+		case WM_DESTROY:
+		{
+			GlobalFree( certificate_pkcs_file_name );
+			certificate_pkcs_file_name = NULL;
+			certificate_pkcs_file_name_length = 0;
+
+			GlobalFree( certificate_cer_file_name );
+			certificate_cer_file_name = NULL;
+			certificate_cer_file_name_length = 0;
+
+			GlobalFree( certificate_key_file_name );
+			certificate_key_file_name = NULL;
+			certificate_key_file_name_length = 0;
+
+			_DeleteObject( hFont_copy_connection );
+			hFont_copy_connection = NULL;
 
 			return 0;
 		}
@@ -805,10 +2000,10 @@ LRESULT CALLBACK ProxyTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPa
 			LOGFONT lf;
 			_memzero( &lf, sizeof( LOGFONT ) );
 			_GetObjectW( hFont, sizeof( LOGFONT ), &lf );
-			hFont_copy = _CreateFontIndirectW( &lf );
-			_SendMessageW( g_hWnd_ip_address, WM_SETFONT, ( WPARAM )hFont_copy, 0 );
+			hFont_copy_proxy = _CreateFontIndirectW( &lf );
+			_SendMessageW( g_hWnd_ip_address, WM_SETFONT, ( WPARAM )hFont_copy_proxy, 0 );
 
-			_SendMessageW( g_hWnd_ip_address_s, WM_SETFONT, ( WPARAM )hFont_copy, 0 );
+			_SendMessageW( g_hWnd_ip_address_s, WM_SETFONT, ( WPARAM )hFont_copy_proxy, 0 );
 
 			//
 			// HTTP proxy.
@@ -1098,8 +2293,8 @@ LRESULT CALLBACK ProxyTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPa
 
 		case WM_DESTROY:
 		{
-			_DeleteObject( hFont_copy );
-			hFont_copy = NULL;
+			_DeleteObject( hFont_copy_proxy );
+			hFont_copy_proxy = NULL;
 
 			return 0;
 		}
@@ -1133,8 +2328,8 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			ti.lParam = ( LPARAM )&g_hWnd_general_tab;
 			_SendMessageW( g_hWnd_options_tab, TCM_INSERTITEM, 0, ( LPARAM )&ti );	// Insert a new tab at the end.
 
-			ti.pszText = ( LPWSTR )ST_Download;
-			ti.lParam = ( LPARAM )&g_hWnd_download_tab;
+			ti.pszText = ( LPWSTR )ST_Connection;
+			ti.lParam = ( LPARAM )&g_hWnd_connection_tab;
 			_SendMessageW( g_hWnd_options_tab, TCM_INSERTITEM, 1, ( LPARAM )&ti );	// Insert a new tab at the end.
 
 			ti.pszText = ( LPWSTR )ST_Proxy;
@@ -1156,7 +2351,7 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			_SendMessageW( g_hWnd_options_tab, TCM_GETITEMRECT, 0, ( LPARAM )&rc_tab );
 
 			g_hWnd_general_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"general_tab", NULL, WS_CHILD | WS_TABSTOP | WS_VISIBLE, 15, ( rc_tab.bottom + rc_tab.top ) + 12, rc.right - 30, rc.bottom - ( ( rc_tab.bottom + rc_tab.top ) + 24 ), g_hWnd_options_tab, NULL, NULL, NULL );
-			g_hWnd_download_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"download_tab", NULL, WS_CHILD | WS_TABSTOP, 15, ( rc_tab.bottom + rc_tab.top ) + 12, rc.right - 30, rc.bottom - ( ( rc_tab.bottom + rc_tab.top ) + 24 ), g_hWnd_options_tab, NULL, NULL, NULL );
+			g_hWnd_connection_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"connection_tab", NULL, WS_CHILD | WS_VSCROLL | WS_TABSTOP, 15, ( rc_tab.bottom + rc_tab.top ) + 12, rc.right - 30, rc.bottom - ( ( rc_tab.bottom + rc_tab.top ) + 24 ), g_hWnd_options_tab, NULL, NULL, NULL );
 			g_hWnd_proxy_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"proxy_tab", NULL, WS_CHILD | WS_TABSTOP, 15, ( rc_tab.bottom + rc_tab.top ) + 12, rc.right - 30, rc.bottom - ( ( rc_tab.bottom + rc_tab.top ) + 24 ), g_hWnd_options_tab, NULL, NULL, NULL );
 
 
@@ -1556,9 +2751,8 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 						}
 					}
 
-					//
-					//
-					//
+					// Sets any new settings for the server and resets its state if they've changed.
+					SetServerSettings();
 
 					save_config();
 
