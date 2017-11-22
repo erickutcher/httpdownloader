@@ -864,7 +864,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 				{
 					wchar_t msg[ 512 ];
 					__snwprintf( msg, 512, L"HTTP Downloader is made free under the GPLv3 license.\r\n\r\n" \
-										   L"Version 1.0.0.2\r\n\r\n" \
+										   L"Version 1.0.0.3\r\n\r\n" \
 										   L"Built on %s, %s %d, %04d %d:%02d:%02d %s (UTC)\r\n\r\n" \
 										   L"Copyright \xA9 2015-2017 Eric Kutcher", GetDay( g_compile_time.wDayOfWeek ), GetMonth( g_compile_time.wMonth ), g_compile_time.wDay, g_compile_time.wYear, ( g_compile_time.wHour > 12 ? g_compile_time.wHour - 12 : ( g_compile_time.wHour != 0 ? g_compile_time.wHour : 12 ) ), g_compile_time.wMinute, g_compile_time.wSecond, ( g_compile_time.wHour >= 12 ? L"PM" : L"AM" ) );
 

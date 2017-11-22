@@ -2043,7 +2043,7 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 
 					context->header_info.range_info->file_write_offset += io_size;	// The size of the non-encoded/decoded data that we're writing to the file.
 
-					// Make sure we've writen everything before we do anything else.
+					// Make sure we've written everything before we do anything else.
 					if ( io_size < context->write_wsabuf.len )
 					{
 						EnterCriticalSection( &context->download_info->shared_cs );
@@ -2056,8 +2056,6 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 						BOOL bRet = WriteFile( context->download_info->hFile, context->write_wsabuf.buf, context->write_wsabuf.len, NULL, ( WSAOVERLAPPED * )overlapped );
 						if ( bRet == FALSE && ( GetLastError() != ERROR_IO_PENDING ) )
 						{
-							InterlockedIncrement( &context->pending_operations );
-
 							*current_operation = ( use_ssl ? IO_Shutdown : IO_Close );
 
 							PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
@@ -2198,11 +2196,11 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 						context->cleanup -= 10;
 					}
 
+					InterlockedIncrement( &context->pending_operations );
+
 					// Make sure we've sent everything before we do anything else.
 					if ( io_size < context->wsabuf.len )
 					{
-						InterlockedIncrement( &context->pending_operations );
-
 						context->wsabuf.buf += io_size;
 						context->wsabuf.len -= io_size;
 
@@ -2218,8 +2216,6 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 					else	// All the data that we wanted to send has been sent. Post our next operation.
 					{
 						*current_operation = *next_operation;
-
-						InterlockedIncrement( &context->pending_operations );
 
 						context->wsabuf.buf = context->buffer;
 						context->wsabuf.len = BUFFER_SIZE;
