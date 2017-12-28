@@ -2159,6 +2159,12 @@ int ParseHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int 
 
 				if ( context->download_info != NULL )
 				{
+					EnterCriticalSection( &context->download_info->shared_cs );
+
+					context->download_info->icon = NULL;
+
+					LeaveCriticalSection( &context->download_info->shared_cs );
+
 					EnterCriticalSection( &icon_cache_cs );
 					// Find the icon info
 					dllrbt_iterator *itr = dllrbt_find( icon_handles, ( void * )( context->download_info->file_path + context->download_info->file_extension_offset ), false );
@@ -2169,8 +2175,6 @@ int ParseHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int 
 						ICON_INFO *ii = ( ICON_INFO * )( ( node_type * )itr )->val;
 						if ( ii != NULL )
 						{
-							context->download_info->icon = NULL;
-
 							if ( --ii->count == 0 )
 							{
 								DestroyIcon( ii->icon );
@@ -2372,6 +2376,12 @@ int GetHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int he
 
 				if ( context->download_info != NULL )
 				{
+					EnterCriticalSection( &context->download_info->shared_cs );
+
+					context->download_info->icon = NULL;
+
+					LeaveCriticalSection( &context->download_info->shared_cs );
+
 					EnterCriticalSection( &icon_cache_cs );
 					// Find the icon info
 					dllrbt_iterator *itr = dllrbt_find( icon_handles, ( void * )( context->download_info->file_path + context->download_info->file_extension_offset ), false );
@@ -2382,8 +2392,6 @@ int GetHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int he
 						ICON_INFO *ii = ( ICON_INFO * )( ( node_type * )itr )->val;
 						if ( ii != NULL )
 						{
-							context->download_info->icon = NULL;
-
 							if ( --ii->count == 0 )
 							{
 								DestroyIcon( ii->icon );
