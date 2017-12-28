@@ -85,6 +85,8 @@ unsigned char cfg_retry_parts_count = 0;
 unsigned char cfg_default_ssl_version = 4;	// Default is TLS 1.2.
 unsigned char cfg_default_download_parts = 1;
 
+unsigned char cfg_max_redirects = 10;
+
 wchar_t *cfg_default_download_directory = NULL;
 
 unsigned int g_default_download_directory_length = 0;

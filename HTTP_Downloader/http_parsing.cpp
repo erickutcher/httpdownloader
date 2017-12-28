@@ -2159,6 +2159,34 @@ int ParseHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int 
 
 				if ( context->download_info != NULL )
 				{
+					EnterCriticalSection( &icon_cache_cs );
+					// Find the icon info
+					dllrbt_iterator *itr = dllrbt_find( icon_handles, ( void * )( context->download_info->file_path + context->download_info->file_extension_offset ), false );
+
+					// Free its values and remove it from the tree if there are no other items using it.
+					if ( itr != NULL )
+					{
+						ICON_INFO *ii = ( ICON_INFO * )( ( node_type * )itr )->val;
+						if ( ii != NULL )
+						{
+							context->download_info->icon = NULL;
+
+							if ( --ii->count == 0 )
+							{
+								DestroyIcon( ii->icon );
+								GlobalFree( ii->file_extension );
+								GlobalFree( ii );
+
+								dllrbt_remove( icon_handles, itr );
+							}
+						}
+						else
+						{
+							dllrbt_remove( icon_handles, itr );
+						}
+					}
+					LeaveCriticalSection( &icon_cache_cs );
+
 					EnterCriticalSection( &context->download_info->shared_cs );
 
 					int w_filename_length = MultiByteToWideChar( CP_UTF8, 0, tmp_filename, -1, context->download_info->file_path + context->download_info->filename_offset, MAX_PATH - context->download_info->filename_offset - 1 ) - 1;
@@ -2283,8 +2311,145 @@ int GetHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int he
 		// Handle redirects before processing any data.
 		if ( context->header_info.http_status >= 300 &&
 			 context->header_info.http_status <= 399 &&
-			 context->header_info.url_location.resource != NULL )
+			 context->header_info.url_location.resource != NULL &&
+			 cfg_max_redirects > 0 && context->request_info.redirect_count < cfg_max_redirects )
 		{
+			// If we're going to redirect, then allow the file to be renamed.
+			unsigned int filename_length = lstrlenA( context->header_info.url_location.resource );
+
+			char *filename = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( filename_length + 1 ) );
+			if ( filename != NULL )
+			{
+				_memcpy_s( filename, filename_length + 1, context->header_info.url_location.resource, filename_length );
+				filename[ filename_length ] = 0;	// Sanity.
+
+				char *directory_ptr = filename;
+				char *current_directory = filename;
+				char *last_directory = NULL;
+
+				// Iterate forward because '/' can be found after '#'.
+				while ( *directory_ptr != NULL )
+				{
+					if ( *directory_ptr == '?' || *directory_ptr == '#' )
+					{
+						*directory_ptr = 0;	// Sanity.
+
+						break;
+					}
+					else if ( *directory_ptr == '/' )
+					{
+						last_directory = current_directory;
+						current_directory = directory_ptr + 1; 
+					}
+
+					++directory_ptr;
+				}
+
+				if ( *current_directory == NULL )
+				{
+					// Adjust for '/'. current_directory will always be at least 1 greater than last_directory.
+					if ( last_directory != NULL && ( current_directory - 1 ) - last_directory > 0 )
+					{
+						*( --current_directory ) = 0;	// Sanity.
+						current_directory = last_directory;
+					}
+					else	// No filename could be made from the resource path. Use the host name instead.
+					{
+						if ( context->header_info.url_location.host != NULL )
+						{
+							current_directory = context->header_info.url_location.host;
+						}
+						else if ( context->request_info.host != NULL )	// Relative redirection.
+						{
+							current_directory = context->request_info.host;
+						}
+						else	// Shouldn't happen.
+						{
+							current_directory = "NO_FILENAME";
+						}
+					}
+				}
+
+				if ( context->download_info != NULL )
+				{
+					EnterCriticalSection( &icon_cache_cs );
+					// Find the icon info
+					dllrbt_iterator *itr = dllrbt_find( icon_handles, ( void * )( context->download_info->file_path + context->download_info->file_extension_offset ), false );
+
+					// Free its values and remove it from the tree if there are no other items using it.
+					if ( itr != NULL )
+					{
+						ICON_INFO *ii = ( ICON_INFO * )( ( node_type * )itr )->val;
+						if ( ii != NULL )
+						{
+							context->download_info->icon = NULL;
+
+							if ( --ii->count == 0 )
+							{
+								DestroyIcon( ii->icon );
+								GlobalFree( ii->file_extension );
+								GlobalFree( ii );
+
+								dllrbt_remove( icon_handles, itr );
+							}
+						}
+						else
+						{
+							dllrbt_remove( icon_handles, itr );
+						}
+					}
+					LeaveCriticalSection( &icon_cache_cs );
+
+					EnterCriticalSection( &context->download_info->shared_cs );
+
+					int w_filename_length = MultiByteToWideChar( CP_UTF8, 0, current_directory, -1, context->download_info->file_path + context->download_info->filename_offset, MAX_PATH - context->download_info->filename_offset - 1 ) - 1;
+					if ( w_filename_length == -1 && GetLastError() == ERROR_INSUFFICIENT_BUFFER )
+					{
+						w_filename_length = MAX_PATH - context->download_info->filename_offset - 1;
+					}
+
+					EscapeFilename( context->download_info->file_path + context->download_info->filename_offset );
+
+					context->download_info->file_extension_offset = context->download_info->filename_offset + get_file_extension_offset( context->download_info->file_path + context->download_info->filename_offset, w_filename_length );
+
+					wchar_t file_path[ MAX_PATH ];
+					_wmemcpy_s( file_path, MAX_PATH, context->download_info->file_path, MAX_PATH );
+					if ( context->download_info->filename_offset > 0 )
+					{
+						file_path[ context->download_info->filename_offset - 1 ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
+					}
+
+					// Make sure any existing file hasn't started downloading.
+					if ( !( context->download_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) &&
+						  GetFileAttributes( file_path ) != INVALID_FILE_ATTRIBUTES &&
+						  context->download_info->downloaded == 0 )
+					{
+						context->got_filename = 2;
+					}
+					else	// No need to rename.
+					{
+						context->got_filename = 1;
+					}
+
+					LeaveCriticalSection( &context->download_info->shared_cs );
+
+					SHFILEINFO *sfi = ( SHFILEINFO * )GlobalAlloc( GMEM_FIXED, sizeof( SHFILEINFO ) );
+
+					// Cache our file's icon.
+					ICON_INFO *ii = CacheIcon( context->download_info, sfi );
+
+					EnterCriticalSection( &context->download_info->shared_cs );
+
+					context->download_info->icon = ( ii != NULL ? &ii->icon : NULL );
+
+					LeaveCriticalSection( &context->download_info->shared_cs );
+
+					GlobalFree( sfi );
+				}
+
+				GlobalFree( filename );
+			}
+
 			// The connection will get closed in here.
 			return HandleRedirect( context );
 		}
@@ -2444,9 +2609,9 @@ int HandleRedirect( SOCKET_CONTEXT *context )
 
 	if ( context != NULL )
 	{
-		// Allow up to 10 redirects before we stop. The servers should get their act together.
-		if ( context->request_info.redirect_count < 10 )
-		{
+		// Allow up to 100 redirects before we stop. The servers should get their act together.
+		//if ( context->request_info.redirect_count < cfg_max_redirects )
+		//{
 			SOCKET_CONTEXT *redirect_context = CreateSocketContext();
 
 			redirect_context->processed_header = context->processed_header;
@@ -2543,7 +2708,7 @@ int HandleRedirect( SOCKET_CONTEXT *context )
 
 				CleanupConnection( redirect_context );
 			}
-		}
+		//}
 
 		InterlockedIncrement( &context->pending_operations );
 

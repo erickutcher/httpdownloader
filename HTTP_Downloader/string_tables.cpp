@@ -146,6 +146,7 @@ wchar_t *options_string_table[] =
 	L"Load PKCS #12 File",
 	L"Load Private Key File",
 	L"Load X.509 Certificate File",
+	L"Maximum redirects:",
 	L"Minimize to System Tray",
 	L"OK",
 	L"PKCS #12:",

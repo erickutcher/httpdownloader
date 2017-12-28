@@ -39,11 +39,11 @@ char read_config()
 		DWORD read = 0, pos = 0;
 		DWORD fz = GetFileSize( hFile_cfg, NULL );
 
-		int reserved = 1024 - 142;
+		int reserved = 1024 - 143;
 
 		// Our config file is going to be small. If it's something else, we're not going to read it.
 		// Add 21 for the strings.
-		if ( fz >= ( 142 + 21 ) && fz < 10240 )
+		if ( fz >= ( 143 + 21 ) && fz < 10240 )
 		{
 			char *cfg_buf = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * fz + 1 );
 
@@ -173,6 +173,9 @@ char read_config()
 				_memcpy_s( &cfg_default_ssl_version, sizeof( unsigned char ), next, sizeof( unsigned char ) );
 				next += sizeof( unsigned char );
 
+				_memcpy_s( &cfg_max_redirects, sizeof( unsigned char ), next, sizeof( unsigned char ) );
+				next += sizeof( unsigned char );
+
 				//
 
 				_memcpy_s( &cfg_enable_server, sizeof( bool ), next, sizeof( bool ) );
@@ -229,6 +232,8 @@ char read_config()
 
 				_memcpy_s( &cfg_port_s, sizeof( unsigned short ), next, sizeof( unsigned short ) );
 				next += sizeof( unsigned short );
+
+				//
 
 				next += reserved;	// Skip past reserved bytes.
 
@@ -589,6 +594,11 @@ char read_config()
 					cfg_default_download_parts = 1;
 				}
 
+				if ( cfg_max_redirects > 100 )
+				{
+					cfg_max_redirects = 100;
+				}
+
 				if ( cfg_thread_count > g_max_threads )
 				{
 					cfg_thread_count = max( ( g_max_threads / 2 ), 1 );
@@ -678,8 +688,8 @@ char save_config()
 	HANDLE hFile_cfg = CreateFile( base_directory, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL );
 	if ( hFile_cfg != INVALID_HANDLE_VALUE )
 	{
-		int reserved = 1024 - 142;
-		int size = ( sizeof( int ) * 18 ) + ( sizeof( unsigned short ) * 4 ) + ( sizeof( char ) * 34 ) + ( sizeof( bool ) * 12 ) + ( sizeof( unsigned long ) * 4 ) + reserved;
+		int reserved = 1024 - 143;
+		int size = ( sizeof( int ) * 18 ) + ( sizeof( unsigned short ) * 4 ) + ( sizeof( char ) * 35 ) + ( sizeof( bool ) * 12 ) + ( sizeof( unsigned long ) * 4 ) + reserved;
 		int pos = 0;
 
 		char *write_buf = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * size );
@@ -804,6 +814,9 @@ char save_config()
 		_memcpy_s( write_buf + pos, size - pos, &cfg_default_ssl_version, sizeof( unsigned char ) );
 		pos += sizeof( unsigned char );
 
+		_memcpy_s( write_buf + pos, size - pos, &cfg_max_redirects, sizeof( unsigned char ) );
+		pos += sizeof( unsigned char );
+
 		//
 
 		_memcpy_s( write_buf + pos, size - pos, &cfg_enable_server, sizeof( bool ) );
@@ -860,6 +873,8 @@ char save_config()
 
 		_memcpy_s( write_buf + pos, size - pos, &cfg_port_s, sizeof( unsigned short ) );
 		pos += sizeof( unsigned short );
+
+		//
 
 		// Write Reserved bytes.
 		_memzero( write_buf + pos, size - pos );

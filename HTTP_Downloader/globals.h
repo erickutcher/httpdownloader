@@ -219,6 +219,8 @@ extern unsigned char cfg_retry_parts_count;
 extern unsigned char cfg_default_ssl_version;
 extern unsigned char cfg_default_download_parts;
 
+extern unsigned char cfg_max_redirects;
+
 extern wchar_t *cfg_default_download_directory;
 
 // Server

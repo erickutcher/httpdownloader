@@ -129,8 +129,8 @@ struct URL_LOCATION
 	char				*host;
 	char				*resource;
 	PROTOCOL			protocol;
-	unsigned int		redirect_count;
 	unsigned short		port;
+	unsigned char		redirect_count;
 };
 
 struct RANGE_INFO

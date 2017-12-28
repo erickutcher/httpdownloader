@@ -3215,52 +3215,55 @@ ICON_INFO *CacheIcon( DOWNLOAD_INFO *di, SHFILEINFO *sfi )
 {
 	ICON_INFO *ii = NULL;
 
-	// Cache our file's icon.
-	EnterCriticalSection( &icon_cache_cs );
-	ii = ( ICON_INFO * )dllrbt_find( icon_handles, ( void * )( di->file_path + di->file_extension_offset ), true );
-	if ( ii == NULL )
+	if ( di != NULL && sfi != NULL )
 	{
-		bool destroy = true;
-		#ifndef OLE32_USE_STATIC_LIB
-			if ( ole32_state == OLE32_STATE_SHUTDOWN )
+		// Cache our file's icon.
+		EnterCriticalSection( &icon_cache_cs );
+		ii = ( ICON_INFO * )dllrbt_find( icon_handles, ( void * )( di->file_path + di->file_extension_offset ), true );
+		if ( ii == NULL )
+		{
+			bool destroy = true;
+			#ifndef OLE32_USE_STATIC_LIB
+				if ( ole32_state == OLE32_STATE_SHUTDOWN )
+				{
+					destroy = InitializeOle32();
+				}
+			#endif
+
+			if ( destroy )
 			{
-				destroy = InitializeOle32();
+				_CoInitializeEx( NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE );
 			}
-		#endif
 
-		if ( destroy )
-		{
-			_CoInitializeEx( NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE );
+			// Use an unknown file type icon for extensionless files.
+			_SHGetFileInfoW( ( di->file_path[ di->file_extension_offset ] != 0 ? di->file_path + di->file_extension_offset : L" " ), FILE_ATTRIBUTE_NORMAL, sfi, sizeof( SHFILEINFO ), SHGFI_USEFILEATTRIBUTES | SHGFI_ICON | SHGFI_SMALLICON );
+
+			if ( destroy )
+			{
+				_CoUninitialize();
+			}
+
+			ii = ( ICON_INFO * )GlobalAlloc( GMEM_FIXED, sizeof( DOWNLOAD_INFO ) );
+
+			ii->file_extension = GlobalStrDupW( di->file_path + di->file_extension_offset );
+			ii->icon = sfi->hIcon;
+
+			ii->count = 1;
+
+			if ( dllrbt_insert( icon_handles, ( void * )ii->file_extension, ( void * )ii ) != DLLRBT_STATUS_OK )
+			{
+				DestroyIcon( ii->icon );
+				GlobalFree( ii->file_extension );
+				GlobalFree( ii );
+				ii = NULL;
+			}
 		}
-
-		// Use an unknown file type icon for extensionless files.
-		_SHGetFileInfoW( ( di->file_path[ di->file_extension_offset ] != 0 ? di->file_path + di->file_extension_offset : L" " ), FILE_ATTRIBUTE_NORMAL, sfi, sizeof( SHFILEINFO ), SHGFI_USEFILEATTRIBUTES | SHGFI_ICON | SHGFI_SMALLICON );
-
-		if ( destroy )
+		else
 		{
-			_CoUninitialize();
+			++( ii->count );
 		}
-
-		ii = ( ICON_INFO * )GlobalAlloc( GMEM_FIXED, sizeof( DOWNLOAD_INFO ) );
-
-		ii->file_extension = GlobalStrDupW( di->file_path + di->file_extension_offset );
-		ii->icon = sfi->hIcon;
-
-		ii->count = 1;
-
-		if ( dllrbt_insert( icon_handles, ( void * )ii->file_extension, ( void * )ii ) != DLLRBT_STATUS_OK )
-		{
-			DestroyIcon( ii->icon );
-			GlobalFree( ii->file_extension );
-			GlobalFree( ii );
-			ii = NULL;
-		}
+		LeaveCriticalSection( &icon_cache_cs );
 	}
-	else
-	{
-		++( ii->count );
-	}
-	LeaveCriticalSection( &icon_cache_cs );
 
 	return ii;
 }
@@ -3394,58 +3397,60 @@ DWORD WINAPI AddURL( void *add_info )
 
 			unsigned int w_filename_length = 0;
 
+			// Try to create a filename from the resource path.
 			if ( directory != NULL )
 			{
-				// No file was found in the resource path. Use the host for the filename.
-				if ( directory_length == 1 )
+				wchar_t *directory_ptr = directory;
+				wchar_t *current_directory = directory;
+				wchar_t *last_directory = NULL;
+
+				// Iterate forward because '/' can be found after '#'.
+				while ( *directory_ptr != NULL )
 				{
-					w_filename_length = min( host_length, ( int )( MAX_PATH - di->filename_offset - 1 ) );
+					if ( *directory_ptr == L'?' || *directory_ptr == L'#' )
+					{
+						*directory_ptr = 0;	// Sanity.
 
-					_wmemcpy_s( di->file_path + di->filename_offset, MAX_PATH - di->filename_offset, host, w_filename_length );
-					di->file_path[ di->filename_offset + w_filename_length ] = 0;	// Sanity.
+						break;
+					}
+					else if ( *directory_ptr == L'/' )
+					{
+						last_directory = current_directory;
+						current_directory = directory_ptr + 1; 
+					}
 
-					EscapeFilename( di->file_path + di->filename_offset );
+					++directory_ptr;
+				}
+
+				if ( *current_directory == NULL )
+				{
+					// Adjust for '/'. current_directory will always be at least 1 greater than last_directory.
+					if ( last_directory != NULL && ( current_directory - 1 ) - last_directory > 0 )
+					{
+						w_filename_length = ( current_directory - 1 ) - last_directory;
+						current_directory = last_directory;
+					}
+					else	// No filename could be made from the resource path. Use the host name instead.
+					{
+						w_filename_length = host_length;
+						current_directory = host;
+					}
 				}
 				else
 				{
-					wchar_t *current_directory = directory;
-					wchar_t *last_directory = directory;
-
-					while ( *current_directory != NULL )
-					{
-						if ( *current_directory == L'?' || *current_directory == L'#' )
-						{
-							*current_directory = 0;	// Sanity.
-
-							break;
-						}
-						else if ( *current_directory == L'/' )
-						{
-							last_directory = current_directory + 1; 
-						}
-
-						++current_directory;
-					}
-
-					w_filename_length = current_directory - last_directory;
-
-					if ( *last_directory == NULL )
-					{
-						w_filename_length = host_length;
-						last_directory = host;
-					}
-
-					w_filename_length = min( w_filename_length, ( int )( MAX_PATH - di->filename_offset - 1 ) );
-
-					_wmemcpy_s( di->file_path + di->filename_offset, MAX_PATH - di->filename_offset, last_directory, w_filename_length );
-					di->file_path[ di->filename_offset + w_filename_length ] = 0;	// Sanity.
-
-					EscapeFilename( di->file_path + di->filename_offset );
+					w_filename_length = directory_ptr - current_directory;
 				}
+
+				w_filename_length = min( w_filename_length, ( int )( MAX_PATH - di->filename_offset - 1 ) );
+
+				_wmemcpy_s( di->file_path + di->filename_offset, MAX_PATH - di->filename_offset, current_directory, w_filename_length );
+				di->file_path[ di->filename_offset + w_filename_length ] = 0;	// Sanity.
+
+				EscapeFilename( di->file_path + di->filename_offset );
 
 				GlobalFree( directory );
 			}
-			else
+			else	// Shouldn't happen.
 			{
 				w_filename_length = 11;
 				_wmemcpy_s( di->file_path + di->filename_offset, MAX_PATH - di->filename_offset, L"NO_FILENAME\0", 12 );
