@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP and HTTPS connections.
-	Copyright (C) 2015-2017 Eric Kutcher
+	Copyright (C) 2015-2018 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -1818,7 +1818,7 @@ char *GetContentDisposition( char *header, unsigned int &filename_length )
 			content_disposition_header = content_disposition_header + 8;
 
 			// Filename was encoded.
-			if ( *content_disposition_header = '*' )
+			if ( *content_disposition_header == '*' )
 			{
 				// Language opening.
 				content_disposition_header = _StrChrA( content_disposition_header + 1, '\'' );
