@@ -246,11 +246,11 @@ function AdvancedOptions()
 	{
 		chrome.windows.getCurrent( function( window_info )
 		{
-			if ( window_info && window_info.height < 648 )
+			if ( window_info && window_info.height < 560 )
 			{
 				chrome.windows.update( window_info.id,
 				{
-					height: 648
+					height: 560
 				} );
 			}
 		} );

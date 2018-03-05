@@ -248,11 +248,11 @@ function AdvancedOptions()
 	{
 		browser.windows.getCurrent().then( function( window_info )
 		{
-			if ( window_info && window_info.height < 648 )
+			if ( window_info && window_info.height < 600 )
 			{
 				browser.windows.update( window_info.id,
 				{
-					height: 648
+					height: 600
 				} );
 			}
 		} );

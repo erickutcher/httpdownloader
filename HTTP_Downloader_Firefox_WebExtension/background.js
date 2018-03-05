@@ -189,7 +189,7 @@ browser.contextMenus.onClicked.addListener( ( info, tab ) =>
 					left: ( ( screen.width - 200 ) / 2 ),
 					top: ( ( screen.height - 200 ) / 2 ),
 					width: 600,
-					height: 295
+					height: 250
 				} )
 				.then( function( window_info )
 				{
@@ -250,7 +250,7 @@ browser.contextMenus.onClicked.addListener( ( info, tab ) =>
 					left: ( ( screen.width - 200 ) / 2 ),
 					top: ( ( screen.height - 200 ) / 2 ),
 					width: 640,
-					height: 295
+					height: 250
 				} )
 				.then( function( window_info )
 				{

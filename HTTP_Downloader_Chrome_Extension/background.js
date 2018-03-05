@@ -190,7 +190,7 @@ chrome.contextMenus.onClicked.addListener( ( info, tab ) =>
 					left: ( ( screen.width - 200 ) / 2 ),
 					top: ( ( screen.height - 200 ) / 2 ),
 					width: 640,
-					height: 530
+					height: 560
 				}, function( window_info )
 				{
 					if ( window_info )
@@ -252,7 +252,7 @@ chrome.contextMenus.onClicked.addListener( ( info, tab ) =>
 					left: ( ( screen.width - 200 ) / 2 ),
 					top: ( ( screen.height - 200 ) / 2 ),
 					width: 640,
-					height: 530
+					height: 560
 				}, function( window_info )
 				{
 					if ( window_info )

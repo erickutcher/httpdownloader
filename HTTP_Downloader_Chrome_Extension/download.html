@@ -13,31 +13,6 @@
 				background-color: Menu;
 			}
 
-			.box
-			{
-				display: flex;
-				flex-flow: column;
-				height: 100%;
-			}
-
-			.content
-			{
-				margin: 15px;
-				flex: 1 1 auto;
-				height: 100%;
-				position: relative;
-			}
-			
-			.content > .box
-			{
-				position: absolute;
-				margin: 0;
-				top: 0;
-				left: 0;
-				right: 0;
-				bottom: 0;
-			}
-
 			textarea
 			{
 				height: 100%;
@@ -63,15 +38,15 @@
 		<input type="hidden" id="server_username" value="">
 		<input type="hidden" id="server_password" value="">
 		<input type="hidden" id="last_urls" value="">
-		<div class="box" style="min-height: 448px; min-width: 270px;">
-			<div class="content" style="background-color: Window; border: 1px solid grey;">
-				<div class="box">
-					<div class="box" style="margin: 15px;">
-						<div>
-							<div style="float: left; position: relative; top: 9px;">
+		<div style="display: flex; flex-flow: column; height: 100%; min-height: 495px;">
+			<div style="flex: 1; display: flex; flex-flow: column; height: 100%; margin: 15px 15px 0px 15px;">
+				<div style="flex: 1; display: flex; flex-flow: column; height: 100%; padding: 15px; background-color: Window; border: 1px solid grey;">
+					<div style="flex: 1; display: flex; flex-flow: column; height: 100%;">
+						<div style="display: flex; flex-flow: row;">
+							<div style="margin-top: auto;">
 								<label for="urls">URL(s):</label>
 							</div>
-							<div style="float: right; margin-bottom: 2px;">
+							<div style="flex: 1; text-align: right; margin-bottom: 5px;">
 								<label for="filter">RegEx filter:</label>
 								<select id="filter_presets">
 									<option selected="selected"></option>
@@ -84,49 +59,71 @@
 								<input type="button" id="revert_filter" value="Revert">
 							</div>
 						</div>
-						<textarea id="urls" rows="4"></textarea>
-						<div id="advanced_info" style="margin-top: 15px; display: none;">
-							<div style="float: left; margin-right: 15px;">
-								<div><label for="parts">Download parts:</label></div>
-								<input type="number" id="parts" value="" min="0" max="100" style="text-align: center;">
+						<textarea id="urls" rows="4" style="flex: 1;"></textarea>
+					</div>
+					<div id="advanced_info" style="display: none; margin-top: 15px;">
+						<div style="display: flex; flex-flow: row wrap;">
+							<div style="margin-right: 15px;">
+								<div style="margin-top: auto;">
+									<label for="parts">Download parts:</label>
+								</div>
+								<div>
+									<input type="number" id="parts" value="" min="0" max="100" style="text-align: center;">
+								</div>
 							</div>
-							<div>
+							<div style="flex: 1;">
 								<fieldset>
 									<legend>Authentication</legend>
-									<div style="float: left; margin-right: 10px;">
-										<div><label for="username">Username:</label></div>
-										<input type="text" id="username" value="">
-									</div>
-									<div style="float: left;">
-										<div><label for="password">Password:</label></div>
-										<input type="password" id="password" value="">
+									<div style="display: flex; flex-flow: row wrap;">
+										<div style="margin-right: 10px;">
+											<div style="margin-top: auto;">
+												<label for="username">Username:</label>
+											</div>
+											<div>
+												<input type="text" id="username" value="">
+											</div>
+										</div>
+										<div style="flex: 1;">
+											<div style="margin-top: auto;">
+												<label for="password">Password:</label>
+											</div>
+											<div>
+												<input type="password" id="password" value="">
+											</div>
+										</div>
 									</div>
 								</fieldset>
 							</div>
-							<div style="margin-top: 15px;">
-								<div><label for="cookies">Cookies:</label></div>
+						</div>
+						<div style="margin-top: 15px;">
+							<div style="margin-top: auto;">
+								<label for="cookies">Cookies:</label>
+							</div>
+							<div>
 								<textarea id="cookies" rows="4"></textarea>
 							</div>
-							<div style="margin-top: 15px;">
-								<div><label for="headers">Headers:</label></div>
+						</div>
+						<div style="margin-top: 15px;">
+							<div style="margin-top: auto;">
+								<label for="headers">Headers:</label>
+							</div>
+							<div>
 								<textarea id="headers" rows="4"></textarea>
 							</div>
-							<div style="margin-top: 15px;">
-								<div>
-									<input type="checkbox" id="simulate_download"><label for="simulate_download">Simulate download</label>
-								</div>
-							</div>
+						</div>
+						<div style="margin-top: 15px;">
+							<input type="checkbox" id="simulate_download"><label for="simulate_download">Simulate download</label>
 						</div>
 					</div>
 				</div>
-			</div>
-			<div style="padding: 0px 15px 15px 15px;">
-				<div style="float: left; margin-right: 10px;">
-					<input type="button" id="advanced" value="Advanced &#xBB">
-				</div>
-				<div style="float: right;">
-					<input type="button" id="download" value="Download">
-					<input type="button" id="cancel" value="Cancel">
+				<div style="display: flex; flex-flow: row; margin-top: 15px; margin-bottom: 15px;">
+					<div>
+						<input type="button" id="advanced" value="Advanced &#xBB">
+					</div>
+					<div style="flex: 1; text-align: right;">
+						<input type="button" id="download" value="Download">
+						<input type="button" id="cancel" value="Cancel">
+					</div>
 				</div>
 			</div>
 		</div>
