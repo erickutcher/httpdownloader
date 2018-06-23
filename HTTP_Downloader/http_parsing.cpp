@@ -2757,6 +2757,45 @@ int MakeRangeRequest( SOCKET_CONTEXT *context )
 
 			for ( unsigned char part = 2; part <= context->parts; ++part )
 			{
+				bool skip_context_creation = false;
+
+				if ( context->download_info != NULL )
+				{
+					EnterCriticalSection( &context->download_info->shared_cs );
+
+					// Create a range list if our parts are limited. We'll skip the creation of the context below.
+					if ( context->download_info->parts_limit > 0 && part > context->download_info->parts_limit )
+					{
+						RANGE_INFO *ri = ( RANGE_INFO * )GlobalAlloc( GPTR, sizeof( RANGE_INFO ) );
+
+						ri->range_start = range_offset + 1;
+
+						if ( part < context->parts )
+						{
+							range_offset += range_size;
+							ri->range_end = range_offset;
+						}
+						else	// Make sure we have an accurate range end for the last part.
+						{
+							ri->range_end = context->header_info.range_info->content_length - 1;
+						}
+
+						ri->file_write_offset = ri->range_start;
+
+						DoublyLinkedList *range_node = DLL_CreateNode( ( void * )ri );
+						DLL_AddNode( &context->download_info->range_list, range_node, -1 );
+
+						skip_context_creation = true;
+					}
+
+					LeaveCriticalSection( &context->download_info->shared_cs );
+				}
+
+				if ( skip_context_creation )
+				{
+					continue;
+				}
+
 				// Save the request information, the header information (if we got any), and create a new connection.
 				SOCKET_CONTEXT *new_context = CreateSocketContext();
 
@@ -4305,7 +4344,20 @@ int GetHTTPRequestContent( SOCKET_CONTEXT *context, char *request_buffer, unsign
 				context->post_info->headers = NULL;
 
 				// ai is freed in AddURL.
-				CloseHandle( _CreateThread( NULL, 0, AddURL, ( void * )ai, 0, NULL ) );
+				HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, AddURL, ( void * )ai, 0, NULL );
+				if ( thread != NULL )
+				{
+					CloseHandle( thread );
+				}
+				else
+				{
+					GlobalFree( ai->utf8_headers );
+					GlobalFree( ai->utf8_cookies );
+					GlobalFree( ai->auth_info.username );
+					GlobalFree( ai->auth_info.password );
+					GlobalFree( ai->urls );
+					GlobalFree( ai );
+				}
 			}
 
 			FreePOSTInfo( &context->post_info );

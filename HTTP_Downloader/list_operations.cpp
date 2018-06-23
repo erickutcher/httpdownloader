@@ -90,7 +90,7 @@ THREAD_RETURN remove_items( void *pArguments )
 		_EnableWindow( g_hWnd_files, TRUE );	// Allow the listview to be interactive.
 
 		item_count = sel_count;
-	}	
+	}
 
 	// Go through each item, and free their lParam values.
 	for ( int i = 0; i < item_count; ++i )
@@ -128,13 +128,21 @@ THREAD_RETURN remove_items( void *pArguments )
 
 		if ( di != NULL )
 		{
+			// Is our update window open and are we removing the item we want to update? Close the window if we are.
+			if ( di == g_update_download_info )
+			{
+				g_update_download_info = NULL;
+
+				_SendMessageW( g_hWnd_update_download, WM_DESTROY_ALT, 0, 0 );
+			}
+
 			EnterCriticalSection( &di->shared_cs );
 
 			DoublyLinkedList *context_node = di->parts_list;
 			SOCKET_CONTEXT *context = NULL;
 
 			// If there are still active connections.
-			if ( di->active_parts > 0 )
+			if ( di->download_node.data != NULL )
 			{
 				di->status = STATUS_STOP_AND_REMOVE;
 
@@ -148,17 +156,35 @@ THREAD_RETURN remove_items( void *pArguments )
 					{
 						EnterCriticalSection( &context->context_cs );
 
-						context->status = STATUS_STOP_AND_REMOVE;
-
-						if ( context->cleanup == 0 )
+						// The paused operation has not completed or it has and is_paused is waiting to be set.
+						// We'll fall through in IOCPConnection.
+						if ( context->status == STATUS_PAUSED && !context->is_paused )
 						{
-							context->cleanup = 2;	// Force the cleanup.
+							context->status = STATUS_STOP_AND_REMOVE;
 
-							InterlockedIncrement( &context->pending_operations );
+							if ( context->cleanup == 0 )
+							{
+								context->cleanup = 1;	// Auto cleanup.
+							}
+						}
+						else
+						{
+							// 1 = auto cleanup, 2 = force the cleanup.
+							// Paused contexts shouldn't have any pending operations.
+							unsigned char cleanup_type = ( context->status == STATUS_PAUSED ? 1 : 2 );
 
-							context->overlapped_close.current_operation = ( context->ssl != NULL ? IO_Shutdown : IO_Close );
+							context->status = STATUS_STOP_AND_REMOVE;
 
-							PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped_close );
+							if ( context->cleanup == 0 )
+							{
+								context->cleanup = cleanup_type;
+
+								InterlockedIncrement( &context->pending_operations );
+
+								context->overlapped_close.current_operation = ( context->ssl != NULL ? IO_Shutdown : IO_Close );
+
+								PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped_close );
+							}
 						}
 
 						LeaveCriticalSection( &context->context_cs );
@@ -225,6 +251,15 @@ THREAD_RETURN remove_items( void *pArguments )
 				{
 					DoublyLinkedList *range_node = di->range_list;
 					di->range_list = di->range_list->next;
+
+					GlobalFree( range_node->data );
+					GlobalFree( range_node );
+				}
+
+				while ( di->range_queue != NULL )
+				{
+					DoublyLinkedList *range_node = di->range_queue;
+					di->range_queue = di->range_queue->next;
 
 					GlobalFree( range_node->data );
 					GlobalFree( range_node );
@@ -342,6 +377,8 @@ THREAD_RETURN handle_download_list( void *pArguments )
 
 						if ( context != NULL )
 						{
+							context->is_paused = false;	// Set to true when last IO operation has completed.
+
 							context->status = STATUS_PAUSED;
 						}
 					}
@@ -426,17 +463,35 @@ THREAD_RETURN handle_download_list( void *pArguments )
 							{
 								EnterCriticalSection( &context->context_cs );
 
-								context->status = STATUS_STOPPED;
-
-								if ( context->cleanup == 0 )
+								// The paused operation has not completed or it has and is_paused is waiting to be set.
+								// We'll fall through in IOCPConnection.
+								if ( context->status == STATUS_PAUSED && !context->is_paused )
 								{
-									context->cleanup = 2;	// Force the cleanup.
+									context->status = STATUS_STOPPED;
 
-									InterlockedIncrement( &context->pending_operations );
+									if ( context->cleanup == 0 )
+									{
+										context->cleanup = 1;	// Auto cleanup.
+									}
+								}
+								else
+								{
+									// 1 = auto cleanup, 2 = force the cleanup.
+									// Paused contexts shouldn't have any pending operations.
+									unsigned char cleanup_type = ( context->status == STATUS_PAUSED ? 1 : 2 );
 
-									context->overlapped_close.current_operation = ( context->ssl != NULL ? IO_Shutdown : IO_Close );
+									context->status = STATUS_STOPPED;
 
-									PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped_close );
+									if ( context->cleanup == 0 )
+									{
+										context->cleanup = cleanup_type;
+
+										InterlockedIncrement( &context->pending_operations );
+
+										context->overlapped_close.current_operation = ( context->ssl != NULL ? IO_Shutdown : IO_Close );
+
+										PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped_close );
+									}
 								}
 
 								LeaveCriticalSection( &context->context_cs );
@@ -553,6 +608,15 @@ THREAD_RETURN handle_download_list( void *pArguments )
 						GlobalFree( range_node );
 					}
 
+					while ( di->range_queue != NULL )
+					{
+						DoublyLinkedList *range_node = di->range_queue;
+						di->range_queue = di->range_queue->next;
+
+						GlobalFree( range_node->data );
+						GlobalFree( range_node );
+					}
+
 					DeleteCriticalSection( &di->shared_cs );
 
 					GlobalFree( di );
@@ -591,12 +655,22 @@ THREAD_RETURN handle_download_list( void *pArguments )
 						GlobalFree( range_node );
 					}
 
+					while ( di->range_queue != NULL )
+					{
+						DoublyLinkedList *range_node = di->range_queue;
+						di->range_queue = di->range_queue->next;
+
+						GlobalFree( range_node->data );
+						GlobalFree( range_node );
+					}
+
 					di->processed_header = false;
 
 					di->downloaded = 0;
 
 					// If we manually start a download, then set the incomplete retry attempts back to 0.
 					di->retries = 0;
+					di->start_time.QuadPart = 0;
 
 					// If we manually start a download that was added remotely, then allow the prompts to display.
 					di->download_operations &= ~DOWNLOAD_OPERATION_OVERRIDE_PROMPTS;
@@ -683,11 +757,6 @@ THREAD_RETURN handle_connection( void *pArguments )
 				DoublyLinkedList *context_node = di->parts_list;
 				SOCKET_CONTEXT *context = NULL;
 
-				if ( context_node != NULL )
-				{
-					context = ( SOCKET_CONTEXT * )context_node->data;
-				}
-
 				if ( di->status == STATUS_CONNECTING ||
 					 di->status == STATUS_DOWNLOADING )	// The download is currently connection or downloading.
 				{
@@ -733,6 +802,8 @@ THREAD_RETURN handle_connection( void *pArguments )
 
 							if ( context != NULL )
 							{
+								context->is_paused = false;	// Set to true when last IO operation has completed.
+
 								context->status = STATUS_PAUSED;
 							}
 						}
@@ -795,6 +866,7 @@ THREAD_RETURN handle_connection( void *pArguments )
 
 									// If we manually start a download, then set the incomplete retry attempts back to 0.
 									di->retries = 0;
+									di->start_time.QuadPart = 0;
 
 									// If we manually start a download that was added remotely, then allow the prompts to display.
 									di->download_operations &= ~DOWNLOAD_OPERATION_OVERRIDE_PROMPTS;
@@ -826,17 +898,35 @@ THREAD_RETURN handle_connection( void *pArguments )
 								{
 									EnterCriticalSection( &context->context_cs );
 
-									context->status = STATUS_STOPPED;
-
-									if ( context->cleanup == 0 )
+									// The paused operation has not completed or it has and is_paused is waiting to be set.
+									// We'll fall through in IOCPConnection.
+									if ( context->status == STATUS_PAUSED && !context->is_paused )
 									{
-										context->cleanup = 2;	// Force the cleanup.
+										context->status = STATUS_STOPPED;
 
-										InterlockedIncrement( &context->pending_operations );
+										if ( context->cleanup == 0 )
+										{
+											context->cleanup = 1;	// Auto cleanup.
+										}
+									}
+									else
+									{
+										// 1 = auto cleanup, 2 = force the cleanup.
+										// Paused contexts shouldn't have any pending operations.
+										unsigned char cleanup_type = ( context->status == STATUS_PAUSED ? 1 : 2 );
 
-										context->overlapped_close.current_operation = ( context->ssl != NULL ? IO_Shutdown : IO_Close );
+										context->status = STATUS_STOPPED;
 
-										PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped_close );
+										if ( context->cleanup == 0 )
+										{
+											context->cleanup = cleanup_type;
+
+											InterlockedIncrement( &context->pending_operations );
+
+											context->overlapped_close.current_operation = ( context->ssl != NULL ? IO_Shutdown : IO_Close );
+
+											PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped_close );
+										}
 									}
 
 									LeaveCriticalSection( &context->context_cs );
@@ -877,6 +967,7 @@ THREAD_RETURN handle_connection( void *pArguments )
 						  di->status == STATUS_TIMED_OUT ||
 						  di->status == STATUS_FAILED ||
 						  di->status == STATUS_FILE_IO_ERROR ||
+						  di->status == STATUS_AUTH_REQUIRED ||
 						  di->status == STATUS_PROXY_AUTH_REQUIRED )	// The download is currently stopped.
 				{
 					// Ensure that the download is actually stopped and that there are no active parts downloading.
@@ -886,6 +977,7 @@ THREAD_RETURN handle_connection( void *pArguments )
 
 						// If we manually start a download, then set the incomplete retry attempts back to 0.
 						di->retries = 0;
+						di->start_time.QuadPart = 0;
 
 						// If we manually start a download that was added remotely, then allow the prompts to display.
 						di->download_operations &= ~DOWNLOAD_OPERATION_OVERRIDE_PROMPTS;
@@ -902,6 +994,7 @@ THREAD_RETURN handle_connection( void *pArguments )
 
 						// If we manually start a download, then set the incomplete retry attempts back to 0.
 						di->retries = 0;
+						di->start_time.QuadPart = 0;
 
 						// If we manually start a download that was added remotely, then allow the prompts to display.
 						di->download_operations &= ~DOWNLOAD_OPERATION_OVERRIDE_PROMPTS;
@@ -1062,6 +1155,277 @@ THREAD_RETURN handle_download_queue( void *pArguments )
 	}
 
 	LeaveCriticalSection( &cleanup_cs );
+
+	ProcessingList( false );
+
+	// Release the semaphore if we're killing the thread.
+	if ( worker_semaphore != NULL )
+	{
+		ReleaseSemaphore( worker_semaphore, 1, NULL );
+	}
+
+	in_worker_thread = false;
+
+	// We're done. Let other threads continue.
+	LeaveCriticalSection( &worker_cs );
+
+	_ExitThread( 0 );
+	return 0;
+}
+
+THREAD_RETURN handle_download_update( void *pArguments )
+{
+	ADD_INFO *ai = ( ADD_INFO * )pArguments;
+
+	EnterCriticalSection( &worker_cs );
+
+	in_worker_thread = true;
+
+	ProcessingList( true );
+
+	EnterCriticalSection( &cleanup_cs );
+
+	if ( ai != NULL )	// Update selected download (stops and resumes the download).
+	{
+		DOWNLOAD_INFO *di = g_update_download_info;
+		if ( di != NULL )
+		{
+			EnterCriticalSection( &di->shared_cs );
+
+			// Swap values and free below.
+			char *tmp_ptr = di->headers;
+			di->headers = ai->utf8_headers;
+			ai->utf8_headers = tmp_ptr;
+
+			tmp_ptr = di->cookies;
+			di->cookies = ai->utf8_cookies;
+			ai->utf8_cookies = tmp_ptr;
+
+			tmp_ptr = di->auth_info.username;
+			di->auth_info.username = ai->auth_info.username;
+			ai->auth_info.username = tmp_ptr;
+
+			tmp_ptr = di->auth_info.password;
+			di->auth_info.password = ai->auth_info.password;
+			ai->auth_info.password = tmp_ptr;
+
+			di->ssl_version = ai->ssl_version;
+			di->parts_limit = ai->parts;
+
+			DoublyLinkedList *context_node = di->parts_list;
+			SOCKET_CONTEXT *context = NULL;
+
+			// Download is active, close the connection.
+			if ( di->download_node.data != NULL )
+			{
+				// di->status will be set to STATUS_UPDATING in CleanupConnection().
+				while ( context_node != NULL )
+				{
+					context = ( SOCKET_CONTEXT * )context_node->data;
+
+					context_node = context_node->next;
+
+					if ( context != NULL )
+					{
+						EnterCriticalSection( &context->context_cs );
+
+						// The paused operation has not completed or it has and is_paused is waiting to be set.
+						// We'll fall through in IOCPConnection.
+						if ( context->status == STATUS_PAUSED && !context->is_paused )
+						{
+							context->status = STATUS_UPDATING;
+
+							if ( context->cleanup == 0 )
+							{
+								context->cleanup = 1;	// Auto cleanup.
+							}
+						}
+						else
+						{
+							// 1 = auto cleanup, 2 = force the cleanup.
+							// Paused contexts shouldn't have any pending operations.
+							unsigned char cleanup_type = ( context->status == STATUS_PAUSED ? 1 : 2 );
+
+							context->status = STATUS_UPDATING;
+
+							if ( context->cleanup == 0 )
+							{
+								context->cleanup = cleanup_type;
+
+								InterlockedIncrement( &context->pending_operations );
+
+								context->overlapped_close.current_operation = ( context->ssl != NULL ? IO_Shutdown : IO_Close );
+
+								PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped_close );
+							}
+						}
+
+						LeaveCriticalSection( &context->context_cs );
+					}
+				}
+			}
+
+			LeaveCriticalSection( &di->shared_cs );
+		}
+
+		// This is all that should be set for this function.
+		GlobalFree( ai->utf8_headers );
+		GlobalFree( ai->utf8_cookies );
+		GlobalFree( ai->auth_info.username );
+		GlobalFree( ai->auth_info.password );
+		GlobalFree( ai );
+
+		download_history_changed = true;
+	}
+
+	g_update_download_info = NULL;
+
+	LeaveCriticalSection( &cleanup_cs );
+
+	ProcessingList( false );
+
+	// Release the semaphore if we're killing the thread.
+	if ( worker_semaphore != NULL )
+	{
+		ReleaseSemaphore( worker_semaphore, 1, NULL );
+	}
+
+	in_worker_thread = false;
+
+	// We're done. Let other threads continue.
+	LeaveCriticalSection( &worker_cs );
+
+	_ExitThread( 0 );
+	return 0;
+}
+
+THREAD_RETURN copy_urls( void *pArguments )
+{
+	// This will block every other thread from entering until the first thread is complete.
+	EnterCriticalSection( &worker_cs );
+
+	in_worker_thread = true;
+
+	ProcessingList( true );
+
+	unsigned int buffer_size = 8192;
+	unsigned int buffer_offset = 0;
+	wchar_t *copy_buffer = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * buffer_size );	// Allocate 8 kilobytes.
+
+	bool add_newline = false;
+
+	LVITEM lvi;
+	_memzero( &lvi, sizeof( LVITEM ) );
+	lvi.mask = LVIF_PARAM;
+
+	int item_count = _SendMessageW( g_hWnd_files, LVM_GETITEMCOUNT, 0, 0 );
+	int sel_count = _SendMessageW( g_hWnd_files, LVM_GETSELECTEDCOUNT, 0, 0 );
+
+	bool copy_all = false;
+	if ( item_count == sel_count )
+	{
+		copy_all = true;
+	}
+	else
+	{
+		item_count = sel_count;
+	}
+
+	// Go through each item, and copy the URL.
+	for ( int i = 0; i < item_count; ++i )
+	{
+		// Stop processing and exit the thread.
+		if ( kill_worker_thread_flag )
+		{
+			break;
+		}
+
+		if ( copy_all )
+		{
+			lvi.iItem = i;
+		}
+		else
+		{
+			lvi.iItem = _SendMessageW( g_hWnd_files, LVM_GETNEXTITEM, lvi.iItem, LVNI_SELECTED );
+		}
+
+		_SendMessageW( g_hWnd_files, LVM_GETITEM, 0, ( LPARAM )&lvi );
+
+		DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )lvi.lParam;
+
+		if ( di != NULL )
+		{
+			// We don't really need to do this since the URL will never change.
+			EnterCriticalSection( &di->shared_cs );
+
+			int value_length = lstrlenW( di->url );
+			while ( buffer_offset + value_length + 3 >= buffer_size )	// Add +3 for \t and \r\n
+			{
+				buffer_size += 8192;
+				wchar_t *realloc_buffer = ( wchar_t * )GlobalReAlloc( copy_buffer, sizeof( wchar_t ) * buffer_size, GMEM_MOVEABLE );
+				if ( realloc_buffer == NULL )
+				{
+					LeaveCriticalSection( &di->shared_cs );
+
+					goto CLEANUP;
+				}
+
+				copy_buffer = realloc_buffer;
+			}
+			_wmemcpy_s( copy_buffer + buffer_offset, buffer_size - buffer_offset, di->url, value_length );
+
+			LeaveCriticalSection( &di->shared_cs );
+
+			buffer_offset += value_length;
+
+			add_newline = true;
+
+			if ( i < item_count - 1 && add_newline )	// Add newlines for every item except the last.
+			{
+				*( copy_buffer + buffer_offset ) = L'\r';
+				++buffer_offset;
+				*( copy_buffer + buffer_offset ) = L'\n';
+				++buffer_offset;
+			}
+			else if ( ( i == item_count - 1 && !add_newline ) && buffer_offset >= 2 )	// If add_newline is false for the last item, then a newline character is in the buffer.
+			{
+				buffer_offset -= 2;	// Ignore the last newline in the buffer.
+			}
+		}
+	}
+
+	if ( _OpenClipboard( g_hWnd_files ) )
+	{
+		_EmptyClipboard();
+
+		DWORD len = buffer_offset;
+
+		// Allocate a global memory object for the text.
+		HGLOBAL hglbCopy = GlobalAlloc( GMEM_MOVEABLE, sizeof( wchar_t ) * ( len + 1 ) );
+		if ( hglbCopy != NULL )
+		{
+			// Lock the handle and copy the text to the buffer. lptstrCopy doesn't get freed.
+			wchar_t *lptstrCopy = ( wchar_t * )GlobalLock( hglbCopy );
+			if ( lptstrCopy != NULL )
+			{
+				_wmemcpy_s( lptstrCopy, len + 1, copy_buffer, len );
+				lptstrCopy[ len ] = 0; // Sanity
+			}
+
+			GlobalUnlock( hglbCopy );
+
+			if ( _SetClipboardData( CF_UNICODETEXT, hglbCopy ) == NULL )
+			{
+				GlobalFree( hglbCopy );	// Only free this Global memory if SetClipboardData fails.
+			}
+
+			_CloseClipboard();
+		}
+	}
+
+CLEANUP:
+
+	GlobalFree( copy_buffer );
 
 	ProcessingList( false );
 

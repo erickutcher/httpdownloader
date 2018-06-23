@@ -28,5 +28,8 @@ THREAD_RETURN handle_download_list( void *pArguments );
 THREAD_RETURN handle_connection( void *pArguments );
 
 THREAD_RETURN handle_download_queue( void *pArguments );
+THREAD_RETURN handle_download_update( void *pArguments );
+
+THREAD_RETURN copy_urls( void *pArguments );
 
 #endif

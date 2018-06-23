@@ -751,6 +751,34 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 				}
 				break;
 
+				case MENU_UPDATE_DOWNLOAD:
+				{
+					LVITEM lvi;
+					_memzero( &lvi, sizeof( LVITEM ) );
+					lvi.mask = LVIF_PARAM;
+					lvi.iItem = _SendMessageW( g_hWnd_files, LVM_GETNEXTITEM, -1, LVNI_FOCUSED | LVNI_SELECTED );
+
+					if ( lvi.iItem != -1 )
+					{
+						_SendMessageW( g_hWnd_files, LVM_GETITEM, 0, ( LPARAM )&lvi );
+
+						if ( lvi.lParam != NULL )
+						{
+							if ( g_hWnd_update_download == NULL )
+							{
+								g_hWnd_update_download = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"update_download", ST_Update_Download, WS_OVERLAPPEDWINDOW, ( ( _GetSystemMetrics( SM_CXSCREEN ) - 505 ) / 2 ), ( ( _GetSystemMetrics( SM_CYSCREEN ) - 405 ) / 2 ), 505, 405, NULL, NULL, NULL, NULL );
+							}
+							else if ( _IsIconic( g_hWnd_update_download ) )	// If minimized, then restore the window.
+							{
+								_ShowWindow( g_hWnd_update_download, SW_RESTORE );
+							}
+
+							SendMessageW( g_hWnd_update_download, WM_PROPAGATE, 0, lvi.lParam );
+						}
+					}
+				}
+				break;
+
 				case MENU_QUEUE_TOP:
 				case MENU_QUEUE_UP:
 				case MENU_QUEUE_DOWN:
@@ -779,6 +807,12 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 				case MENU_REMOVE_SELECTED:
 				{
 					CloseHandle( ( HANDLE )_CreateThread( NULL, 0, remove_items, ( void * )NULL, 0, NULL ) );
+				}
+				break;
+
+				case MENU_COPY_URLS:
+				{
+					CloseHandle( ( HANDLE )_CreateThread( NULL, 0, copy_urls, ( void * )NULL, 0, NULL ) );
 				}
 				break;
 
@@ -860,11 +894,35 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 				}
 				break;
 
+				case MENU_HOME_PAGE:
+				{
+					bool destroy = true;
+					#ifndef OLE32_USE_STATIC_LIB
+						if ( ole32_state == OLE32_STATE_SHUTDOWN )
+						{
+							destroy = InitializeOle32();
+						}
+					#endif
+
+					if ( destroy )
+					{
+						_CoInitializeEx( NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE );
+					}
+
+					_ShellExecuteW( NULL, L"open", HOME_PAGE, NULL, NULL, SW_SHOWNORMAL );
+
+					if ( destroy )
+					{
+						_CoUninitialize();
+					}
+				}
+				break;
+
 				case MENU_ABOUT:
 				{
 					wchar_t msg[ 512 ];
 					__snwprintf( msg, 512, L"HTTP Downloader is made free under the GPLv3 license.\r\n\r\n" \
-										   L"Version 1.0.0.5\r\n\r\n" \
+										   L"Version 1.0.0.6\r\n\r\n" \
 										   L"Built on %s, %s %d, %04d %d:%02d:%02d %s (UTC)\r\n\r\n" \
 										   L"Copyright \xA9 2015-2018 Eric Kutcher", GetDay( g_compile_time.wDayOfWeek ), GetMonth( g_compile_time.wMonth ), g_compile_time.wDay, g_compile_time.wYear, ( g_compile_time.wHour > 12 ? g_compile_time.wHour - 12 : ( g_compile_time.wHour != 0 ? g_compile_time.wHour : 12 ) ), g_compile_time.wMinute, g_compile_time.wSecond, ( g_compile_time.wHour >= 12 ? L"PM" : L"AM" ) );
 
@@ -1451,7 +1509,14 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 
 								buf = tbuf;	// Reset the buffer pointer.
 
-								__snwprintf( buf, 128, L"%lu/%lu", di->active_parts, di->parts );
+								if ( di->parts_limit > 0 )
+								{
+									__snwprintf( buf, 128, L"%lu/%lu/%lu", di->active_parts, di->parts_limit, di->parts );
+								}
+								else
+								{
+									__snwprintf( buf, 128, L"%lu/%lu", di->active_parts, di->parts );
+								}
 							}
 							break;
 
@@ -2052,6 +2117,12 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 				_ShowWindow( g_hWnd_options, SW_HIDE );
 			}
 
+			if ( g_hWnd_update_download != NULL )
+			{
+				_EnableWindow( g_hWnd_update_download, FALSE );
+				_ShowWindow( g_hWnd_update_download, SW_HIDE );
+			}
+
 			_ShowWindow( hWnd, SW_HIDE );
 
 			g_end_program = true;
@@ -2099,6 +2170,11 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 				_DestroyWindow( g_hWnd_options );
 			}
 
+			if ( g_hWnd_update_download != NULL )
+			{
+				_DestroyWindow( g_hWnd_update_download );
+			}
+
 			if ( cfg_enable_download_history && download_history_changed )
 			{
 				_wmemcpy_s( base_directory + base_directory_length, MAX_PATH - base_directory_length, L"\\download_history\0", 18 );
@@ -2141,6 +2217,15 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 					{
 						DoublyLinkedList *range_node = di->range_list;
 						di->range_list = di->range_list->next;
+
+						GlobalFree( range_node->data );
+						GlobalFree( range_node );
+					}
+
+					while ( di->range_queue != NULL )
+					{
+						DoublyLinkedList *range_node = di->range_queue;
+						di->range_queue = di->range_queue->next;
 
 						GlobalFree( range_node->data );
 						GlobalFree( range_node );

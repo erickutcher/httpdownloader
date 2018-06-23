@@ -37,7 +37,7 @@
 	//#define _CharUpperA			CharUpperA
 	#define _CheckMenuItem			CheckMenuItem
 	#define _ClientToScreen			ClientToScreen
-	//#define _CloseClipboard			CloseClipboard
+	#define _CloseClipboard			CloseClipboard
 	#define _CreateMenu				CreateMenu
 	#define _CreatePopupMenu		CreatePopupMenu
 	#define _CreateWindowExW		CreateWindowExW
@@ -51,7 +51,7 @@
 	#define _DrawIconEx				DrawIconEx
 	//#define _DrawMenuBar			DrawMenuBar
 	#define _DrawTextW				DrawTextW
-	//#define _EmptyClipboard			EmptyClipboard
+	#define _EmptyClipboard			EmptyClipboard
 	#define _EnableMenuItem			EnableMenuItem
 	#define _EnableWindow			EnableWindow
 	#define _EndDeferWindowPos		EndDeferWindowPos
@@ -90,7 +90,7 @@
 	#define _MessageBoxA			MessageBoxA
 	#define _MessageBoxW			MessageBoxW
 	#define _OffsetRect				OffsetRect
-	//#define _OpenClipboard			OpenClipboard
+	#define _OpenClipboard			OpenClipboard
 	#define _PostMessageW			PostMessageW
 	#define _PostQuitMessage		PostQuitMessage
 	#define _RegisterClassExW		RegisterClassExW
@@ -105,7 +105,7 @@
 	//#define _SendNotifyMessageW		SendNotifyMessageW
 	//#define _SetCapture				SetCapture
 	//#define _SetClassLongPtrW		SetClassLongPtrW
-	//#define _SetClipboardData		SetClipboardData
+	#define _SetClipboardData		SetClipboardData
 	#define _SetCursor				SetCursor
 	#define _SetFocus				SetFocus
 	#define _SetForegroundWindow	SetForegroundWindow
@@ -139,7 +139,7 @@
 	//typedef LPSTR ( WINAPI *pCharUpperA )( LPSTR lpsz );
 	typedef DWORD ( WINAPI *pCheckMenuItem )( HMENU hmenu, UINT uIDCheckItem, UINT uCheck );
 	typedef BOOL ( WINAPI *pClientToScreen )( HWND hWnd, LPPOINT lpPoint );
-	//typedef BOOL ( WINAPI *pCloseClipboard )( void );
+	typedef BOOL ( WINAPI *pCloseClipboard )( void );
 	typedef HMENU ( WINAPI *pCreateMenu )( void );
 	typedef HMENU ( WINAPI *pCreatePopupMenu )( void );
 	typedef HWND ( WINAPI *pCreateWindowExW )( DWORD dwExStyle, LPCTSTR lpClassName, LPCTSTR lpWindowName, DWORD dwStyle, int x, int y, int nWidth, int nHeight, HWND hWndParent, HMENU hMenu, HINSTANCE hInstance, LPVOID lpParam );
@@ -153,7 +153,7 @@
 	typedef BOOL ( WINAPI *pDrawIconEx )( HDC hdc, int xLeft, int yTop, HICON hIcon, int cxWidth, int cyWidth, UINT istepIfAniCur, HBRUSH hbrFlickerFreeDraw, UINT diFlags );
 	//typedef BOOL ( WINAPI *pDrawMenuBar )( HWND hWnd );
 	typedef int ( WINAPI *pDrawTextW )( HDC hDC, LPCTSTR lpchText, int nCount, LPRECT lpRect, UINT uFormat );
-	//typedef BOOL ( WINAPI *pEmptyClipboard )( void );
+	typedef BOOL ( WINAPI *pEmptyClipboard )( void );
 	typedef BOOL ( WINAPI *pEnableMenuItem )( HMENU hMenu, UINT uIDEnableItem, UINT uEnable );
 	typedef BOOL ( WINAPI *pEnableWindow )( HWND hWnd, BOOL bEnable );
 	typedef BOOL ( WINAPI *pEndDeferWindowPos )( HDWP hWinPosInfo );
@@ -192,9 +192,7 @@
 	typedef int ( WINAPI *pMessageBoxA )( HWND hWnd, LPCSTR lpText, LPCSTR lpCaption, UINT uType );
 	typedef int ( WINAPI *pMessageBoxW )( HWND hWnd, LPCTSTR lpText, LPCTSTR lpCaption, UINT uType );
 	typedef BOOL ( WINAPI *pOffsetRect )( LPRECT lprc, int dx, int dy );
-	typedef int ( WINAPI *pSetScrollInfo )( HWND hwnd, int fnBar, LPCSCROLLINFO lpsi, BOOL fRedraw );
-	typedef int ( WINAPI *pSetScrollPos )( HWND hWnd, int nBar, int nPos, BOOL bRedraw );
-	//typedef BOOL ( WINAPI *pOpenClipboard )( HWND hWndNewOwner );
+	typedef BOOL ( WINAPI *pOpenClipboard )( HWND hWndNewOwner );
 	typedef BOOL ( WINAPI *pPostMessageW )( HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lParam );
 	typedef VOID ( WINAPI *pPostQuitMessage )( int nExitCode );
 	typedef ATOM ( WINAPI *pRegisterClassExW )( const WNDCLASSEX *lpwcx );
@@ -209,7 +207,7 @@
 	//typedef BOOL ( WINAPI *pSendNotifyMessageW )( HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lParam );
 	//typedef HWND ( WINAPI *pSetCapture )( HWND hWnd );
 	//typedef ULONG_PTR WINAPI ( WINAPI *pSetClassLongPtrW )( HWND hWnd, int nIndex, LONG_PTR dwNewLong );
-	//typedef HANDLE ( WINAPI *pSetClipboardData )( UINT uFormat, HANDLE hMem );
+	typedef HANDLE ( WINAPI *pSetClipboardData )( UINT uFormat, HANDLE hMem );
 	typedef HCURSOR ( WINAPI *pSetCursor )( HCURSOR hCursor );
 	typedef HWND ( WINAPI *pSetFocus )( HWND hWnd );
 	typedef BOOL ( WINAPI *pSetForegroundWindow )( HWND hWnd );
@@ -217,6 +215,8 @@
 	typedef BOOL ( WINAPI *pSetMenu )( HWND hWnd, HMENU hMenu );
 	//typedef BOOL ( WINAPI *pSetMenuItemInfoW )( HMENU hMenu, UINT uItem, BOOL fByPosition, LPMENUITEMINFO lpmii );
 	//typedef BOOL ( WINAPI *pSetRect )( LPRECT lprc, int xLeft, int yTop, int xRight, int yBottom );
+	typedef int ( WINAPI *pSetScrollInfo )( HWND hwnd, int fnBar, LPCSCROLLINFO lpsi, BOOL fRedraw );
+	typedef int ( WINAPI *pSetScrollPos )( HWND hWnd, int nBar, int nPos, BOOL bRedraw );
 	typedef UINT_PTR ( WINAPI *pSetTimer )( HWND hWnd, UINT_PTR nIDEvent, UINT uElapse, TIMERPROC lpTimerFunc );
 	typedef LONG ( WINAPI *pSetWindowLongW )( HWND hWnd, int nIndex, LONG dwNewLong );
 	typedef BOOL ( WINAPI *pSetWindowPos )( HWND hWnd, HWND hWndInsertAfter, int X, int Y, int cx, int cy, UINT uFlags );
@@ -234,7 +234,7 @@
 	//extern pCharUpperA			_CharUpperA;
 	extern pCheckMenuItem			_CheckMenuItem;
 	extern pClientToScreen			_ClientToScreen;
-	//extern pCloseClipboard			_CloseClipboard;
+	extern pCloseClipboard			_CloseClipboard;
 	extern pCreateMenu				_CreateMenu;
 	extern pCreatePopupMenu			_CreatePopupMenu;
 	extern pCreateWindowExW			_CreateWindowExW;
@@ -248,7 +248,7 @@
 	extern pDrawIconEx				_DrawIconEx;
 	//extern pDrawMenuBar				_DrawMenuBar;
 	extern pDrawTextW				_DrawTextW;
-	//extern pEmptyClipboard			_EmptyClipboard;
+	extern pEmptyClipboard			_EmptyClipboard;
 	extern pEnableMenuItem			_EnableMenuItem;
 	extern pEnableWindow			_EnableWindow;
 	extern pEndDeferWindowPos		_EndDeferWindowPos;
@@ -287,9 +287,7 @@
 	extern pMessageBoxA				_MessageBoxA;
 	extern pMessageBoxW				_MessageBoxW;
 	extern pOffsetRect				_OffsetRect;
-	extern pSetScrollInfo			_SetScrollInfo;
-	extern pSetScrollPos			_SetScrollPos
-	//extern pOpenClipboard			_OpenClipboard;
+	extern pOpenClipboard			_OpenClipboard;
 	extern pPostMessageW			_PostMessageW;
 	extern pPostQuitMessage			_PostQuitMessage;
 	extern pRegisterClassExW		_RegisterClassExW;
@@ -304,7 +302,7 @@
 	//extern pSendNotifyMessageW		_SendNotifyMessageW;
 	//extern pSetCapture				_SetCapture;
 	//extern pSetClassLongPtrW		_SetClassLongPtrW;
-	//extern pSetClipboardData		_SetClipboardData;
+	extern pSetClipboardData		_SetClipboardData;
 	extern pSetCursor				_SetCursor;
 	extern pSetFocus				_SetFocus;
 	extern pSetForegroundWindow		_SetForegroundWindow;
@@ -312,6 +310,8 @@
 	extern pSetMenu					_SetMenu;
 	//extern pSetMenuItemInfoW		_SetMenuItemInfoW;
 	//extern pSetRect					_SetRect;
+	extern pSetScrollInfo			_SetScrollInfo;
+	extern pSetScrollPos			_SetScrollPos
 	extern pSetTimer				_SetTimer;
 	extern pSetWindowLongW			_SetWindowLongW;
 	extern pSetWindowPos			_SetWindowPos;

@@ -1195,7 +1195,16 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 			{
 				if ( *current_operation == IO_Connect )	// We couldn't establish a connection.
 				{
-					context->timed_out = TIME_OUT_RETRY;
+					EnterCriticalSection( &context->context_cs );
+
+					if ( context->status != STATUS_STOPPED &&
+						 context->status != STATUS_STOP_AND_REMOVE &&
+						 context->status != STATUS_UPDATING )		// Stop, Stop and Remove, or Updating.
+					{
+						context->timed_out = TIME_OUT_RETRY;
+					}
+
+					LeaveCriticalSection( &context->context_cs );
 				}
 
 				*current_operation = IO_Close;//( use_ssl ? IO_Shutdown : IO_Close );
@@ -1224,8 +1233,11 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 				{
 					bool skip_process = false;
 
+					EnterCriticalSection( &context->context_cs );
+
 					if ( context->status == STATUS_STOPPED ||
-						 context->status == STATUS_STOP_AND_REMOVE )	// Stop or Stop and Remove.
+						 context->status == STATUS_STOP_AND_REMOVE ||
+						 context->status == STATUS_UPDATING )		// Stop, Stop and Remove, or Updating.
 					{
 						if ( *current_operation != IO_GetContent )
 						{
@@ -1241,8 +1253,12 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 					{
 						context->current_bytes_read = io_size;
 
+						context->is_paused = true;	// Tells us how to stop the download if it's pausing/paused.
+
 						skip_process = true;
 					}
+
+					LeaveCriticalSection( &context->context_cs );
 
 					if ( skip_process )
 					{
@@ -2346,66 +2362,6 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 
 				if ( cleanup )
 				{
-					// Attempt to connect to a new address if we time out.
-					if ( context->timed_out == TIME_OUT_RETRY && 
-						 context->address_info != NULL &&
-						 context->address_info->ai_next != NULL )
-					{
-						if ( context->socket != INVALID_SOCKET )
-						{
-							_shutdown( context->socket, SD_BOTH );
-							_closesocket( context->socket );
-							context->socket = INVALID_SOCKET;
-						}
-
-						if ( context->ssl != NULL )
-						{
-							SSL_free( context->ssl );
-							context->ssl = NULL;
-						}
-
-						addrinfoW *old_address_info = context->address_info;
-						context->address_info = context->address_info->ai_next;
-						old_address_info->ai_next = NULL;
-
-						_FreeAddrInfoW( old_address_info );
-
-						// If we're going to restart the download, then we need to reset these values.
-						context->header_info.chunk_length = 0;
-						context->header_info.end_of_header = NULL;
-						context->header_info.http_status = 0;
-						context->header_info.connection = CONNECTION_NONE;
-						context->header_info.content_encoding = CONTENT_ENCODING_NONE;
-						context->header_info.chunked_transfer = false;
-						//context->header_info.etag = false;
-						context->header_info.got_chunk_start = false;
-						context->header_info.got_chunk_terminator = false;
-
-						context->header_info.range_info->content_length = 0;	// We must reset this to get the real request length (not the length of the 401/407 request).
-
-						if ( context->header_info.range_info != NULL )
-						{
-							context->header_info.range_info->range_start += context->header_info.range_info->content_offset;	// Begin where we left off.
-							context->header_info.range_info->content_offset = 0;	// Reset.
-						}
-
-						context->content_status = CONTENT_STATUS_NONE;
-
-						context->timed_out = TIME_OUT_FALSE;
-
-						context->status = STATUS_CONNECTING;
-
-						// Connect to the remote server.
-						if ( !CreateConnection( context, context->request_info.host, context->request_info.port ) )
-						{
-							context->status = STATUS_FAILED;
-						}
-						else
-						{
-							break;
-						}
-					}
-
 					CleanupConnection( context );
 				}
 			}
@@ -2639,11 +2595,23 @@ void UpdateRangeList( DOWNLOAD_INFO *di )
 			}
 		}
 
-		// Can we split any remaining parts to fill the total?
-		if ( range_info_count > 0 && range_info_count < di->parts )
+		unsigned char total_rem_parts;
+		unsigned char parts;
+
+		if ( di->parts_limit > 0 )
 		{
-			unsigned char total_rem_parts = di->parts;
-			unsigned char parts = di->parts;
+			total_rem_parts = di->parts_limit;
+			parts = di->parts_limit;
+		}
+		else
+		{
+			total_rem_parts = di->parts;
+			parts = di->parts;
+		}
+
+		// Can we split any remaining parts to fill the total?
+		if ( range_info_count > 0 && range_info_count < parts )
+		{
 			unsigned char rem_parts = 0;
 
 			// Avoids having to do a mod to get the remainder.
@@ -2902,6 +2870,18 @@ void StartDownload( DOWNLOAD_INFO *di, bool check_if_file_exists )
 
 	EnterCriticalSection( &cleanup_cs );
 
+	// Move all queued ranges to our active list.
+	// We'll queue what needs to be queued in the loop below, but after we've updated the range list.
+	if ( di->range_queue != NULL )
+	{
+		DoublyLinkedList *last_queue_node = ( di->range_queue->prev != NULL ? di->range_queue->prev : di->range_queue );
+		DoublyLinkedList *last_list_node = ( di->range_list->prev != NULL ? di->range_list->prev : di->range_list );
+
+		di->range_queue->prev = last_list_node;
+		last_list_node->next = di->range_queue;
+		di->range_list->prev = last_queue_node;
+	}
+
 	// If the number of ranges is less than the total number of parts that's been set for the download,
 	// then the remaining ranges will be split to equal the total number of parts.
 	UpdateRangeList( di );
@@ -2915,6 +2895,41 @@ void StartDownload( DOWNLOAD_INFO *di, bool check_if_file_exists )
 		// Check if our range still needs to download.
 		if ( ri != NULL && ( ri->content_offset < ( ( ri->range_end - ri->range_start ) + 1 ) ) )
 		{
+			// Split the remaining range_list off into the range_queue.
+			if ( di->parts_limit > 0 && part > di->parts_limit )
+			{
+				DoublyLinkedList *last_list_node = di->range_list->prev;
+
+				if ( di->range_list == range_node->prev )
+				{
+					di->range_list->prev = NULL;
+					di->range_list->next = NULL;
+				}
+				else
+				{
+					di->range_list->prev = range_node->prev;
+
+					if ( range_node->prev != NULL )
+					{
+						di->range_list->prev->next = NULL;
+					}
+				}
+
+				di->range_queue = range_node;
+
+				if ( di->range_queue == last_list_node )
+				{
+					di->range_queue->prev = NULL;
+					di->range_queue->next = NULL;	// This should already be NULL.
+				}
+				else
+				{
+					di->range_queue->prev = last_list_node;
+				}
+
+				break;
+			}
+
 			// Check the state of our downloads/queue once.
 			if ( add_state == 0 )
 			{
@@ -2923,7 +2938,7 @@ void StartDownload( DOWNLOAD_INFO *di, bool check_if_file_exists )
 					add_state = 1;	// Create the connection.
 
 					// Set the start time only if we've manually started the download.
-					if ( di->retries == 0 )
+					if ( di->start_time.QuadPart == 0 )
 					{
 						FILETIME ft;
 						GetSystemTimeAsFileTime( &ft );
@@ -3070,6 +3085,7 @@ void StartDownload( DOWNLOAD_INFO *di, bool check_if_file_exists )
 			}
 
 			++part;
+
 			range_node = range_node->next;
 		}
 		else	// Remove the range if there's nothing to download.
@@ -3620,6 +3636,75 @@ void StartQueuedItem()
 	LeaveCriticalSection( &download_queue_cs );
 }
 
+
+bool RetryTimedOut( SOCKET_CONTEXT *context )
+{
+	// Attempt to connect to a new address if we time out.
+	if ( context != NULL &&
+		 context->timed_out == TIME_OUT_RETRY && 
+		 context->address_info != NULL &&
+		 context->address_info->ai_next != NULL )
+	{
+		if ( context->socket != INVALID_SOCKET )
+		{
+			_shutdown( context->socket, SD_BOTH );
+			_closesocket( context->socket );
+			context->socket = INVALID_SOCKET;
+		}
+
+		if ( context->ssl != NULL )
+		{
+			SSL_free( context->ssl );
+			context->ssl = NULL;
+		}
+
+		addrinfoW *old_address_info = context->address_info;
+		context->address_info = context->address_info->ai_next;
+		old_address_info->ai_next = NULL;
+
+		_FreeAddrInfoW( old_address_info );
+
+		// If we're going to restart the download, then we need to reset these values.
+		context->header_info.chunk_length = 0;
+		context->header_info.end_of_header = NULL;
+		context->header_info.http_status = 0;
+		context->header_info.connection = CONNECTION_NONE;
+		context->header_info.content_encoding = CONTENT_ENCODING_NONE;
+		context->header_info.chunked_transfer = false;
+		//context->header_info.etag = false;
+		context->header_info.got_chunk_start = false;
+		context->header_info.got_chunk_terminator = false;
+
+		if ( context->header_info.range_info != NULL )
+		{
+			context->header_info.range_info->content_length = 0;	// We must reset this to get the real request length (not the length of the 401/407 request).
+
+			context->header_info.range_info->range_start += context->header_info.range_info->content_offset;	// Begin where we left off.
+			context->header_info.range_info->content_offset = 0;	// Reset.
+		}
+
+		context->content_status = CONTENT_STATUS_NONE;
+
+		context->timed_out = TIME_OUT_FALSE;
+
+		context->status = STATUS_CONNECTING;
+
+		context->cleanup = 0;	// Reset. Can only be set in CleanupConnection and if there's no more pending operations.
+
+		// Connect to the remote server.
+		if ( !CreateConnection( context, context->request_info.host, context->request_info.port ) )
+		{
+			context->status = STATUS_FAILED;
+		}
+		else
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
 void CleanupConnection( SOCKET_CONTEXT *context )
 {
 	if ( context != NULL )
@@ -3653,6 +3738,13 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 		LeaveCriticalSection( &context->context_cs );
 
 		if ( skip_cleanup )
+		{
+			return;
+		}
+
+		// Check if our context timed out and if it has any additional addresses to connect to.
+		// If it does, then reuse the context and connect to the new address.
+		if ( RetryTimedOut( context ) )
 		{
 			return;
 		}
@@ -3721,10 +3813,10 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 					context->header_info.got_chunk_start = false;
 					context->header_info.got_chunk_terminator = false;
 
-					context->header_info.range_info->content_length = 0;	// We must reset this to get the real request length (not the length of the 401/407 request).
-
 					if ( context->header_info.range_info != NULL )
 					{
+						context->header_info.range_info->content_length = 0;	// We must reset this to get the real request length (not the length of the 401/407 request).
+
 						context->header_info.range_info->range_start += context->header_info.range_info->content_offset;	// Begin where we left off.
 						context->header_info.range_info->content_offset = 0;	// Reset.
 					}
@@ -3737,6 +3829,8 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 					context->timed_out = TIME_OUT_FALSE;
 
 					context->status = STATUS_CONNECTING;
+
+					context->cleanup = 0;	// Reset. Can only be set in CleanupConnection and if there's no more pending operations.
 
 					// Connect to the remote server.
 					if ( !CreateConnection( context, context->request_info.host, context->request_info.port ) )
@@ -3774,7 +3868,7 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 
 					DLL_RemoveNode( &context->download_info->parts_list, &context->parts_node );
 
-					// Let's not remove the range info if the parts hasn't completed.
+					// Let's not remove the range info if the part hasn't completed.
 					if ( !incomplete_part )
 					{
 						DLL_RemoveNode( &context->download_info->range_list, context->range_node );
@@ -3784,7 +3878,98 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 
 					if ( context->download_info->active_parts > 0 )
 					{
-						--context->download_info->active_parts;
+						// If incomplete_part is tested below and is true and the new range fails, then the download will stop.
+						// If incomplete_part is not tested, then all queued ranges will be tried until they either all succeed or all fail.
+						if ( /*!incomplete_part &&*/
+							 context->status != STATUS_STOPPED &&
+							 context->status != STATUS_STOP_AND_REMOVE &&
+							 context->status != STATUS_UPDATING &&
+							 context->download_info->range_queue != NULL )
+						{
+							DoublyLinkedList *range_queue_node = context->download_info->range_queue;
+
+							DLL_RemoveNode( &context->download_info->range_queue, range_queue_node );
+							range_queue_node->prev = NULL;
+							range_queue_node->next = NULL;
+
+							DLL_AddNode( &context->download_info->range_list, range_queue_node, -1 );
+
+							context->retries = 0;
+
+							if ( context->socket != INVALID_SOCKET )
+							{
+								_shutdown( context->socket, SD_BOTH );
+								_closesocket( context->socket );
+								context->socket = INVALID_SOCKET;
+							}
+
+							if ( context->ssl != NULL )
+							{
+								SSL_free( context->ssl );
+								context->ssl = NULL;
+							}
+
+							EnterCriticalSection( &context_list_cs );
+
+							DLL_AddNode( &g_context_list, &context->context_node, 0 );
+
+							LeaveCriticalSection( &context_list_cs );
+
+							context->range_node = range_queue_node;
+
+							// If we're going to restart the download, then we need to reset these values.
+							context->header_info.chunk_length = 0;
+							context->header_info.end_of_header = NULL;
+							context->header_info.http_status = 0;
+							context->header_info.connection = CONNECTION_NONE;
+							context->header_info.content_encoding = CONTENT_ENCODING_NONE;
+							context->header_info.chunked_transfer = false;
+							//context->header_info.etag = false;
+							context->header_info.got_chunk_start = false;
+							context->header_info.got_chunk_terminator = false;
+
+							context->header_info.range_info = ( RANGE_INFO * )range_queue_node->data;
+
+							if ( context->header_info.range_info != NULL )
+							{
+								context->header_info.range_info->content_length = 0;	// We must reset this to get the real request length (not the length of the 401/407 request).
+
+								context->header_info.range_info->range_start += context->header_info.range_info->content_offset;	// Begin where we left off.
+								context->header_info.range_info->content_offset = 0;	// Reset.
+							}
+
+							context->content_status = CONTENT_STATUS_NONE;
+
+							context->timed_out = TIME_OUT_FALSE;
+
+							context->status = STATUS_CONNECTING;
+
+							context->cleanup = 0;	// Reset. Can only be set in CleanupConnection and if there's no more pending operations.
+
+							// Connect to the remote server.
+							if ( !CreateConnection( context, context->request_info.host, context->request_info.port ) )
+							{
+								context->status = STATUS_FAILED;
+
+								EnterCriticalSection( &context_list_cs );
+
+								DLL_RemoveNode( &g_context_list, &context->context_node );
+
+								LeaveCriticalSection( &context_list_cs );
+
+								--context->download_info->active_parts;
+
+								retry_context_connection = false;
+							}
+							else
+							{
+								retry_context_connection = true;
+							}
+						}
+						else
+						{
+							--context->download_info->active_parts;
+						}
 
 						// There are no more active connections.
 						if ( context->download_info->active_parts == 0 )
@@ -3806,7 +3991,7 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 								range_node = range_node->next;
 							}*/
 
-							bool incomplete_download = ( context->download_info->range_list != NULL ? true : false );
+							bool incomplete_download = ( ( context->download_info->range_list != NULL || context->download_info->range_queue != NULL ) ? true : false );
 
 							if ( incomplete_download )
 							{
@@ -3911,6 +4096,15 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 									GlobalFree( range_node );
 								}
 
+								while ( context->download_info->range_queue != NULL )
+								{
+									DoublyLinkedList *range_node = context->download_info->range_queue;
+									context->download_info->range_queue = context->download_info->range_queue->next;
+
+									GlobalFree( range_node->data );
+									GlobalFree( range_node );
+								}
+
 								DeleteCriticalSection( &context->download_info->shared_cs );
 
 								GlobalFree( context->download_info );
@@ -3927,9 +4121,13 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 										StartDownload( context->download_info, false );
 									}
 								}
+								else if ( context->download_info->status == STATUS_UPDATING )
+								{
+									StartDownload( context->download_info, false );
+								}
 								else if ( context->download_info->status == STATUS_COMPLETED )
 								{
-									// All of this is safe to clean up when the download state is complete.
+									/*// All of this is safe to clean up when the download state is complete.
 									// For every other state we'll keep these in case we want to resume/restart the download.
 
 									GlobalFree( context->download_info->cookies );
@@ -3941,12 +4139,21 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 									GlobalFree( context->download_info->auth_info.username );
 									context->download_info->auth_info.username = NULL;
 									GlobalFree( context->download_info->auth_info.password );
-									context->download_info->auth_info.password = NULL;
+									context->download_info->auth_info.password = NULL;*/
 
 									while ( context->download_info->range_list != NULL )
 									{
 										DoublyLinkedList *range_node = context->download_info->range_list;
 										context->download_info->range_list = context->download_info->range_list->next;
+
+										GlobalFree( range_node->data );
+										GlobalFree( range_node );
+									}
+
+									while ( context->download_info->range_queue != NULL )
+									{
+										DoublyLinkedList *range_node = context->download_info->range_queue;
+										context->download_info->range_queue = context->download_info->range_queue->next;
 
 										GlobalFree( range_node->data );
 										GlobalFree( range_node );

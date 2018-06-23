@@ -45,6 +45,7 @@
 #define STATUS_SKIPPED				11
 #define STATUS_AUTH_REQUIRED		12
 #define STATUS_PROXY_AUTH_REQUIRED	13
+#define STATUS_UPDATING				14
 #define STATUS_ALLOCATING_FILE		100
 
 #define CONNECTION_NONE			0
@@ -277,6 +278,8 @@ struct SOCKET_CONTEXT
 	bool				is_allocated;
 
 	bool				processed_header;
+
+	bool				is_paused;			// The last IO has completed while status is in the paused state.
 };
 
 struct ADD_INFO
@@ -308,7 +311,8 @@ struct DOWNLOAD_INFO
 	AUTH_CREDENTIALS	auth_info;
 	wchar_t				*url;
 	wchar_t				*w_add_time;
-	DoublyLinkedList	*range_list;		// The ranges that make up each download part.
+	DoublyLinkedList	*range_list;		// Active ranges that make up each download part.
+	DoublyLinkedList	*range_queue;		// Inactive ranges that make up each download part.
 	DoublyLinkedList	*parts_list;		// The contexts that make up each download part.
 	HICON				*icon;
 	char				*cookies;
@@ -319,6 +323,7 @@ struct DOWNLOAD_INFO
 	unsigned int		file_extension_offset;
 	unsigned char		parts;
 	unsigned char		active_parts;
+	unsigned char		parts_limit;		// This is set if we reduce an active download's parts number.
 	unsigned char		status;
 	unsigned char		retries;			// The number of times a download has been retried.
 	unsigned char		download_operations;
@@ -401,7 +406,7 @@ extern DoublyLinkedList *download_queue;
 
 extern DoublyLinkedList *active_download_list;
 
-extern DoublyLinkedList *file_size_prompt_list;	// List of downloads that need to be prompted to continue.
+extern DoublyLinkedList *file_size_prompt_list;		// List of downloads that need to be prompted to continue.
 
 extern DoublyLinkedList *rename_file_prompt_list;	// List of downloads that need to be prompted to continue.
 
@@ -411,6 +416,8 @@ extern int g_file_size_cmb_ret;		// Message box prompt for large files sizes.
 extern bool rename_file_prompt_active;
 extern int g_rename_file_cmb_ret;	// Message box prompt to rename files.
 extern int g_rename_file_cmb_ret2;	// Message box prompt to rename files.
+
+extern DOWNLOAD_INFO *g_update_download_info;		// The current item that we want to update.
 
 // Server
 

@@ -74,6 +74,8 @@
 #define PROGRAM_CAPTION		L"HTTP Downloader"
 #define PROGRAM_CAPTION_A	"HTTP Downloader"
 
+#define HOME_PAGE			L"https://erickutcher.github.io/#HTTP_Downloader"
+
 #define SIZE_FORMAT_BYTE		0
 #define SIZE_FORMAT_KILOBYTE	1
 #define SIZE_FORMAT_MEGABYTE	2
@@ -106,6 +108,7 @@ union QFILETIME
 extern HWND g_hWnd_main;				// Handle to our main window.
 extern HWND g_hWnd_add_urls;
 extern HWND g_hWnd_options;
+extern HWND g_hWnd_update_download;
 
 extern HWND g_hWnd_files;
 

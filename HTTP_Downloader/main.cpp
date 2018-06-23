@@ -528,6 +528,15 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 		goto CLEANUP;
 	}
 
+	wcex.lpfnWndProc    = UpdateDownloadWndProc;
+	wcex.lpszClassName  = L"update_download";
+
+	if ( !_RegisterClassExW( &wcex ) )
+	{
+		fail_type = 1;
+		goto CLEANUP;
+	}
+
 	wcex.hIcon			= NULL;
 	wcex.hbrBackground  = ( HBRUSH )( COLOR_WINDOWFRAME );
 

@@ -480,7 +480,20 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 						}
 
 						// ai is freed in AddURL.
-						CloseHandle( _CreateThread( NULL, 0, AddURL, ( void * )ai, 0, NULL ) );
+						HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, AddURL, ( void * )ai, 0, NULL );
+						if ( thread != NULL )
+						{
+							CloseHandle( thread );
+						}
+						else
+						{
+							GlobalFree( ai->utf8_headers );
+							GlobalFree( ai->utf8_cookies );
+							GlobalFree( ai->auth_info.username );
+							GlobalFree( ai->auth_info.password );
+							GlobalFree( ai->urls );
+							GlobalFree( ai );
+						}
 					}
 
 					_SendMessageW( hWnd, WM_CLOSE, 0, 0 );

@@ -81,6 +81,7 @@ wchar_t *menu_string_table[] =
 	L"&View",
 	L"Active Parts",
 	L"Add URL(s)...",
+	L"Copy URL(s)",
 	L"Date and Time Added",
 	L"Download Directory",
 	L"Download Speed",
@@ -90,6 +91,7 @@ wchar_t *menu_string_table[] =
 	L"File Size",
 	L"File Type",
 	L"Filename",
+	L"HTTP Downloader &Home Page",
 	L"Move Down",
 	L"Move To Bottom",
 	L"Move To Top",
@@ -114,6 +116,7 @@ wchar_t *menu_string_table[] =
 	L"Time Elapsed",
 	L"Time Remaining",
 	L"TLS / SSL Version",
+	L"Update Download...",
 	L"URL"
 };
 
@@ -213,7 +216,10 @@ wchar_t *common_string_table[] =
 	L"Total downloaded: 0 B",
 	L"Total downloaded: 0.00 GB",
 	L"Total downloaded: 0.00 KB",
-	L"Total downloaded: 0.00 MB"
+	L"Total downloaded: 0.00 MB",
+	L"URL:",
+	L"Update",
+	L"Update Download"
 };
 
 wchar_t *common_message_string_table[] =
@@ -223,6 +229,7 @@ wchar_t *common_message_string_table[] =
 	L"A restart is required to update the thread pool count.",
 	L"Select the default download directory.",
 	L"Select the download directory.",
+	L"The download will be resumed after it's updated.",
 	L"The specified file was not found.\r\n\r\nDo you want to download the file again?",
 	L"The specified path was not found.",
 	L"You must supply a download directory."

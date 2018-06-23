@@ -317,6 +317,10 @@
 				RelativePath=".\wnd_proc_options.cpp"
 				>
 			</File>
+			<File
+				RelativePath=".\wnd_proc_update_download.cpp"
+				>
+			</File>
 			<Filter
 				Name="asm"
 				>
