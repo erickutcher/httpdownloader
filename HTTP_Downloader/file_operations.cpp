@@ -39,11 +39,11 @@ char read_config()
 		DWORD read = 0, pos = 0;
 		DWORD fz = GetFileSize( hFile_cfg, NULL );
 
-		int reserved = 1024 - 143;
+		int reserved = 1024 - 144;
 
 		// Our config file is going to be small. If it's something else, we're not going to read it.
 		// Add 21 for the strings.
-		if ( fz >= ( 143 + 21 ) && fz < 10240 )
+		if ( fz >= ( 144 + 21 ) && fz < 10240 )
 		{
 			char *cfg_buf = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * fz + 1 );
 
@@ -232,6 +232,11 @@ char read_config()
 
 				_memcpy_s( &cfg_port_s, sizeof( unsigned short ), next, sizeof( unsigned short ) );
 				next += sizeof( unsigned short );
+
+				//
+
+				_memcpy_s( &cfg_set_filetime, sizeof( bool ), next, sizeof( bool ) );
+				next += sizeof( bool );
 
 				//
 
@@ -688,15 +693,15 @@ char save_config()
 	HANDLE hFile_cfg = CreateFile( base_directory, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL );
 	if ( hFile_cfg != INVALID_HANDLE_VALUE )
 	{
-		int reserved = 1024 - 143;
-		int size = ( sizeof( int ) * 18 ) + ( sizeof( unsigned short ) * 4 ) + ( sizeof( char ) * 35 ) + ( sizeof( bool ) * 12 ) + ( sizeof( unsigned long ) * 4 ) + reserved;
+		int reserved = 1024 - 144;
+		int size = ( sizeof( int ) * 18 ) + ( sizeof( unsigned short ) * 4 ) + ( sizeof( char ) * 35 ) + ( sizeof( bool ) * 13 ) + ( sizeof( unsigned long ) * 4 ) + reserved;
 		int pos = 0;
 
 		char *write_buf = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * size );
 
 		_memcpy_s( write_buf + pos, size - pos, MAGIC_ID_SETTINGS, sizeof( char ) * 4 );	// Magic identifier for the main program's settings.
 		pos += ( sizeof( char ) * 4 );
-		
+
 		_memcpy_s( write_buf + pos, size - pos, &cfg_pos_x, sizeof( int ) );
 		pos += sizeof( int );
 		_memcpy_s( write_buf + pos, size - pos, &cfg_pos_y, sizeof( int ) );
@@ -873,6 +878,11 @@ char save_config()
 
 		_memcpy_s( write_buf + pos, size - pos, &cfg_port_s, sizeof( unsigned short ) );
 		pos += sizeof( unsigned short );
+
+		//
+
+		_memcpy_s( write_buf + pos, size - pos, &cfg_set_filetime, sizeof( bool ) );
+		pos += sizeof( bool );
 
 		//
 

@@ -164,6 +164,7 @@ struct AUTH_INFO
 struct HEADER_INFO
 {
 	URL_LOCATION		url_location;
+	FILETIME			last_modified;
 	//unsigned long long	content_length;
 	unsigned long long	chunk_length;
 	RANGE_INFO			*range_info;
@@ -272,6 +273,7 @@ struct SOCKET_CONTEXT
 	unsigned char		cleanup;			// In cleanup function, or in worker thread doing/calling cleanup.
 
 	unsigned char		got_filename;		// For Content-Disposition header fields. 0 = none/not found, 1 = renamed (doesn't exist), 2 = renamed (exists)
+	unsigned char		got_last_modified;	// For Last-Modified header fields. 0 = none/not found, 1 = found
 
 	bool				show_file_size_prompt;
 

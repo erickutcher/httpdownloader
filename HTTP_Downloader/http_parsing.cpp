@@ -1881,6 +1881,215 @@ char *GetContentDisposition( char *header, unsigned int &filename_length )
 
 	return NULL;
 }
+
+bool GetLastModified( char *header, SYSTEMTIME &date_time )
+{
+	bool ret = false;
+
+	char *months[] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
+
+	char *last_modified_header = NULL;
+	char *last_modified_header_end = NULL;
+
+	if ( GetHeaderValue( header, "Last-Modified", 13, &last_modified_header, &last_modified_header_end ) != NULL )
+	{
+		char tmp_end = *last_modified_header_end;
+		*last_modified_header_end = 0;	// Sanity
+
+		// Probe for a comma in the fourth position.
+		// It'll tell us if it's an IMF-fixdate (The standard/most commonly used).
+		// If it's a single space, then it's an asctime-date.
+		// If it's neither, then it's probably an rfc850-date.
+		last_modified_header += 3;
+
+		if ( last_modified_header <= last_modified_header_end )
+		{
+			if ( *last_modified_header == ' ' )	// asctime-date:	"Sun Nov  6 08:49:37 1994"
+			{
+				++last_modified_header;	// Move to the month. Skip the single space before it.
+
+				// The month should only be three characters in length.
+				if ( last_modified_header + 3 <= last_modified_header_end )
+				{
+					for ( char i = 0; i < 12; ++i )
+					{
+						if ( _StrCmpNA( last_modified_header, months[ i ], 3 ) == 0 )
+						{
+							date_time.wMonth = i + 1;
+
+							break;
+						}
+					}
+
+					last_modified_header += 4;	// Move to the year. Skip the month and the single space after it.
+
+					// The day should only be two characters in length.
+					if ( last_modified_header + 2 <= last_modified_header_end )
+					{
+						char tmp_end2 = *( last_modified_header + 2 );
+						*( last_modified_header + 2 ) = 0;	// Sanity
+
+						date_time.wDay = ( unsigned char )_strtoul( last_modified_header, NULL, 10 );
+
+						*( last_modified_header + 2 ) = tmp_end2;	// Restore.
+
+						last_modified_header += 3;	// Move to the time. Skip the day and the single space after it.
+
+						// The time should only be eight characters in length.
+						if ( last_modified_header + 8 <= last_modified_header_end )
+						{
+							char tmp_end2 = *( last_modified_header + 8 );
+							*( last_modified_header + 8 ) = 0;	// Sanity
+
+							// HOURS
+							char tmp_end3  = *( last_modified_header + 2 );
+							*( last_modified_header + 2 ) = 0;	// Sanity
+
+							date_time.wHour = ( unsigned char )_strtoul( last_modified_header, NULL, 10 );
+
+							*( last_modified_header + 2 ) = tmp_end3;	// Restore.
+
+							// MINUTES
+							tmp_end3  = *( last_modified_header + 5 );
+							*( last_modified_header + 5 ) = 0;	// Sanity
+
+							date_time.wMinute = ( unsigned char )_strtoul( last_modified_header + 3, NULL, 10 );
+
+							*( last_modified_header + 5 ) = tmp_end3;	// Restore.
+
+							// SECONDS
+							date_time.wSecond = ( unsigned char )_strtoul( last_modified_header + 6, NULL, 10 );
+
+							*( last_modified_header + 8 ) = tmp_end2;	// Restore.
+
+							last_modified_header += 9;	// Move to the year. Skip the time and the single space after it.
+
+							// The year should only be four characters in length.
+							if ( last_modified_header + 4 <= last_modified_header_end )
+							{
+								char tmp_end2 = *( last_modified_header + 4 );
+								*( last_modified_header + 4 ) = 0;	// Sanity
+
+								date_time.wYear = ( unsigned short )_strtoul( last_modified_header, NULL, 10 );
+
+								*( last_modified_header + 4 ) = tmp_end2;	// Restore.
+
+								ret = true;
+							}
+						}
+					}
+				}
+			}
+			else
+			{
+				// IMF-fixdate:		"Sun, 06 Nov 1994 08:49:37 GMT"
+				// rfc850-date:		"Sunday, 06-Nov-94 08:49:37 GMT"
+
+				unsigned char year_length = 4;
+
+				// Comma in the fourth position would indicate IMF-fixdate.
+				if ( *last_modified_header != ',' )	
+				{
+					// If it's not, then it's probably a rfc850-date.
+					while ( last_modified_header < last_modified_header_end )
+					{
+						if ( *last_modified_header == ',' )
+						{
+							break;
+						}
+
+						++last_modified_header;
+					}
+
+					year_length = 2;
+				}
+
+				last_modified_header += 2;	// Move to the day. Skip the comma and the single space before it.
+
+				// The day should only be two characters in length.
+				if ( last_modified_header + 2 <= last_modified_header_end )
+				{
+					char tmp_end2 = *( last_modified_header + 2 );
+					*( last_modified_header + 2 ) = 0;	// Sanity
+
+					date_time.wDay = ( unsigned char )_strtoul( last_modified_header, NULL, 10 );
+
+					*( last_modified_header + 2 ) = tmp_end2;	// Restore.
+
+					last_modified_header += 3;	// Move to the month. Skip the day and the single space after it.
+
+					// The month should only be three characters in length.
+					if ( last_modified_header + 3 <= last_modified_header_end )
+					{
+						for ( char i = 0; i < 12; ++i )
+						{
+							if ( _StrCmpNA( last_modified_header, months[ i ], 3 ) == 0 )
+							{
+								date_time.wMonth = i + 1;
+
+								break;
+							}
+						}
+
+						last_modified_header += 4;	// Move to the year. Skip the month and the single space after it.
+
+						// The year should only be two or four characters in length.
+						if ( last_modified_header + year_length <= last_modified_header_end )
+						{
+							char tmp_end2 = *( last_modified_header + year_length );
+							*( last_modified_header + year_length ) = 0;	// Sanity
+
+							date_time.wYear = ( unsigned short )_strtoul( last_modified_header, NULL, 10 );
+
+							if ( year_length == 2 )
+							{
+								date_time.wYear += 1900;	// It can only be assumed that a two digit year from an obsolete format (written June 1983) would have been from the 1900s.
+							}
+
+							*( last_modified_header + year_length ) = tmp_end2;	// Restore.
+
+							last_modified_header += ( year_length + 1 );	// Move to the time. Skip the year and the single space after it.
+
+							// The time should only be eight characters in length.
+							if ( last_modified_header + 8 <= last_modified_header_end )
+							{
+								char tmp_end2 = *( last_modified_header + 8 );
+								*( last_modified_header + 8 ) = 0;	// Sanity
+
+								// HOURS
+								char tmp_end3  = *( last_modified_header + 2 );
+								*( last_modified_header + 2 ) = 0;	// Sanity
+
+								date_time.wHour = ( unsigned char )_strtoul( last_modified_header, NULL, 10 );
+
+								*( last_modified_header + 2 ) = tmp_end3;	// Restore.
+
+								// MINUTES
+								tmp_end3  = *( last_modified_header + 5 );
+								*( last_modified_header + 5 ) = 0;	// Sanity
+
+								date_time.wMinute = ( unsigned char )_strtoul( last_modified_header + 3, NULL, 10 );
+
+								*( last_modified_header + 5 ) = tmp_end3;	// Restore.
+
+								// SECONDS
+								date_time.wSecond = ( unsigned char )_strtoul( last_modified_header + 6, NULL, 10 );
+
+								*( last_modified_header + 8 ) = tmp_end2;	// Restore.
+
+								ret = true;
+							}
+						}
+					}
+				}
+			}
+		}
+
+		*last_modified_header_end = tmp_end;	// Restore.
+	}
+
+	return ret;
+}
 /*
 char *GetETag( char *header )
 {
@@ -2239,6 +2448,29 @@ int ParseHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int 
 				}
 
 				GlobalFree( filename );
+			}
+		}
+
+		if ( context->got_last_modified == 0 )
+		{
+			if ( context->download_info != NULL )
+			{
+				if ( !( context->download_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
+				{
+					SYSTEMTIME date_time;
+					_memzero( &date_time, sizeof( SYSTEMTIME ) );
+
+					if ( GetLastModified( header_buffer, date_time ) )
+					{
+						SystemTimeToFileTime( &date_time, &context->header_info.last_modified );
+
+						context->got_last_modified = 1;
+					}
+				}
+				else	// Simulation doesn't need to keep looking for it.
+				{
+					context->got_last_modified = 1;
+				}
 			}
 		}
 
@@ -2805,6 +3037,7 @@ int MakeRangeRequest( SOCKET_CONTEXT *context )
 				new_context->parts = context->parts;
 
 				new_context->got_filename = context->got_filename;	// No need to rename it again.
+				new_context->got_last_modified = context->got_last_modified;	// No need to get the date/time again.
 				new_context->show_file_size_prompt = context->show_file_size_prompt;	// No need to prompt again.
 
 				new_context->request_info.host = GlobalStrDupA( context->request_info.host );
@@ -2992,6 +3225,7 @@ int MakeRequest( SOCKET_CONTEXT *context, IO_OPERATION next_operation, bool use_
 			new_context->parts = context->parts;
 
 			new_context->got_filename = context->got_filename;	// No need to rename it again.
+			new_context->got_last_modified = context->got_last_modified;	// No need to get the date/time again.
 			new_context->show_file_size_prompt = context->show_file_size_prompt;	// No need to prompt again.
 
 			//
@@ -3248,10 +3482,15 @@ int AllocateFile( SOCKET_CONTEXT *context )
 				if ( GetFileAttributes( file_path ) != INVALID_FILE_ATTRIBUTES && context->download_info->downloaded > 0 )
 				{
 					// If the file has downloaded data (we're resuming), then open it, otherwise truncate its size to 0.
-					context->download_info->hFile = CreateFile( file_path, GENERIC_WRITE, 0, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED, NULL );
+					context->download_info->hFile = CreateFile( file_path, GENERIC_WRITE | FILE_WRITE_ATTRIBUTES, 0, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED, NULL );
 
 					if ( context->download_info->hFile != INVALID_HANDLE_VALUE )
 					{
+						if ( cfg_set_filetime && context->got_last_modified == 1 )
+						{
+							SetFileTime( context->download_info->hFile, &context->header_info.last_modified, &context->header_info.last_modified, &context->header_info.last_modified );
+						}
+
 						g_hIOCP = CreateIoCompletionPort( context->download_info->hFile, g_hIOCP, 0, 0 );
 						if ( g_hIOCP != NULL )
 						{
@@ -3268,10 +3507,15 @@ int AllocateFile( SOCKET_CONTEXT *context )
 				}
 				else	// Pre-allocate our file on the disk if it does not exist, or if we're overwriting one that already exists.
 				{
-					context->download_info->hFile = CreateFile( file_path, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED, NULL );
+					context->download_info->hFile = CreateFile( file_path, GENERIC_WRITE | FILE_WRITE_ATTRIBUTES, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED, NULL );
 
 					if ( context->download_info->hFile != INVALID_HANDLE_VALUE )
 					{
+						if ( cfg_set_filetime && context->got_last_modified == 1 )
+						{
+							SetFileTime( context->download_info->hFile, &context->header_info.last_modified, &context->header_info.last_modified, &context->header_info.last_modified );
+						}
+
 						g_hIOCP = CreateIoCompletionPort( context->download_info->hFile, g_hIOCP, 0, 0 );
 						if ( g_hIOCP != NULL )
 						{

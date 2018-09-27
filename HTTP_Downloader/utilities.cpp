@@ -73,6 +73,7 @@ bool cfg_minimize_to_tray = false;
 bool cfg_always_on_top = false;
 bool cfg_enable_download_history = true;
 bool cfg_enable_quick_allocation = false;
+bool cfg_set_filetime = false;
 
 unsigned long cfg_thread_count = 1;	// Default is 1.
 unsigned long g_max_threads = 2;	// Default is 2.

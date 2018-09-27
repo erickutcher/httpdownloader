@@ -1761,6 +1761,7 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 						if ( context->header_info.http_status >= 200 && context->header_info.http_status <= 299 )
 						{
 							context->got_filename = 0;
+							context->got_last_modified = 0;
 							context->show_file_size_prompt = false;
 
 							context->header_info.chunk_length = 0;
@@ -2988,10 +2989,11 @@ void StartDownload( DOWNLOAD_INFO *di, bool check_if_file_exists )
 				context->part = part;
 				context->parts = di->parts;
 
-				// If we've processed the header, then we would have already gotten a content disposition filename.
+				// If we've processed the header, then we would have already gotten a content disposition filename and the last modified date/time.
 				if ( di->processed_header )
 				{
 					context->got_filename = 1;
+					context->got_last_modified = 1;
 				}
 
 				context->request_info.port = port;

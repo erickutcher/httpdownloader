@@ -162,6 +162,7 @@ wchar_t *options_string_table[] =
 	L"Retry incomplete downloads:",
 	L"Retry incomplete parts:",
 	L"Server SSL / TLS version:",
+	L"Set date and time of file from server response",
 	L"Thread pool count:",
 	L"Timeout (seconds):"
 };

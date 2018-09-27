@@ -192,20 +192,32 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 		LocalFree( szArgList );
 	}
 
-	// Use our default directory if none was supplied.
+	// Use our default directory if none was supplied or check if there's a "portable" file in the same directory.
 	if ( default_directory )
 	{
-		_SHGetFolderPathW( NULL, BASE_DIRECTORY_FLAG, NULL, 0, base_directory );
+		base_directory_length = GetCurrentDirectoryW( MAX_PATH, base_directory );
+		_wmemcpy_s( base_directory + base_directory_length, MAX_PATH - base_directory_length, L"\\portable\0", 10 );
 
-		base_directory_length = lstrlenW( base_directory );
-		_wmemcpy_s( base_directory + base_directory_length, MAX_PATH - base_directory_length, L"\\HTTP Downloader\0", 17 );
-		base_directory_length += 16;
-		base_directory[ base_directory_length ] = 0;	// Sanity.
-
-		// Check to see if the new path exists and create it if it doesn't.
+		// If there's a portable file in the same directory, then we'll use that directory as our base.
+		// If not, then we'll use the APPDATA folder.
 		if ( GetFileAttributesW( base_directory ) == INVALID_FILE_ATTRIBUTES )
 		{
-			CreateDirectoryW( base_directory, NULL );
+			_SHGetFolderPathW( NULL, BASE_DIRECTORY_FLAG, NULL, 0, base_directory );
+
+			base_directory_length = lstrlenW( base_directory );
+			_wmemcpy_s( base_directory + base_directory_length, MAX_PATH - base_directory_length, L"\\HTTP Downloader\0", 17 );
+			base_directory_length += 16;
+			base_directory[ base_directory_length ] = 0;	// Sanity.
+
+			// Check to see if the new path exists and create it if it doesn't.
+			if ( GetFileAttributesW( base_directory ) == INVALID_FILE_ATTRIBUTES )
+			{
+				CreateDirectoryW( base_directory, NULL );
+			}
+		}
+		else
+		{
+			base_directory[ base_directory_length ] = 0;	// Sanity.
 		}
 	}
 

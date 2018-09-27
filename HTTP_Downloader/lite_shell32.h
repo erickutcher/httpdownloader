@@ -57,6 +57,10 @@
 	#define _SHGetFileInfoW		SHGetFileInfoW
 	#define _SHGetFolderPathW	SHGetFolderPathW
 
+	#define _SHOpenFolderAndSelectItems SHOpenFolderAndSelectItems
+	#define _ILCreateFromPathW	ILCreateFromPathW
+	//#define _ILFree				ILFree
+
 	#define	_CommandLineToArgvW	CommandLineToArgvW
 
 #else
@@ -86,6 +90,10 @@
 	typedef DWORD_PTR ( WINAPI *pSHGetFileInfoW )( LPCTSTR pszPath, DWORD dwFileAttributes, SHFILEINFO *psfi, UINT cbFileInfo, UINT uFlags );
 	typedef HRESULT ( WINAPI *pSHGetFolderPathW )( HWND hwndOwner, int nFolder, HANDLE hToken, DWORD dwFlags, LPTSTR pszPath );
 
+	typedef HRESULT ( WINAPI *pSHOpenFolderAndSelectItems )( PCIDLIST_ABSOLUTE pidlFolder, UINT cidl, PCUITEMID_CHILD_ARRAY apidl, DWORD dwFlags ); // Returns an HRESULT but is documented/defined as SHSTDAPI.
+	typedef PIDLIST_ABSOLUTE ( WINAPI *pILCreateFromPathW )( PCWSTR pszPath );
+	//typedef void ( WINAPI *pILFree )( PIDLIST_RELATIVE pidl );
+
 	typedef LPWSTR * ( WINAPI *pCommandLineToArgvW )( LPCWSTR lpCmdLine, int *pNumArgs );
 
 	extern pShell_NotifyIconW	_Shell_NotifyIconW;
@@ -109,6 +117,10 @@
 
 	extern pSHGetFileInfoW		_SHGetFileInfoW;
 	extern pSHGetFolderPathW	_SHGetFolderPathW;
+
+	extern pSHOpenFolderAndSelectItems	_SHOpenFolderAndSelectItems;
+	extern pILCreateFromPathW	_ILCreateFromPathW;
+	//extern pILFree				_ILFree;
 
 	extern pCommandLineToArgvW	_CommandLineToArgvW;
 

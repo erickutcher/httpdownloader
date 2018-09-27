@@ -126,8 +126,9 @@ extern wchar_t *options_string_table[];
 #define ST_Retry_incomplete_downloads_			options_string_table[ 37 ]
 #define ST_Retry_incomplete_parts_				options_string_table[ 38 ]
 #define ST_Server_SSL___TLS_version_			options_string_table[ 39 ]
-#define ST_Thread_pool_count_					options_string_table[ 40 ]
-#define ST_Timeout__seconds__					options_string_table[ 41 ]
+#define ST_Set_date_and_time_of_file			options_string_table[ 40 ]
+#define ST_Thread_pool_count_					options_string_table[ 41 ]
+#define ST_Timeout__seconds__					options_string_table[ 42 ]
 
 extern wchar_t *add_urls_string_table[];
 

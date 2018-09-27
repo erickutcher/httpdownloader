@@ -43,6 +43,10 @@
 	pSHGetFileInfoW			_SHGetFileInfoW;
 	pSHGetFolderPathW		_SHGetFolderPathW;
 
+	pSHOpenFolderAndSelectItems	_SHOpenFolderAndSelectItems;
+	pILCreateFromPathW	_ILCreateFromPathW;
+	//pILFree				_ILFree;
+
 	pCommandLineToArgvW		_CommandLineToArgvW;
 
 	HMODULE hModule_shell32 = NULL;
@@ -84,6 +88,10 @@
 
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_shell32, ( void ** )&_SHGetFileInfoW, "SHGetFileInfoW" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_shell32, ( void ** )&_SHGetFolderPathW, "SHGetFolderPathW" ) )
+
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_shell32, ( void ** )&_SHOpenFolderAndSelectItems, "SHOpenFolderAndSelectItems" ) )
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_shell32, ( void ** )&_ILCreateFromPathW, "ILCreateFromPathW" ) )
+		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_shell32, ( void ** )&_ILFree, "ILFree" ) )
 
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_shell32, ( void ** )&_CommandLineToArgvW, "CommandLineToArgvW" ) )
 

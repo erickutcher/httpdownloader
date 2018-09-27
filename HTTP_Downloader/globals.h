@@ -210,6 +210,7 @@ extern bool cfg_minimize_to_tray;
 extern bool cfg_always_on_top;
 extern bool cfg_enable_download_history;
 extern bool cfg_enable_quick_allocation;
+extern bool cfg_set_filetime;
 
 extern unsigned long cfg_thread_count;
 extern unsigned long g_max_threads;

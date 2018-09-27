@@ -684,9 +684,10 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 								_CoInitializeEx( NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE );
 							}
 
+							wchar_t file_path[ MAX_PATH ];
+
 							if ( LOWORD( wParam ) == MENU_OPEN_FILE )
 							{
-								wchar_t file_path[ MAX_PATH ];
 								_wmemcpy_s( file_path, MAX_PATH, di->file_path, MAX_PATH );
 								if ( di->filename_offset > 0 )
 								{
@@ -705,7 +706,32 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 							}
 							else if ( LOWORD( wParam ) == MENU_OPEN_DIRECTORY )
 							{
-								HINSTANCE hInst = _ShellExecuteW( NULL, L"open", di->file_path, NULL, NULL, SW_SHOWNORMAL );
+								_wmemcpy_s( file_path, MAX_PATH, di->file_path, MAX_PATH );
+								if ( di->filename_offset > 0 )
+								{
+									file_path[ di->filename_offset - 1 ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
+								}
+
+								HINSTANCE hInst = ( HINSTANCE )ERROR_FILE_NOT_FOUND;
+
+								ITEMIDLIST  *iidl = _ILCreateFromPathW( file_path );
+
+								if ( iidl != NULL && _SHOpenFolderAndSelectItems( iidl, 0, NULL, 0 ) == S_OK )
+								{
+									hInst = ( HINSTANCE )ERROR_SUCCESS;
+								}
+								else
+								{
+									// Try opening the folder without selecting any file.
+									hInst = _ShellExecuteW( NULL, L"open", di->file_path, NULL, NULL, SW_SHOWNORMAL );
+								}
+
+								// Use this instead of ILFree on Windows 2000 or later.
+								if ( iidl != NULL )
+								{
+									_CoTaskMemFree( iidl );
+								}
+
 								if ( hInst == ( HINSTANCE )ERROR_FILE_NOT_FOUND )	// We're opening a folder, but it uses the same error code as a file if it's not found.
 								{
 									_MessageBoxW( hWnd, ST_The_specified_path_was_not_found, PROGRAM_CAPTION, MB_APPLMODAL | MB_ICONWARNING );
@@ -887,7 +913,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 				{
 					if ( g_hWnd_options == NULL )
 					{
-						g_hWnd_options = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"options", ST_Options, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU, ( ( _GetSystemMetrics( SM_CXSCREEN ) - 390 ) / 2 ), ( ( _GetSystemMetrics( SM_CYSCREEN ) - 350 ) / 2 ), 390, 350, NULL, NULL, NULL, NULL );
+						g_hWnd_options = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"options", ST_Options, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU, ( ( _GetSystemMetrics( SM_CXSCREEN ) - 390 ) / 2 ), ( ( _GetSystemMetrics( SM_CYSCREEN ) - 360 ) / 2 ), 390, 360, NULL, NULL, NULL, NULL );
 						_ShowWindow( g_hWnd_options, SW_SHOWNORMAL );
 					}
 					_SetForegroundWindow( g_hWnd_options );
@@ -922,7 +948,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 				{
 					wchar_t msg[ 512 ];
 					__snwprintf( msg, 512, L"HTTP Downloader is made free under the GPLv3 license.\r\n\r\n" \
-										   L"Version 1.0.0.6\r\n\r\n" \
+										   L"Version 1.0.0.7\r\n\r\n" \
 										   L"Built on %s, %s %d, %04d %d:%02d:%02d %s (UTC)\r\n\r\n" \
 										   L"Copyright \xA9 2015-2018 Eric Kutcher", GetDay( g_compile_time.wDayOfWeek ), GetMonth( g_compile_time.wMonth ), g_compile_time.wDay, g_compile_time.wYear, ( g_compile_time.wHour > 12 ? g_compile_time.wHour - 12 : ( g_compile_time.wHour != 0 ? g_compile_time.wHour : 12 ) ), g_compile_time.wMinute, g_compile_time.wSecond, ( g_compile_time.wHour >= 12 ? L"PM" : L"AM" ) );
 
@@ -949,7 +975,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 
 				case MENU_EXIT:
 				{
-					_SendMessageW( hWnd, WM_CLOSE, 0, 0 );
+					_SendMessageW( hWnd, WM_EXIT, 0, 0 );
 				}
 				break;
 			}
@@ -1290,6 +1316,28 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 			}
 
 			return FALSE;
+		}
+		break;
+
+		case WM_WINDOWPOSCHANGED:
+		{
+			// This will capture MoveWindow and SetWindowPos changes.
+			WINDOWPOS *wp = ( WINDOWPOS * )lParam;
+
+			if ( !( wp->flags & SWP_NOMOVE ) )
+			{
+				cfg_pos_x = wp->x;
+				cfg_pos_y = wp->y;
+			}
+
+			if ( !( wp->flags & SWP_NOSIZE ) )
+			{
+				cfg_width = wp->cx;
+				cfg_height = wp->cy;
+			}
+
+			// Let it fall through so we can still get the WM_SIZE message.
+			return _DefWindowProcW( hWnd, msg, wParam, lParam );
 		}
 		break;
 

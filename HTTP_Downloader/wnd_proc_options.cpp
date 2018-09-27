@@ -104,6 +104,8 @@
 #define BTN_CERTIFICATE_KEY				1054
 #define CB_SERVER_SSL_VERSION			1055
 
+#define BTN_SET_FILETIME		1056
+
 
 HWND g_hWnd_options = NULL;
 
@@ -230,6 +232,7 @@ HWND g_hWnd_chk_close = NULL;
 HWND g_hWnd_chk_always_on_top = NULL;
 HWND g_hWnd_chk_download_history = NULL;
 HWND g_hWnd_chk_quick_allocation = NULL;
+HWND g_hWnd_chk_set_filetime = NULL;
 
 HWND g_hWnd_thread_count = NULL;
 
@@ -788,19 +791,21 @@ LRESULT CALLBACK GeneralTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 
 			g_hWnd_chk_always_on_top = _CreateWindowW( WC_BUTTON, ST_Always_on_top, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 65, 200, 20, hWnd, ( HMENU )BTN_ALWAYS_ON_TOP, NULL, NULL );
 
-			g_hWnd_chk_download_history = _CreateWindowW( WC_BUTTON, ST_Enable_download_history, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 90, 200, 20, hWnd, ( HMENU )BTN_DOWNLOAD_HISTORY, NULL, NULL );
+			g_hWnd_chk_download_history = _CreateWindowW( WC_BUTTON, ST_Enable_download_history, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 85, 200, 20, hWnd, ( HMENU )BTN_DOWNLOAD_HISTORY, NULL, NULL );
 
-			g_hWnd_chk_quick_allocation = _CreateWindowW( WC_BUTTON, ST_Enable_quick_file_allocation, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 115, 325, 20, hWnd, ( HMENU )BTN_QUICK_ALLOCATION, NULL, NULL );
-			
-			HWND hWnd_static_default_download_directory = _CreateWindowW( WC_STATIC, ST_Default_download_directory_, WS_CHILD | WS_VISIBLE, 0, 140, 150, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_default_download_directory = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, cfg_default_download_directory, ES_AUTOHSCROLL | ES_READONLY | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 155, rc.right - 40, 20, hWnd, NULL, NULL, NULL );
-			g_hWnd_btn_default_download_directory = _CreateWindowW( WC_BUTTON, ST_BTN___, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 35, 155, 35, 20, hWnd, ( HMENU )BTN_DEFAULT_DOWNLOAD_DIRECTORY, NULL, NULL );
+			g_hWnd_chk_quick_allocation = _CreateWindowW( WC_BUTTON, ST_Enable_quick_file_allocation, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 105, 325, 20, hWnd, ( HMENU )BTN_QUICK_ALLOCATION, NULL, NULL );
 
-			HWND hWnd_static_thread_count = _CreateWindowW( WC_STATIC, ST_Thread_pool_count_, WS_CHILD | WS_VISIBLE, 0, 180, 130, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_thread_count = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 195, 85, 20, hWnd, ( HMENU )EDIT_THREAD_COUNT, NULL, NULL );
+			g_hWnd_chk_set_filetime = _CreateWindowW( WC_BUTTON, ST_Set_date_and_time_of_file, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 125, 325, 20, hWnd, ( HMENU )BTN_SET_FILETIME, NULL, NULL );
+
+			HWND hWnd_static_default_download_directory = _CreateWindowW( WC_STATIC, ST_Default_download_directory_, WS_CHILD | WS_VISIBLE, 0, 150, 150, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_default_download_directory = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, cfg_default_download_directory, ES_AUTOHSCROLL | ES_READONLY | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 165, rc.right - 40, 20, hWnd, NULL, NULL, NULL );
+			g_hWnd_btn_default_download_directory = _CreateWindowW( WC_BUTTON, ST_BTN___, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 35, 165, 35, 20, hWnd, ( HMENU )BTN_DEFAULT_DOWNLOAD_DIRECTORY, NULL, NULL );
+
+			HWND hWnd_static_thread_count = _CreateWindowW( WC_STATIC, ST_Thread_pool_count_, WS_CHILD | WS_VISIBLE, 0, 190, 130, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_thread_count = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 205, 85, 20, hWnd, ( HMENU )EDIT_THREAD_COUNT, NULL, NULL );
 
 			// Keep this unattached. Looks ugly inside the text box.
-			HWND hWnd_ud_thread_count = _CreateWindowW( UPDOWN_CLASS, NULL, /*UDS_ALIGNRIGHT |*/ UDS_ARROWKEYS | UDS_NOTHOUSANDS | UDS_SETBUDDYINT | WS_CHILD | WS_VISIBLE, 85, 194, _GetSystemMetrics( SM_CXVSCROLL ), 22, hWnd, NULL, NULL, NULL );
+			HWND hWnd_ud_thread_count = _CreateWindowW( UPDOWN_CLASS, NULL, /*UDS_ALIGNRIGHT |*/ UDS_ARROWKEYS | UDS_NOTHOUSANDS | UDS_SETBUDDYINT | WS_CHILD | WS_VISIBLE, 85, 204, _GetSystemMetrics( SM_CXVSCROLL ), 22, hWnd, NULL, NULL, NULL );
 
 			_SendMessageW( g_hWnd_thread_count, EM_LIMITTEXT, 10, 0 );
 			_SendMessageW( hWnd_ud_thread_count, UDM_SETBUDDY, ( WPARAM )g_hWnd_thread_count, 0 );
@@ -817,6 +822,7 @@ LRESULT CALLBACK GeneralTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 			_SendMessageW( g_hWnd_chk_always_on_top, WM_SETFONT, ( WPARAM )hFont, 0 );
 			_SendMessageW( g_hWnd_chk_download_history, WM_SETFONT, ( WPARAM )hFont, 0 );
 			_SendMessageW( g_hWnd_chk_quick_allocation, WM_SETFONT, ( WPARAM )hFont, 0 );
+			_SendMessageW( g_hWnd_chk_set_filetime, WM_SETFONT, ( WPARAM )hFont, 0 );
 
 			_SendMessageW( hWnd_static_thread_count, WM_SETFONT, ( WPARAM )hFont, 0 );
 			_SendMessageW( g_hWnd_thread_count, WM_SETFONT, ( WPARAM )hFont, 0 );
@@ -862,6 +868,7 @@ LRESULT CALLBACK GeneralTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 				case BTN_ALWAYS_ON_TOP:
 				case BTN_DOWNLOAD_HISTORY:
 				case BTN_QUICK_ALLOCATION:
+				case BTN_SET_FILETIME:
 				{
 					options_state_changed = true;
 					_EnableWindow( g_hWnd_apply, TRUE );
@@ -1161,7 +1168,7 @@ LRESULT CALLBACK ConnectionTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 			//
 
 			connection_tab_scroll_pos = 0;
-			connection_tab_height = ( rc.bottom - rc.top ) + 380;
+			connection_tab_height = ( rc.bottom - rc.top ) + 350;
 
 			SCROLLINFO si;
 			si.cbSize = sizeof( SCROLLINFO );
@@ -2409,6 +2416,8 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 			_SendMessageW( g_hWnd_chk_quick_allocation, BM_SETCHECK, ( cfg_enable_quick_allocation ? BST_CHECKED : BST_UNCHECKED ), 0 );
 
+			_SendMessageW( g_hWnd_chk_set_filetime, BM_SETCHECK, ( cfg_set_filetime ? BST_CHECKED : BST_UNCHECKED ), 0 );
+
 			/*char value[ 11 ];
 
 			__snprintf( value, 11, "%lu", cfg_max_downloads );
@@ -2616,6 +2625,8 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 						display_notice += 1;
 					}
+
+					cfg_set_filetime = ( _SendMessageW( g_hWnd_chk_set_filetime, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
 
 					char value[ 11 ];
 					_SendMessageA( g_hWnd_max_downloads, WM_GETTEXT, 11, ( LPARAM )value );
