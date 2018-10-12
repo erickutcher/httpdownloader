@@ -109,7 +109,9 @@ extern HWND g_hWnd_main;				// Handle to our main window.
 extern HWND g_hWnd_add_urls;
 extern HWND g_hWnd_options;
 extern HWND g_hWnd_update_download;
+extern HWND g_hWnd_url_drop_window;
 
+extern HWND g_hWnd_toolbar;
 extern HWND g_hWnd_files;
 
 extern HWND g_hWnd_active;				// Handle to the active window. Used to handle tab stops.
@@ -119,8 +121,6 @@ extern HFONT hFont;
 extern dllrbt_tree *icon_handles;
 
 extern bool	can_fast_allocate;			// Prevent the pre-allocation from zeroing the file.
-
-extern bool use_drag_and_drop;
 
 extern int row_height;
 
@@ -164,6 +164,8 @@ extern int cfg_pos_y;
 extern int cfg_width;
 extern int cfg_height;
 
+extern char cfg_min_max;
+
 extern int cfg_column_width1;
 extern int cfg_column_width2;
 extern int cfg_column_width3;
@@ -194,6 +196,7 @@ extern char cfg_column_order12;
 extern char cfg_column_order13;
 extern char cfg_column_order14;
 
+extern bool cfg_show_toolbar;
 extern bool cfg_show_status_bar;
 
 extern unsigned char cfg_t_downloaded;	// 0 = Bytes, 1 = KB, 2 = MB, 3 = GB, 4 = auto
@@ -203,6 +206,9 @@ extern unsigned char cfg_t_down_speed;	// 0 = Bytes, 1 = KB, 2 = MB, 3 = GB, 4 =
 extern unsigned char cfg_t_status_downloaded;	// 0 = Bytes, 1 = KB, 2 = MB, 3 = GB, 4 = auto
 extern unsigned char cfg_t_status_down_speed;	// 0 = Bytes, 1 = KB, 2 = MB, 3 = GB, 4 = auto
 
+extern int cfg_drop_pos_x;	// URL drop window.
+extern int cfg_drop_pos_y;	// URL drop window.
+
 extern bool cfg_tray_icon;
 extern bool cfg_close_to_tray;
 extern bool cfg_minimize_to_tray;
@@ -211,6 +217,8 @@ extern bool cfg_always_on_top;
 extern bool cfg_enable_download_history;
 extern bool cfg_enable_quick_allocation;
 extern bool cfg_set_filetime;
+extern bool cfg_use_one_instance;
+extern bool cfg_enable_drop_window;
 
 extern unsigned long cfg_thread_count;
 extern unsigned long g_max_threads;

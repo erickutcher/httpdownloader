@@ -25,6 +25,8 @@ int cfg_pos_y = 0;
 int cfg_width = MIN_WIDTH;
 int cfg_height = MIN_HEIGHT;
 
+char cfg_min_max = 0;	// 0 = normal, 1 = minimized, 2 = maximized.
+
 int cfg_column_width1 = 35;
 int cfg_column_width2 = 75;
 int cfg_column_width3 = 200;
@@ -57,6 +59,7 @@ char cfg_column_order12 = 3;	// 11 Time Remaining
 char cfg_column_order13 = 12;	// 12 TLS/SSL Version
 char cfg_column_order14 = 13;	// 13 URL
 
+bool cfg_show_toolbar = false;
 bool cfg_show_status_bar = true;
 
 unsigned char cfg_t_downloaded = SIZE_FORMAT_AUTO;	// 0 = Bytes, 1 = KB, 2 = MB, 3 = GB, 4 = auto
@@ -66,6 +69,9 @@ unsigned char cfg_t_down_speed = SIZE_FORMAT_AUTO;	// 0 = Bytes, 1 = KB, 2 = MB,
 unsigned char cfg_t_status_downloaded = SIZE_FORMAT_AUTO;	// 0 = Bytes, 1 = KB, 2 = MB, 3 = GB, 4 = auto
 unsigned char cfg_t_status_down_speed = SIZE_FORMAT_AUTO;	// 0 = Bytes, 1 = KB, 2 = MB, 3 = GB, 4 = auto
 
+int cfg_drop_pos_x = 0;	// URL drop window.
+int cfg_drop_pos_y = 0;	// URL drop window.
+
 bool cfg_tray_icon = true;
 bool cfg_close_to_tray = false;
 bool cfg_minimize_to_tray = false;
@@ -74,6 +80,8 @@ bool cfg_always_on_top = false;
 bool cfg_enable_download_history = true;
 bool cfg_enable_quick_allocation = false;
 bool cfg_set_filetime = false;
+bool cfg_use_one_instance = false;
+bool cfg_enable_drop_window = false;
 
 unsigned long cfg_thread_count = 1;	// Default is 1.
 unsigned long g_max_threads = 2;	// Default is 2.
@@ -634,6 +642,59 @@ char *GetUTF8Domain( wchar_t *domain )
 	WideCharToMultiByte( CP_UTF8, 0, domain, -1, utf8_domain, domain_length, NULL, NULL );
 
 	return utf8_domain;
+}
+
+// Allocates a new string if characters need escaping. Otherwise, it returns NULL.
+char *escape_csv( const char *string )
+{
+	char *escaped_string = NULL;
+	char *q = NULL;
+	const char *p = NULL;
+	int c = 0;
+
+	if ( string == NULL )
+	{
+		return NULL;
+	}
+
+	// Get the character count and offset it for any quotes.
+	for ( c = 0, p = string; *p != NULL; ++p ) 
+	{
+		if ( *p != '\"' )
+		{
+			++c;
+		}
+		else
+		{
+			c += 2;
+		}
+	}
+
+	// If the string has no special characters to escape, then return NULL.
+	if ( c <= ( p - string ) )
+	{
+		return NULL;
+	}
+
+	q = escaped_string = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( c + 1 ) );
+
+	for ( p = string; *p != NULL; ++p ) 
+	{
+		if ( *p != '\"' )
+		{
+			*q = *p;
+			++q;
+		}
+		else
+		{
+			*q++ = '\"';
+			*q++ = '\"';
+		}
+	}
+
+	*q = 0;	// Sanity.
+
+	return escaped_string;
 }
 
 char to_hex_a( char code )
@@ -1213,6 +1274,8 @@ void CreateDigestAuthorizationKey( char *username, char *password, char *method,
 
 	int method_length = 0;
 
+	++auth_info->nc;	// Update regardless of whether we have a qop value. Don't want to get in an infinite loop.
+
 	HCRYPTPROV hProv = NULL;
 	if ( _CryptAcquireContextW( &hProv, NULL, NULL, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT ) )
 	{
@@ -1312,8 +1375,6 @@ void CreateDigestAuthorizationKey( char *username, char *password, char *method,
 
 			if ( auth_info->qop_type != 0 )
 			{
-				++auth_info->nc;
-
 				char ncount[ 9 ];
 				__snprintf( ncount, 9, "%08x", auth_info->nc );	// Hex must be lowercase.
 

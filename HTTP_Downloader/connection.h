@@ -31,22 +31,25 @@
 
 #define MAX_FILE_SIZE			4294967296	// 4GB
 
-#define STATUS_NONE					0
-#define STATUS_CONNECTING			1
-#define STATUS_DOWNLOADING			2
-#define STATUS_PAUSED				3
-#define STATUS_QUEUED				4
-#define STATUS_COMPLETED			5
-#define STATUS_STOPPED				6
-#define STATUS_TIMED_OUT			7
-#define STATUS_FAILED				8
-#define STATUS_STOP_AND_REMOVE		9
-#define STATUS_FILE_IO_ERROR		10
-#define STATUS_SKIPPED				11
-#define STATUS_AUTH_REQUIRED		12
-#define STATUS_PROXY_AUTH_REQUIRED	13
-#define STATUS_UPDATING				14
-#define STATUS_ALLOCATING_FILE		100
+#define STATUS_NONE					0x0000
+#define STATUS_CONNECTING			0x0001
+#define STATUS_DOWNLOADING			0x0002
+#define STATUS_PAUSED				0x0004
+#define STATUS_QUEUED				0x0008
+#define STATUS_COMPLETED			0x0010
+#define STATUS_STOPPED				0x0020
+#define STATUS_TIMED_OUT			0x0040
+#define STATUS_FAILED				0x0080
+#define STATUS_STOP_AND_REMOVE		0x0100
+#define STATUS_FILE_IO_ERROR		0x0200
+#define STATUS_SKIPPED				0x0400
+#define STATUS_AUTH_REQUIRED		0x0800
+#define STATUS_PROXY_AUTH_REQUIRED	0x1000
+#define STATUS_UPDATING				0x2000
+#define STATUS_ALLOCATING_FILE		0x4000
+
+#define IS_STATUS( a, b )			( ( a ) & ( b ) )
+#define IS_STATUS_NOT( a, b )		!( ( a ) & ( b ) )
 
 #define CONNECTION_NONE			0
 #define CONNECTION_KEEP_ALIVE	1
@@ -256,12 +259,12 @@ struct SOCKET_CONTEXT
 
 	unsigned int		decompressed_buf_size;
 
-	int					content_status;
-
 	volatile LONG		pending_operations;
 	volatile LONG		timeout;
 
-	unsigned char		status;
+	unsigned short		status;
+
+	char				content_status;
 
 	unsigned char		part;
 	unsigned char		parts;
@@ -296,6 +299,13 @@ struct ADD_INFO
 	char				ssl_version;
 };
 
+struct RENAME_INFO
+{
+	DOWNLOAD_INFO		*di;
+	wchar_t				*filename;
+	unsigned short		filename_length;
+};
+
 struct DOWNLOAD_INFO
 {
 	wchar_t				file_path[ MAX_PATH ];
@@ -323,10 +333,10 @@ struct DOWNLOAD_INFO
 	HANDLE				hFile;
 	unsigned int		filename_offset;
 	unsigned int		file_extension_offset;
+	unsigned short		status;
 	unsigned char		parts;
 	unsigned char		active_parts;
 	unsigned char		parts_limit;		// This is set if we reduce an active download's parts number.
-	unsigned char		status;
 	unsigned char		retries;			// The number of times a download has been retried.
 	unsigned char		download_operations;
 	char				ssl_version;

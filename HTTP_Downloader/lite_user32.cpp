@@ -74,6 +74,7 @@
 	pIsDialogMessageW		_IsDialogMessageW;
 	pIsIconic				_IsIconic;
 	pIsWindowVisible		_IsWindowVisible;
+	pIsZoomed				_IsZoomed;
 	pKillTimer				_KillTimer;
 	pLoadCursorW				_LoadCursorW;
 	pLoadIconW				_LoadIconW;
@@ -87,26 +88,26 @@
 	pPostQuitMessage		_PostQuitMessage;
 	pRegisterClassExW		_RegisterClassExW;
 	pRegisterClipboardFormatW	_RegisterClipboardFormatW;
-	//pReleaseCapture			_ReleaseCapture;
+	pReleaseCapture			_ReleaseCapture;
 	pReleaseDC				_ReleaseDC;
 	//pRemoveMenu				_RemoveMenu;
-	//pScreenToClient			_ScreenToClient;
+	pScreenToClient			_ScreenToClient;
 	pScrollWindow			_ScrollWindow;
 	pSendMessageA			_SendMessageA;
 	pSendMessageW			_SendMessageW;
-	//pSendNotifyMessageW		_SendNotifyMessageW;
-	//pSetCapture				_SetCapture;
+	pSendNotifyMessageW		_SendNotifyMessageW;
+	pSetCapture				_SetCapture;
 	//pSetClassLongPtrW		_SetClassLongPtrW;
 	pSetClipboardData		_SetClipboardData;
 	pSetCursor				_SetCursor;
 	pSetFocus				_SetFocus;
 	pSetForegroundWindow	_SetForegroundWindow;
-	//pSetLayeredWindowAttributes		_SetLayeredWindowAttributes;
+	pSetLayeredWindowAttributes		_SetLayeredWindowAttributes;
 	pSetMenu					_SetMenu;
 	//pSetMenuItemInfoW		_SetMenuItemInfoW;
 	//pSetRect					_SetRect;
 	pSetScrollInfo			_SetScrollInfo;
-	pSetScrollPos			_SetScrollPos
+	pSetScrollPos			_SetScrollPos;
 	pSetTimer				_SetTimer;
 	pSetWindowLongW			_SetWindowLongW;
 	pSetWindowPos			_SetWindowPos;
@@ -187,6 +188,7 @@
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_IsDialogMessageW, "IsDialogMessageW" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_IsIconic, "IsIconic" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_IsWindowVisible, "IsWindowVisible" ) )
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_IsZoomed, "IsZoomed" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_KillTimer, "KillTimer" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_LoadCursorW, "LoadCursorW" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_LoadIconW, "LoadIconW" ) )
@@ -200,21 +202,21 @@
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_PostQuitMessage, "PostQuitMessage" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_RegisterClassExW, "RegisterClassExW" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_RegisterClipboardFormatW, "RegisterClipboardFormatW" ) )
-		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_ReleaseCapture, "ReleaseCapture" ) )
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_ReleaseCapture, "ReleaseCapture" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_ReleaseDC, "ReleaseDC" ) )
 		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_RemoveMenu, "RemoveMenu" ) )
-		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_ScreenToClient, "ScreenToClient" ) )
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_ScreenToClient, "ScreenToClient" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_ScrollWindow, "ScrollWindow" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_SendMessageA, "SendMessageA" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_SendMessageW, "SendMessageW" ) )
-		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_SendNotifyMessageW, "SendNotifyMessageW" ) )
-		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_SetCapture, "SetCapture" ) )
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_SendNotifyMessageW, "SendNotifyMessageW" ) )
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_SetCapture, "SetCapture" ) )
 		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_SetClassLongPtrW, "SetClassLongPtrW" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_SetClipboardData, "SetClipboardData" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_SetCursor, "SetCursor" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_SetFocus, "SetFocus" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_SetForegroundWindow, "SetForegroundWindow" ) )
-		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_SetLayeredWindowAttributes, "SetLayeredWindowAttributes" ) )
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_SetLayeredWindowAttributes, "SetLayeredWindowAttributes" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_SetMenu, "SetMenu" ) )
 		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_SetMenuItemInfoW, "SetMenuItemInfoW" ) )
 		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_SetRect, "SetRect" ) )

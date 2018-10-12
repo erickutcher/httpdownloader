@@ -82,6 +82,7 @@
 	#define _IsDialogMessageW		IsDialogMessageW
 	#define _IsIconic				IsIconic
 	#define _IsWindowVisible		IsWindowVisible
+	#define _IsZoomed				IsZoomed
 	#define _KillTimer				KillTimer
 	#define _LoadCursorW			LoadCursorW
 	#define _LoadIconW				LoadIconW
@@ -95,21 +96,21 @@
 	#define _PostQuitMessage		PostQuitMessage
 	#define _RegisterClassExW		RegisterClassExW
 	#define _RegisterClipboardFormatW	RegisterClipboardFormatW
-	//#define _ReleaseCapture			ReleaseCapture
+	#define _ReleaseCapture			ReleaseCapture
 	#define _ReleaseDC				ReleaseDC
 	//#define _RemoveMenu				RemoveMenu
-	//#define _ScreenToClient			ScreenToClient
+	#define _ScreenToClient			ScreenToClient
 	#define _ScrollWindow			ScrollWindow
 	#define _SendMessageA			SendMessageA
 	#define _SendMessageW			SendMessageW
-	//#define _SendNotifyMessageW		SendNotifyMessageW
-	//#define _SetCapture				SetCapture
+	#define _SendNotifyMessageW		SendNotifyMessageW
+	#define _SetCapture				SetCapture
 	//#define _SetClassLongPtrW		SetClassLongPtrW
 	#define _SetClipboardData		SetClipboardData
 	#define _SetCursor				SetCursor
 	#define _SetFocus				SetFocus
 	#define _SetForegroundWindow	SetForegroundWindow
-	//#define _SetLayeredWindowAttributes		SetLayeredWindowAttributes
+	#define _SetLayeredWindowAttributes		SetLayeredWindowAttributes
 	#define _SetMenu				SetMenu
 	//#define _SetMenuItemInfoW		SetMenuItemInfoW
 	//#define _SetRect				SetRect
@@ -184,6 +185,7 @@
 	typedef BOOL ( WINAPI *pIsDialogMessageW )( HWND hDlg, LPMSG lpMsg );
 	typedef BOOL ( WINAPI *pIsIconic )( HWND hWnd );
 	typedef BOOL ( WINAPI *pIsWindowVisible )( HWND hWnd );
+	typedef BOOL ( WINAPI *pIsZoomed )( HWND hWnd );
 	typedef BOOL ( WINAPI *pKillTimer )( HWND hWnd, UINT_PTR uIDEvent );
 	typedef HCURSOR ( WINAPI *pLoadCursorW )( HINSTANCE hInstance, LPCTSTR lpCursorName );
 	typedef HICON ( WINAPI *pLoadIconW )( HINSTANCE hInstance, LPCTSTR lpIconName );
@@ -197,21 +199,21 @@
 	typedef VOID ( WINAPI *pPostQuitMessage )( int nExitCode );
 	typedef ATOM ( WINAPI *pRegisterClassExW )( const WNDCLASSEX *lpwcx );
 	typedef UINT ( WINAPI *pRegisterClipboardFormatW )( LPCTSTR lpszFormat );
-	//typedef BOOL ( WINAPI *pReleaseCapture )( void );
+	typedef BOOL ( WINAPI *pReleaseCapture )( void );
 	typedef int ( WINAPI *pReleaseDC )( HWND hWnd, HDC hDC );
 	//typedef BOOL ( WINAPI *pRemoveMenu )( HMENU hMenu, UINT uPosition, UINT uFlags );
-	//typedef BOOL ( WINAPI *pScreenToClient )( HWND hWnd, LPPOINT lpPoint );
+	typedef BOOL ( WINAPI *pScreenToClient )( HWND hWnd, LPPOINT lpPoint );
 	typedef BOOL ( WINAPI *pScrollWindow )( HWND hWnd, int XAmount, int YAmount, const RECT *lpRect, const RECT *lpClipRect );
 	typedef LRESULT ( WINAPI *pSendMessageA )( HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lParam );
 	typedef LRESULT ( WINAPI *pSendMessageW )( HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lParam );
-	//typedef BOOL ( WINAPI *pSendNotifyMessageW )( HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lParam );
-	//typedef HWND ( WINAPI *pSetCapture )( HWND hWnd );
+	typedef BOOL ( WINAPI *pSendNotifyMessageW )( HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lParam );
+	typedef HWND ( WINAPI *pSetCapture )( HWND hWnd );
 	//typedef ULONG_PTR WINAPI ( WINAPI *pSetClassLongPtrW )( HWND hWnd, int nIndex, LONG_PTR dwNewLong );
 	typedef HANDLE ( WINAPI *pSetClipboardData )( UINT uFormat, HANDLE hMem );
 	typedef HCURSOR ( WINAPI *pSetCursor )( HCURSOR hCursor );
 	typedef HWND ( WINAPI *pSetFocus )( HWND hWnd );
 	typedef BOOL ( WINAPI *pSetForegroundWindow )( HWND hWnd );
-	//typedef BOOL ( WINAPI *pSetLayeredWindowAttributes )( HWND hwnd, COLORREF crKey, BYTE bAlpha, DWORD dwFlags );
+	typedef BOOL ( WINAPI *pSetLayeredWindowAttributes )( HWND hwnd, COLORREF crKey, BYTE bAlpha, DWORD dwFlags );
 	typedef BOOL ( WINAPI *pSetMenu )( HWND hWnd, HMENU hMenu );
 	//typedef BOOL ( WINAPI *pSetMenuItemInfoW )( HMENU hMenu, UINT uItem, BOOL fByPosition, LPMENUITEMINFO lpmii );
 	//typedef BOOL ( WINAPI *pSetRect )( LPRECT lprc, int xLeft, int yTop, int xRight, int yBottom );
@@ -279,6 +281,7 @@
 	extern pIsDialogMessageW		_IsDialogMessageW;
 	extern pIsIconic				_IsIconic;
 	extern pIsWindowVisible			_IsWindowVisible;
+	extern pIsZoomed				_IsZoomed;
 	extern pKillTimer				_KillTimer;
 	extern pLoadCursorW				_LoadCursorW;
 	extern pLoadIconW				_LoadIconW;
@@ -292,26 +295,26 @@
 	extern pPostQuitMessage			_PostQuitMessage;
 	extern pRegisterClassExW		_RegisterClassExW;
 	extern pRegisterClipboardFormatW	_RegisterClipboardFormatW;
-	//extern pReleaseCapture			_ReleaseCapture;
+	extern pReleaseCapture			_ReleaseCapture;
 	extern pReleaseDC				_ReleaseDC;
 	//extern pRemoveMenu				_RemoveMenu;
-	//extern pScreenToClient			_ScreenToClient;
+	extern pScreenToClient			_ScreenToClient;
 	extern pScrollWindow			_ScrollWindow;
 	extern pSendMessageA			_SendMessageA;
 	extern pSendMessageW			_SendMessageW;
-	//extern pSendNotifyMessageW		_SendNotifyMessageW;
-	//extern pSetCapture				_SetCapture;
+	extern pSendNotifyMessageW		_SendNotifyMessageW;
+	extern pSetCapture				_SetCapture;
 	//extern pSetClassLongPtrW		_SetClassLongPtrW;
 	extern pSetClipboardData		_SetClipboardData;
 	extern pSetCursor				_SetCursor;
 	extern pSetFocus				_SetFocus;
 	extern pSetForegroundWindow		_SetForegroundWindow;
-	//extern pSetLayeredWindowAttributes		_SetLayeredWindowAttributes;
+	extern pSetLayeredWindowAttributes		_SetLayeredWindowAttributes;
 	extern pSetMenu					_SetMenu;
 	//extern pSetMenuItemInfoW		_SetMenuItemInfoW;
 	//extern pSetRect					_SetRect;
 	extern pSetScrollInfo			_SetScrollInfo;
-	extern pSetScrollPos			_SetScrollPos
+	extern pSetScrollPos			_SetScrollPos;
 	extern pSetTimer				_SetTimer;
 	extern pSetWindowLongW			_SetWindowLongW;
 	extern pSetWindowPos			_SetWindowPos;

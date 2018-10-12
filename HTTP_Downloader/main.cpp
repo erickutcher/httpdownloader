@@ -30,6 +30,7 @@
 #include "lite_comdlg32.h"
 #include "lite_crypt32.h"
 #include "lite_comdlg32.h"
+#include "lite_comctl32.h"
 #include "lite_gdi32.h"
 #include "lite_ole32.h"
 #include "lite_winmm.h"
@@ -69,8 +70,6 @@ UINT CF_HTML = 0;
 
 int row_height = 0;
 
-bool use_drag_and_drop = true;
-
 wchar_t *base_directory = NULL;
 unsigned int base_directory_length = 0;
 
@@ -105,6 +104,9 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 	#endif
 	#ifndef COMDLG32_USE_STATIC_LIB
 		if ( !InitializeComDlg32() ){ return false; }
+	#endif
+	#ifndef COMCTL32_USE_STATIC_LIB
+		if ( !InitializeComCtl32() ){ return false; }
 	#endif
 	#ifndef CRYPT32_USE_STATIC_LIB
 		if ( !InitializeCrypt32() ){ goto UNLOAD_DLLS; }
@@ -153,6 +155,9 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 	MSG msg;
 	_memzero( &msg, sizeof( MSG ) );
 
+	wchar_t *url_arg = NULL;
+	unsigned int url_arg_length = 0;
+
 	base_directory = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * MAX_PATH );
 
 	// Get the new base directory if the user supplied a path.
@@ -161,31 +166,57 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 	LPWSTR *szArgList = _CommandLineToArgvW( GetCommandLineW(), &argCount );
 	if ( szArgList != NULL )
 	{
-		// The first parameter is the path to the executable, second is our switch "-d", and third is the new base directory path.
-		if ( argCount == 3 &&
-			 szArgList[ 1 ][ 0 ] == L'-' && szArgList[ 1 ][ 1 ] == L'd' && szArgList[ 1 ][ 2 ] == 0 &&
-			 GetFileAttributesW( szArgList[ 2 ] ) == FILE_ATTRIBUTE_DIRECTORY )
+		// The first parameter (index 0) is the path to the executable.
+		for ( int arg = 1; arg < argCount; ++arg )
 		{
-			base_directory_length = lstrlenW( szArgList[ 2 ] );
-			if ( base_directory_length >= MAX_PATH )
+			if ( szArgList[ arg ][ 0 ] == L'-' )
 			{
-				base_directory_length = MAX_PATH - 1;
+				if ( szArgList[ arg ][ 1 ] == L'd' && szArgList[ arg ][ 2 ] == 0 )	// Set the base directory.
+				{
+					++arg;	// Move to the supplied directory.
+
+					if ( GetFileAttributesW( szArgList[ arg ] ) == FILE_ATTRIBUTE_DIRECTORY )
+					{
+						base_directory_length = lstrlenW( szArgList[ arg ] );
+						if ( base_directory_length >= MAX_PATH )
+						{
+							base_directory_length = MAX_PATH - 1;
+						}
+						_wmemcpy_s( base_directory, MAX_PATH, szArgList[ arg ], base_directory_length );
+						base_directory[ base_directory_length ] = 0;	// Sanity.
+
+						default_directory = false;
+					}
+				}
+				else if ( szArgList[ arg ][ 1 ] == L'p' && szArgList[ arg ][ 2 ] == 0 )	// Portable mode (use the application's current directory for our base directory).
+				{
+					base_directory_length = lstrlenW( szArgList[ 0 ] );
+					while ( base_directory_length != 0 && szArgList[ 0 ][ --base_directory_length ] != L'\\' );
+
+					_wmemcpy_s( base_directory, MAX_PATH, szArgList[ 0 ], base_directory_length );
+					base_directory[ base_directory_length ] = 0;	// Sanity.
+
+					default_directory = false;
+				}
+				else if ( szArgList[ arg ][ 1 ] == L'u' && szArgList[ arg ][ 2 ] == 0 )	// A URL was supplied.
+				{
+					++arg;	// Move to the supplied URL.
+
+					if ( url_arg != NULL )
+					{
+						GlobalFree( url_arg );
+						url_arg = NULL;
+					}
+
+					url_arg_length = lstrlenW( szArgList[ arg ] );
+					if ( url_arg_length > 0 )
+					{
+						url_arg = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( url_arg_length + 1 ) );
+						_wmemcpy_s( url_arg, url_arg_length + 1, szArgList[ arg ], url_arg_length );
+						url_arg[ url_arg_length ] = 0;	// Sanity.
+					}
+				}
 			}
-			_wmemcpy_s( base_directory, MAX_PATH, szArgList[ 2 ], base_directory_length );
-			base_directory[ base_directory_length ] = 0;	// Sanity.
-
-			default_directory = false;
-		}
-		else if ( argCount == 2 &&
-				  szArgList[ 1 ][ 0 ] == L'-' && szArgList[ 1 ][ 1 ] == L'p' )	// Portable mode (use the application's current directory for our base directory).
-		{
-			base_directory_length = lstrlenW( szArgList[ 0 ] );
-			while ( base_directory_length != 0 && szArgList[ 0 ][ --base_directory_length ] != L'\\' );
-
-			_wmemcpy_s( base_directory, MAX_PATH, szArgList[ 0 ], base_directory_length );
-			base_directory[ base_directory_length ] = 0;	// Sanity.
-
-			default_directory = false;
 		}
 
 		// Free the parameter list.
@@ -270,6 +301,9 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 	cfg_pos_x = ( ( _GetSystemMetrics( SM_CXSCREEN ) - MIN_WIDTH ) / 2 );
 	cfg_pos_y = ( ( _GetSystemMetrics( SM_CYSCREEN ) - MIN_HEIGHT ) / 2 );
 
+	cfg_drop_pos_x = ( ( _GetSystemMetrics( SM_CXSCREEN ) - 48 ) / 2 );
+	cfg_drop_pos_y = ( ( _GetSystemMetrics( SM_CYSCREEN ) - 48 ) / 2 );
+
 	SYSTEM_INFO systemInfo;
 	GetSystemInfo( &systemInfo );
 
@@ -282,6 +316,44 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 	CF_HTML = _RegisterClipboardFormatW( L"HTML Format" );
 
 	read_config();
+
+	// See if there's an instance of the program running.
+	HANDLE app_instance_mutex = OpenMutexW( MUTEX_ALL_ACCESS, 0, L"HTTP Downloader" );
+	if ( app_instance_mutex == NULL )
+	{
+		app_instance_mutex = CreateMutexW( NULL, 0, L"HTTP Downloader" );
+		if ( app_instance_mutex == NULL )
+		{
+			goto CLEANUP;
+		}
+	}
+	else	// There's already an instance of the program running.
+	{
+		if ( cfg_use_one_instance )
+		{
+			HWND hWnd_instance = FindWindow( L"http_downloader_class", NULL );
+			if ( hWnd_instance != NULL )
+			{
+				// If we're passing a URL, then the Add URLs window will take focus when the copy data is received.
+				// If we're not passing a URL, then show the main window.
+				if ( url_arg != NULL )
+				{
+					COPYDATASTRUCT cds;
+					cds.dwData = 0;
+					cds.cbData = sizeof( wchar_t ) * ( url_arg_length + 1 );	// Include the NULL terminator.
+					cds.lpData = ( PVOID )url_arg;
+					_SendMessageW( hWnd_instance, WM_COPYDATA, 0, ( LPARAM )&cds );
+				}
+				else
+				{
+					_ShowWindow( hWnd_instance, SW_SHOW );
+					_SetForegroundWindow( hWnd_instance );
+				}
+			}
+
+			goto CLEANUP;
+		}
+	}
 
 	if ( cfg_enable_quick_allocation )
 	{
@@ -502,7 +574,7 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 	WNDCLASSEX wcex;
 	_memzero( &wcex, sizeof( WNDCLASSEX ) );
 	wcex.cbSize			= sizeof( WNDCLASSEX );
-	wcex.style          = CS_VREDRAW | CS_HREDRAW;
+	wcex.style          = 0;//CS_VREDRAW | CS_HREDRAW;
 	wcex.cbClsExtra     = 0;
 	wcex.cbWndExtra     = 0;
 	wcex.hInstance      = hInstance;
@@ -512,9 +584,10 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 	wcex.lpszMenuName   = NULL;
 	wcex.hIconSm        = NULL;
 
-
+	// Since the main window's children cover it up, we don't need to redraw the window.
+	// This also prevents the status bar child from flickering during a window resize. Dumb!
 	wcex.lpfnWndProc    = MainWndProc;
-	wcex.lpszClassName  = L"download";
+	wcex.lpszClassName  = L"http_downloader_class";
 
 	if ( !_RegisterClassExW( &wcex ) )
 	{
@@ -522,6 +595,7 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 		goto CLEANUP;
 	}
 
+	wcex.style          = CS_VREDRAW | CS_HREDRAW;
 	wcex.lpfnWndProc    = AddURLsWndProc;
 	wcex.lpszClassName  = L"add_urls";
 
@@ -579,18 +653,44 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 		goto CLEANUP;
 	}
 
+	wcex.lpfnWndProc    = URLDropWndProc;
+	wcex.lpszClassName  = L"url_drop_window";
+
+	if ( !_RegisterClassExW( &wcex ) )
+	{
+		fail_type = 1;
+		goto CLEANUP;
+	}
+
 	if ( !InitializeCMessageBox( hInstance ) )
 	{
 		fail_type = 1;
 		goto CLEANUP;
 	}
 
-	g_hWnd_main = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"download", PROGRAM_CAPTION, WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN | WS_VISIBLE, cfg_pos_x, cfg_pos_y, cfg_width, cfg_height, NULL, NULL, NULL, NULL );
+	g_hWnd_main = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"http_downloader_class", PROGRAM_CAPTION, WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN, cfg_pos_x, cfg_pos_y, cfg_width, cfg_height, NULL, NULL, NULL, NULL );
 
 	if ( !g_hWnd_main )
 	{
 		fail_type = 2;
 		goto CLEANUP;
+	}
+
+	_ShowWindow( g_hWnd_main, ( cfg_min_max == 1 ? SW_MINIMIZE : ( cfg_min_max == 2 ? SW_MAXIMIZE : SW_SHOWNORMAL ) ) );
+
+	if ( url_arg != NULL )
+	{
+		_SendMessageW( g_hWnd_main, WM_PROPAGATE, CF_UNICODETEXT, ( LPARAM )url_arg );
+
+		GlobalFree( url_arg );
+		url_arg = NULL;
+	}
+
+	if ( cfg_enable_drop_window )
+	{
+		g_hWnd_url_drop_window = _CreateWindowExW( WS_EX_NOPARENTNOTIFY | WS_EX_NOACTIVATE | WS_EX_TOPMOST, L"url_drop_window", NULL, WS_CLIPCHILDREN | WS_POPUP | WS_VISIBLE, cfg_drop_pos_x, cfg_drop_pos_y, 48, 48, NULL, NULL, NULL, NULL );
+		_SetWindowLongW( g_hWnd_url_drop_window, GWL_EXSTYLE, _GetWindowLongW( g_hWnd_url_drop_window, GWL_EXSTYLE ) | WS_EX_LAYERED );
+		_SetLayeredWindowAttributes( g_hWnd_url_drop_window, 0, 0x80, LWA_ALPHA );
 	}
 
 	// Main message loop:
@@ -606,6 +706,8 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 CLEANUP:
 
 	save_config();
+
+	if ( url_arg != NULL ) { GlobalFree( url_arg ); }
 
 	if ( base_directory != NULL ) { GlobalFree( base_directory ); }
 	if ( cfg_default_download_directory != NULL ) { GlobalFree( cfg_default_download_directory ); }
@@ -686,6 +788,9 @@ CLEANUP:
 
 	DeleteCriticalSection( &worker_cs );
 
+	ReleaseMutex( app_instance_mutex );
+	CloseHandle( app_instance_mutex );
+
 	// Delay loaded DLLs
 	SSL_library_uninit();
 
@@ -711,6 +816,9 @@ UNLOAD_DLLS:
 	#endif
 	#ifndef CRYPT32_USE_STATIC_LIB
 		UnInitializeCrypt32();
+	#endif
+	#ifndef COMCTL32_USE_STATIC_LIB
+		UnInitializeComCtl32();
 	#endif
 	#ifndef COMDLG32_USE_STATIC_LIB
 		UnInitializeComDlg32();

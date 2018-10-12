@@ -74,6 +74,7 @@ wchar_t *t_download_directory = NULL;
 
 WNDPROC URLProc = NULL;
 
+bool use_drag_and_drop_add = true;	// Assumes OLE32_STATE_RUNNING is true.
 IDropTarget *Add_DropTarget;
 
 LRESULT CALLBACK URLSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
@@ -203,11 +204,11 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			#ifndef OLE32_USE_STATIC_LIB
 				if ( ole32_state == OLE32_STATE_SHUTDOWN )
 				{
-					use_drag_and_drop = InitializeOle32();
+					use_drag_and_drop_add = InitializeOle32();
 				}
 			#endif
 
-			if ( use_drag_and_drop )
+			if ( use_drag_and_drop_add )
 			{
 				_OleInitialize( NULL );
 
@@ -692,7 +693,7 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 		case WM_DESTROY:
 		{
-			if ( use_drag_and_drop )
+			if ( use_drag_and_drop_add )
 			{
 				UnregisterDropWindow( g_hWnd_edit_add, Add_DropTarget );
 

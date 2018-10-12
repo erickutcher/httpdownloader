@@ -2121,7 +2121,7 @@ char *GetETag( char *header )
 //
 //
 //
-int ParseHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int header_buffer_length, bool request )
+char ParseHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int header_buffer_length, bool request )
 {
 	if ( context == NULL )
 	{
@@ -2524,14 +2524,14 @@ int ParseHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int 
 	return CONTENT_STATUS_GET_CONTENT;
 }
 
-int GetHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int header_buffer_length )
+char GetHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int header_buffer_length )
 {
 	if ( context == NULL )
 	{
 		return CONTENT_STATUS_FAILED;
 	}
 
-	int content_status = ParseHTTPHeader( context, header_buffer, header_buffer_length );
+	char content_status = ParseHTTPHeader( context, header_buffer, header_buffer_length );
 
 	if ( content_status == CONTENT_STATUS_READ_MORE_HEADER )		// Request more header data.
 	{
@@ -2550,144 +2550,147 @@ int GetHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int he
 			 context->header_info.url_location.resource != NULL &&
 			 cfg_max_redirects > 0 && context->request_info.redirect_count < cfg_max_redirects )
 		{
-			// If we're going to redirect, then allow the file to be renamed.
-			unsigned int filename_length = lstrlenA( context->header_info.url_location.resource );
-
-			char *filename = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( filename_length + 1 ) );
-			if ( filename != NULL )
+			// If we're going to redirect, then allow the file to be renamed, but not if we've already processed (essentially allocated the file) our header information.
+			if ( !context->processed_header )
 			{
-				_memcpy_s( filename, filename_length + 1, context->header_info.url_location.resource, filename_length );
-				filename[ filename_length ] = 0;	// Sanity.
+				unsigned int filename_length = lstrlenA( context->header_info.url_location.resource );
 
-				char *directory_ptr = filename;
-				char *current_directory = filename;
-				char *last_directory = NULL;
-
-				// Iterate forward because '/' can be found after '#'.
-				while ( *directory_ptr != NULL )
+				char *filename = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( filename_length + 1 ) );
+				if ( filename != NULL )
 				{
-					if ( *directory_ptr == '?' || *directory_ptr == '#' )
-					{
-						*directory_ptr = 0;	// Sanity.
+					_memcpy_s( filename, filename_length + 1, context->header_info.url_location.resource, filename_length );
+					filename[ filename_length ] = 0;	// Sanity.
 
-						break;
-					}
-					else if ( *directory_ptr == '/' )
-					{
-						last_directory = current_directory;
-						current_directory = directory_ptr + 1; 
-					}
+					char *directory_ptr = filename;
+					char *current_directory = filename;
+					char *last_directory = NULL;
 
-					++directory_ptr;
-				}
-
-				if ( *current_directory == NULL )
-				{
-					// Adjust for '/'. current_directory will always be at least 1 greater than last_directory.
-					if ( last_directory != NULL && ( current_directory - 1 ) - last_directory > 0 )
+					// Iterate forward because '/' can be found after '#'.
+					while ( *directory_ptr != NULL )
 					{
-						*( --current_directory ) = 0;	// Sanity.
-						current_directory = last_directory;
-					}
-					else	// No filename could be made from the resource path. Use the host name instead.
-					{
-						if ( context->header_info.url_location.host != NULL )
+						if ( *directory_ptr == '?' || *directory_ptr == '#' )
 						{
-							current_directory = context->header_info.url_location.host;
+							*directory_ptr = 0;	// Sanity.
+
+							break;
 						}
-						else if ( context->request_info.host != NULL )	// Relative redirection.
+						else if ( *directory_ptr == '/' )
 						{
-							current_directory = context->request_info.host;
+							last_directory = current_directory;
+							current_directory = directory_ptr + 1; 
 						}
-						else	// Shouldn't happen.
-						{
-							current_directory = "NO_FILENAME";
-						}
+
+						++directory_ptr;
 					}
-				}
 
-				if ( context->download_info != NULL )
-				{
-					EnterCriticalSection( &context->download_info->shared_cs );
-
-					context->download_info->icon = NULL;
-
-					LeaveCriticalSection( &context->download_info->shared_cs );
-
-					EnterCriticalSection( &icon_cache_cs );
-					// Find the icon info
-					dllrbt_iterator *itr = dllrbt_find( icon_handles, ( void * )( context->download_info->file_path + context->download_info->file_extension_offset ), false );
-
-					// Free its values and remove it from the tree if there are no other items using it.
-					if ( itr != NULL )
+					if ( *current_directory == NULL )
 					{
-						ICON_INFO *ii = ( ICON_INFO * )( ( node_type * )itr )->val;
-						if ( ii != NULL )
+						// Adjust for '/'. current_directory will always be at least 1 greater than last_directory.
+						if ( last_directory != NULL && ( current_directory - 1 ) - last_directory > 0 )
 						{
-							if ( --ii->count == 0 )
+							*( --current_directory ) = 0;	// Sanity.
+							current_directory = last_directory;
+						}
+						else	// No filename could be made from the resource path. Use the host name instead.
+						{
+							if ( context->header_info.url_location.host != NULL )
 							{
-								DestroyIcon( ii->icon );
-								GlobalFree( ii->file_extension );
-								GlobalFree( ii );
+								current_directory = context->header_info.url_location.host;
+							}
+							else if ( context->request_info.host != NULL )	// Relative redirection.
+							{
+								current_directory = context->request_info.host;
+							}
+							else	// Shouldn't happen.
+							{
+								current_directory = "NO_FILENAME";
+							}
+						}
+					}
 
+					if ( context->download_info != NULL )
+					{
+						EnterCriticalSection( &context->download_info->shared_cs );
+
+						context->download_info->icon = NULL;
+
+						LeaveCriticalSection( &context->download_info->shared_cs );
+
+						EnterCriticalSection( &icon_cache_cs );
+						// Find the icon info
+						dllrbt_iterator *itr = dllrbt_find( icon_handles, ( void * )( context->download_info->file_path + context->download_info->file_extension_offset ), false );
+
+						// Free its values and remove it from the tree if there are no other items using it.
+						if ( itr != NULL )
+						{
+							ICON_INFO *ii = ( ICON_INFO * )( ( node_type * )itr )->val;
+							if ( ii != NULL )
+							{
+								if ( --ii->count == 0 )
+								{
+									DestroyIcon( ii->icon );
+									GlobalFree( ii->file_extension );
+									GlobalFree( ii );
+
+									dllrbt_remove( icon_handles, itr );
+								}
+							}
+							else
+							{
 								dllrbt_remove( icon_handles, itr );
 							}
 						}
-						else
+						LeaveCriticalSection( &icon_cache_cs );
+
+						EnterCriticalSection( &context->download_info->shared_cs );
+
+						int w_filename_length = MultiByteToWideChar( CP_UTF8, 0, current_directory, -1, context->download_info->file_path + context->download_info->filename_offset, MAX_PATH - context->download_info->filename_offset - 1 ) - 1;
+						if ( w_filename_length == -1 && GetLastError() == ERROR_INSUFFICIENT_BUFFER )
 						{
-							dllrbt_remove( icon_handles, itr );
+							w_filename_length = MAX_PATH - context->download_info->filename_offset - 1;
 						}
+
+						EscapeFilename( context->download_info->file_path + context->download_info->filename_offset );
+
+						context->download_info->file_extension_offset = context->download_info->filename_offset + get_file_extension_offset( context->download_info->file_path + context->download_info->filename_offset, w_filename_length );
+
+						wchar_t file_path[ MAX_PATH ];
+						_wmemcpy_s( file_path, MAX_PATH, context->download_info->file_path, MAX_PATH );
+						if ( context->download_info->filename_offset > 0 )
+						{
+							file_path[ context->download_info->filename_offset - 1 ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
+						}
+
+						// Make sure any existing file hasn't started downloading.
+						if ( !( context->download_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) &&
+							  GetFileAttributes( file_path ) != INVALID_FILE_ATTRIBUTES &&
+							  context->download_info->downloaded == 0 )
+						{
+							context->got_filename = 2;
+						}
+						else	// No need to rename.
+						{
+							context->got_filename = 1;
+						}
+
+						LeaveCriticalSection( &context->download_info->shared_cs );
+
+						SHFILEINFO *sfi = ( SHFILEINFO * )GlobalAlloc( GMEM_FIXED, sizeof( SHFILEINFO ) );
+
+						// Cache our file's icon.
+						ICON_INFO *ii = CacheIcon( context->download_info, sfi );
+
+						EnterCriticalSection( &context->download_info->shared_cs );
+
+						context->download_info->icon = ( ii != NULL ? &ii->icon : NULL );
+
+						LeaveCriticalSection( &context->download_info->shared_cs );
+
+						GlobalFree( sfi );
 					}
-					LeaveCriticalSection( &icon_cache_cs );
 
-					EnterCriticalSection( &context->download_info->shared_cs );
-
-					int w_filename_length = MultiByteToWideChar( CP_UTF8, 0, current_directory, -1, context->download_info->file_path + context->download_info->filename_offset, MAX_PATH - context->download_info->filename_offset - 1 ) - 1;
-					if ( w_filename_length == -1 && GetLastError() == ERROR_INSUFFICIENT_BUFFER )
-					{
-						w_filename_length = MAX_PATH - context->download_info->filename_offset - 1;
-					}
-
-					EscapeFilename( context->download_info->file_path + context->download_info->filename_offset );
-
-					context->download_info->file_extension_offset = context->download_info->filename_offset + get_file_extension_offset( context->download_info->file_path + context->download_info->filename_offset, w_filename_length );
-
-					wchar_t file_path[ MAX_PATH ];
-					_wmemcpy_s( file_path, MAX_PATH, context->download_info->file_path, MAX_PATH );
-					if ( context->download_info->filename_offset > 0 )
-					{
-						file_path[ context->download_info->filename_offset - 1 ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
-					}
-
-					// Make sure any existing file hasn't started downloading.
-					if ( !( context->download_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) &&
-						  GetFileAttributes( file_path ) != INVALID_FILE_ATTRIBUTES &&
-						  context->download_info->downloaded == 0 )
-					{
-						context->got_filename = 2;
-					}
-					else	// No need to rename.
-					{
-						context->got_filename = 1;
-					}
-
-					LeaveCriticalSection( &context->download_info->shared_cs );
-
-					SHFILEINFO *sfi = ( SHFILEINFO * )GlobalAlloc( GMEM_FIXED, sizeof( SHFILEINFO ) );
-
-					// Cache our file's icon.
-					ICON_INFO *ii = CacheIcon( context->download_info, sfi );
-
-					EnterCriticalSection( &context->download_info->shared_cs );
-
-					context->download_info->icon = ( ii != NULL ? &ii->icon : NULL );
-
-					LeaveCriticalSection( &context->download_info->shared_cs );
-
-					GlobalFree( sfi );
+					GlobalFree( filename );
 				}
-
-				GlobalFree( filename );
 			}
 
 			// The connection will get closed in here.
@@ -2843,9 +2846,9 @@ int GetHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int he
 }
 
 // If we received a location URL, then we'll need to redirect to it.
-int HandleRedirect( SOCKET_CONTEXT *context )
+char HandleRedirect( SOCKET_CONTEXT *context )
 {
-	int ret = CONTENT_STATUS_FAILED;
+	char ret = CONTENT_STATUS_FAILED;
 
 	if ( context != NULL )
 	{
@@ -2962,9 +2965,9 @@ int HandleRedirect( SOCKET_CONTEXT *context )
 	return ret;
 }
 
-int MakeRangeRequest( SOCKET_CONTEXT *context )
+char MakeRangeRequest( SOCKET_CONTEXT *context )
 {
-	int ret = CONTENT_STATUS_FAILED;
+	char ret = CONTENT_STATUS_FAILED;
 
 	if ( context != NULL )
 	{
@@ -3147,9 +3150,9 @@ int MakeRangeRequest( SOCKET_CONTEXT *context )
 	return ret;
 }
 
-int MakeRequest( SOCKET_CONTEXT *context, IO_OPERATION next_operation, bool use_connect )
+char MakeRequest( SOCKET_CONTEXT *context, IO_OPERATION next_operation, bool use_connect )
 {
-	int ret = CONTENT_STATUS_FAILED;
+	char ret = CONTENT_STATUS_FAILED;
 
 	if ( context != NULL )
 	{
@@ -3317,9 +3320,9 @@ int MakeRequest( SOCKET_CONTEXT *context, IO_OPERATION next_operation, bool use_
 	return ret;
 }
 
-int MakeResponse( SOCKET_CONTEXT *context )
+char MakeResponse( SOCKET_CONTEXT *context )
 {
-	int ret = CONTENT_STATUS_FAILED;
+	char ret = CONTENT_STATUS_FAILED;
 
 	if ( context != NULL )
 	{
@@ -3449,7 +3452,7 @@ int MakeResponse( SOCKET_CONTEXT *context )
 	return ret;
 }
 
-int AllocateFile( SOCKET_CONTEXT *context )
+char AllocateFile( SOCKET_CONTEXT *context )
 {
 	if ( context == NULL )
 	{
@@ -3482,7 +3485,7 @@ int AllocateFile( SOCKET_CONTEXT *context )
 				if ( GetFileAttributes( file_path ) != INVALID_FILE_ATTRIBUTES && context->download_info->downloaded > 0 )
 				{
 					// If the file has downloaded data (we're resuming), then open it, otherwise truncate its size to 0.
-					context->download_info->hFile = CreateFile( file_path, GENERIC_WRITE | FILE_WRITE_ATTRIBUTES, 0, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED, NULL );
+					context->download_info->hFile = CreateFile( file_path, GENERIC_WRITE | FILE_WRITE_ATTRIBUTES | DELETE, 0, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED, NULL );
 
 					if ( context->download_info->hFile != INVALID_HANDLE_VALUE )
 					{
@@ -3507,7 +3510,7 @@ int AllocateFile( SOCKET_CONTEXT *context )
 				}
 				else	// Pre-allocate our file on the disk if it does not exist, or if we're overwriting one that already exists.
 				{
-					context->download_info->hFile = CreateFile( file_path, GENERIC_WRITE | FILE_WRITE_ATTRIBUTES, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED, NULL );
+					context->download_info->hFile = CreateFile( file_path, GENERIC_WRITE | FILE_WRITE_ATTRIBUTES | DELETE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED, NULL );
 
 					if ( context->download_info->hFile != INVALID_HANDLE_VALUE )
 					{
@@ -3614,7 +3617,7 @@ int AllocateFile( SOCKET_CONTEXT *context )
 	return CONTENT_STATUS_NONE;
 }
 
-int GetHTTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, unsigned int response_buffer_length )
+char GetHTTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, unsigned int response_buffer_length )
 {
 	if ( context == NULL )
 	{
@@ -3623,7 +3626,7 @@ int GetHTTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, unsi
 
 	if ( context->content_status != CONTENT_STATUS_GET_CONTENT )
 	{
-		int content_status = CONTENT_STATUS_GET_CONTENT;	// Assume we're now getting the content.
+		char content_status = CONTENT_STATUS_GET_CONTENT;	// Assume we're now getting the content.
 
 		// If the return status is CONTENT_STATUS_GET_CONTENT, then our end_of_header pointer will have been set.
 		if ( context->content_status == CONTENT_STATUS_NONE || context->content_status == CONTENT_STATUS_READ_MORE_HEADER )
@@ -3808,7 +3811,7 @@ int GetHTTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, unsi
 		context->write_wsabuf.buf = context->header_info.chunk_buffer;
 		context->write_wsabuf.len = 0;
 
-		int status = CONTENT_STATUS_READ_MORE_CONTENT;
+		char status = CONTENT_STATUS_READ_MORE_CONTENT;
 
 		// Offset past the chunk terminating token.
 		if ( response_buffer_length >= 2 && response_buffer[ 0 ] == '\r' && response_buffer[ 1 ] == '\n' )
@@ -4101,8 +4104,6 @@ int GetHTTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, unsi
 	}
 	else	// Non-chunked transfer
 	{
-		unsigned char status = 0;
-
 		char *output_buffer = response_buffer;
 		unsigned int output_buffer_length = response_buffer_length;
 
@@ -4126,6 +4127,8 @@ int GetHTTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, unsi
 
 			if ( !( context->download_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
 			{
+				unsigned char file_status = 0;
+
 				if ( context->download_info->hFile != INVALID_HANDLE_VALUE )
 				{
 					LARGE_INTEGER li;
@@ -4149,7 +4152,7 @@ int GetHTTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, unsi
 
 //					context->overlapped.context = context;
 
-					status = 1;
+					file_status = 1;
 
 					context->content_status = ( !context->processed_header ? CONTENT_STATUS_HANDLE_RESPONSE : CONTENT_STATUS_READ_MORE_CONTENT );
 
@@ -4165,7 +4168,7 @@ int GetHTTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, unsi
 						context->download_info->status = STATUS_FILE_IO_ERROR;
 						context->status = STATUS_FILE_IO_ERROR;
 
-						status = 0;
+						file_status = 0;
 
 						context->content_status = CONTENT_STATUS_FAILED;
 
@@ -4179,7 +4182,7 @@ int GetHTTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, unsi
 
 					LeaveCriticalSection( &context->download_info->shared_cs );
 
-					if ( status == 0 )
+					if ( file_status == 0 )
 					{
 						return CONTENT_STATUS_FAILED;
 					}
@@ -4223,7 +4226,7 @@ int GetHTTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, unsi
 	return CONTENT_STATUS_FAILED;	// Close the connection.
 }
 
-int GetPOSTValue( char *post_data, unsigned int post_data_length, unsigned int &post_data_offset, char **value, unsigned int &value_length )
+char GetPOSTValue( char *post_data, unsigned int post_data_length, unsigned int &post_data_offset, char **value, unsigned int &value_length )
 {
 	if ( post_data == NULL )
 	{
@@ -4286,14 +4289,14 @@ int GetPOSTValue( char *post_data, unsigned int post_data_length, unsigned int &
 	return CONTENT_STATUS_READ_MORE_CONTENT;
 }
 
-int ParsePOSTData( SOCKET_CONTEXT *context, char *post_data, unsigned int post_data_length )
+char ParsePOSTData( SOCKET_CONTEXT *context, char *post_data, unsigned int post_data_length )
 {
 	if ( context == NULL || post_data == NULL )
 	{
 		return CONTENT_STATUS_FAILED;
 	}
 
-	int status = CONTENT_STATUS_NONE;
+	char status = CONTENT_STATUS_NONE;
 
 	unsigned int value_length = 0;
 	unsigned int post_data_offset = 0;
@@ -4404,7 +4407,7 @@ bool SanitizePOSTHeaders( char *post_headers, char **sanitized_headers )
 	return false;
 }
 
-int GetHTTPRequestContent( SOCKET_CONTEXT *context, char *request_buffer, unsigned int request_buffer_length )
+char GetHTTPRequestContent( SOCKET_CONTEXT *context, char *request_buffer, unsigned int request_buffer_length )
 {
 	if ( context == NULL )
 	{
@@ -4413,7 +4416,7 @@ int GetHTTPRequestContent( SOCKET_CONTEXT *context, char *request_buffer, unsign
 
 	if ( context->content_status != CONTENT_STATUS_GET_CONTENT )
 	{
-		int content_status = CONTENT_STATUS_GET_CONTENT;	// Assume we're now getting the content.
+		char content_status = CONTENT_STATUS_GET_CONTENT;	// Assume we're now getting the content.
 
 		// If the return status is CONTENT_STATUS_GET_CONTENT, then our end_of_header pointer will have been set.
 		if ( context->content_status == CONTENT_STATUS_NONE || context->content_status == CONTENT_STATUS_READ_MORE_HEADER )
@@ -4507,7 +4510,7 @@ int GetHTTPRequestContent( SOCKET_CONTEXT *context, char *request_buffer, unsign
 
 		// Creates context->post_info and fills its data.
 		// Returns either CONTENT_STATUS_READ_MORE_CONTENT, CONTENT_STATUS_FAILED, or CONTENT_STATUS_NONE.
-		int content_status = ParsePOSTData( context, request_buffer, request_buffer_length );
+		char content_status = ParsePOSTData( context, request_buffer, request_buffer_length );
 		if ( content_status != CONTENT_STATUS_NONE )
 		{
 			context->wsabuf.buf = context->buffer;

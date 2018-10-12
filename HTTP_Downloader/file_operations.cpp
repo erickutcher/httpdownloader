@@ -28,7 +28,7 @@
 
 char read_config()
 {
-	char status = 0;
+	char ret_status = 0;
 
 	_wmemcpy_s( base_directory + base_directory_length, MAX_PATH - base_directory_length, L"\\http_downloader_settings\0", 26 );
 	base_directory[ base_directory_length + 25 ] = 0;	// Sanity.
@@ -39,11 +39,11 @@ char read_config()
 		DWORD read = 0, pos = 0;
 		DWORD fz = GetFileSize( hFile_cfg, NULL );
 
-		int reserved = 1024 - 144;
+		int reserved = 1024 - 156;
 
 		// Our config file is going to be small. If it's something else, we're not going to read it.
 		// Add 21 for the strings.
-		if ( fz >= ( 144 + 21 ) && fz < 10240 )
+		if ( fz >= ( 156 + 21 ) && fz < 10240 )
 		{
 			char *cfg_buf = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * fz + 1 );
 
@@ -237,6 +237,23 @@ char read_config()
 
 				_memcpy_s( &cfg_set_filetime, sizeof( bool ), next, sizeof( bool ) );
 				next += sizeof( bool );
+
+				_memcpy_s( &cfg_use_one_instance, sizeof( bool ), next, sizeof( bool ) );
+				next += sizeof( bool );
+
+				_memcpy_s( &cfg_enable_drop_window, sizeof( bool ), next, sizeof( bool ) );
+				next += sizeof( bool );
+
+				_memcpy_s( &cfg_drop_pos_x, sizeof( int ), next, sizeof( int ) );
+				next += sizeof( int );
+				_memcpy_s( &cfg_drop_pos_y, sizeof( int ), next, sizeof( int ) );
+				next += sizeof( int );
+
+				_memcpy_s( &cfg_show_toolbar, sizeof( bool ), next, sizeof( bool ) );
+				next += sizeof( bool );
+
+				_memcpy_s( &cfg_min_max, sizeof( unsigned char ), next, sizeof( unsigned char ) );
+				next += sizeof( unsigned char );
 
 				//
 
@@ -624,21 +641,21 @@ char read_config()
 			}
 			else
 			{
-				status = -2;	// Bad file format.
+				ret_status = -2;	// Bad file format.
 			}
 
 			GlobalFree( cfg_buf );
 		}
 		else
 		{
-			status = -3;	// Incorrect file size.
+			ret_status = -3;	// Incorrect file size.
 		}
 
 		CloseHandle( hFile_cfg );
 	}
 	else
 	{
-		status = -1;	// Can't open file for reading.
+		ret_status = -1;	// Can't open file for reading.
 	}
 
 	if ( cfg_default_download_directory == NULL )
@@ -680,12 +697,12 @@ char read_config()
 		cfg_hostname_s[ 9 ] = 0;	// Sanity.
 	}
 
-	return status;
+	return ret_status;
 }
 
 char save_config()
 {
-	char status = 0;
+	char ret_status = 0;
 
 	_wmemcpy_s( base_directory + base_directory_length, MAX_PATH - base_directory_length, L"\\http_downloader_settings\0", 26 );
 	base_directory[ base_directory_length + 25 ] = 0;	// Sanity.
@@ -693,8 +710,8 @@ char save_config()
 	HANDLE hFile_cfg = CreateFile( base_directory, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL );
 	if ( hFile_cfg != INVALID_HANDLE_VALUE )
 	{
-		int reserved = 1024 - 144;
-		int size = ( sizeof( int ) * 18 ) + ( sizeof( unsigned short ) * 4 ) + ( sizeof( char ) * 35 ) + ( sizeof( bool ) * 13 ) + ( sizeof( unsigned long ) * 4 ) + reserved;
+		int reserved = 1024 - 156;
+		int size = ( sizeof( int ) * 20 ) + ( sizeof( unsigned short ) * 4 ) + ( sizeof( char ) * 36 ) + ( sizeof( bool ) * 16 ) + ( sizeof( unsigned long ) * 4 ) + reserved;
 		int pos = 0;
 
 		char *write_buf = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * size );
@@ -883,6 +900,23 @@ char save_config()
 
 		_memcpy_s( write_buf + pos, size - pos, &cfg_set_filetime, sizeof( bool ) );
 		pos += sizeof( bool );
+
+		_memcpy_s( write_buf + pos, size - pos, &cfg_use_one_instance, sizeof( bool ) );
+		pos += sizeof( bool );
+
+		_memcpy_s( write_buf + pos, size - pos, &cfg_enable_drop_window, sizeof( bool ) );
+		pos += sizeof( bool );
+
+		_memcpy_s( write_buf + pos, size - pos, &cfg_drop_pos_x, sizeof( int ) );
+		pos += sizeof( int );
+		_memcpy_s( write_buf + pos, size - pos, &cfg_drop_pos_y, sizeof( int ) );
+		pos += sizeof( int );
+
+		_memcpy_s( write_buf + pos, size - pos, &cfg_show_toolbar, sizeof( bool ) );
+		pos += sizeof( bool );
+
+		_memcpy_s( write_buf + pos, size - pos, &cfg_min_max, sizeof( unsigned char ) );
+		pos += sizeof( unsigned char );
 
 		//
 
@@ -1150,15 +1184,15 @@ char save_config()
 	}
 	else
 	{
-		status = -1;	// Can't open file for writing.
+		ret_status = -1;	// Can't open file for writing.
 	}
 
-	return status;
+	return ret_status;
 }
 
 char read_download_history( wchar_t *file_path )
 {
-	char status = 0;
+	char ret_status = 0;
 
 	HANDLE hFile_read = CreateFile( file_path, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL );
 	if ( hFile_read != INVALID_HANDLE_VALUE )
@@ -1180,7 +1214,7 @@ char read_download_history( wchar_t *file_path )
 		DoublyLinkedList	*range_list;
 		unsigned char		parts;
 		unsigned char		parts_limit;
-		unsigned char		status;
+		unsigned short		status;
 
 		char				*cookies;
 		char				*headers;
@@ -1214,7 +1248,7 @@ char read_download_history( wchar_t *file_path )
 				// Make sure that we have at least part of the entry. This is the minimum size an entry could be.
 				// Include 3 wide NULL strings and 2 char NULL strings.
 				// Include 1 unsigned char for range info.
-				if ( read < ( ( ( sizeof( int ) * 2 ) + sizeof( ULONGLONG ) + ( sizeof( unsigned long long ) * 2 ) + ( sizeof( unsigned char ) * 5 ) + ( sizeof( bool ) * 1 ) ) +
+				if ( read < ( ( ( sizeof( int ) * 2 ) + sizeof( ULONGLONG ) + ( sizeof( unsigned long long ) * 2 ) + ( sizeof( unsigned char ) * 4 ) + sizeof( unsigned short ) + sizeof( bool ) ) +
 							  ( ( sizeof( wchar_t ) * 3 ) + ( sizeof( char ) * 2 ) ) +
 								  sizeof( unsigned char ) ) )
 				{
@@ -1279,10 +1313,10 @@ char read_download_history( wchar_t *file_path )
 					p += sizeof( unsigned char );
 
 					// Status
-					offset += sizeof( unsigned char );
+					offset += sizeof( unsigned short );
 					if ( offset >= read ) { goto CLEANUP; }
-					_memcpy_s( &status, sizeof( unsigned char ), p, sizeof( unsigned char ) );
-					p += sizeof( unsigned char );
+					_memcpy_s( &status, sizeof( unsigned short ), p, sizeof( unsigned short ) );
+					p += sizeof( unsigned short );
 
 					// SSL Version
 					offset += sizeof( char );
@@ -1517,13 +1551,14 @@ char read_download_history( wchar_t *file_path )
 					lvi.lParam = ( LPARAM )di;
 					_SendMessageW( g_hWnd_files, LVM_INSERTITEM, 0, ( LPARAM )&lvi );
 
-					if ( di->status == STATUS_PAUSED )	// Paused
+					if ( IS_STATUS( di->status, STATUS_PAUSED ) )	// Paused
 					{
 						di->status = STATUS_STOPPED;	// Stopped
 					}
-					else if ( di->status == STATUS_CONNECTING ||
-							  di->status == STATUS_DOWNLOADING ||
-							  di->status == STATUS_QUEUED )	// Connecting, Downloading or Queued
+					else if ( IS_STATUS( di->status,
+								 STATUS_CONNECTING |
+								 STATUS_DOWNLOADING |
+								 STATUS_QUEUED ) )	// Connecting, Downloading or Queued
 					{
 						download_history_changed = true;
 
@@ -1569,24 +1604,24 @@ char read_download_history( wchar_t *file_path )
 		}
 		else
 		{
-			status = -2;	// Bad file format.
+			ret_status = -2;	// Bad file format.
 		}
 
 		CloseHandle( hFile_read );	
 	}
 	else
 	{
-		status = -1;	// Can't open file for reading.
+		ret_status = -1;	// Can't open file for reading.
 	}
 
-	return status;
+	return ret_status;
 }
 
 
 
 char save_download_history( wchar_t *file_path )
 {
-	char status = 0;
+	char ret_status = 0;
 
 	HANDLE hFile_downloads = CreateFile( file_path, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL );
 	if ( hFile_downloads != INVALID_HANDLE_VALUE )
@@ -1625,7 +1660,7 @@ char save_download_history( wchar_t *file_path )
 			int password_length = lstrlenA( di->auth_info.password );
 
 			// See if the next entry can fit in the buffer. If it can't, then we dump the buffer.
-			if ( ( signed )( pos + filename_length + download_directory_length + url_length + cookies_length + headers_length + username_length + password_length + ( sizeof( int ) * 2 ) + sizeof( ULONGLONG ) + ( sizeof( unsigned long long ) * 2 ) + ( sizeof( unsigned char ) * 5 ) + ( sizeof( bool ) * 1 ) ) > size )
+			if ( ( signed )( pos + filename_length + download_directory_length + url_length + cookies_length + headers_length + username_length + password_length + ( sizeof( int ) * 2 ) + sizeof( ULONGLONG ) + ( sizeof( unsigned long long ) * 2 ) + ( sizeof( unsigned char ) * 4 ) + sizeof( unsigned short ) + sizeof( bool ) ) > size )
 			{
 				// Dump the buffer.
 				WriteFile( hFile_downloads, write_buf, pos, &write, NULL );
@@ -1647,8 +1682,8 @@ char save_download_history( wchar_t *file_path )
 			_memcpy_s( write_buf + pos, size - pos, &di->parts_limit, sizeof( unsigned char ) );
 			pos += sizeof( unsigned char );
 
-			_memcpy_s( write_buf + pos, size - pos, &di->status, sizeof( unsigned char ) );
-			pos += sizeof( unsigned char );
+			_memcpy_s( write_buf + pos, size - pos, &di->status, sizeof( unsigned short ) );
+			pos += sizeof( unsigned short );
 
 			_memcpy_s( write_buf + pos, size - pos, &di->ssl_version, sizeof( char ) );
 			pos += sizeof( char );
@@ -1763,8 +1798,164 @@ char save_download_history( wchar_t *file_path )
 	}
 	else
 	{
-		status = -1;	// Can't open file for writing.
+		ret_status = -1;	// Can't open file for writing.
 	}
 
-	return status;
+	return ret_status;
+}
+
+char save_download_history_csv_file( wchar_t *file_path )
+{
+	char ret_status = 0;
+
+	HANDLE hFile_download_history = CreateFile( file_path, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL );
+	if ( hFile_download_history != INVALID_HANDLE_VALUE )
+	{
+		int size = ( 32768 + 1 );
+		int pos = 0;
+		DWORD write = 0;
+		char unix_timestamp[ 21 ];
+		_memzero( unix_timestamp, 21 );
+		char file_size[ 21 ];
+		_memzero( file_size, 21 );
+		char downloaded[ 21 ];
+		_memzero( downloaded, 21 );
+
+		char *write_buf = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * size );
+
+		// Write the UTF-8 BOM and CSV column titles.
+		WriteFile( hFile_download_history, "\xEF\xBB\xBF\"Filename\",\"Download Directory\",\"Date and Time Added\",\"Unix Timestamp\",\"Downloaded (bytes)\",\"File Size (bytes)\",\"URL\"", 120, &write, NULL );
+
+		int item_count = _SendMessageW( g_hWnd_files, LVM_GETITEMCOUNT, 0, 0 );
+
+		LVITEM lvi;
+		_memzero( &lvi, sizeof( LVITEM ) );
+		lvi.mask = LVIF_PARAM;
+
+		for ( lvi.iItem = 0; lvi.iItem < item_count; ++lvi.iItem )
+		{
+			_SendMessageW( g_hWnd_files, LVM_GETITEM, 0, ( LPARAM )&lvi );
+
+			DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )lvi.lParam;
+
+			int download_directory_length = WideCharToMultiByte( CP_UTF8, 0, di->file_path, -1, NULL, 0, NULL, NULL );
+			char *utf8_download_directory = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * download_directory_length ); // Size includes the null character.
+			download_directory_length = WideCharToMultiByte( CP_UTF8, 0, di->file_path, -1, utf8_download_directory, download_directory_length, NULL, NULL ) - 1;
+
+			int filename_length = WideCharToMultiByte( CP_UTF8, 0, di->file_path + di->filename_offset, -1, NULL, 0, NULL, NULL );
+			char *utf8_filename = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * filename_length ); // Size includes the null character.
+			filename_length = WideCharToMultiByte( CP_UTF8, 0, di->file_path + di->filename_offset, -1, utf8_filename, filename_length, NULL, NULL ) - 1;
+
+			int time_length = WideCharToMultiByte( CP_UTF8, 0, di->w_add_time, -1, NULL, 0, NULL, NULL );
+			char *utf8_time = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * time_length ); // Size includes the null character.
+			time_length = WideCharToMultiByte( CP_UTF8, 0, di->w_add_time, -1, utf8_time, time_length, NULL, NULL ) - 1;
+
+			int url_length = WideCharToMultiByte( CP_UTF8, 0, di->url, -1, NULL, 0, NULL, NULL );
+			char *utf8_url = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * url_length ); // Size includes the null character.
+			url_length = WideCharToMultiByte( CP_UTF8, 0, di->url, -1, utf8_url, url_length, NULL, NULL ) - 1;
+
+			char *escaped_url = escape_csv( utf8_url );
+			if ( escaped_url != NULL )
+			{
+				GlobalFree( utf8_url );
+
+				utf8_url = escaped_url;
+				url_length = lstrlenA( utf8_url );
+			}
+
+			// Convert the time into a 32bit Unix timestamp.
+			ULARGE_INTEGER date;
+			date.HighPart = di->add_time.HighPart;
+			date.LowPart = di->add_time.LowPart;
+
+			date.QuadPart -= ( 11644473600000 * 10000 );
+
+			// Divide the 64bit value.
+			__asm
+			{
+				xor edx, edx;				//; Zero out the register so we don't divide a full 64bit value.
+				mov eax, date.HighPart;		//; We'll divide the high order bits first.
+				mov ecx, FILETIME_TICKS_PER_SECOND;
+				div ecx;
+				mov date.HighPart, eax;		//; Store the high order quotient.
+				mov eax, date.LowPart;		//; Now we'll divide the low order bits.
+				div ecx;
+				mov date.LowPart, eax;		//; Store the low order quotient.
+				//; Any remainder will be stored in edx. We're not interested in it though.
+			}
+
+			int timestamp_length = __snprintf( unix_timestamp, 21, "%llu", date.QuadPart );
+
+			int downloaded_length = __snprintf( downloaded, 21, "%llu", di->downloaded );
+			int file_size_length = __snprintf( file_size, 21, "%llu", di->file_size );
+
+			// See if the next entry can fit in the buffer. If it can't, then we dump the buffer.
+			if ( pos + filename_length + download_directory_length + time_length + timestamp_length + downloaded_length + file_size_length + url_length + 16 > size )
+			{
+				// Dump the buffer.
+				WriteFile( hFile_download_history, write_buf, pos, &write, NULL );
+				pos = 0;
+			}
+
+			// Add to the buffer.
+			write_buf[ pos++ ] = '\r';
+			write_buf[ pos++ ] = '\n';
+
+			write_buf[ pos++ ] = '\"';
+			_memcpy_s( write_buf + pos, size - pos, utf8_filename, filename_length );
+			pos += filename_length;
+			write_buf[ pos++ ] = '\"';
+			write_buf[ pos++ ] = ',';
+
+			write_buf[ pos++ ] = '\"';
+			_memcpy_s( write_buf + pos, size - pos, utf8_download_directory, download_directory_length );
+			pos += download_directory_length;
+			write_buf[ pos++ ] = '\"';
+			write_buf[ pos++ ] = ',';
+
+			write_buf[ pos++ ] = '\"';
+			_memcpy_s( write_buf + pos, size - pos, utf8_time, time_length );
+			pos += time_length;
+			write_buf[ pos++ ] = '\"';
+			write_buf[ pos++ ] = ',';
+
+			_memcpy_s( write_buf + pos, size - pos, unix_timestamp, timestamp_length );
+			pos += timestamp_length;
+			write_buf[ pos++ ] = ',';
+
+			_memcpy_s( write_buf + pos, size - pos, downloaded, downloaded_length );
+			pos += downloaded_length;
+			write_buf[ pos++ ] = ',';
+
+			_memcpy_s( write_buf + pos, size - pos, file_size, file_size_length );
+			pos += file_size_length;
+			write_buf[ pos++ ] = ',';
+
+			write_buf[ pos++ ] = '\"';
+			_memcpy_s( write_buf + pos, size - pos, utf8_url, url_length );
+			pos += url_length;
+			write_buf[ pos++ ] = '\"';
+
+			GlobalFree( utf8_download_directory );
+			GlobalFree( utf8_filename );
+			GlobalFree( utf8_time );
+			GlobalFree( utf8_url );
+		}
+
+		// If there's anything remaining in the buffer, then write it to the file.
+		if ( pos > 0 )
+		{
+			WriteFile( hFile_download_history, write_buf, pos, &write, NULL );
+		}
+
+		GlobalFree( write_buf );
+
+		CloseHandle( hFile_download_history );
+	}
+	else
+	{
+		ret_status = -1;	// Can't open file for writing.
+	}
+
+	return ret_status;
 }

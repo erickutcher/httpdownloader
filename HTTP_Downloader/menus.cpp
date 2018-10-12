@@ -45,6 +45,11 @@ void DestroyMenus()
 
 void UpdateMenus( bool enable )
 {
+	TBBUTTONINFO tbb;
+	_memzero( &tbb, sizeof( TBBUTTONINFO ) );
+	tbb.cbSize = sizeof( TBBUTTONINFO );
+	tbb.dwMask = TBIF_STATE;
+
 	if ( enable )
 	{
 		int item_count = _SendMessageW( g_hWnd_files, LVM_GETITEMCOUNT, 0, 0 );
@@ -78,19 +83,19 @@ void UpdateMenus( bool enable )
 				_EnableMenuItem( g_hMenuSub_download, MENU_OPEN_DIRECTORY, MF_DISABLED );
 			}
 
-			// Allow download update if any of the following.
+			// Allow download update if any of the following. Includes paused.
 			if ( di != NULL &&
-			   ( di->status == STATUS_CONNECTING ||
-			     di->status == STATUS_DOWNLOADING ||
-				 di->status == STATUS_PAUSED ||
-				 di->status == STATUS_QUEUED ||
-				 di->status == STATUS_COMPLETED ||
-				 di->status == STATUS_STOPPED ||
-				 di->status == STATUS_TIMED_OUT ||
-				 di->status == STATUS_FAILED ||
-				 di->status == STATUS_SKIPPED ||
-				 di->status == STATUS_AUTH_REQUIRED ||
-				 di->status == STATUS_PROXY_AUTH_REQUIRED ) )
+				 IS_STATUS( di->status,
+					STATUS_CONNECTING |
+					STATUS_DOWNLOADING |
+					STATUS_QUEUED |
+					STATUS_COMPLETED |
+					STATUS_STOPPED |
+					STATUS_TIMED_OUT |
+					STATUS_FAILED |
+					STATUS_SKIPPED |
+					STATUS_AUTH_REQUIRED |
+					STATUS_PROXY_AUTH_REQUIRED ) )
 			{
 				_EnableMenuItem( g_hMenuSub_download, MENU_UPDATE_DOWNLOAD, MF_ENABLED );
 				_EnableMenuItem( g_hMenuSub_edit, MENU_UPDATE_DOWNLOAD, MF_ENABLED );
@@ -117,6 +122,18 @@ void UpdateMenus( bool enable )
 				_EnableMenuItem( g_hMenuSub_queue, MENU_QUEUE_DOWN, MF_DISABLED );
 				_EnableMenuItem( g_hMenuSub_queue, MENU_QUEUE_BOTTOM, MF_DISABLED );
 			}
+
+			// Make sure our Filename column is visible.
+			if ( *download_columns[ 8 ] != -1 )
+			{
+				_EnableMenuItem( g_hMenuSub_download, MENU_RENAME, MF_ENABLED );
+				_EnableMenuItem( g_hMenuSub_edit, MENU_RENAME, MF_ENABLED );
+			}
+			else
+			{
+				_EnableMenuItem( g_hMenuSub_download, MENU_RENAME, MF_DISABLED );
+				_EnableMenuItem( g_hMenuSub_edit, MENU_RENAME, MF_DISABLED );
+			}
 		}
 		else
 		{
@@ -130,6 +147,9 @@ void UpdateMenus( bool enable )
 			_EnableMenuItem( g_hMenuSub_queue, MENU_QUEUE_UP, MF_DISABLED );
 			_EnableMenuItem( g_hMenuSub_queue, MENU_QUEUE_DOWN, MF_DISABLED );
 			_EnableMenuItem( g_hMenuSub_queue, MENU_QUEUE_BOTTOM, MF_DISABLED );
+
+			_EnableMenuItem( g_hMenuSub_download, MENU_RENAME, MF_DISABLED );
+			_EnableMenuItem( g_hMenuSub_edit, MENU_RENAME, MF_DISABLED );
 		}
 
 		if ( sel_count > 0 )
@@ -137,61 +157,92 @@ void UpdateMenus( bool enable )
 			// Allow start if paused, queued, stopped, timed out, failed, skipped, or proxy authorization required.
 			if ( di != NULL &&
 			   ( di->file_size == 0 || ( di->downloaded < di->file_size ) ) &&
-			   ( di->status == STATUS_PAUSED ||
+			   ( IS_STATUS( di->status, STATUS_PAUSED ) ||
 			   ( di->status == STATUS_QUEUED && ( total_downloading < cfg_max_downloads ) ) ||
 			   ( di->active_parts == 0 &&
-			   ( di->status == STATUS_STOPPED ||
-				 di->status == STATUS_TIMED_OUT ||
-				 di->status == STATUS_FAILED ||
-				 di->status == STATUS_SKIPPED ||
-				 di->status == STATUS_AUTH_REQUIRED ||
-				 di->status == STATUS_PROXY_AUTH_REQUIRED ) ) ) )
+				 IS_STATUS( di->status,
+					STATUS_STOPPED |
+					STATUS_TIMED_OUT |
+					STATUS_FAILED |
+					STATUS_SKIPPED |
+					STATUS_AUTH_REQUIRED |
+					STATUS_PROXY_AUTH_REQUIRED ) ) ) )
 			{
 				_EnableMenuItem( g_hMenuSub_download, MENU_START, MF_ENABLED );
 				_EnableMenuItem( g_hMenuSub_edit, MENU_START, MF_ENABLED );
+
+				tbb.fsState = TBSTATE_ENABLED;
+				_SendMessageW( g_hWnd_toolbar, TB_SETBUTTONINFO, MENU_START, ( LPARAM )&tbb );
 			}
 			else
 			{
 				_EnableMenuItem( g_hMenuSub_download, MENU_START, MF_DISABLED );
 				_EnableMenuItem( g_hMenuSub_edit, MENU_START, MF_DISABLED );
+
+				tbb.fsState = TBSTATE_INDETERMINATE;
+				_SendMessageW( g_hWnd_toolbar, TB_SETBUTTONINFO, MENU_START, ( LPARAM )&tbb );
 			}
 
 			// Allow pause if downloading.
+			// Make sure the status is exclusively connecting or downloading.
 			if ( di != NULL &&
-				 di->status == STATUS_DOWNLOADING )
+			   ( di->status == STATUS_CONNECTING ||
+				 di->status == STATUS_DOWNLOADING ) )
 			{
 				_EnableMenuItem( g_hMenuSub_download, MENU_PAUSE, MF_ENABLED );
 				_EnableMenuItem( g_hMenuSub_edit, MENU_PAUSE, MF_ENABLED );
+
+				tbb.fsState = TBSTATE_ENABLED;
+				_SendMessageW( g_hWnd_toolbar, TB_SETBUTTONINFO, MENU_PAUSE, ( LPARAM )&tbb );
 			}
 			else
 			{
 				_EnableMenuItem( g_hMenuSub_download, MENU_PAUSE, MF_DISABLED );
 				_EnableMenuItem( g_hMenuSub_edit, MENU_PAUSE, MF_DISABLED );
+
+				tbb.fsState = TBSTATE_INDETERMINATE;
+				_SendMessageW( g_hWnd_toolbar, TB_SETBUTTONINFO, MENU_PAUSE, ( LPARAM )&tbb );
 			}
 
 			// Allow stop if connecting, downloading, paused, or queued.
 			if ( di != NULL &&
-			   ( di->status == STATUS_CONNECTING ||
-			     di->status == STATUS_DOWNLOADING ||
-				 di->status == STATUS_PAUSED ||
-				 di->status == STATUS_QUEUED ) )
+				 IS_STATUS( di->status,
+					STATUS_CONNECTING |
+					STATUS_DOWNLOADING |
+					STATUS_QUEUED ) )
 			{
 				_EnableMenuItem( g_hMenuSub_download, MENU_STOP, MF_ENABLED );
 				_EnableMenuItem( g_hMenuSub_edit, MENU_STOP, MF_ENABLED );
+
+				tbb.fsState = TBSTATE_ENABLED;
+				_SendMessageW( g_hWnd_toolbar, TB_SETBUTTONINFO, MENU_STOP, ( LPARAM )&tbb );
 			}
 			else
 			{
 				_EnableMenuItem( g_hMenuSub_download, MENU_STOP, MF_DISABLED );
 				_EnableMenuItem( g_hMenuSub_edit, MENU_STOP, MF_DISABLED );
+
+				tbb.fsState = TBSTATE_INDETERMINATE;
+				_SendMessageW( g_hWnd_toolbar, TB_SETBUTTONINFO, MENU_STOP, ( LPARAM )&tbb );
 			}
 
 			// Allow remove for all statuses.
-			_EnableMenuItem( g_hMenuSub_download, MENU_REMOVE_SELECTED, MF_ENABLED );
-			_EnableMenuItem( g_hMenuSub_edit, MENU_REMOVE_SELECTED, MF_ENABLED );
+			_EnableMenuItem( g_hMenuSub_download, MENU_REMOVE, MF_ENABLED );
+			_EnableMenuItem( g_hMenuSub_edit, MENU_REMOVE, MF_ENABLED );
+
+			if ( di != NULL &&
+				!( di->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
+			{
+				_EnableMenuItem( g_hMenuSub_download, MENU_DELETE, MF_ENABLED );
+				_EnableMenuItem( g_hMenuSub_edit, MENU_DELETE, MF_ENABLED );
+			}
 
 			// Allow the URL copy.
 			_EnableMenuItem( g_hMenuSub_download, MENU_COPY_URLS, MF_ENABLED );
 			_EnableMenuItem( g_hMenuSub_edit, MENU_COPY_URLS, MF_ENABLED );
+
+			tbb.fsState = TBSTATE_ENABLED;
+			_SendMessageW( g_hWnd_toolbar, TB_SETBUTTONINFO, MENU_REMOVE, ( LPARAM )&tbb );
 		}
 		else
 		{
@@ -199,7 +250,8 @@ void UpdateMenus( bool enable )
 			_EnableMenuItem( g_hMenuSub_download, MENU_PAUSE, MF_DISABLED );
 			_EnableMenuItem( g_hMenuSub_download, MENU_STOP, MF_DISABLED );
 
-			_EnableMenuItem( g_hMenuSub_download, MENU_REMOVE_SELECTED, MF_DISABLED );
+			_EnableMenuItem( g_hMenuSub_download, MENU_REMOVE, MF_DISABLED );
+			_EnableMenuItem( g_hMenuSub_download, MENU_DELETE, MF_DISABLED );
 
 			_EnableMenuItem( g_hMenuSub_download, MENU_COPY_URLS, MF_DISABLED );
 
@@ -207,26 +259,45 @@ void UpdateMenus( bool enable )
 			_EnableMenuItem( g_hMenuSub_edit, MENU_PAUSE, MF_DISABLED );
 			_EnableMenuItem( g_hMenuSub_edit, MENU_STOP, MF_DISABLED );
 
-			_EnableMenuItem( g_hMenuSub_edit, MENU_REMOVE_SELECTED, MF_DISABLED );
+			_EnableMenuItem( g_hMenuSub_edit, MENU_REMOVE, MF_DISABLED );
+			_EnableMenuItem( g_hMenuSub_edit, MENU_DELETE, MF_DISABLED );
 
 			_EnableMenuItem( g_hMenuSub_edit, MENU_COPY_URLS, MF_DISABLED );
+
+			tbb.fsState = TBSTATE_INDETERMINATE;
+			_SendMessageW( g_hWnd_toolbar, TB_SETBUTTONINFO, MENU_REMOVE, ( LPARAM )&tbb );
+			_SendMessageW( g_hWnd_toolbar, TB_SETBUTTONINFO, MENU_START, ( LPARAM )&tbb );
+			_SendMessageW( g_hWnd_toolbar, TB_SETBUTTONINFO, MENU_PAUSE, ( LPARAM )&tbb );
+			_SendMessageW( g_hWnd_toolbar, TB_SETBUTTONINFO, MENU_STOP, ( LPARAM )&tbb );
 		}
 
 		if ( active_download_list != NULL )
 		{
 			_EnableMenuItem( g_hMenuSub_edit, MENU_PAUSE_ACTIVE, MF_ENABLED );
 			_EnableMenuItem( g_hMenuSub_edit, MENU_STOP_ALL, MF_ENABLED );
-			
+
+			tbb.fsState = TBSTATE_ENABLED;
+			_SendMessageW( g_hWnd_toolbar, TB_SETBUTTONINFO, MENU_PAUSE_ACTIVE, ( LPARAM )&tbb );
+			_SendMessageW( g_hWnd_toolbar, TB_SETBUTTONINFO, MENU_STOP_ALL, ( LPARAM )&tbb );
 		}
 		else if ( download_queue != NULL )
 		{
 			_EnableMenuItem( g_hMenuSub_edit, MENU_PAUSE_ACTIVE, MF_DISABLED );
 			_EnableMenuItem( g_hMenuSub_edit, MENU_STOP_ALL, MF_ENABLED );
+
+			tbb.fsState = TBSTATE_INDETERMINATE;
+			_SendMessageW( g_hWnd_toolbar, TB_SETBUTTONINFO, MENU_PAUSE_ACTIVE, ( LPARAM )&tbb );
+			tbb.fsState = TBSTATE_ENABLED;
+			_SendMessageW( g_hWnd_toolbar, TB_SETBUTTONINFO, MENU_STOP_ALL, ( LPARAM )&tbb );
 		}
 		else
 		{
 			_EnableMenuItem( g_hMenuSub_edit, MENU_PAUSE_ACTIVE, MF_DISABLED );
 			_EnableMenuItem( g_hMenuSub_edit, MENU_STOP_ALL, MF_DISABLED );
+
+			tbb.fsState = TBSTATE_INDETERMINATE;
+			_SendMessageW( g_hWnd_toolbar, TB_SETBUTTONINFO, MENU_PAUSE_ACTIVE, ( LPARAM )&tbb );
+			_SendMessageW( g_hWnd_toolbar, TB_SETBUTTONINFO, MENU_STOP_ALL, ( LPARAM )&tbb );
 		}
 
 		if ( item_count > 0 )
@@ -254,7 +325,8 @@ void UpdateMenus( bool enable )
 		_EnableMenuItem( g_hMenuSub_download, MENU_PAUSE, MF_DISABLED );
 		_EnableMenuItem( g_hMenuSub_download, MENU_STOP, MF_DISABLED );
 		_EnableMenuItem( g_hMenuSub_download, MENU_UPDATE_DOWNLOAD, MF_DISABLED );
-		_EnableMenuItem( g_hMenuSub_download, MENU_REMOVE_SELECTED, MF_DISABLED );
+		_EnableMenuItem( g_hMenuSub_download, MENU_REMOVE, MF_DISABLED );
+		_EnableMenuItem( g_hMenuSub_download, MENU_RENAME, MF_DISABLED );
 		_EnableMenuItem( g_hMenuSub_download, MENU_COPY_URLS, MF_DISABLED );
 		_EnableMenuItem( g_hMenuSub_download, MENU_SELECT_ALL, MF_DISABLED );
 
@@ -264,8 +336,9 @@ void UpdateMenus( bool enable )
 		_EnableMenuItem( g_hMenuSub_edit, MENU_UPDATE_DOWNLOAD, MF_DISABLED );
 		_EnableMenuItem( g_hMenuSub_edit, MENU_PAUSE, MF_DISABLED );
 		_EnableMenuItem( g_hMenuSub_edit, MENU_PAUSE_ACTIVE, MF_DISABLED );
+		_EnableMenuItem( g_hMenuSub_edit, MENU_REMOVE, MF_DISABLED );
 		_EnableMenuItem( g_hMenuSub_edit, MENU_REMOVE_COMPLETED, MF_DISABLED );
-		_EnableMenuItem( g_hMenuSub_edit, MENU_REMOVE_SELECTED, MF_DISABLED );
+		_EnableMenuItem( g_hMenuSub_edit, MENU_RENAME, MF_DISABLED );
 		_EnableMenuItem( g_hMenuSub_edit, MENU_COPY_URLS, MF_DISABLED );
 		_EnableMenuItem( g_hMenuSub_edit, MENU_SELECT_ALL, MF_DISABLED );
 
@@ -273,6 +346,14 @@ void UpdateMenus( bool enable )
 		_EnableMenuItem( g_hMenuSub_queue, MENU_QUEUE_UP, MF_DISABLED );
 		_EnableMenuItem( g_hMenuSub_queue, MENU_QUEUE_DOWN, MF_DISABLED );
 		_EnableMenuItem( g_hMenuSub_queue, MENU_QUEUE_BOTTOM, MF_DISABLED );
+
+		tbb.fsState = TBSTATE_INDETERMINATE;
+		_SendMessageW( g_hWnd_toolbar, TB_SETBUTTONINFO, MENU_REMOVE, ( LPARAM )&tbb );
+		_SendMessageW( g_hWnd_toolbar, TB_SETBUTTONINFO, MENU_START, ( LPARAM )&tbb );
+		_SendMessageW( g_hWnd_toolbar, TB_SETBUTTONINFO, MENU_PAUSE, ( LPARAM )&tbb );
+		_SendMessageW( g_hWnd_toolbar, TB_SETBUTTONINFO, MENU_STOP, ( LPARAM )&tbb );
+		_SendMessageW( g_hWnd_toolbar, TB_SETBUTTONINFO, MENU_PAUSE_ACTIVE, ( LPARAM )&tbb );
+		_SendMessageW( g_hWnd_toolbar, TB_SETBUTTONINFO, MENU_STOP_ALL, ( LPARAM )&tbb );
 	}
 }
 
@@ -375,28 +456,42 @@ void CreateMenus()
 	_InsertMenuItemW( g_hMenuSub_download, 10, TRUE, &mii );
 
 	mii.fType = MFT_STRING;
-	mii.dwTypeData = ST_Remove_Selected;
-	mii.cch = 15;
-	mii.wID = MENU_REMOVE_SELECTED;
+	mii.dwTypeData = ST_Remove;
+	mii.cch = 6;
+	mii.wID = MENU_REMOVE;
 	_InsertMenuItemW( g_hMenuSub_download, 11, TRUE, &mii );
 
 	mii.fType = MFT_SEPARATOR;
 	_InsertMenuItemW( g_hMenuSub_download, 12, TRUE, &mii );
 
 	mii.fType = MFT_STRING;
+	mii.dwTypeData = ST_Rename;
+	mii.cch = 6;
+	mii.wID = MENU_RENAME;
+	_InsertMenuItemW( g_hMenuSub_download, 13, TRUE, &mii );
+
+	mii.dwTypeData = ST_Delete;
+	mii.cch = 6;
+	mii.wID = MENU_DELETE;
+	_InsertMenuItemW( g_hMenuSub_download, 14, TRUE, &mii );
+
+	mii.fType = MFT_SEPARATOR;
+	_InsertMenuItemW( g_hMenuSub_download, 15, TRUE, &mii );
+
+	mii.fType = MFT_STRING;
 	mii.dwTypeData = ST_Copy_URL_s_;
 	mii.cch = 11;
 	mii.wID = MENU_COPY_URLS;
-	_InsertMenuItemW( g_hMenuSub_download, 13, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_download, 16, TRUE, &mii );
 
 	mii.fType = MFT_SEPARATOR;
-	_InsertMenuItemW( g_hMenuSub_download, 14, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_download, 17, TRUE, &mii );
 
 	mii.fType = MFT_STRING;
 	mii.dwTypeData = ST_Select_All;
 	mii.cch = 10;
 	mii.wID = MENU_SELECT_ALL;
-	_InsertMenuItemW( g_hMenuSub_download, 15, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_download, 18, TRUE, &mii );
 
 	//
 
@@ -537,10 +632,36 @@ void CreateMenus()
 	_InsertMenuItemW( hMenuSub_file, 1, TRUE, &mii );
 
 	mii.fType = MFT_STRING;
+	mii.dwTypeData = ST__Save_Download_History___;
+	mii.cch = 25;
+	mii.wID = MENU_SAVE_DOWNLOAD_HISTORY;
+	mii.fState = MFS_ENABLED;
+	_InsertMenuItemW( hMenuSub_file, 2, TRUE, &mii );
+
+	mii.fType = MFT_SEPARATOR;
+	_InsertMenuItemW( hMenuSub_file, 3, TRUE, &mii );
+
+	mii.fType = MFT_STRING;
+	mii.dwTypeData = ST__Import_Download_History___;
+	mii.cch = 27;
+	mii.wID = MENU_IMPORT_DOWNLOAD_HISTORY;
+	mii.fState = MFS_ENABLED;
+	_InsertMenuItemW( hMenuSub_file, 4, TRUE, &mii );
+
+	mii.dwTypeData = ST__Export_Download_History___;
+	mii.cch = 27;
+	mii.wID = MENU_EXPORT_DOWNLOAD_HISTORY;
+	mii.fState = MFS_ENABLED;
+	_InsertMenuItemW( hMenuSub_file, 5, TRUE, &mii );
+
+	mii.fType = MFT_SEPARATOR;
+	_InsertMenuItemW( hMenuSub_file, 6, TRUE, &mii );
+
+	mii.fType = MFT_STRING;
 	mii.dwTypeData = ST_E_xit;
 	mii.cch = 5;
 	mii.wID = MENU_EXIT;
-	_InsertMenuItemW( hMenuSub_file, 2, TRUE, &mii );
+	_InsertMenuItemW( hMenuSub_file, 7, TRUE, &mii );
 
 
 	// EDIT MENU
@@ -554,80 +675,104 @@ void CreateMenus()
 	mii.wID = MENU_PAUSE;
 	_InsertMenuItemW( g_hMenuSub_edit, 1, TRUE, &mii );
 
-	mii.dwTypeData = ST_Pause_Active;
-	mii.cch = 12;
-	mii.wID = MENU_PAUSE_ACTIVE;
-	_InsertMenuItemW( g_hMenuSub_edit, 2, TRUE, &mii );
-
 	mii.dwTypeData = ST_St_op;
 	mii.cch = 5;
 	mii.wID = MENU_STOP;
+	_InsertMenuItemW( g_hMenuSub_edit, 2, TRUE, &mii );
+
+	mii.fType = MFT_SEPARATOR;
 	_InsertMenuItemW( g_hMenuSub_edit, 3, TRUE, &mii );
+
+	mii.fType = MFT_STRING;
+	mii.dwTypeData = ST_Pause_Active;
+	mii.cch = 12;
+	mii.wID = MENU_PAUSE_ACTIVE;
+	_InsertMenuItemW( g_hMenuSub_edit, 4, TRUE, &mii );
 
 	mii.dwTypeData = ST_Stop_All;
 	mii.cch = 8;
 	mii.wID = MENU_STOP_ALL;
-	_InsertMenuItemW( g_hMenuSub_edit, 4, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_edit, 5, TRUE, &mii );
 
 	mii.fType = MFT_SEPARATOR;
-	_InsertMenuItemW( g_hMenuSub_edit, 5, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_edit, 6, TRUE, &mii );
 
 	mii.fType = MFT_STRING;
 	mii.dwTypeData = ST_Update_Download___;
 	mii.cch = 18;
 	mii.wID = MENU_UPDATE_DOWNLOAD;
-	_InsertMenuItemW( g_hMenuSub_edit, 6, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_edit, 7, TRUE, &mii );
 
 	mii.fType = MFT_SEPARATOR;
-	_InsertMenuItemW( g_hMenuSub_edit, 7, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_edit, 8, TRUE, &mii );
 
 	mii.fMask = MIIM_TYPE | MIIM_SUBMENU;
 	mii.fType = MFT_STRING;
 	mii.dwTypeData = ST_Queue;
 	mii.cch = 5;
 	mii.hSubMenu = g_hMenuSub_queue;
-	_InsertMenuItemW( g_hMenuSub_edit, 8, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_edit, 9, TRUE, &mii );
 
 	mii.fMask = MIIM_TYPE | MIIM_ID | MIIM_STATE;
 	mii.fType = MFT_SEPARATOR;
-	_InsertMenuItemW( g_hMenuSub_edit, 9, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_edit, 10, TRUE, &mii );
 
 	mii.fType = MFT_STRING;
+	mii.dwTypeData = ST__Remove;
+	mii.cch = 7;
+	mii.wID = MENU_REMOVE;
+	_InsertMenuItemW( g_hMenuSub_edit, 11, TRUE, &mii );
+
 	mii.dwTypeData = ST_Remove_Completed;
 	mii.cch = 16;
 	mii.wID = MENU_REMOVE_COMPLETED;
-	_InsertMenuItemW( g_hMenuSub_edit, 10, TRUE, &mii );
-
-	mii.dwTypeData = ST__Remove_Selected;
-	mii.cch = 16;
-	mii.wID = MENU_REMOVE_SELECTED;
-	_InsertMenuItemW( g_hMenuSub_edit, 11, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_edit, 12, TRUE, &mii );
 
 	mii.fType = MFT_SEPARATOR;
-	_InsertMenuItemW( g_hMenuSub_edit, 12, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_edit, 13, TRUE, &mii );
+
+	mii.fType = MFT_STRING;
+	mii.dwTypeData = ST_Rename;
+	mii.cch = 6;
+	mii.wID = MENU_RENAME;
+	_InsertMenuItemW( g_hMenuSub_edit, 14, TRUE, &mii );
+
+	mii.dwTypeData = ST_Delete;
+	mii.cch = 6;
+	mii.wID = MENU_DELETE;
+	_InsertMenuItemW( g_hMenuSub_edit, 15, TRUE, &mii );
+
+	mii.fType = MFT_SEPARATOR;
+	_InsertMenuItemW( g_hMenuSub_edit, 16, TRUE, &mii );
 
 	mii.fType = MFT_STRING;
 	mii.dwTypeData = ST_Copy_URL_s_;
 	mii.cch = 11;
 	mii.wID = MENU_COPY_URLS;
-	_InsertMenuItemW( g_hMenuSub_edit, 13, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_edit, 17, TRUE, &mii );
 
 	mii.fType = MFT_SEPARATOR;
-	_InsertMenuItemW( g_hMenuSub_edit, 14, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_edit, 18, TRUE, &mii );
 
 	mii.fType = MFT_STRING;
 	mii.dwTypeData = ST__Select_All;
 	mii.cch = 11;
 	mii.wID = MENU_SELECT_ALL;
-	_InsertMenuItemW( g_hMenuSub_edit, 15, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_edit, 19, TRUE, &mii );
 
 
 	// VIEW MENU
+	mii.dwTypeData = ST__Toolbar;
+	mii.cch = 8;
+	mii.wID = MENU_SHOW_TOOLBAR;
+	mii.fState = ( cfg_show_toolbar ? MFS_CHECKED : MFS_UNCHECKED );
+	_InsertMenuItemW( g_hMenuSub_view, 0, TRUE, &mii );
+
 	mii.dwTypeData = ST__Status_Bar;
 	mii.cch = 11;
 	mii.wID = MENU_SHOW_STATUS_BAR;
 	mii.fState = ( cfg_show_status_bar ? MFS_CHECKED : MFS_UNCHECKED );
-	_InsertMenuItemW( g_hMenuSub_view, 0, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_view, 1, TRUE, &mii );
 
 
 	// TOOLS MENU

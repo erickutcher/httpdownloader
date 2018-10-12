@@ -781,6 +781,8 @@ SECURITY_STATUS SSL_WSAConnect_Response( SOCKET_CONTEXT *context, OVERLAPPEDEX *
 			}
 			else
 			{
+				sent = true;
+
 				// Do not post the ssl->cbIoBuffer size.
 				PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
 			}
@@ -930,6 +932,8 @@ SECURITY_STATUS SSL_WSAConnect_Reply( SOCKET_CONTEXT *context, OVERLAPPEDEX *ove
 						g_pSSPI->FreeContextBuffer( ssl->acd.OutBuffers[ 0 ].pvBuffer );
 						ssl->acd.OutBuffers[ 0 ].pvBuffer = NULL;
 					}
+
+					sent = true;
 
 					PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
 

@@ -486,7 +486,7 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 				_SendMessageA( g_hWnd_edit_update_cookies, WM_SETTEXT, 0, ( LPARAM )di->cookies );
 				_SendMessageA( g_hWnd_edit_update_headers, WM_SETTEXT, 0, ( LPARAM )di->headers );
 
-				_ShowWindow( g_hWnd_static_paused_download, ( di->status == STATUS_PAUSED ? SW_SHOW : SW_HIDE ) );
+				_ShowWindow( g_hWnd_static_paused_download, ( IS_STATUS( di->status, STATUS_PAUSED ) ? SW_SHOW : SW_HIDE ) );
 			}
 
 			//_EnableWindow( g_hWnd_main, FALSE );

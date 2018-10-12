@@ -25,7 +25,11 @@
 #include "list_operations.h"
 #include "file_operations.h"
 
+#include "utilities.h"
+
 #include "menus.h"
+
+#include "string_tables.h"
 
 void ProcessingList( bool processing )
 {
@@ -158,7 +162,7 @@ THREAD_RETURN remove_items( void *pArguments )
 
 						// The paused operation has not completed or it has and is_paused is waiting to be set.
 						// We'll fall through in IOCPConnection.
-						if ( context->status == STATUS_PAUSED && !context->is_paused )
+						if ( IS_STATUS( context->status, STATUS_PAUSED ) && !context->is_paused )
 						{
 							context->status = STATUS_STOP_AND_REMOVE;
 
@@ -166,12 +170,24 @@ THREAD_RETURN remove_items( void *pArguments )
 							{
 								context->cleanup = 1;	// Auto cleanup.
 							}
+
+							// The operation is probably stuck (server isn't responding). Force close the socket it to release the operation.
+							if ( context->pending_operations > 0 )
+							{
+								if ( context->socket != INVALID_SOCKET )
+								{
+									SOCKET s = context->socket;
+									context->socket = INVALID_SOCKET;
+									_shutdown( s, SD_BOTH );
+									_closesocket( s );	// Saves us from having to post if there's already a pending IO operation. Should force the operation to complete.
+								}
+							}
 						}
 						else
 						{
 							// 1 = auto cleanup, 2 = force the cleanup.
 							// Paused contexts shouldn't have any pending operations.
-							unsigned char cleanup_type = ( context->status == STATUS_PAUSED ? 1 : 2 );
+							unsigned char cleanup_type = ( IS_STATUS( context->status, STATUS_PAUSED ) ? 1 : 2 );
 
 							context->status = STATUS_STOP_AND_REMOVE;
 
@@ -300,36 +316,6 @@ THREAD_RETURN remove_items( void *pArguments )
 	return 0;
 }
 
-THREAD_RETURN load_download_history( void *pArguments )
-{
-	EnterCriticalSection( &worker_cs );
-
-	in_worker_thread = true;
-
-	ProcessingList( true );
-
-	_wmemcpy_s( base_directory + base_directory_length, MAX_PATH - base_directory_length, L"\\download_history\0", 18 );
-	base_directory[ base_directory_length + 17 ] = 0;	// Sanity.
-
-	read_download_history( base_directory );
-
-	ProcessingList( false );
-
-	// Release the semaphore if we're killing the thread.
-	if ( worker_semaphore != NULL )
-	{
-		ReleaseSemaphore( worker_semaphore, 1, NULL );
-	}
-
-	in_worker_thread = false;
-
-	// We're done. Let other threads continue.
-	LeaveCriticalSection( &worker_cs );
-
-	_ExitThread( 0 );
-	return 0;
-}
-
 THREAD_RETURN handle_download_list( void *pArguments )
 {
 	unsigned char handle_type = ( unsigned char )pArguments;
@@ -362,9 +348,11 @@ THREAD_RETURN handle_download_list( void *pArguments )
 			{
 				EnterCriticalSection( &di->shared_cs );
 
-				if ( di->status == STATUS_DOWNLOADING )
+				// Make sure the status is exclusively connecting or downloading.
+				if ( di->status == STATUS_CONNECTING ||
+					 di->status == STATUS_DOWNLOADING )
 				{
-					di->status = STATUS_PAUSED;
+					di->status |= STATUS_PAUSED;
 				
 					DoublyLinkedList *context_node = di->parts_list;
 					SOCKET_CONTEXT *context = NULL;
@@ -377,9 +365,13 @@ THREAD_RETURN handle_download_list( void *pArguments )
 
 						if ( context != NULL )
 						{
+							EnterCriticalSection( &context->context_cs );
+
 							context->is_paused = false;	// Set to true when last IO operation has completed.
 
-							context->status = STATUS_PAUSED;
+							context->status = di->status;
+
+							LeaveCriticalSection( &context->context_cs );
 						}
 					}
 				}
@@ -444,10 +436,11 @@ THREAD_RETURN handle_download_list( void *pArguments )
 				DoublyLinkedList *context_node = di->parts_list;
 				SOCKET_CONTEXT *context = NULL;
 
-				if ( di->status == STATUS_CONNECTING ||
-					 di->status == STATUS_DOWNLOADING ||
-					 di->status == STATUS_PAUSED ||
-					 di->status == STATUS_QUEUED )
+				// Connecting, Downloading, Paused, Queued.
+				if ( IS_STATUS( di->status,
+						STATUS_CONNECTING |
+						STATUS_DOWNLOADING |
+						STATUS_QUEUED ) )
 				{
 					// Download is active, close the connection.
 					if ( di->download_node.data != NULL )
@@ -465,7 +458,7 @@ THREAD_RETURN handle_download_list( void *pArguments )
 
 								// The paused operation has not completed or it has and is_paused is waiting to be set.
 								// We'll fall through in IOCPConnection.
-								if ( context->status == STATUS_PAUSED && !context->is_paused )
+								if ( IS_STATUS( context->status, STATUS_PAUSED ) && !context->is_paused )
 								{
 									context->status = STATUS_STOPPED;
 
@@ -473,12 +466,24 @@ THREAD_RETURN handle_download_list( void *pArguments )
 									{
 										context->cleanup = 1;	// Auto cleanup.
 									}
+
+									// The operation is probably stuck (server isn't responding). Force close the socket it to release the operation.
+									if ( context->pending_operations > 0 )
+									{
+										if ( context->socket != INVALID_SOCKET )
+										{
+											SOCKET s = context->socket;
+											context->socket = INVALID_SOCKET;
+											_shutdown( s, SD_BOTH );
+											_closesocket( s );	// Saves us from having to post if there's already a pending IO operation. Should force the operation to complete.
+										}
+									}
 								}
 								else
 								{
 									// 1 = auto cleanup, 2 = force the cleanup.
 									// Paused contexts shouldn't have any pending operations.
-									unsigned char cleanup_type = ( context->status == STATUS_PAUSED ? 1 : 2 );
+									unsigned char cleanup_type = ( IS_STATUS( context->status, STATUS_PAUSED ) ? 1 : 2 );
 
 									context->status = STATUS_STOPPED;
 
@@ -704,7 +709,7 @@ THREAD_RETURN handle_download_list( void *pArguments )
 
 THREAD_RETURN handle_connection( void *pArguments )
 {
-	unsigned char status = ( unsigned char )pArguments;
+	unsigned short status = ( unsigned short )pArguments;
 
 	EnterCriticalSection( &worker_cs );
 
@@ -757,8 +762,9 @@ THREAD_RETURN handle_connection( void *pArguments )
 				DoublyLinkedList *context_node = di->parts_list;
 				SOCKET_CONTEXT *context = NULL;
 
+				// Make sure the status is exclusively connecting or downloading.
 				if ( di->status == STATUS_CONNECTING ||
-					 di->status == STATUS_DOWNLOADING )	// The download is currently connection or downloading.
+					 di->status == STATUS_DOWNLOADING )
 				{
 					if ( status == STATUS_STOPPED )	// Stop (close) the active connection.
 					{
@@ -792,7 +798,7 @@ THREAD_RETURN handle_connection( void *pArguments )
 					}
 					else if ( status == STATUS_PAUSED )
 					{
-						di->status = STATUS_PAUSED;
+						di->status |= STATUS_PAUSED;
 
 						while ( context_node != NULL )
 						{
@@ -802,9 +808,13 @@ THREAD_RETURN handle_connection( void *pArguments )
 
 							if ( context != NULL )
 							{
+								EnterCriticalSection( &context->context_cs );
+
 								context->is_paused = false;	// Set to true when last IO operation has completed.
 
-								context->status = STATUS_PAUSED;
+								context->status = di->status;
+
+								LeaveCriticalSection( &context->context_cs );
 							}
 						}
 					}
@@ -820,20 +830,25 @@ THREAD_RETURN handle_connection( void *pArguments )
 
 							if ( context != NULL )
 							{
-								context->status = status );
+								EnterCriticalSection( &context->context_cs );
+
+								context->status = status;
+
+								LeaveCriticalSection( &context->context_cs );
 							}
 						}
 					}*/
 				}
-				else if ( di->status == STATUS_PAUSED ||
-						  di->status == STATUS_QUEUED )	// The download is currently paused, or queued.
+				else if ( IS_STATUS( di->status,
+							 STATUS_PAUSED |
+							 STATUS_QUEUED ) )	// The download is currently paused, or queued.
 				{
 					if ( status == STATUS_DOWNLOADING )	// Resume downloading.
 					{
 						// Download is active, continue where we left off.
 						if ( di->download_node.data != NULL )
 						{
-							di->status = STATUS_DOWNLOADING;
+							di->status &= ~STATUS_PAUSED;
 
 							// Run through our parts list and connect to each context.
 							while ( context_node != NULL )
@@ -844,12 +859,24 @@ THREAD_RETURN handle_connection( void *pArguments )
 
 								if ( context != NULL )
 								{
-									context->status = STATUS_DOWNLOADING;
+									EnterCriticalSection( &context->context_cs );
 
-									InterlockedIncrement( &context->pending_operations );
+									context->status = di->status;
 
-									// Post a completion status to the completion port that we're going to continue with whatever it left off at.
-									PostQueuedCompletionStatus( g_hIOCP, context->current_bytes_read, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped );
+									// The paused operation has not completed or it has and is_paused is waiting to be set (when the completion fails).
+									// We'll fall through in IOCPConnection.
+									//if ( !( context->status == STATUS_CONNECTING && !context->is_paused ) )
+									if ( context->is_paused )
+									{
+										context->is_paused = false;	// Reset.
+
+										InterlockedIncrement( &context->pending_operations );
+
+										// Post a completion status to the completion port that we're going to continue with whatever it left off at.
+										PostQueuedCompletionStatus( g_hIOCP, context->current_bytes_read, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped );
+									}
+
+									LeaveCriticalSection( &context->context_cs );
 								}
 							}
 						}
@@ -900,7 +927,7 @@ THREAD_RETURN handle_connection( void *pArguments )
 
 									// The paused operation has not completed or it has and is_paused is waiting to be set.
 									// We'll fall through in IOCPConnection.
-									if ( context->status == STATUS_PAUSED && !context->is_paused )
+									if ( IS_STATUS( context->status, STATUS_PAUSED ) && !context->is_paused )
 									{
 										context->status = STATUS_STOPPED;
 
@@ -908,12 +935,24 @@ THREAD_RETURN handle_connection( void *pArguments )
 										{
 											context->cleanup = 1;	// Auto cleanup.
 										}
+
+										// The operation is probably stuck (server isn't responding). Force close the socket it to release the operation.
+										if ( context->pending_operations > 0 )
+										{
+											if ( context->socket != INVALID_SOCKET )
+											{
+												SOCKET s = context->socket;
+												context->socket = INVALID_SOCKET;
+												_shutdown( s, SD_BOTH );
+												_closesocket( s );	// Saves us from having to post if there's already a pending IO operation. Should force the operation to complete.
+											}
+										}
 									}
 									else
 									{
 										// 1 = auto cleanup, 2 = force the cleanup.
 										// Paused contexts shouldn't have any pending operations.
-										unsigned char cleanup_type = ( context->status == STATUS_PAUSED ? 1 : 2 );
+										unsigned char cleanup_type = ( IS_STATUS( context->status, STATUS_PAUSED ) ? 1 : 2 );
 
 										context->status = STATUS_STOPPED;
 
@@ -958,17 +997,22 @@ THREAD_RETURN handle_connection( void *pArguments )
 
 							if ( context != NULL )
 							{
-								context->status = status );
+								EnterCriticalSection( &context->context_cs );
+
+								context->status = status;
+
+								LeaveCriticalSection( &context->context_cs );
 							}
 						}
 					}*/
 				}
-				else if ( di->status == STATUS_STOPPED ||
-						  di->status == STATUS_TIMED_OUT ||
-						  di->status == STATUS_FAILED ||
-						  di->status == STATUS_FILE_IO_ERROR ||
-						  di->status == STATUS_AUTH_REQUIRED ||
-						  di->status == STATUS_PROXY_AUTH_REQUIRED )	// The download is currently stopped.
+				else if ( IS_STATUS( di->status,
+							 STATUS_STOPPED |
+							 STATUS_TIMED_OUT |
+							 STATUS_FAILED |
+							 STATUS_FILE_IO_ERROR |
+							 STATUS_AUTH_REQUIRED |
+							 STATUS_PROXY_AUTH_REQUIRED ) )	// The download is currently stopped.
 				{
 					// Ensure that the download is actually stopped and that there are no active parts downloading.
 					if ( di->active_parts == 0 )
@@ -1014,7 +1058,11 @@ THREAD_RETURN handle_connection( void *pArguments )
 
 						if ( context != NULL )
 						{
-							SetContextStatus( context status );
+							EnterCriticalSection( &context->context_cs );
+
+							context->status = status;
+
+							LeaveCriticalSection( &context->context_cs );
 						}
 					}
 				}*/
@@ -1072,7 +1120,7 @@ THREAD_RETURN handle_download_queue( void *pArguments )
 	{
 		_SendMessageW( g_hWnd_files, LVM_GETITEM, 0, ( LPARAM )&lvi );
 		di = ( DOWNLOAD_INFO * )lvi.lParam;
-	
+
 		// Make sure the item is queued.
 		if ( di != NULL && di->status == STATUS_QUEUED )
 		{
@@ -1231,7 +1279,7 @@ THREAD_RETURN handle_download_update( void *pArguments )
 
 						// The paused operation has not completed or it has and is_paused is waiting to be set.
 						// We'll fall through in IOCPConnection.
-						if ( context->status == STATUS_PAUSED && !context->is_paused )
+						if ( IS_STATUS( context->status, STATUS_PAUSED ) && !context->is_paused )
 						{
 							context->status = STATUS_UPDATING;
 
@@ -1239,12 +1287,24 @@ THREAD_RETURN handle_download_update( void *pArguments )
 							{
 								context->cleanup = 1;	// Auto cleanup.
 							}
+
+							// The operation is probably stuck (server isn't responding). Force close the socket it to release the operation.
+							if ( context->pending_operations > 0 )
+							{
+								if ( context->socket != INVALID_SOCKET )
+								{
+									SOCKET s = context->socket;
+									context->socket = INVALID_SOCKET;
+									_shutdown( s, SD_BOTH );
+									_closesocket( s );	// Saves us from having to post if there's already a pending IO operation. Should force the operation to complete.
+								}
+							}
 						}
 						else
 						{
 							// 1 = auto cleanup, 2 = force the cleanup.
 							// Paused contexts shouldn't have any pending operations.
-							unsigned char cleanup_type = ( context->status == STATUS_PAUSED ? 1 : 2 );
+							unsigned char cleanup_type = ( IS_STATUS( context->status, STATUS_PAUSED ) ? 1 : 2 );
 
 							context->status = STATUS_UPDATING;
 
@@ -1426,6 +1486,463 @@ THREAD_RETURN copy_urls( void *pArguments )
 CLEANUP:
 
 	GlobalFree( copy_buffer );
+
+	ProcessingList( false );
+
+	// Release the semaphore if we're killing the thread.
+	if ( worker_semaphore != NULL )
+	{
+		ReleaseSemaphore( worker_semaphore, 1, NULL );
+	}
+
+	in_worker_thread = false;
+
+	// We're done. Let other threads continue.
+	LeaveCriticalSection( &worker_cs );
+
+	_ExitThread( 0 );
+	return 0;
+}
+
+THREAD_RETURN rename_file( void *pArguments )
+{
+	RENAME_INFO *ri = ( RENAME_INFO * )pArguments;
+
+	// This will block every other thread from entering until the first thread is complete.
+	EnterCriticalSection( &worker_cs );
+
+	in_worker_thread = true;
+
+	ProcessingList( true );
+
+	if ( ri != NULL )
+	{
+		if ( ri->filename != NULL  )
+		{
+			DOWNLOAD_INFO *di = ri->di;
+
+			if ( di != NULL )
+			{
+				if ( di->filename_offset > 0 )
+				{
+					bool renamed = true;
+
+					if ( !( di->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
+					{
+						if ( di->hFile != INVALID_HANDLE_VALUE )
+						{
+							FILE_RENAME_INFO *fri = ( FILE_RENAME_INFO * )GlobalAlloc( GPTR, sizeof( FILE_RENAME_INFO ) + ( sizeof( wchar_t ) * MAX_PATH ) );
+
+							_wmemcpy_s( fri->FileName, MAX_PATH, di->file_path, di->filename_offset );
+							fri->FileName[ di->filename_offset - 1 ] = L'\\';
+							_wmemcpy_s( fri->FileName + di->filename_offset, MAX_PATH - di->filename_offset, ri->filename, ri->filename_length );
+							fri->FileNameLength = di->filename_offset + ri->filename_length;
+							fri->ReplaceIfExists = FALSE;
+							fri->RootDirectory = NULL;
+
+							if ( SetFileInformationByHandle( di->hFile, FileRenameInfo, fri, sizeof( FILE_RENAME_INFO ) + ( sizeof( wchar_t ) * MAX_PATH ) ) == FALSE )
+							{
+								renamed = false;
+							}
+
+							GlobalFree( fri );
+						}
+						else
+						{
+							wchar_t old_file_path[ MAX_PATH ];
+							wchar_t new_file_path[ MAX_PATH ];
+
+							_wmemcpy_s( old_file_path, MAX_PATH, di->file_path, MAX_PATH );
+							if ( di->filename_offset > 0 )
+							{
+								old_file_path[ di->filename_offset - 1 ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
+							}
+
+							_wmemcpy_s( new_file_path, MAX_PATH, di->file_path, MAX_PATH - di->filename_offset );
+							new_file_path[ di->filename_offset - 1 ] = L'\\';
+							_wmemcpy_s( new_file_path + di->filename_offset, MAX_PATH - di->filename_offset, ri->filename, ri->filename_length );
+							new_file_path[ di->filename_offset + ri->filename_length ] = 0;	// Sanity.
+
+							if ( MoveFileW( old_file_path, new_file_path ) == FALSE )
+							{
+								renamed = false;
+							}
+						}
+					}
+
+					if ( renamed )
+					{
+						_wmemcpy_s( di->file_path + di->filename_offset, MAX_PATH - di->filename_offset, ri->filename, ri->filename_length );
+						di->file_path[ di->filename_offset + ri->filename_length ] = 0;	// Sanity.
+
+						// Get the new file extension offset.
+						di->file_extension_offset = di->filename_offset + get_file_extension_offset( di->file_path + di->filename_offset, lstrlenW( di->file_path + di->filename_offset ) );
+
+						// If we manually renamed our download, then prevent it from being set elsewhere.
+						EnterCriticalSection( &di->shared_cs );
+
+						DoublyLinkedList *context_node = di->parts_list;
+
+						while ( context_node != NULL )
+						{
+							SOCKET_CONTEXT *context = ( SOCKET_CONTEXT * )context_node->data;
+
+							context_node = context_node->next;
+
+							if ( context != NULL )
+							{
+								EnterCriticalSection( &context->context_cs );
+
+								context->got_filename = 1;
+
+								LeaveCriticalSection( &context->context_cs );
+							}
+						}
+
+						LeaveCriticalSection( &di->shared_cs );
+
+						EnterCriticalSection( &icon_cache_cs );
+						// Find the icon info
+						dllrbt_iterator *itr = dllrbt_find( icon_handles, ( void * )( di->file_path + di->file_extension_offset ), false );
+
+						// Free its values and remove it from the tree if there are no other items using it.
+						if ( itr != NULL )
+						{
+							ICON_INFO *ii = ( ICON_INFO * )( ( node_type * )itr )->val;
+							if ( ii != NULL )
+							{
+								if ( --ii->count == 0 )
+								{
+									DestroyIcon( ii->icon );
+									GlobalFree( ii->file_extension );
+									GlobalFree( ii );
+
+									dllrbt_remove( icon_handles, itr );
+								}
+							}
+							else
+							{
+								dllrbt_remove( icon_handles, itr );
+							}
+						}
+						LeaveCriticalSection( &icon_cache_cs );
+
+						SHFILEINFO *sfi = ( SHFILEINFO * )GlobalAlloc( GMEM_FIXED, sizeof( SHFILEINFO ) );
+
+						// Cache our file's icon.
+						ICON_INFO *ii = CacheIcon( di, sfi );
+
+						EnterCriticalSection( &di->shared_cs );
+
+						di->icon = ( ii != NULL ? &ii->icon : NULL );
+
+						LeaveCriticalSection( &di->shared_cs );
+
+						GlobalFree( sfi );
+
+						download_history_changed = true;
+					}
+					else
+					{
+						// Alert the user, but don't hang up this thread.
+						int error = GetLastError();
+						if ( error == ERROR_ALREADY_EXISTS )
+						{
+							_SendNotifyMessageW( g_hWnd_main, WM_ALERT, 0, ( LPARAM )ST_There_is_already_a_file );
+						}
+						else if ( error == ERROR_FILE_NOT_FOUND )
+						{
+							_SendNotifyMessageW( g_hWnd_main, WM_ALERT, 1, 0 );
+						}
+					}
+				}
+			}
+
+			GlobalFree( ri->filename );
+		}
+
+		GlobalFree( ri );
+	}
+
+	ProcessingList( false );
+
+	// Release the semaphore if we're killing the thread.
+	if ( worker_semaphore != NULL )
+	{
+		ReleaseSemaphore( worker_semaphore, 1, NULL );
+	}
+
+	in_worker_thread = false;
+
+	// We're done. Let other threads continue.
+	LeaveCriticalSection( &worker_cs );
+
+	_ExitThread( 0 );
+	return 0;
+}
+
+THREAD_RETURN create_download_history_csv_file( void *file_path )
+{
+	// This will block every other thread from entering until the first thread is complete.
+	EnterCriticalSection( &worker_cs );
+
+	in_worker_thread = true;
+
+	ProcessingList( true );
+
+	if ( file_path != NULL )
+	{
+		save_download_history_csv_file( ( wchar_t * )file_path );
+
+		GlobalFree( file_path );
+	}
+
+	ProcessingList( false );
+
+	// Release the semaphore if we're killing the thread.
+	if ( worker_semaphore != NULL )
+	{
+		ReleaseSemaphore( worker_semaphore, 1, NULL );
+	}
+
+	in_worker_thread = false;
+
+	// We're done. Let other threads continue.
+	LeaveCriticalSection( &worker_cs );
+
+	_ExitThread( 0 );
+	return 0;
+}
+
+THREAD_RETURN export_list( void *pArguments )
+{
+	// This will block every other thread from entering until the first thread is complete.
+	EnterCriticalSection( &worker_cs );
+
+	in_worker_thread = true;
+
+	importexportinfo *iei = ( importexportinfo * )pArguments;
+
+	ProcessingList( true );
+
+	if ( iei != NULL )
+	{
+		if ( iei->file_paths != NULL )
+		{
+			save_download_history( iei->file_paths );
+	
+			GlobalFree( iei->file_paths );
+		}
+
+		GlobalFree( iei );
+	}
+
+	ProcessingList( false );
+
+	// Release the semaphore if we're killing the thread.
+	if ( worker_semaphore != NULL )
+	{
+		ReleaseSemaphore( worker_semaphore, 1, NULL );
+	}
+
+	in_worker_thread = false;
+
+	// We're done. Let other threads continue.
+	LeaveCriticalSection( &worker_cs );
+
+	_ExitThread( 0 );
+	return 0;
+}
+
+THREAD_RETURN import_list( void *pArguments )
+{
+	// This will block every other thread from entering until the first thread is complete.
+	EnterCriticalSection( &worker_cs );
+
+	in_worker_thread = true;
+
+	importexportinfo *iei = ( importexportinfo * )pArguments;
+
+	ProcessingList( true );
+
+	bool bad_format = false;
+
+	wchar_t file_path[ MAX_PATH ];
+	wchar_t *filename = NULL;
+
+	LVITEM lvi;
+	_memzero( &lvi, sizeof( LVITEM ) );
+	lvi.mask = LVIF_PARAM;
+
+	if ( iei != NULL )
+	{
+		if ( iei->file_paths != NULL )
+		{
+			filename = iei->file_paths;	// The last file path will be an empty string.
+
+			// The first string is actually a directory.
+			_wmemcpy_s( file_path, MAX_PATH, filename, iei->file_offset );
+			file_path[ iei->file_offset - 1 ] = '\\';
+
+			filename += iei->file_offset;
+
+			// Make sure the path is not the empty string.
+			while ( *filename != NULL )
+			{
+				int filename_length = lstrlenW( filename ) + 1;	// Include the NULL terminator.
+
+				_wmemcpy_s( file_path + iei->file_offset, MAX_PATH - iei->file_offset, filename, filename_length );
+
+				if ( read_download_history( file_path ) == -2 )
+				{
+					bad_format = true;
+				}
+
+				// Only save if we've imported - not loaded during startup.
+				if ( iei->type == 1 )
+				{
+					download_history_changed = true;	// Assume that entries were added so that we can save the new history during shutdown.
+				}
+
+				// Move to the next string.
+				filename = filename + filename_length;
+			}
+
+			_InvalidateRect( g_hWnd_files, NULL, TRUE );
+
+			GlobalFree( iei->file_paths );
+
+			// Only display if the import from menu failed.
+			if ( bad_format && iei->type == 1 )
+			{
+				_SendNotifyMessageW( g_hWnd_main, WM_ALERT, 0, ( LPARAM )ST_File_format_is_incorrect );
+			}
+		}
+
+		GlobalFree( iei );
+	}
+
+	ProcessingList( false );
+
+	// Release the semaphore if we're killing the thread.
+	if ( worker_semaphore != NULL )
+	{
+		ReleaseSemaphore( worker_semaphore, 1, NULL );
+	}
+
+	in_worker_thread = false;
+
+	// We're done. Let other threads continue.
+	LeaveCriticalSection( &worker_cs );
+
+	_ExitThread( 0 );
+	return 0;
+}
+
+THREAD_RETURN delete_files( void *pArguments )
+{
+	// This will block every other thread from entering until the first thread is complete.
+	EnterCriticalSection( &worker_cs );
+
+	in_worker_thread = true;
+
+	ProcessingList( true );
+
+	wchar_t file_path[ MAX_PATH ];
+	bool delete_success = true;
+	unsigned char error_type = 0;
+
+	LVITEM lvi;
+	_memzero( &lvi, sizeof( LVITEM ) );
+	lvi.mask = LVIF_PARAM;
+
+	int item_count = _SendMessageW( g_hWnd_files, LVM_GETITEMCOUNT, 0, 0 );
+	int sel_count = _SendMessageW( g_hWnd_files, LVM_GETSELECTEDCOUNT, 0, 0 );
+
+	bool copy_all = false;
+	if ( item_count == sel_count )
+	{
+		copy_all = true;
+	}
+	else
+	{
+		item_count = sel_count;
+	}
+
+	// Go through each item, and delete the file.
+	for ( int i = 0; i < item_count; ++i )
+	{
+		// Stop processing and exit the thread.
+		if ( kill_worker_thread_flag )
+		{
+			break;
+		}
+
+		if ( copy_all )
+		{
+			lvi.iItem = i;
+		}
+		else
+		{
+			lvi.iItem = _SendMessageW( g_hWnd_files, LVM_GETNEXTITEM, lvi.iItem, LVNI_SELECTED );
+		}
+
+		_SendMessageW( g_hWnd_files, LVM_GETITEM, 0, ( LPARAM )&lvi );
+
+		DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )lvi.lParam;
+
+		if ( di != NULL &&
+			!( di->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
+		{
+			_wmemcpy_s( file_path, MAX_PATH, di->file_path, MAX_PATH );
+			if ( di->filename_offset > 0 )
+			{
+				file_path[ di->filename_offset - 1 ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
+			}
+
+			if ( DeleteFileW( file_path ) == FALSE )
+			{
+				delete_success = false;
+
+				int error = GetLastError();
+				if ( error == ERROR_ACCESS_DENIED )
+				{
+					error_type |= 1;
+				}
+				else if ( error == ERROR_FILE_NOT_FOUND )
+				{
+					error_type |= 2;
+				}
+			}
+		}
+	}
+
+	if ( !delete_success )
+	{
+		if ( sel_count == 1 )
+		{
+			if ( error_type & 1 )	// Access Denied
+			{
+				_SendNotifyMessageW( g_hWnd_main, WM_ALERT, 0, ( LPARAM )ST_File_is_in_use );
+			}
+			else if ( error_type & 2 )	// File Not Found.
+			{
+				_SendNotifyMessageW( g_hWnd_main, WM_ALERT, 1, 0 );
+			}
+		}
+		else if ( sel_count > 1 )
+		{
+			if ( error_type & 1 )	// Access Denied
+			{
+				_SendNotifyMessageW( g_hWnd_main, WM_ALERT, 0, ( LPARAM )ST_One_or_more_files_are_in_use );
+			}
+
+			if ( error_type & 2 )	// File Not Found.
+			{
+				_SendNotifyMessageW( g_hWnd_main, WM_ALERT, 0, ( LPARAM )ST_One_or_more_files_were_not_found );
+			}
+		}
+	}
 
 	ProcessingList( false );
 

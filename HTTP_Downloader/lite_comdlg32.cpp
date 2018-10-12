@@ -25,7 +25,7 @@
 	//pChooseFontW			_ChooseFontW;
 
 	pGetOpenFileNameW		_GetOpenFileNameW;
-	//pGetSaveFileNameW		_GetSaveFileNameW;
+	pGetSaveFileNameW		_GetSaveFileNameW;
 
 	HMODULE hModule_comdlg32 = NULL;
 
@@ -49,7 +49,7 @@
 		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_comdlg32, ( void ** )&_ChooseFontW, "ChooseFontW" ) )
 
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_comdlg32, ( void ** )&_GetOpenFileNameW, "GetOpenFileNameW" ) )
-		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_comdlg32, ( void ** )&_GetSaveFileNameW, "GetSaveFileNameW" ) )
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_comdlg32, ( void ** )&_GetSaveFileNameW, "GetSaveFileNameW" ) )
 
 		comdlg32_state = COMDLG32_STATE_RUNNING;
 

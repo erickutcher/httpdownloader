@@ -35,7 +35,7 @@
 	//#define _ChooseFontW			ChooseFontW
 
 	#define _GetOpenFileNameW		GetOpenFileNameW
-	//#define _GetSaveFileNameW		GetSaveFileNameW
+	#define _GetSaveFileNameW		GetSaveFileNameW
 
 #else
 
@@ -46,13 +46,13 @@
 	//typedef BOOL ( WINAPI *pChooseFontW )( LPCHOOSEFONT lpcf );
 
 	typedef BOOL ( WINAPI *pGetOpenFileNameW )( LPOPENFILENAME lpofn );
-	//typedef BOOL ( WINAPI *pGetSaveFileNameW )( LPOPENFILENAME lpofn );
+	typedef BOOL ( WINAPI *pGetSaveFileNameW )( LPOPENFILENAME lpofn );
 
 	//extern pChooseColorW			_ChooseColorW;
 	//extern pChooseFontW				_ChooseFontW;
 
 	extern pGetOpenFileNameW		_GetOpenFileNameW;
-	//extern pGetSaveFileNameW		_GetSaveFileNameW;
+	extern pGetSaveFileNameW		_GetSaveFileNameW;
 
 	extern unsigned char comdlg32_state;
 

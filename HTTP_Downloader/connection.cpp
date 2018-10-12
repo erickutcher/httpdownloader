@@ -186,7 +186,7 @@ DWORD WINAPI Timeout( LPVOID WorkThreadContext )
 					if ( ( context->timeout >= cfg_timeout ) && ( cfg_timeout > 0 ) )
 					{
 						// Ignore paused and queued downloads.
-						if ( context->status == STATUS_PAUSED || context->status == STATUS_QUEUED )
+						if ( IS_STATUS( context->status, STATUS_PAUSED | STATUS_QUEUED ) )
 						{
 							InterlockedExchange( &context->timeout, 0 );	// Reset timeout counter.
 						}
@@ -1176,7 +1176,11 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 
 		if ( *current_operation != IO_Accept )
 		{
+			EnterCriticalSection( &context->context_cs );
+
 			InterlockedDecrement( &context->pending_operations );
+
+			LeaveCriticalSection( &context->context_cs );
 		}
 
 		if ( completion_status == FALSE )
@@ -1195,16 +1199,31 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 			{
 				if ( *current_operation == IO_Connect )	// We couldn't establish a connection.
 				{
+					bool skip_process = false;
+
 					EnterCriticalSection( &context->context_cs );
 
-					if ( context->status != STATUS_STOPPED &&
-						 context->status != STATUS_STOP_AND_REMOVE &&
-						 context->status != STATUS_UPDATING )		// Stop, Stop and Remove, or Updating.
+					if ( IS_STATUS_NOT( context->status,
+							STATUS_STOPPED |
+							STATUS_STOP_AND_REMOVE |
+							STATUS_UPDATING ) )	// Stop, Stop and Remove, or Updating.
 					{
 						context->timed_out = TIME_OUT_RETRY;
+
+						if ( IS_STATUS( context->status, STATUS_PAUSED ) )
+						{
+							context->is_paused = true;	// Tells us how to stop the download if it's pausing/paused.
+
+							skip_process = true;
+						}
 					}
 
 					LeaveCriticalSection( &context->context_cs );
+
+					if ( skip_process )
+					{
+						continue;
+					}
 				}
 
 				*current_operation = IO_Close;//( use_ssl ? IO_Shutdown : IO_Close );
@@ -1235,9 +1254,10 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 
 					EnterCriticalSection( &context->context_cs );
 
-					if ( context->status == STATUS_STOPPED ||
-						 context->status == STATUS_STOP_AND_REMOVE ||
-						 context->status == STATUS_UPDATING )		// Stop, Stop and Remove, or Updating.
+					if ( IS_STATUS( context->status,
+							STATUS_STOPPED |
+							STATUS_STOP_AND_REMOVE |
+							STATUS_UPDATING ) )	// Stop, Stop and Remove, or Updating.
 					{
 						if ( *current_operation != IO_GetContent )
 						{
@@ -1249,7 +1269,7 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 							*current_operation = ( use_ssl ? IO_Shutdown : IO_Close );
 						}
 					}
-					else if ( context->status == STATUS_PAUSED )	// Pause.
+					else if ( IS_STATUS( context->status, STATUS_PAUSED ) )	// Pause.
 					{
 						context->current_bytes_read = io_size;
 
@@ -1423,7 +1443,14 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 							{
 								context->download_info->status = STATUS_DOWNLOADING;
 
-								context->status = STATUS_DOWNLOADING;
+								if ( IS_STATUS( context->status, STATUS_PAUSED ) )
+								{
+									context->download_info->status |= STATUS_PAUSED;
+
+									context->is_paused = false;	// Set to true when last IO operation has completed.
+								}
+
+								context->status = context->download_info->status;
 							}
 							else
 							{
@@ -1433,10 +1460,10 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 							LeaveCriticalSection( &context->download_info->shared_cs );
 						}
 
-						InterlockedIncrement( &context->pending_operations );
-
 						if ( !connection_failed )
 						{
+							InterlockedIncrement( &context->pending_operations );
+
 							// If it's an HTTPS request and we're not going through a SSL/TLS proxy, then begin the SSL/TLS handshake.
 							if ( context->request_info.protocol == PROTOCOL_HTTPS && !cfg_enable_proxy_s )
 							{
@@ -1445,6 +1472,8 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 								SSL_WSAConnect( context, overlapped, context->request_info.host, sent );
 								if ( !sent )
 								{
+									InterlockedDecrement( &context->pending_operations );
+
 									connection_failed = true;
 								}
 							}
@@ -1472,6 +1501,8 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 								nRet = _WSASend( context->socket, &context->wsabuf, 1, NULL, dwFlags, ( WSAOVERLAPPED * )overlapped, NULL );
 								if ( nRet == SOCKET_ERROR && ( _WSAGetLastError() != ERROR_IO_PENDING ) )
 								{
+									InterlockedDecrement( &context->pending_operations );
+
 									connection_failed = true;
 								}
 							}
@@ -1493,6 +1524,8 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 
 				if ( connection_failed )
 				{
+					InterlockedIncrement( &context->pending_operations );
+
 					*current_operation = IO_Close;
 
 					PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
@@ -1729,7 +1762,7 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 
 					context->wsabuf.buf[ context->current_bytes_read ] = 0;	// Sanity.
 
-					int content_status = ParseHTTPHeader( context, context->wsabuf.buf, context->current_bytes_read );
+					char content_status = ParseHTTPHeader( context, context->wsabuf.buf, context->current_bytes_read );
 
 					if ( content_status == CONTENT_STATUS_READ_MORE_HEADER )	// Request more header data.
 					{
@@ -1886,7 +1919,7 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 
 				if ( context->cleanup == 0 )
 				{
-					int content_status = CONTENT_STATUS_FAILED;
+					char content_status = CONTENT_STATUS_FAILED;
 
 					DWORD bytes_decrypted = io_size;
 
@@ -2082,7 +2115,7 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 					}
 					else
 					{
-						int content_status = context->content_status;
+						char content_status = context->content_status;
 
 						// Reset so we don't try to process the header again.
 						context->content_status = CONTENT_STATUS_GET_CONTENT;
@@ -3777,11 +3810,12 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 					incomplete_part = true;
 				}
 
+				// Connecting, Downloading, Paused.
 				if ( incomplete_part &&
 					 context->retries < cfg_retry_parts_count &&
-				   ( context->status == STATUS_CONNECTING ||
-					 context->status == STATUS_DOWNLOADING ||
-					 context->status == STATUS_PAUSED ) )
+				   ( IS_STATUS( context->status,
+						STATUS_CONNECTING |
+						STATUS_DOWNLOADING ) ) )
 				{
 					++context->retries;
 
@@ -3883,9 +3917,10 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 						// If incomplete_part is tested below and is true and the new range fails, then the download will stop.
 						// If incomplete_part is not tested, then all queued ranges will be tried until they either all succeed or all fail.
 						if ( /*!incomplete_part &&*/
-							 context->status != STATUS_STOPPED &&
-							 context->status != STATUS_STOP_AND_REMOVE &&
-							 context->status != STATUS_UPDATING &&
+							 IS_STATUS_NOT( context->status,
+								STATUS_STOPPED |
+								STATUS_STOP_AND_REMOVE |
+								STATUS_UPDATING ) &&
 							 context->download_info->range_queue != NULL )
 						{
 							DoublyLinkedList *range_queue_node = context->download_info->range_queue;
@@ -3997,9 +4032,10 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 
 							if ( incomplete_download )
 							{
-								if ( context->status == STATUS_CONNECTING ||
-									 context->status == STATUS_DOWNLOADING ||
-									 context->status == STATUS_PAUSED )
+								// Connecting, Downloading, Paused.
+								if ( IS_STATUS( context->status,
+										STATUS_CONNECTING |
+										STATUS_DOWNLOADING ) )
 								{
 									// If any of our connections timed out (after we have no more active connections), then set our status to timed out.
 									if ( context->timed_out != TIME_OUT_FALSE )

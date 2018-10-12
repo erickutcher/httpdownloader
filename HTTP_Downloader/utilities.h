@@ -53,6 +53,8 @@ void EscapeFilename( wchar_t *filename );
 unsigned long get_file_extension_offset( wchar_t *filename, unsigned long length );
 //wchar_t *get_extension_from_filename( wchar_t *filename, unsigned long length );
 
+char *escape_csv( const char *string );
+
 unsigned long long strtoull( char *str, bool base16 = false );
 
 char *GetUTF8Domain( wchar_t *domain );

@@ -22,6 +22,73 @@
 #include "lite_ole32.h"
 
 #include "drag_and_drop.h"
+#include "list_operations.h"
+
+void HandleFileList( HDROP hdrop )
+{
+	int count = _DragQueryFileW( hdrop, -1, NULL, 0 );
+
+	importexportinfo *iei = ( importexportinfo * )GlobalAlloc( GMEM_FIXED, sizeof( importexportinfo ) );
+	iei->file_paths = NULL;
+	iei->file_offset = 0;
+	iei->type = 1;	// Import from menu.
+
+	wchar_t file_path[ MAX_PATH ];
+
+	int file_paths_offset = 0;	// Keeps track of the last file in filepath.
+	int file_paths_length = ( MAX_PATH * count ) + 1;
+
+	// Go through the list of paths.
+	for ( int i = 0; i < count; ++i )
+	{
+		// Get the file path and its length.
+		int file_path_length = _DragQueryFileW( hdrop, i, file_path, MAX_PATH ) + 1;	// Include the NULL terminator.
+
+		// Skip any folders that were dropped.
+		if ( ( GetFileAttributesW( file_path ) & FILE_ATTRIBUTE_DIRECTORY ) == 0 )
+		{
+			if ( iei->file_paths == NULL )
+			{
+				iei->file_paths = ( wchar_t * )GlobalAlloc( GPTR, sizeof( wchar_t ) * file_paths_length );
+				iei->file_offset = file_path_length;
+
+				// Find the last occurance of "\" in the string.
+				while ( iei->file_offset != 0 && file_path[ --iei->file_offset ] != L'\\' );
+
+				// Save the root directory name.
+				_wmemcpy_s( iei->file_paths, file_paths_length - iei->file_offset, file_path, iei->file_offset );
+
+				file_paths_offset = ++iei->file_offset;
+			}
+
+			// Copy the file name. Each is separated by the NULL character.
+			_wmemcpy_s( iei->file_paths + file_paths_offset, file_paths_length - file_paths_offset, file_path + iei->file_offset, file_path_length - iei->file_offset );
+
+			file_paths_offset += ( file_path_length - iei->file_offset );
+		}
+	}
+
+	_DragFinish( hdrop );
+
+	if ( iei->file_paths != NULL )
+	{
+		// iei will be freed in the import_list thread.
+		HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, import_list, ( void * )iei, 0, NULL );
+		if ( thread != NULL )
+		{
+			CloseHandle( thread );
+		}
+		else
+		{
+			GlobalFree( iei->file_paths );
+			GlobalFree( iei );
+		}
+	}
+	else	// No files were dropped.
+	{
+		GlobalFree( iei );
+	}
+}
 
 // Finds a character in an element, but excludes searching attribute values.
 char *FindCharExcludeAttributeValues( char *element_start, char *element_end, char element_character )
@@ -443,15 +510,15 @@ CLEANUP:
 
 void PositionCursor( HWND hWnd, POINTL pt )
 {
-	ScreenToClient( hWnd, ( POINT * )&pt );
+	_ScreenToClient( hWnd, ( POINT * )&pt );
 
 	// Get the caret position along the vertical axis.
-	WORD cursor_pos = LOWORD( SendMessage( hWnd, EM_CHARFROMPOS, 0, MAKELPARAM( 0, pt.y ) ) );
+	WORD cursor_pos = LOWORD( _SendMessageW( hWnd, EM_CHARFROMPOS, 0, MAKELPARAM( 0, pt.y ) ) );
 
 	if ( cursor_pos < 65355 )
 	{
-		SendMessage( hWnd, EM_SETSEL, cursor_pos, cursor_pos );
-		SendMessage( hWnd, EM_SCROLLCARET, 0, 0 );
+		_SendMessageW( hWnd, EM_SETSEL, cursor_pos, cursor_pos );
+		_SendMessageW( hWnd, EM_SCROLLCARET, 0, 0 );
 	}
 }
 
@@ -505,7 +572,6 @@ HRESULT STDMETHODCALLTYPE DragEnter( IDropTarget *This, IDataObject *pDataObj, D
 
 	_This->m_ClipFormat = 0;
 
-
 	FORMATETC fetc;
 	fetc.cfFormat = CF_HTML;
 	fetc.ptd = NULL;
@@ -529,21 +595,36 @@ HRESULT STDMETHODCALLTYPE DragEnter( IDropTarget *This, IDataObject *pDataObj, D
 		}
 		else
 		{
-			fetc.cfFormat = CF_TEXT;
+			fetc.cfFormat = CF_HDROP;
 
-			// See if the data is ascii text.
+			// See if the data is a list of files.
 			if ( pDataObj->QueryGetData( &fetc ) == S_OK )
 			{
-				_This->m_ClipFormat = CF_TEXT;
+				_This->m_ClipFormat = CF_HDROP;
+			}
+			else
+			{
+				fetc.cfFormat = CF_TEXT;
+
+				// See if the data is ascii text.
+				if ( pDataObj->QueryGetData( &fetc ) == S_OK )
+				{
+					_This->m_ClipFormat = CF_TEXT;
+				}
 			}
 		}
 	}
 
 	if ( _This->m_ClipFormat != 0 )
 	{
-		SetFocus( _This->m_hWnd );
+		_SetFocus( _This->m_hWnd );
 
 		PositionCursor( _This->m_hWnd, pt );
+
+		if ( _This->m_hWnd == g_hWnd_url_drop_window )
+		{
+			_SetLayeredWindowAttributes( g_hWnd_url_drop_window, 0, 0xFF, LWA_ALPHA );
+		}
 
 		*pdwEffect = DROPEFFECT_COPY;
 	}
@@ -575,6 +656,13 @@ HRESULT STDMETHODCALLTYPE DragOver( IDropTarget *This, DWORD grfKeyState, POINTL
 
 HRESULT STDMETHODCALLTYPE DragLeave( IDropTarget *This )
 {
+	_IDropTarget *_This = ( _IDropTarget * )This;
+
+	if ( _This->m_hWnd == g_hWnd_url_drop_window )
+	{
+		_SetLayeredWindowAttributes( g_hWnd_url_drop_window, 0, 0x80, LWA_ALPHA );
+	}
+
 	return S_OK;
 }
 
@@ -645,7 +733,14 @@ HRESULT STDMETHODCALLTYPE Drop( IDropTarget *This, IDataObject *pDataObj, DWORD 
 
 			if ( data != NULL )
 			{
-				SendMessageW( ( g_hWnd_add_urls != NULL ? g_hWnd_add_urls : g_hWnd_main ), WM_PROPAGATE, cfFormat, ( LPARAM )data );
+				if ( cfFormat == CF_HDROP )
+				{
+					HandleFileList( ( HDROP )data );
+				}
+				else
+				{
+					_SendMessageW( ( g_hWnd_add_urls != NULL ? g_hWnd_add_urls : g_hWnd_main ), WM_PROPAGATE, cfFormat, ( LPARAM )data );
+				}
 
 				if ( cfFormat == CF_HTML )
 				{

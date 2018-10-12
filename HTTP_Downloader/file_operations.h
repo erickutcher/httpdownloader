@@ -20,12 +20,14 @@
 #define _FILE_OPERATIONS_H
 
 #define MAGIC_ID_SETTINGS		"HDM\x00"
-#define MAGIC_ID_DOWNLOADS		"HDM\x10"
+#define MAGIC_ID_DOWNLOADS		"HDM\x11"	// Version 2
 
 char read_config();
 char save_config();
 
 char read_download_history( wchar_t *file_path );
 char save_download_history( wchar_t *file_path );
+
+char save_download_history_csv_file( wchar_t *file_path );
 
 #endif

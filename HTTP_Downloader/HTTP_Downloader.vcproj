@@ -230,6 +230,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\lite_comctl32.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\lite_comdlg32.cpp"
 				>
 			</File>
@@ -321,6 +325,10 @@
 				RelativePath=".\wnd_proc_update_download.cpp"
 				>
 			</File>
+			<File
+				RelativePath=".\wnd_proc_url_drop.cpp"
+				>
+			</File>
 			<Filter
 				Name="asm"
 				>
@@ -385,6 +393,10 @@
 			</File>
 			<File
 				RelativePath=".\lite_advapi32.h"
+				>
+			</File>
+			<File
+				RelativePath=".\lite_comctl32.h"
 				>
 			</File>
 			<File
@@ -482,11 +494,19 @@
 				>
 			</File>
 			<File
+				RelativePath=".\drop.bmp"
+				>
+			</File>
+			<File
 				RelativePath=".\HTTP_Downloader.rc"
 				>
 			</File>
 			<File
 				RelativePath=".\icon.ico"
+				>
+			</File>
+			<File
+				RelativePath=".\toolbar.bmp"
 				>
 			</File>
 		</Filter>

@@ -19,10 +19,16 @@
 #ifndef _LIST_OPERATIONS_H
 #define _LIST_OPERATIONS_H
 
+struct importexportinfo
+{
+	wchar_t *file_paths;
+	unsigned short file_offset;	// Only used for importing the download history.
+	unsigned char type;	// 0 = load on startup, 1 = import from menu.
+};
+
 void ProcessingList( bool processing );
 
 THREAD_RETURN remove_items( void *pArguments );
-THREAD_RETURN load_download_history( void *pArguments );
 
 THREAD_RETURN handle_download_list( void *pArguments );
 THREAD_RETURN handle_connection( void *pArguments );
@@ -31,5 +37,12 @@ THREAD_RETURN handle_download_queue( void *pArguments );
 THREAD_RETURN handle_download_update( void *pArguments );
 
 THREAD_RETURN copy_urls( void *pArguments );
+
+THREAD_RETURN rename_file( void *pArguments );
+THREAD_RETURN delete_files( void *pArguments );
+
+THREAD_RETURN create_download_history_csv_file( void *file_path );
+THREAD_RETURN export_list( void *pArguments );
+THREAD_RETURN import_list( void *pArguments );
 
 #endif
