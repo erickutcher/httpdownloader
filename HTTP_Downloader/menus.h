@@ -23,22 +23,25 @@
 #define MENU_PAUSE					10001
 #define MENU_STOP					10002
 
-#define MENU_REMOVE					10003
+#define MENU_RESTART				10003
 
-#define MENU_COPY_URLS				10004
+#define MENU_REMOVE					10004
+#define MENU_REMOVE_AND_DELETE		10005
 
-#define	MENU_SELECT_ALL				10005
+#define MENU_COPY_URLS				10006
 
-#define MENU_PAUSE_ACTIVE			10006
-#define MENU_STOP_ALL				10007
-#define MENU_REMOVE_COMPLETED		10008
-#define MENU_RENAME					10009
-#define MENU_DELETE					10010
+#define	MENU_SELECT_ALL				10007
 
-#define MENU_OPEN_FILE				10011
-#define MENU_OPEN_DIRECTORY			10012
+#define MENU_PAUSE_ACTIVE			10008
+#define MENU_STOP_ALL				10009
+#define MENU_REMOVE_COMPLETED		10010
+#define MENU_RENAME					10011
+#define MENU_DELETE					10012
 
-#define MENU_UPDATE_DOWNLOAD		10013
+#define MENU_OPEN_FILE				10013
+#define MENU_OPEN_DIRECTORY			10014
+
+#define MENU_UPDATE_DOWNLOAD		10015
 
 #define MENU_QUEUE_TOP				10100
 #define MENU_QUEUE_UP				10101
@@ -55,9 +58,9 @@
 #define MENU_FILE_TYPE				20007
 #define MENU_FILENAME				20008
 #define MENU_PROGRESS				20009
-#define MENU_TIME_ELAPSED			20010
-#define MENU_TIME_REMAINING			20011
-#define MENU_TLS_SSL_VERSION		20012
+#define MENU_SSL_TLS_VERSION		20010
+#define MENU_TIME_ELAPSED			20011
+#define MENU_TIME_REMAINING			20012
 #define MENU_URL					20013
 
 #define COLUMN_MENU_OFFSET			20000
@@ -71,10 +74,13 @@
 #define MENU_SHOW_TOOLBAR			30005
 #define MENU_SHOW_STATUS_BAR		30006
 
-#define MENU_OPTIONS				30007
+#define MENU_SEARCH					30007
+#define MENU_OPTIONS				30008
 
-#define	MENU_HOME_PAGE				30008
-#define MENU_ABOUT					30009
+#define	MENU_HOME_PAGE				30009
+#define MENU_ABOUT					30010
+
+#define MENU_ALWAYS_ON_TOP			30011
 
 #define MENU_RESTORE				40000
 
@@ -90,5 +96,6 @@ extern HMENU g_hMenuSub_view;
 extern HMENU g_hMenuSub_download;
 extern HMENU g_hMenuSub_column;
 extern HMENU g_hMenuSub_tray;
+extern HMENU g_hMenuSub_drag_drop;
 
 #endif

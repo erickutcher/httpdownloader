@@ -43,7 +43,7 @@
 	#define _StrStrA			StrStrA
 	#define _StrStrW			StrStrW
 	#define _StrStrIA			StrStrIA
-	//#define _StrStrIW			StrStrIW
+	#define _StrStrIW			StrStrIW
 
 	#define _StrCmpNA			StrCmpNA
 	#define _StrCmpNW			StrCmpNW
@@ -80,7 +80,7 @@
 	typedef PSTR ( WINAPI *pStrStrA )( PSTR pszFirst, PCSTR pszSrch );
 	typedef PWSTR ( WINAPI *pStrStrW )( PWSTR pszFirst, PCWSTR pszSrch );
 	typedef PSTR ( WINAPI *pStrStrIA )( PSTR pszFirst, PCSTR pszSrch );
-	//typedef PSTR ( WINAPI *pStrStrIW )( PWSTR pszFirst, PCWSTR pszSrch );
+	typedef PSTR ( WINAPI *pStrStrIW )( PWSTR pszFirst, PCWSTR pszSrch );
 
 	typedef int ( WINAPI *pStrCmpNA )( PCSTR psz1, PCSTR psz2, int nChar );
 	typedef int ( WINAPI *pStrCmpNW )( PCWSTR psz1, PCWSTR psz2, int nChar );
@@ -112,7 +112,7 @@
 	extern pStrStrA				_StrStrA;
 	extern pStrStrW				_StrStrW;
 	extern pStrStrIA			_StrStrIA;
-	//extern pStrStrIW			_StrStrIW;
+	extern pStrStrIW			_StrStrIW;
 
 	extern pStrCmpNA			_StrCmpNA;
 	extern pStrCmpNW			_StrCmpNW;

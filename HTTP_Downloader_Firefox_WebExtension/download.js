@@ -1,11 +1,20 @@
 var refresh_server_info = false;
 
-function BeginDownload()
+var g_initial_height = 0;
+
+function SendDownloadToClient()
 {
 	var request = new XMLHttpRequest();
 	if ( request )
 	{
 		var window_id = parseInt( document.getElementById( "window_id" ).value );
+		var method = "1";	// GET
+		var post_data = "";
+		if ( document.getElementById( "method" ).checked )
+		{
+			method = "2";	// POST
+			post_data = document.getElementById( "post_data" ).value;
+		}
 		var server = document.getElementById( "server" ).value;
 		var cookies = document.getElementById( "cookies" ).value;
 		var headers = document.getElementById( "headers" ).value;
@@ -31,6 +40,7 @@ function BeginDownload()
 		var username = document.getElementById( "username" ).value;
 		var password = document.getElementById( "password" ).value;
 		var parts = document.getElementById( "parts" ).value;
+		var directory = document.getElementById( "directory" ).value;
 		var simulate_download = ( document.getElementById( "simulate_download" ).checked ? "1" : "0" );
 
 		var download = document.getElementById( "download" );
@@ -83,7 +93,16 @@ function BeginDownload()
 		}
 		request.timeout = 30000;	// 30 second timeout.
 		request.setRequestHeader( "Content-Type", "application/octet-stream" );
-		request.send( urls + "\x1f" + username + "\x1f" + password + "\x1f" + parts + "\x1f" + simulate_download + "\x1f" + cookies + "\x1f" + headers + "\x1f" );
+		request.send( method + "\x1f" +
+					  urls + "\x1f" +
+					  username + "\x1f" +
+					  password + "\x1f" +
+					  parts + "\x1f" +
+					  directory + "\x1f" +
+					  simulate_download + "\x1f" +
+					  cookies + "\x1f" +
+					  headers + "\x1f" +
+					  post_data + "\x1f" );
 	}
 	else
 	{
@@ -101,20 +120,22 @@ function DownloadURLS()
 		} )
 		.then( function( info )
 		{
-			if ( info )
-			{
-				document.getElementById( "server" ).value = info.server;
-				document.getElementById( "server_username" ).value = atob( info.username );
-				document.getElementById( "server_password" ).value = atob( info.password );
+			document.getElementById( "server" ).value = info.server;
+			document.getElementById( "server_username" ).value = atob( info.username );
+			document.getElementById( "server_password" ).value = atob( info.password );
 
-				BeginDownload();
-			}
+			SendDownloadToClient();
 		} );
 	}
 	else
 	{
-		BeginDownload();
+		SendDownloadToClient();
 	}
+}
+
+function SendPOSTData()
+{
+	document.getElementById( "post_data" ).disabled = !( document.getElementById( "method" ).checked );
 }
 
 function GetDownloadInfo( id )
@@ -126,16 +147,23 @@ function GetDownloadInfo( id )
 	} )
 	.then( function( info )
 	{
-		if ( info )
+		document.getElementById( "window_id" ).value = id;
+		document.getElementById( "server" ).value = info.server;
+		document.getElementById( "server_username" ).value = atob( info.username );
+		document.getElementById( "server_password" ).value = atob( info.password );
+		document.getElementById( "last_urls" ).value = info.urls;
+		document.getElementById( "urls" ).value = info.urls;
+		document.getElementById( "cookies" ).value = ( info.cookies ? info.cookies : "" );
+		document.getElementById( "parts" ).value = info.parts;
+		document.getElementById( "directory" ).value = ( info.directory ? info.directory : "" );
+		var enable_post = ( info.method == 2 ? true : false );
+		document.getElementById( "method" ).checked = enable_post;
+		document.getElementById( "post_data" ).value = ( info.post_data ? info.post_data : "" );
+		document.getElementById( "post_data" ).disabled = !enable_post;
+
+		if ( info.message && info.message != "" )
 		{
-			document.getElementById( "window_id" ).value = id;
-			document.getElementById( "server" ).value = info.server;
-			document.getElementById( "server_username" ).value = atob( info.username );
-			document.getElementById( "server_password" ).value = atob( info.password );
-			document.getElementById( "last_urls" ).value = info.urls;
-			document.getElementById( "urls" ).value = info.urls;
-			document.getElementById( "cookies" ).value = ( info.cookies ? info.cookies : "" );
-			document.getElementById( "parts" ).value = info.parts;
+			window.alert( info.message );
 		}
 	} );
 }
@@ -150,23 +178,21 @@ document.addEventListener( "contextmenu", function( e )
 
 document.addEventListener( "DOMContentLoaded", function()
 {
-	if ( browser.windows )
+	browser.windows.getCurrent().then( function( window_info )
 	{
-		browser.windows.getCurrent().then( function( window_info )
-		{
-			if ( window_info )
-			{
-				GetDownloadInfo( window_info.id );
-			}
-		} );
+		GetDownloadInfo( window_info.id );
+	} );
 
-		document.getElementById( "filter_presets" ).addEventListener( "change", SetFliterPreset );
-		document.getElementById( "apply_filter" ).addEventListener( "click", ApplyFliter );
-		document.getElementById( "revert_filter" ).addEventListener( "click", RevertFliter );
-		document.getElementById( "advanced" ).addEventListener( "click", AdvancedOptions );
-		document.getElementById( "download" ).addEventListener( "click", DownloadURLS );
-		document.getElementById( "cancel" ).addEventListener( "click", CloseWindow );
-	}
+	document.getElementById( "filter_presets" ).addEventListener( "change", SetFliterPreset );
+	document.getElementById( "apply_filter" ).addEventListener( "click", ApplyFliter );
+	document.getElementById( "revert_filter" ).addEventListener( "click", RevertFliter );
+	document.getElementById( "method" ).addEventListener( "click", SendPOSTData );
+	document.getElementById( "advanced" ).addEventListener( "click", AdvancedOptions );
+	document.getElementById( "download" ).addEventListener( "click", DownloadURLS );
+	document.getElementById( "cancel" ).addEventListener( "click", CloseWindow );
+
+	g_initial_height = document.body.clientHeight;
+	document.body.style.minHeight = g_initial_height + "px";
 } );
 
 function SetFliterPreset()
@@ -239,26 +265,35 @@ function AdvancedOptions()
 	var advanced = document.getElementById( "advanced" );
 	var advanced_info = document.getElementById( "advanced_info" );
 
-	if ( advanced_info.style.display == "" )
+	if ( advanced_info.style.display == "block" )
 	{
 		advanced.value = "Advanced \xBB";
 		advanced_info.style.display = "none";	// Hide.
+		document.body.style.minHeight = g_initial_height + "px";
 	}
 	else
 	{
+		advanced.value = "Advanced \xAB";
+		advanced_info.style.display = "block";	// Show.
+
 		browser.windows.getCurrent().then( function( window_info )
 		{
-			if ( window_info && window_info.height < 600 )
+			// The URL and Directory fields + Advanced fields + 15 px top margin for the Advanced fields.
+			var new_height = ( g_initial_height + advanced_info.clientHeight + 15 );
+
+			if ( window_info.height < new_height )
 			{
+				// The height of the toolbars and borders + the height of all fields.
+				var height = ( window_info.height - document.body.clientHeight ) + new_height;
+
 				browser.windows.update( window_info.id,
 				{
-					height: 600
+					height: height
 				} );
 			}
-		} );
 
-		advanced.value = "Advanced \xAB";
-		advanced_info.style.display = "";	// Show.
+			document.body.style.minHeight = new_height + "px";
+		} );
 	}
 }
 

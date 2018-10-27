@@ -47,10 +47,12 @@
 	pEnableMenuItem			_EnableMenuItem;
 	pEnableWindow			_EnableWindow;
 	pEndDeferWindowPos		_EndDeferWindowPos;
+	//pEndMenu				_EndMenu;
 	pEndPaint				_EndPaint;
 	//pEnumChildWindows		_EnumChildWindows;
 	pFillRect				_FillRect;
 	pFlashWindow			_FlashWindow;
+	pFrameRect				_FrameRect;
 	//pGetClassLongPtrW		_GetClassLongPtrW;
 	pGetClientRect			_GetClientRect;
 	//pGetClipboardData		_GetClipboardData
@@ -80,7 +82,7 @@
 	pLoadIconW				_LoadIconW;
 	pLoadImageW				_LoadImageW;
 	//pMapWindowPoints			_MapWindowPoints;
-	pMessageBoxA			_MessageBoxA;
+	//pMessageBoxA			_MessageBoxA;
 	pMessageBoxW			_MessageBoxW;
 	pOffsetRect				_OffsetRect;
 	pOpenClipboard			_OpenClipboard;
@@ -161,10 +163,12 @@
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_EnableMenuItem, "EnableMenuItem" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_EnableWindow, "EnableWindow" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_EndDeferWindowPos, "EndDeferWindowPos" ) )
+		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_EndMenu, "EndMenu" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_EndPaint, "EndPaint" ) )
 		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_EnumChildWindows, "EnumChildWindows" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_FillRect, "FillRect" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_FlashWindow, "FlashWindow" ) )
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_FrameRect, "FrameRect" ) )
 		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_GetClassLongPtrW, "GetClassLongPtrW" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_GetClientRect, "GetClientRect" ) )
 		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_GetClipboardData, "GetClipboardData" ) )
@@ -194,7 +198,7 @@
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_LoadIconW, "LoadIconW" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_LoadImageW, "LoadImageW" ) )
 		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_MapWindowPoints, "MapWindowPoints" ) )
-		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_MessageBoxA, "MessageBoxA" ) )
+		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_MessageBoxA, "MessageBoxA" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_MessageBoxW, "MessageBoxW" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_OffsetRect, "OffsetRect" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_OpenClipboard, "OpenClipboard" ) )

@@ -2848,7 +2848,7 @@ char GetHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int h
 // If we received a location URL, then we'll need to redirect to it.
 char HandleRedirect( SOCKET_CONTEXT *context )
 {
-	char ret = CONTENT_STATUS_FAILED;
+	char content_status = CONTENT_STATUS_FAILED;
 
 	if ( context != NULL )
 	{
@@ -2959,15 +2959,15 @@ char HandleRedirect( SOCKET_CONTEXT *context )
 
 		PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped );
 
-		ret = CONTENT_STATUS_NONE;
+		content_status = CONTENT_STATUS_NONE;
 	}
 
-	return ret;
+	return content_status;
 }
 
 char MakeRangeRequest( SOCKET_CONTEXT *context )
 {
-	char ret = CONTENT_STATUS_FAILED;
+	char content_status = CONTENT_STATUS_FAILED;
 
 	if ( context != NULL )
 	{
@@ -3142,17 +3142,17 @@ char MakeRangeRequest( SOCKET_CONTEXT *context )
 
 		context->processed_header = true;
 
-		//ret = CONTENT_STATUS_NONE;
+		//content_status = CONTENT_STATUS_NONE;
 
-		ret = MakeRequest( context, IO_GetContent, false );
+		content_status = MakeRequest( context, IO_GetContent, false );
 	}
 
-	return ret;
+	return content_status;
 }
 
 char MakeRequest( SOCKET_CONTEXT *context, IO_OPERATION next_operation, bool use_connect )
 {
-	char ret = CONTENT_STATUS_FAILED;
+	char content_status = CONTENT_STATUS_FAILED;
 
 	if ( context != NULL )
 	{
@@ -3314,15 +3314,15 @@ char MakeRequest( SOCKET_CONTEXT *context, IO_OPERATION next_operation, bool use
 			PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped );
 		}
 
-		ret = CONTENT_STATUS_NONE;
+		content_status = CONTENT_STATUS_NONE;
 	}
 
-	return ret;
+	return content_status;
 }
 
 char MakeResponse( SOCKET_CONTEXT *context )
 {
-	char ret = CONTENT_STATUS_FAILED;
+	char content_status = CONTENT_STATUS_FAILED;
 
 	if ( context != NULL )
 	{
@@ -3446,10 +3446,10 @@ char MakeResponse( SOCKET_CONTEXT *context )
 			}
 		}
 
-		ret = CONTENT_STATUS_NONE;
+		content_status = CONTENT_STATUS_NONE;
 	}
 
-	return ret;
+	return content_status;
 }
 
 char AllocateFile( SOCKET_CONTEXT *context )
@@ -3624,9 +3624,11 @@ char GetHTTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, uns
 		return CONTENT_STATUS_FAILED;
 	}
 
+	char content_status;
+
 	if ( context->content_status != CONTENT_STATUS_GET_CONTENT )
 	{
-		char content_status = CONTENT_STATUS_GET_CONTENT;	// Assume we're now getting the content.
+		content_status = CONTENT_STATUS_GET_CONTENT;	// Assume we're now getting the content.
 
 		// If the return status is CONTENT_STATUS_GET_CONTENT, then our end_of_header pointer will have been set.
 		if ( context->content_status == CONTENT_STATUS_NONE || context->content_status == CONTENT_STATUS_READ_MORE_HEADER )
@@ -3811,7 +3813,7 @@ char GetHTTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, uns
 		context->write_wsabuf.buf = context->header_info.chunk_buffer;
 		context->write_wsabuf.len = 0;
 
-		char status = CONTENT_STATUS_READ_MORE_CONTENT;
+		content_status = CONTENT_STATUS_READ_MORE_CONTENT;
 
 		// Offset past the chunk terminating token.
 		if ( response_buffer_length >= 2 && response_buffer[ 0 ] == '\r' && response_buffer[ 1 ] == '\n' )
@@ -3837,12 +3839,12 @@ char GetHTTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, uns
 						context->wsabuf.buf += response_buffer_length;
 						context->wsabuf.len -= response_buffer_length;
 
-						status = CONTENT_STATUS_READ_MORE_CONTENT;	// Read more content data.
+						content_status = CONTENT_STATUS_READ_MORE_CONTENT;	// Read more content data.
 						break;
 					}
 					else	// Buffer is too small.
 					{
-						status = CONTENT_STATUS_FAILED;
+						content_status = CONTENT_STATUS_FAILED;
 						break;
 					}
 				}
@@ -3875,14 +3877,14 @@ char GetHTTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, uns
 						context->wsabuf.buf = context->buffer + response_buffer_length;
 						context->wsabuf.len = BUFFER_SIZE - response_buffer_length;
 
-						status = CONTENT_STATUS_READ_MORE_CONTENT;	// Read more content data.
+						content_status = CONTENT_STATUS_READ_MORE_CONTENT;	// Read more content data.
 						break;
 					}
 					else
 					{
 						context->header_info.got_chunk_terminator = true;
 
-						status = ( !context->processed_header ? CONTENT_STATUS_HANDLE_RESPONSE : CONTENT_STATUS_READ_MORE_CONTENT );	// We're done reading the chunked transfer stream.
+						content_status = ( !context->processed_header ? CONTENT_STATUS_HANDLE_RESPONSE : CONTENT_STATUS_READ_MORE_CONTENT );	// We're done reading the chunked transfer stream.
 						break;
 					}
 				}
@@ -3926,7 +3928,7 @@ char GetHTTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, uns
 					context->write_wsabuf.len += output_buffer_length;
 				}
 
-				status = CONTENT_STATUS_READ_MORE_CONTENT;
+				content_status = CONTENT_STATUS_READ_MORE_CONTENT;
 				break;
 			}
 			else	// We have a complete chunk(s) in our response buffer.
@@ -3977,11 +3979,11 @@ char GetHTTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, uns
 
 						context->header_info.got_chunk_start = false;	// Get the new chunk length.
 
-						status = CONTENT_STATUS_READ_MORE_CONTENT;
+						content_status = CONTENT_STATUS_READ_MORE_CONTENT;
 					}
 					else	// Bad terminator. Can't continue.
 					{
-						status = CONTENT_STATUS_FAILED;
+						content_status = CONTENT_STATUS_FAILED;
 						break;
 					}
 				}
@@ -3995,7 +3997,7 @@ char GetHTTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, uns
 						context->wsabuf.len -= response_buffer_length;
 					}
 
-					status = CONTENT_STATUS_READ_MORE_CONTENT;
+					content_status = CONTENT_STATUS_READ_MORE_CONTENT;
 					break;
 				}
 			}
@@ -4009,8 +4011,6 @@ char GetHTTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, uns
 			{
 				if ( !( context->download_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
 				{
-					unsigned char file_status = 0;	// 0 = failed, 1 = allocate, 2 = already allocated
-
 					if ( context->download_info->hFile != INVALID_HANDLE_VALUE )
 					{
 						LARGE_INTEGER li;
@@ -4031,9 +4031,9 @@ char GetHTTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, uns
 
 //						context->overlapped.context = context;
 
-						file_status = 1;
+						context->content_status = content_status;	// Causes IO_WriteFile to call HandleResponse().
 
-						context->content_status = status;	// Causes IO_WriteFile to call HandleResponse().
+						content_status = CONTENT_STATUS_NONE;	// Exits IO_GetContent.
 
 						//context->header_info.range_info->file_write_offset += context->write_wsabuf.len;	// The size of the non-encoded/decoded data that we're writing to the file.
 
@@ -4045,9 +4045,9 @@ char GetHTTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, uns
 							context->download_info->status = STATUS_FILE_IO_ERROR;
 							context->status = STATUS_FILE_IO_ERROR;
 
-							file_status = 0;
-
 							context->content_status = CONTENT_STATUS_FAILED;
+
+							content_status = CONTENT_STATUS_FAILED;
 
 							context->content_offset = 0;
 							//context->header_info.range_info->file_write_offset -= context->write_wsabuf.len;	// The size of the non-encoded/decoded data that we're writing to the file.
@@ -4058,14 +4058,7 @@ char GetHTTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, uns
 
 						LeaveCriticalSection( &context->download_info->shared_cs );
 
-						if ( file_status == 0 )
-						{
-							return CONTENT_STATUS_FAILED;
-						}
-						else
-						{
-							return CONTENT_STATUS_NONE;	// Exits IO_GetContent.
-						}
+						return content_status;
 					}
 					else	// Shouldn't happen.
 					{
@@ -4099,7 +4092,7 @@ char GetHTTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, uns
 		}
 		else
 		{
-			return status;
+			return content_status;
 		}
 	}
 	else	// Non-chunked transfer
@@ -4127,8 +4120,6 @@ char GetHTTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, uns
 
 			if ( !( context->download_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
 			{
-				unsigned char file_status = 0;
-
 				if ( context->download_info->hFile != INVALID_HANDLE_VALUE )
 				{
 					LARGE_INTEGER li;
@@ -4152,9 +4143,9 @@ char GetHTTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, uns
 
 //					context->overlapped.context = context;
 
-					file_status = 1;
-
 					context->content_status = ( !context->processed_header ? CONTENT_STATUS_HANDLE_RESPONSE : CONTENT_STATUS_READ_MORE_CONTENT );
+
+					content_status = CONTENT_STATUS_NONE;	// Exits IO_GetContent.
 
 					context->content_offset = response_buffer_length;	// The true amount that was downloaded. Allows us to resume if we stop the download.
 					//context->header_info.range_info->content_offset += response_buffer_length;	// The true amount that was downloaded. Allows us to resume if we stop the download.
@@ -4168,9 +4159,9 @@ char GetHTTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, uns
 						context->download_info->status = STATUS_FILE_IO_ERROR;
 						context->status = STATUS_FILE_IO_ERROR;
 
-						file_status = 0;
-
 						context->content_status = CONTENT_STATUS_FAILED;
+
+						content_status = CONTENT_STATUS_FAILED;
 
 						context->content_offset = 0;	// The true amount that was downloaded. Allows us to resume if we stop the download.
 						//context->header_info.range_info->content_offset -= response_buffer_length;	// The true amount that was downloaded. Allows us to resume if we stop the download.
@@ -4182,14 +4173,7 @@ char GetHTTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, uns
 
 					LeaveCriticalSection( &context->download_info->shared_cs );
 
-					if ( file_status == 0 )
-					{
-						return CONTENT_STATUS_FAILED;
-					}
-					else
-					{
-						return CONTENT_STATUS_NONE;	// Exits IO_GetContent.
-					}
+					return content_status;
 				}
 				else	// Shouldn't happen.
 				{
@@ -4307,16 +4291,19 @@ char ParsePOSTData( SOCKET_CONTEXT *context, char *post_data, unsigned int post_
 		context->post_info = ( POST_INFO * )GlobalAlloc( GPTR, sizeof( POST_INFO ) );
 	}
 
-	char **value_buf[ 7 ];
-	value_buf[ 0 ] = &context->post_info->urls;
-	value_buf[ 1 ] = &context->post_info->username;
-	value_buf[ 2 ] = &context->post_info->password;
-	value_buf[ 3 ] = &context->post_info->parts;
-	value_buf[ 4 ] = &context->post_info->simulate_download;
-	value_buf[ 5 ] = &context->post_info->cookies;
-	value_buf[ 6 ] = &context->post_info->headers;
+	char **value_buf[ 10 ];
+	value_buf[ 0 ] = &context->post_info->method;
+	value_buf[ 1 ] = &context->post_info->urls;
+	value_buf[ 2 ] = &context->post_info->username;
+	value_buf[ 3 ] = &context->post_info->password;
+	value_buf[ 4 ] = &context->post_info->parts;
+	value_buf[ 5 ] = &context->post_info->directory;
+	value_buf[ 6 ] = &context->post_info->simulate_download;
+	value_buf[ 7 ] = &context->post_info->cookies;
+	value_buf[ 8 ] = &context->post_info->headers;
+	value_buf[ 9 ] = &context->post_info->data;
 
-	for ( unsigned char i = 0; i < 7; ++i )
+	for ( unsigned char i = 0; i < 10; ++i )
 	{
 		if ( *value_buf[ i ] == NULL )
 		{
@@ -4529,9 +4516,28 @@ char GetHTTPRequestContent( SOCKET_CONTEXT *context, char *request_buffer, unsig
 				wchar_t *urls = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * urls_length );
 				MultiByteToWideChar( CP_UTF8, 0, context->post_info->urls, -1, urls, urls_length );
 
-				wchar_t *t_download_directory = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * MAX_PATH );
-				_wmemcpy_s( t_download_directory, MAX_PATH, cfg_default_download_directory, g_default_download_directory_length );
-				t_download_directory[ g_default_download_directory_length ] = 0;	// Sanity.
+				wchar_t *t_download_directory = NULL;
+
+				if ( context->post_info->directory != NULL && *context->post_info->directory != NULL )
+				{
+					int directory_length = MultiByteToWideChar( CP_UTF8, 0, context->post_info->directory, -1, NULL, 0 );	// Include the NULL terminator.
+					t_download_directory = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * directory_length );
+					MultiByteToWideChar( CP_UTF8, 0, context->post_info->directory, -1, t_download_directory, directory_length );
+
+					// See if the directory exits. If not, then we'll use the program's default.
+					if ( GetFileAttributesW( t_download_directory ) != FILE_ATTRIBUTE_DIRECTORY )
+					{
+						GlobalFree( t_download_directory );
+						t_download_directory = NULL;
+					}
+				}
+
+				if ( t_download_directory == NULL )
+				{
+					t_download_directory = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * MAX_PATH );
+					_wmemcpy_s( t_download_directory, MAX_PATH, cfg_default_download_directory, g_default_download_directory_length );
+					t_download_directory[ g_default_download_directory_length ] = 0;	// Sanity.
+				}
 
 				unsigned int parts = 0;
 				if ( context->post_info->parts != NULL )
@@ -4540,6 +4546,8 @@ char GetHTTPRequestContent( SOCKET_CONTEXT *context, char *request_buffer, unsig
 				}
 
 				bool simulate_download = ( context->post_info->simulate_download != NULL && *context->post_info->simulate_download == '1' ? true : false );
+
+				unsigned char method = ( context->post_info->method != NULL && *context->post_info->method == '2' ? METHOD_POST : METHOD_GET );
 
 				char *headers = NULL;
 
@@ -4561,8 +4569,8 @@ char GetHTTPRequestContent( SOCKET_CONTEXT *context, char *request_buffer, unsig
 
 				context->header_info.http_status = 200;	// Let our MakeResponse() know that we want to send an HTTP 200 back.
 
-				ADD_INFO *ai = ( ADD_INFO * )GlobalAlloc( GPTR, sizeof( ADD_INFO ) );
-				ai->download_operations |= DOWNLOAD_OPERATION_SIMULATE;
+				ADD_INFO *ai = ( ADD_INFO * )GlobalAlloc( GMEM_FIXED, sizeof( ADD_INFO ) );
+				ai->method = method;
 				if ( parts == 0 )
 				{
 					ai->parts = cfg_default_download_parts;
@@ -4580,6 +4588,7 @@ char GetHTTPRequestContent( SOCKET_CONTEXT *context, char *request_buffer, unsig
 				ai->ssl_version = cfg_default_ssl_version;
 				ai->utf8_cookies = context->post_info->cookies;
 				ai->utf8_headers = context->post_info->headers;
+				ai->utf8_data = context->post_info->data;
 				ai->download_operations = DOWNLOAD_OPERATION_OVERRIDE_PROMPTS | ( simulate_download ? DOWNLOAD_OPERATION_SIMULATE : DOWNLOAD_OPERATION_NONE );
 				ai->urls = urls;
 				ai->download_directory = t_download_directory;
@@ -4589,6 +4598,7 @@ char GetHTTPRequestContent( SOCKET_CONTEXT *context, char *request_buffer, unsig
 				context->post_info->password = NULL;
 				context->post_info->cookies = NULL;
 				context->post_info->headers = NULL;
+				context->post_info->data = NULL;
 
 				// ai is freed in AddURL.
 				HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, AddURL, ( void * )ai, 0, NULL );
@@ -4598,6 +4608,8 @@ char GetHTTPRequestContent( SOCKET_CONTEXT *context, char *request_buffer, unsig
 				}
 				else
 				{
+					GlobalFree( ai->download_directory );
+					GlobalFree( ai->utf8_data );
 					GlobalFree( ai->utf8_headers );
 					GlobalFree( ai->utf8_cookies );
 					GlobalFree( ai->auth_info.username );

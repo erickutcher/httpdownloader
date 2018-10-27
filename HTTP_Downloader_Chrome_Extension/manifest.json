@@ -2,7 +2,7 @@
 	"description": "Download files with HTTP Downloader.",
 	"manifest_version": 2,
 	"name": "HTTP Downloader",
-	"version": "1.0.0.1",
+	"version": "1.0.0.2",
 	"homepage_url": "https://erickutcher.github.io/#HTTP_Downloader",
 
 	"icons":
@@ -31,6 +31,13 @@
 		"page": "options.html"
 	},
 
+	"browser_action":
+	{
+		"default_icon": "icons/icon-64.png",
+		"default_title": "HTTP Downloader",
+		"default_popup": "options.html"
+	},
+
 	"permissions":
 	[
 		"<all_urls>",
@@ -38,6 +45,7 @@
 		"webRequest",
 		"contextMenus",
 		"cookies",
-		"storage"
+		"storage",
+		"downloads"
 	]
 }

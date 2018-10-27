@@ -23,14 +23,14 @@
 #include "string_tables.h"
 
 #define EDIT_UPDATE_DOWNLOAD_PARTS	1000
-#define BTN_UPDATE_DOWNLOAD			1001
-#define BTN_UPDATE_CANCEL			1002
+#define CHK_UPDATE_SEND_DATA		1001
+#define BTN_UPDATE_DOWNLOAD			1002
+#define BTN_UPDATE_CANCEL			1003
 
 DOWNLOAD_INFO *g_update_download_info = NULL;	// The current item that we want to update.
 
 HWND g_hWnd_update_download = NULL;
 
-HWND g_hWnd_static_update_url = NULL;
 HWND g_hWnd_edit_update_url = NULL;
 
 HWND g_hWnd_static_update_download_parts = NULL;
@@ -51,6 +51,9 @@ HWND g_hWnd_edit_update_cookies = NULL;
 
 HWND g_hWnd_static_update_headers = NULL;
 HWND g_hWnd_edit_update_headers = NULL;
+
+HWND g_hWnd_chk_update_send_data = NULL;
+HWND g_hWnd_edit_update_data = NULL;
 
 HWND g_hWnd_static_paused_download = NULL;
 
@@ -97,10 +100,10 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
     {
 		case WM_CREATE:
 		{
-			g_hWnd_static_update_url = _CreateWindowW( WC_STATIC, ST_URL_, WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+			HWND hWnd_static_update_url = _CreateWindowW( WC_STATIC, ST_V_URL_, WS_CHILD | WS_VISIBLE, 20, 20, 100, 15, hWnd, NULL, NULL, NULL );
 			g_hWnd_edit_update_url = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, L"", ES_AUTOHSCROLL | ES_READONLY | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 
-			g_hWnd_static_update_download_parts = _CreateWindowW( WC_STATIC, ST_Download_parts_, WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+			g_hWnd_static_update_download_parts = _CreateWindowW( WC_STATIC, ST_V_Download_parts_, WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 			g_hWnd_update_download_parts = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, ( HMENU )EDIT_UPDATE_DOWNLOAD_PARTS, NULL, NULL );
 
 			// Keep this unattached. Looks ugly inside the text box.
@@ -113,34 +116,37 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 			_SendMessageW( g_hWnd_ud_update_download_parts, UDM_SETPOS, 0, 1 );
 
 
-			g_hWnd_static_update_ssl_version = _CreateWindowW( WC_STATIC, ST_SSL___TLS_version_, WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+			g_hWnd_static_update_ssl_version = _CreateWindowW( WC_STATIC, ST_V_SSL___TLS_version_, WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 			g_hWnd_update_ssl_version = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_COMBOBOX, NULL, CBS_AUTOHSCROLL | CBS_DROPDOWNLIST | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
-			_SendMessageW( g_hWnd_update_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_SSL_2_0 );
-			_SendMessageW( g_hWnd_update_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_SSL_3_0 );
-			_SendMessageW( g_hWnd_update_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_TLS_1_0 );
-			_SendMessageW( g_hWnd_update_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_TLS_1_1 );
-			_SendMessageW( g_hWnd_update_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_TLS_1_2 );
+			_SendMessageW( g_hWnd_update_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_V_SSL_2_0 );
+			_SendMessageW( g_hWnd_update_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_V_SSL_3_0 );
+			_SendMessageW( g_hWnd_update_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_V_TLS_1_0 );
+			_SendMessageW( g_hWnd_update_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_V_TLS_1_1 );
+			_SendMessageW( g_hWnd_update_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_V_TLS_1_2 );
 
 			_SendMessageW( g_hWnd_update_ssl_version, CB_SETCURSEL, cfg_default_ssl_version, 0 );
 
-			g_hWnd_btn_update_authentication = _CreateWindowW( WC_BUTTON, ST_Authentication, BS_GROUPBOX | WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+			g_hWnd_btn_update_authentication = _CreateWindowW( WC_BUTTON, ST_V_Authentication, BS_GROUPBOX | WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 
-			g_hWnd_static_update_username = _CreateWindowW( WC_STATIC, ST_Username_, WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+			g_hWnd_static_update_username = _CreateWindowW( WC_STATIC, ST_V_Username_, WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 			g_hWnd_edit_update_username = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 
-			g_hWnd_static_update_password = _CreateWindowW( WC_STATIC, ST_Password_, WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+			g_hWnd_static_update_password = _CreateWindowW( WC_STATIC, ST_V_Password_, WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 			g_hWnd_edit_update_password = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_PASSWORD | ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 
-			g_hWnd_static_update_cookies = _CreateWindowW( WC_STATIC, ST_Cookies_, WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+			g_hWnd_static_update_cookies = _CreateWindowW( WC_STATIC, ST_V_Cookies_, WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 			g_hWnd_edit_update_cookies = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, L"", WS_CHILD | WS_TABSTOP | ES_AUTOHSCROLL | ES_MULTILINE | WS_HSCROLL | WS_VSCROLL | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 
-			g_hWnd_static_update_headers = _CreateWindowW( WC_STATIC, ST_Headers_, WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+			g_hWnd_static_update_headers = _CreateWindowW( WC_STATIC, ST_V_Headers_, WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 			g_hWnd_edit_update_headers = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, L"", WS_CHILD | WS_TABSTOP | ES_AUTOHSCROLL | ES_MULTILINE | WS_HSCROLL | WS_VSCROLL | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 
-			g_hWnd_static_paused_download = _CreateWindowW( WC_STATIC, ST_The_download_will_be_resumed, WS_CHILD, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+			g_hWnd_chk_update_send_data = _CreateWindowW( WC_BUTTON, ST_V_Send_POST_Data_, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, ( HMENU )CHK_UPDATE_SEND_DATA, NULL, NULL );
+			g_hWnd_edit_update_data = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, L"", WS_CHILD | WS_TABSTOP | ES_AUTOHSCROLL | ES_MULTILINE | WS_HSCROLL | WS_VSCROLL | WS_VISIBLE | WS_DISABLED, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 
-			g_hWnd_btn_update_download = _CreateWindowW( WC_BUTTON, ST_Update, WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, ( HMENU )BTN_UPDATE_DOWNLOAD, NULL, NULL );
-			g_hWnd_update_cancel = _CreateWindowW( WC_BUTTON, ST_Cancel, WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, ( HMENU )BTN_UPDATE_CANCEL, NULL, NULL );
+			g_hWnd_static_paused_download = _CreateWindowW( WC_STATIC, ST_V_The_download_will_be_resumed, WS_CHILD, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+
+			g_hWnd_btn_update_download = _CreateWindowW( WC_BUTTON, ST_V_Update, WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, ( HMENU )BTN_UPDATE_DOWNLOAD, NULL, NULL );
+			g_hWnd_update_cancel = _CreateWindowW( WC_BUTTON, ST_V_Cancel, WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, ( HMENU )BTN_UPDATE_CANCEL, NULL, NULL );
 
 			_SetFocus( g_hWnd_edit_update_url );
 
@@ -151,7 +157,7 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 			_SendMessageW( g_hWnd_update_ssl_version, WM_SETFONT, ( WPARAM )hFont, 0 );
 			_SendMessageW( g_hWnd_static_update_download_parts, WM_SETFONT, ( WPARAM )hFont, 0 );
 			_SendMessageW( g_hWnd_update_download_parts, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_static_update_url, WM_SETFONT, ( WPARAM )hFont, 0 );
+			_SendMessageW( hWnd_static_update_url, WM_SETFONT, ( WPARAM )hFont, 0 );
 			_SendMessageW( g_hWnd_edit_update_url, WM_SETFONT, ( WPARAM )hFont, 0 );
 			_SendMessageW( g_hWnd_btn_update_authentication, WM_SETFONT, ( WPARAM )hFont, 0 );
 			_SendMessageW( g_hWnd_static_update_username, WM_SETFONT, ( WPARAM )hFont, 0 );
@@ -162,10 +168,13 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 			_SendMessageW( g_hWnd_edit_update_cookies, WM_SETFONT, ( WPARAM )hFont, 0 );
 			_SendMessageW( g_hWnd_static_update_headers, WM_SETFONT, ( WPARAM )hFont, 0 );
 			_SendMessageW( g_hWnd_edit_update_headers, WM_SETFONT, ( WPARAM )hFont, 0 );
+			_SendMessageW( g_hWnd_chk_update_send_data, WM_SETFONT, ( WPARAM )hFont, 0 );
+			_SendMessageW( g_hWnd_edit_update_data, WM_SETFONT, ( WPARAM )hFont, 0 );
 
 			UpdateProc = ( WNDPROC )_GetWindowLongW( g_hWnd_edit_update_cookies, GWL_WNDPROC );
 			_SetWindowLongW( g_hWnd_edit_update_cookies, GWL_WNDPROC, ( LONG )UpdateSubProc );
 			_SetWindowLongW( g_hWnd_edit_update_headers, GWL_WNDPROC, ( LONG )UpdateSubProc );
+			_SetWindowLongW( g_hWnd_edit_update_data, GWL_WNDPROC, ( LONG )UpdateSubProc );
 
 			return 0;
 		}
@@ -235,29 +244,31 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 			_GetClientRect( hWnd, &rc );
 
 			// Allow our controls to move in relation to the parent window.
-			HDWP hdwp = _BeginDeferWindowPos( 18 );
+			HDWP hdwp = _BeginDeferWindowPos( 20 );
 
-			_DeferWindowPos( hdwp, g_hWnd_static_update_url, HWND_TOP, 20, 20, 100, 15, SWP_NOZORDER );
 			_DeferWindowPos( hdwp, g_hWnd_edit_update_url, HWND_TOP, 20, 35, rc.right - 40, 20, SWP_NOZORDER );
 
-			_DeferWindowPos( hdwp, g_hWnd_static_update_download_parts, HWND_TOP, 20, 65, 100, 15, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_static_update_download_parts, HWND_TOP, 20, 65, 115, 15, SWP_NOZORDER );
 			_DeferWindowPos( hdwp, g_hWnd_update_download_parts, HWND_TOP, 20, 80, 85, 20, SWP_NOZORDER );
 			_DeferWindowPos( hdwp, g_hWnd_ud_update_download_parts, HWND_TOP, 105, 79, _GetSystemMetrics( SM_CXVSCROLL ), 22, SWP_NOZORDER );
 
-			_DeferWindowPos( hdwp, g_hWnd_static_update_ssl_version, HWND_TOP, 130, 65, 100, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_update_ssl_version, HWND_TOP, 130, 80, 100, 20, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_static_update_ssl_version, HWND_TOP, 140, 65, 115, 15, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_update_ssl_version, HWND_TOP, 140, 80, 100, 20, SWP_NOZORDER );
 
-			_DeferWindowPos( hdwp, g_hWnd_btn_update_authentication, HWND_TOP, 240, 65, 230, 65, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_static_update_username, HWND_TOP, 250, 80, 100, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_edit_update_username, HWND_TOP, 250, 95, 100, 20, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_static_update_password, HWND_TOP, 360, 80, 100, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_edit_update_password, HWND_TOP, 360, 95, 100, 20, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_btn_update_authentication, HWND_TOP, 260, 65, 230, 65, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_static_update_username, HWND_TOP, 270, 80, 100, 15, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_edit_update_username, HWND_TOP, 270, 95, 100, 20, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_static_update_password, HWND_TOP, 380, 80, 100, 15, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_edit_update_password, HWND_TOP, 380, 95, 100, 20, SWP_NOZORDER );
 
-			_DeferWindowPos( hdwp, g_hWnd_static_update_cookies, HWND_TOP, 20, 130, 100, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_edit_update_cookies, HWND_TOP, 20, 145, rc.right - 40, 75, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_static_update_cookies, HWND_TOP, 20, 130, rc.right - 40, 15, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_edit_update_cookies, HWND_TOP, 20, 145, rc.right - 40, 50, SWP_NOZORDER );
 
-			_DeferWindowPos( hdwp, g_hWnd_static_update_headers, HWND_TOP, 20, 230, 100, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_edit_update_headers, HWND_TOP, 20, 245, rc.right - 40, 75, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_static_update_headers, HWND_TOP, 20, 205, rc.right - 40, 15, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_edit_update_headers, HWND_TOP, 20, 220, rc.right - 40, 50, SWP_NOZORDER );
+
+			_DeferWindowPos( hdwp, g_hWnd_chk_update_send_data, HWND_TOP, 20, 275, rc.right - 40, 20, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_edit_update_data, HWND_TOP, 20, 295, rc.right - 40, 50, SWP_NOZORDER );
 
 			_DeferWindowPos( hdwp, g_hWnd_static_paused_download, HWND_TOP, 10, rc.bottom - 27, rc.right - 195, 23, SWP_NOZORDER );
 
@@ -272,8 +283,8 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 		case WM_GETMINMAXINFO:
 		{
 			// Set the minimum dimensions that the window can be sized to.
-			( ( MINMAXINFO * )lParam )->ptMinTrackSize.x = 505;
-			( ( MINMAXINFO * )lParam )->ptMinTrackSize.y = ( ( MINMAXINFO * )lParam )->ptMaxTrackSize.y = 405;
+			( ( MINMAXINFO * )lParam )->ptMinTrackSize.x = 525;
+			( ( MINMAXINFO * )lParam )->ptMinTrackSize.y = ( ( MINMAXINFO * )lParam )->ptMaxTrackSize.y = 430;
 
 			return 0;
 		}
@@ -288,6 +299,8 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 					ADD_INFO *ai = ( ADD_INFO * )GlobalAlloc( GPTR, sizeof( ADD_INFO ) );
 
 					ai->ssl_version = ( char )_SendMessageW( g_hWnd_update_ssl_version, CB_GETCURSEL, 0, 0 );
+
+					ai->method = ( _SendMessageW( g_hWnd_chk_update_send_data, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? METHOD_POST : METHOD_GET );
 
 					char value[ 11 ];
 					_SendMessageA( g_hWnd_update_download_parts, WM_GETTEXT, 11, ( LPARAM )value );
@@ -392,6 +405,23 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 						ai->utf8_headers = NULL;
 					}
 
+					edit_length = _SendMessageW( g_hWnd_edit_update_data, WM_GETTEXTLENGTH, 0, 0 );
+					if ( edit_length > 0 )
+					{
+						edit = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( edit_length + 1 ) );
+						_SendMessageW( g_hWnd_edit_update_data, WM_GETTEXT, edit_length + 1, ( LPARAM )edit );
+
+						utf8_length = WideCharToMultiByte( CP_UTF8, 0, edit, -1, NULL, 0, NULL, NULL );	// Size includes NULL character.
+						ai->utf8_data = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * utf8_length ); // Size includes the NULL character.
+						WideCharToMultiByte( CP_UTF8, 0, edit, -1, ai->utf8_data, utf8_length, NULL, NULL );
+
+						GlobalFree( edit );
+					}
+					else
+					{
+						ai->utf8_data = NULL;
+					}
+
 					// ai is freed in handle_download_update.
 					HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, handle_download_update, ( void * )ai, 0, NULL );	// Update selected download (stops and resumes the download).
 					if ( thread != NULL )
@@ -401,6 +431,7 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 					else
 					{
 						// This is all that should be set for handle_download_update.
+						GlobalFree( ai->utf8_data );
 						GlobalFree( ai->utf8_headers );
 						GlobalFree( ai->utf8_cookies );
 						GlobalFree( ai->auth_info.username );
@@ -453,6 +484,12 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 					}
 				}
 				break;
+
+				case CHK_UPDATE_SEND_DATA:
+				{
+					_EnableWindow( g_hWnd_edit_update_data, ( _SendMessageW( g_hWnd_chk_update_send_data, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? TRUE : FALSE ) );
+				}
+				break;
 			}
 
 			return 0;
@@ -485,6 +522,10 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 
 				_SendMessageA( g_hWnd_edit_update_cookies, WM_SETTEXT, 0, ( LPARAM )di->cookies );
 				_SendMessageA( g_hWnd_edit_update_headers, WM_SETTEXT, 0, ( LPARAM )di->headers );
+				_SendMessageA( g_hWnd_edit_update_data, WM_SETTEXT, 0, ( LPARAM )di->data );
+
+				_SendMessageW( g_hWnd_chk_update_send_data, BM_SETCHECK, ( di->method == METHOD_POST ? BST_CHECKED : BST_UNCHECKED ), 0 );
+				_EnableWindow( g_hWnd_edit_update_data, ( di->method == METHOD_POST ? TRUE : FALSE ) );
 
 				_ShowWindow( g_hWnd_static_paused_download, ( IS_STATUS( di->status, STATUS_PAUSED ) ? SW_SHOW : SW_HIDE ) );
 			}

@@ -38,6 +38,8 @@ HBITMAP hbm_background = NULL;
 
 WINDOW_SETTINGS window_settings;
 
+bool window_on_top = true;
+
 bool use_drag_and_drop_url = true;	// Assumes OLE32_STATE_RUNNING is true.
 IDropTarget *URL_DropTarget;
 
@@ -82,6 +84,41 @@ LRESULT CALLBACK URLDropWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 		}
 		break;
 
+		case WM_COMMAND:
+		{
+			if ( LOWORD( wParam ) == MENU_ALWAYS_ON_TOP )
+			{
+				HWND pos;
+
+				if ( _GetWindowLongW( hWnd, GWL_EXSTYLE ) & WS_EX_TOPMOST )
+				{
+					_CheckMenuItem( g_hMenuSub_drag_drop, MENU_ALWAYS_ON_TOP, MF_UNCHECKED );
+
+					pos = HWND_NOTOPMOST;
+					window_on_top = false;
+				}
+				else
+				{
+					_CheckMenuItem( g_hMenuSub_drag_drop, MENU_ALWAYS_ON_TOP, MF_CHECKED );
+
+					pos = HWND_TOPMOST;
+					window_on_top = true;
+				}
+
+				_SetWindowPos( hWnd, pos, 0, 0, 0, 0, SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE | SWP_NOOWNERZORDER );
+
+				_InvalidateRect( hWnd, NULL, TRUE );
+			}
+			else
+			{
+				// Pass the other commands to the main window.
+				_SendMessageW( g_hWnd_main, msg, wParam, lParam );
+			}
+
+			return 0;
+		}
+		break;
+
 		case WM_PAINT:
 		{
 			PAINTSTRUCT ps;
@@ -95,6 +132,20 @@ LRESULT CALLBACK URLDropWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 			// Draw our memory buffer to the main device context.
 			_BitBlt( hDC, 0, 0, 48, 48, hdcMem, 0, 0, SRCCOPY );
+
+			RECT frame_rc;
+			frame_rc.top = 0;
+			frame_rc.left = 0;
+			frame_rc.right = 48;
+			frame_rc.bottom = 48;
+
+			if ( !window_on_top )
+			{
+				// Create a border.
+				HBRUSH color = _CreateSolidBrush( ( COLORREF )RGB( 0x00, 0xFF, 0xFF ) );
+				_FrameRect( hDC, &frame_rc, color );
+				_DeleteObject( color );
+			}
 
 			_DeleteDC( hdcMem );
 			_EndPaint( hWnd, &ps );
@@ -122,6 +173,8 @@ LRESULT CALLBACK URLDropWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			window_settings.window_position.y = rc.top;
 
 			window_settings.is_dragging = true;
+
+			_SetForegroundWindow( hWnd );
 
 			return 0;
 		}
@@ -226,10 +279,39 @@ LRESULT CALLBACK URLDropWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 		case WM_RBUTTONUP:
 		{
-			// Show our tray context menu as a popup.
+			// Show our drag and drop context menu as a popup.
 			POINT p;
 			_GetCursorPos( &p ) ;
-			_TrackPopupMenu( g_hMenuSub_tray, 0, p.x, p.y, 0, g_hWnd_main, NULL );
+			_TrackPopupMenu( g_hMenuSub_drag_drop, 0, p.x, p.y, 0, hWnd, NULL );
+
+			return 0;
+		}
+		break;
+
+		case WM_LBUTTONDBLCLK:
+		{
+			_SendMessageW( g_hWnd_main, WM_COMMAND, MENU_ADD_URLS, 0 );
+
+			return 0;
+		}
+		break;
+
+		case WM_MBUTTONDOWN:
+		{
+			//_EndMenu();
+			_SendMessageW( hWnd, WM_CANCELMODE, 0, 0 );
+
+			_SendMessageW( hWnd, WM_COMMAND, MENU_ALWAYS_ON_TOP, 0 );
+
+			_SetForegroundWindow( hWnd );
+
+			return 0;
+		}
+		break;
+
+		case WM_RBUTTONDOWN:
+		{
+			_SetForegroundWindow( hWnd );
 
 			return 0;
 		}

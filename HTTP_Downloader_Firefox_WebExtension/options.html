@@ -5,7 +5,7 @@
 		<style>
 			body
 			{
-				padding: 5px;
+				padding: 10px;
 			}
 
 			fieldset
@@ -19,7 +19,7 @@
 	<body>
 		<div class="browser-style">
 			<div><label for="server">Server:</label></div>
-			<input type="text" id="server" size="50">
+			<input type="text" id="server" size="50" value="">
 		</div>
 		<div style="padding-top: 10px;">
 			<fieldset>
@@ -33,11 +33,22 @@
 					<input type="password" id="password" value="">
 				</div>
 			</fieldset>
-		<div>
+		</div>
 		<div class="browser-style" style="padding-top: 10px;">
 			<div><label for="parts">Default download parts:</label></div>
 			<input type="number" id="parts" value="" min="0" max="100" style="text-align: center;">
 		</div>
+		<div class="browser-style" style="padding-top: 10px;">
+			<div><label for="default_directory">Default download directory:</label></div>
+			<input type="text" id="default_directory" size="50" value="" placeholder="[Use Program Default]">
+		</div>
+		<div class="browser-style" style="padding-top: 10px;">
+			<input type="checkbox" id="override"><label for="override">Override browser's download manager</label>
+		</div>
+		<div class="browser-style" style="margin-left: 20px;">
+			<input type="checkbox" id="show_add_window"><label for="show_add_window">Show Add URL(s) window before download</label>
+		</div>
+		<div class="panel-section-separator"></div>
 		<div style="padding-top: 20px;">
 			<button type="button" id="save" class="browser-style">Save</button>
 		</div>

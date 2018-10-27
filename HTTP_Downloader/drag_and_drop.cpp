@@ -90,6 +90,45 @@ void HandleFileList( HDROP hdrop )
 	}
 }
 
+void HandleAddInfo( UINT cfFormat, PVOID data )
+{
+	ADD_INFO *ai = ( ADD_INFO * )GlobalAlloc( GPTR, sizeof( ADD_INFO ) );
+	ai->method = METHOD_GET;
+
+	//ai->download_operations = DOWNLOAD_OPERATION_SIMULATE;	// For testing.
+
+	ai->download_directory = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * MAX_PATH );
+	_wmemcpy_s( ai->download_directory, MAX_PATH, cfg_default_download_directory, g_default_download_directory_length );
+	ai->download_directory[ g_default_download_directory_length ] = 0;	// Sanity.
+
+	ai->parts = cfg_default_download_parts;
+	ai->ssl_version = cfg_default_ssl_version;
+
+	if ( cfFormat == CF_UNICODETEXT || cfFormat == CF_HTML )
+	{
+		ai->urls = GlobalStrDupW( ( wchar_t * )data );
+	}
+	else// if ( cfFormat == CF_TEXT )
+	{
+		int urls_length = MultiByteToWideChar( CP_UTF8, 0, ( char * )data, -1, NULL, 0 );	// Include the NULL terminator.
+		ai->urls = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * urls_length );
+		MultiByteToWideChar( CP_UTF8, 0, ( char * )data, -1, ai->urls, urls_length );
+	}
+
+	// ai is freed in AddURL.
+	HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, AddURL, ( void * )ai, 0, NULL );
+	if ( thread != NULL )
+	{
+		CloseHandle( thread );
+	}
+	else
+	{
+		GlobalFree( ai->download_directory );
+		GlobalFree( ai->urls );
+		GlobalFree( ai );
+	}
+}
+
 // Finds a character in an element, but excludes searching attribute values.
 char *FindCharExcludeAttributeValues( char *element_start, char *element_end, char element_character )
 {
@@ -705,6 +744,8 @@ HRESULT STDMETHODCALLTYPE Drop( IDropTarget *This, IDataObject *pDataObj, DWORD 
 					t_data[ ( data_size > 0 ? ( data_size - 1 ) : 0 ) ] = 0;
 				}
 
+				// We can reuse the data pointer since it's original pointer is in stgm and freed with ReleaseStgMedium.
+				// If ParseHTMLClipboard allocates memory, then we'll free it with the GlobalFree below.
 				data = ParseHTMLClipboard( ( char * )data );
 
 				if ( data == NULL )
@@ -739,7 +780,14 @@ HRESULT STDMETHODCALLTYPE Drop( IDropTarget *This, IDataObject *pDataObj, DWORD 
 				}
 				else
 				{
-					_SendMessageW( ( g_hWnd_add_urls != NULL ? g_hWnd_add_urls : g_hWnd_main ), WM_PROPAGATE, cfFormat, ( LPARAM )data );
+					if ( cfg_download_immediately )
+					{
+						HandleAddInfo( cfFormat, data );
+					}
+					else
+					{
+						_SendMessageW( ( g_hWnd_add_urls != NULL ? g_hWnd_add_urls : g_hWnd_main ), WM_PROPAGATE, cfFormat, ( LPARAM )data );
+					}
 				}
 
 				if ( cfFormat == CF_HTML )

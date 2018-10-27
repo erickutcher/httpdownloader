@@ -31,22 +31,24 @@
 
 #define MAX_FILE_SIZE			4294967296	// 4GB
 
-#define STATUS_NONE					0x0000
-#define STATUS_CONNECTING			0x0001
-#define STATUS_DOWNLOADING			0x0002
-#define STATUS_PAUSED				0x0004
-#define STATUS_QUEUED				0x0008
-#define STATUS_COMPLETED			0x0010
-#define STATUS_STOPPED				0x0020
-#define STATUS_TIMED_OUT			0x0040
-#define STATUS_FAILED				0x0080
-#define STATUS_STOP_AND_REMOVE		0x0100
-#define STATUS_FILE_IO_ERROR		0x0200
-#define STATUS_SKIPPED				0x0400
-#define STATUS_AUTH_REQUIRED		0x0800
-#define STATUS_PROXY_AUTH_REQUIRED	0x1000
-#define STATUS_UPDATING				0x2000
-#define STATUS_ALLOCATING_FILE		0x4000
+#define STATUS_NONE						0x00000000
+#define STATUS_CONNECTING				0x00000001
+#define STATUS_DOWNLOADING				0x00000002
+#define STATUS_PAUSED					0x00000004
+#define STATUS_QUEUED					0x00000008
+#define STATUS_COMPLETED				0x00000010
+#define STATUS_STOPPED					0x00000020
+#define STATUS_TIMED_OUT				0x00000040
+#define STATUS_FAILED					0x00000080
+#define STATUS_RESTART					0x00000100
+#define STATUS_REMOVE					0x00000200
+#define STATUS_DELETE					0x00000400
+#define STATUS_FILE_IO_ERROR			0x00000800
+#define STATUS_SKIPPED					0x00001000
+#define STATUS_AUTH_REQUIRED			0x00002000
+#define STATUS_PROXY_AUTH_REQUIRED		0x00004000
+#define STATUS_UPDATING					0x00008000
+#define STATUS_ALLOCATING_FILE			0x00010000
 
 #define IS_STATUS( a, b )			( ( a ) & ( b ) )
 #define IS_STATUS_NOT( a, b )		!( ( a ) & ( b ) )
@@ -195,13 +197,16 @@ struct AUTH_CREDENTIALS
 
 struct POST_INFO
 {
+	char				*method;	// 1 = GET, 2 = POST
 	char				*urls;
 	char				*username;
 	char				*password;
+	char				*parts;
+	char				*directory;
+	char				*simulate_download;
 	char				*cookies;
 	char				*headers;
-	char				*parts;
-	char				*simulate_download;
+	char				*data;		// For POST payloads.
 };
 
 struct SOCKET_CONTEXT;
@@ -259,10 +264,10 @@ struct SOCKET_CONTEXT
 
 	unsigned int		decompressed_buf_size;
 
+	unsigned int		status;
+
 	volatile LONG		pending_operations;
 	volatile LONG		timeout;
-
-	unsigned short		status;
 
 	char				content_status;
 
@@ -294,8 +299,10 @@ struct ADD_INFO
 	wchar_t				*urls;
 	char				*utf8_cookies;
 	char				*utf8_headers;
+	char				*utf8_data;	// POST payload.
 	unsigned char		parts;
 	unsigned char		download_operations;
+	unsigned char		method;		// 1 = GET, 2 = POST
 	char				ssl_version;
 };
 
@@ -329,16 +336,18 @@ struct DOWNLOAD_INFO
 	HICON				*icon;
 	char				*cookies;
 	char				*headers;
+	char				*data;				// POST payload.
 	//char				*etag;
 	HANDLE				hFile;
 	unsigned int		filename_offset;
 	unsigned int		file_extension_offset;
-	unsigned short		status;
+	unsigned int		status;
 	unsigned char		parts;
 	unsigned char		active_parts;
 	unsigned char		parts_limit;		// This is set if we reduce an active download's parts number.
 	unsigned char		retries;			// The number of times a download has been retried.
 	unsigned char		download_operations;
+	unsigned char		method;				// 1 = GET, 2 = POST
 	char				ssl_version;
 	bool				processed_header;
 };

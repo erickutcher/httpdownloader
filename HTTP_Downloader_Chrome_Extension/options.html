@@ -14,7 +14,7 @@
 	<body>
 		<div>
 			<div><label for="server">Server:</label></div>
-			<div><input type="text" id="server" size="50"></div>
+			<div><input type="text" id="server" size="50" value=""></div>
 		</div>
 		<div style="padding-top: 10px;">
 			<fieldset>
@@ -28,10 +28,20 @@
 					<input type="password" id="password" value="">
 				</div>
 			</fieldset>
-		<div>
+		</div>
 		<div style="padding-top: 10px;">
 			<div><label for="parts">Default download parts:</label></div>
 			<div><input type="number" id="parts" value="" min="0" max="100" style="text-align: center;"></div>
+		</div>
+		<div style="padding-top: 10px;">
+			<div><label for="default_directory">Default download directory:</label></div>
+			<div><input type="text" id="default_directory" size="50" value="" placeholder="[Use Program Default]"></div>
+		</div>
+		<div style="padding-top: 10px;">
+			<div><input type="checkbox" id="override"><label for="override">Override browser's download manager</label></div>
+		</div>
+		<div style="margin-left: 20px;">
+			<div><input type="checkbox" id="show_add_window"><label for="show_add_window">Show Add URL(s) window before download</label></div>
 		</div>
 		<div style="float:right; padding: 10px 0px 10px 0px;">
 			<button type="button" id="ok">OK</button>

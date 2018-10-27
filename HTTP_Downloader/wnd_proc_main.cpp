@@ -102,8 +102,8 @@ int CALLBACK DMCompareFunc( LPARAM lParam1, LPARAM lParam2, LPARAM lParamSort )
 			case 5: { return ( di1->downloaded > di2->downloaded ); } break;
 			case 6: { return ( di1->file_size > di2->file_size ); } break;
 			case 2: { return ( di1->add_time.QuadPart > di2->add_time.QuadPart ); } break;
-			case 10: { return ( di1->time_elapsed > di2->time_elapsed ); } break;
-			case 11: { return ( di1->time_remaining > di2->time_remaining ); } break;
+			case 11: { return ( di1->time_elapsed > di2->time_elapsed ); } break;
+			case 12: { return ( di1->time_remaining > di2->time_remaining ); } break;
 
 			case 9:
 			{
@@ -169,7 +169,7 @@ int CALLBACK DMCompareFunc( LPARAM lParam1, LPARAM lParam2, LPARAM lParamSort )
 			}
 			break;
 
-			case 12:
+			case 10:
 			{
 				if ( di1->ssl_version == -1 )
 				{
@@ -317,15 +317,17 @@ DWORD WINAPI UpdateWindow( LPVOID WorkThreadContext )
 
 	last_update.ull = 0;
 
-	_wmemcpy_s( sb_download_speed_buf, 64, ST_Download_speed_, 15 );
-	sb_download_speed_buf[ 15 ] = ' ';
+	unsigned char speed_buf_length = ( ST_L_Download_speed_ > 38 ? 38 : ST_L_Download_speed_ ); // Let's not overflow. 64 - ( ' ' + 22 +  '/' + 's' + NULL ) = 38 remaining bytes for our string.
+	_wmemcpy_s( sb_download_speed_buf, 64, ST_V_Download_speed_, speed_buf_length );
+	sb_download_speed_buf[ speed_buf_length ] = ' ';
 
-	_wmemcpy_s( sb_downloaded_buf, 64, ST_Total_downloaded_, 17 );
-	sb_downloaded_buf[ 17 ] = ' ';
+	unsigned char download_buf_length = ( ST_L_Total_downloaded_ > 40 ? 40 : ST_L_Total_downloaded_ ); // Let's not overflow. 64 - ( ' ' + 22 + NULL ) = 40 remaining bytes for our string.
+	_wmemcpy_s( sb_downloaded_buf, 64, ST_V_Total_downloaded_, download_buf_length );
+	sb_downloaded_buf[ download_buf_length ] = ' ';
 
-	_wmemcpy_s( title_text, 128, L"HTTP Downloader", 15 );
+	_wmemcpy_s( title_text, 128, PROGRAM_CAPTION, 15 );
 
-	_wmemcpy_s( g_nid.szTip, sizeof( g_nid.szTip ), L"HTTP Downloader", 15 );
+	_wmemcpy_s( g_nid.szTip, sizeof( g_nid.szTip ), PROGRAM_CAPTION, 15 );
 
 	while ( !g_end_program )
 	{
@@ -434,7 +436,8 @@ DWORD WINAPI UpdateWindow( LPVOID WorkThreadContext )
 		// Update our status bar with the download speed.
 		if ( session_downloaded_speed != last_session_downloaded_speed )
 		{
-			sb_download_speed_buf_length = FormatSizes( sb_download_speed_buf + 16, 64 - 16, cfg_t_status_down_speed, session_downloaded_speed ) + 16;
+			// The maximum length that FormatSizes can return is 22 bytes excluding the NULL terminator.
+			sb_download_speed_buf_length = FormatSizes( sb_download_speed_buf + ( speed_buf_length + 1 ), 64 - ( speed_buf_length + 1 ), cfg_t_status_down_speed, session_downloaded_speed ) + ( speed_buf_length + 1 );
 			sb_download_speed_buf[ sb_download_speed_buf_length++ ] = L'/';
 			sb_download_speed_buf[ sb_download_speed_buf_length++ ] = L's';
 			sb_download_speed_buf[ sb_download_speed_buf_length ] = 0;	// Sanity.
@@ -449,7 +452,9 @@ DWORD WINAPI UpdateWindow( LPVOID WorkThreadContext )
 		// Update our status bar with the download total.
 		if ( session_total_downloaded != last_session_total_downloaded )
 		{
-			sb_downloaded_buf_length = FormatSizes( sb_downloaded_buf + 18, 64 - 18, cfg_t_status_downloaded, session_total_downloaded ) + 18;
+			// The maximum length that FormatSizes can return is 22 bytes excluding the NULL terminator.
+			sb_downloaded_buf_length = FormatSizes( sb_downloaded_buf + ( download_buf_length + 1 ), 64 - ( download_buf_length + 1 ), cfg_t_status_downloaded, session_total_downloaded ) + ( download_buf_length + 1 );
+			// NULL terminator is set in FormatSizes.
 
 			_SendMessageW( g_hWnd_status, SB_SETTEXT, MAKEWPARAM( 1, 0 ), ( LPARAM )sb_downloaded_buf );
 
@@ -464,7 +469,8 @@ DWORD WINAPI UpdateWindow( LPVOID WorkThreadContext )
 			{
 				int tooltip_offset = 15, title_text_offset = 15;
 
-				sb_download_speed_buf_length = FormatSizes( sb_download_speed_buf + 16, 64 - 16, SIZE_FORMAT_AUTO, session_downloaded_speed ) + 16;
+				// The maximum length that FormatSizes can return is 22 bytes excluding the NULL terminator.
+				sb_download_speed_buf_length = FormatSizes( sb_download_speed_buf + ( speed_buf_length + 1 ), 64 - ( speed_buf_length + 1 ), SIZE_FORMAT_AUTO, session_downloaded_speed ) + ( speed_buf_length + 1 );
 				sb_download_speed_buf[ sb_download_speed_buf_length++ ] = L'/';
 				sb_download_speed_buf[ sb_download_speed_buf_length++ ] = L's';
 				sb_download_speed_buf[ sb_download_speed_buf_length ] = 0;	// Sanity.
@@ -482,7 +488,9 @@ DWORD WINAPI UpdateWindow( LPVOID WorkThreadContext )
 					title_text_offset += sb_download_speed_buf_length;
 				//}
 
-				sb_downloaded_buf_length = FormatSizes( sb_downloaded_buf + 18, 64 - 18, SIZE_FORMAT_AUTO, session_total_downloaded ) + 18;
+				// The maximum length that FormatSizes can return is 22 bytes excluding the NULL terminator.
+				sb_downloaded_buf_length = FormatSizes( sb_downloaded_buf + ( download_buf_length + 1 ), 64 - ( download_buf_length + 1 ), SIZE_FORMAT_AUTO, session_total_downloaded ) + ( download_buf_length + 1 );
+				// NULL terminator is set in FormatSizes.
 
 				//if ( sb_downloaded_buf_length > 0 )
 				//{
@@ -563,22 +571,23 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 			// Allows us to use the iString value for tooltips.
 			_SendMessageW( g_hWnd_toolbar, TB_SETMAXTEXTROWS, 0, 0 );
 
-			TBBUTTON tbb[ 11 ] = 
+			TBBUTTON tbb[ 12 ] = 
 			{
-				{ MAKELONG( 0, 0 ),			MENU_ADD_URLS,	TBSTATE_ENABLED, BTNS_AUTOSIZE,	{ 0 }, 0,		( INT_PTR )ST_Add_URL_s_ },
-				{ MAKELONG( 1, 0 ),			  MENU_REMOVE,	TBSTATE_ENABLED, BTNS_AUTOSIZE,	{ 0 }, 0,			( INT_PTR )ST_Remove },
-				{				 0,					   -1,				  0,	  BTNS_SEP,	{ 0 }, 0,							NULL },
-				{ MAKELONG( 2, 0 ),			   MENU_START,	TBSTATE_ENABLED, BTNS_AUTOSIZE,	{ 0 }, 0,			 ( INT_PTR )ST_Start },
-				{ MAKELONG( 3, 0 ),			   MENU_PAUSE,	TBSTATE_ENABLED, BTNS_AUTOSIZE,	{ 0 }, 0,			 ( INT_PTR )ST_Pause },
-				{ MAKELONG( 4, 0 ),				MENU_STOP,	TBSTATE_ENABLED, BTNS_AUTOSIZE,	{ 0 }, 0,			  ( INT_PTR )ST_Stop },
-				{				 0,					   -1,				  0,	  BTNS_SEP,	{ 0 }, 0,							NULL },
-				{ MAKELONG( 5, 0 ),		MENU_PAUSE_ACTIVE,	TBSTATE_ENABLED, BTNS_AUTOSIZE,	{ 0 }, 0,	  ( INT_PTR )ST_Pause_Active },
-				{ MAKELONG( 6, 0 ),			MENU_STOP_ALL,	TBSTATE_ENABLED, BTNS_AUTOSIZE,	{ 0 }, 0,		  ( INT_PTR )ST_Stop_All },
-				{				 0,					   -1,				  0,	  BTNS_SEP,	{ 0 }, 0,							NULL },
-				{ MAKELONG( 7, 0 ),			 MENU_OPTIONS,	TBSTATE_ENABLED, BTNS_AUTOSIZE,	{ 0 }, 0,		   ( INT_PTR )ST_Options }
+				{ MAKELONG( 0, 0 ),			MENU_ADD_URLS,	TBSTATE_ENABLED, BTNS_AUTOSIZE,	{ 0 }, 0,		( INT_PTR )ST_V_Add_URL_s_ },
+				{ MAKELONG( 1, 0 ),			  MENU_REMOVE,	TBSTATE_ENABLED, BTNS_AUTOSIZE,	{ 0 }, 0,			( INT_PTR )ST_V_Remove },
+				{				 0,					   -1,				  0,	  BTNS_SEP,	{ 0 }, 0,							  NULL },
+				{ MAKELONG( 2, 0 ),			   MENU_START,	TBSTATE_ENABLED, BTNS_AUTOSIZE,	{ 0 }, 0,			 ( INT_PTR )ST_V_Start },
+				{ MAKELONG( 3, 0 ),			   MENU_PAUSE,	TBSTATE_ENABLED, BTNS_AUTOSIZE,	{ 0 }, 0,			 ( INT_PTR )ST_V_Pause },
+				{ MAKELONG( 4, 0 ),				MENU_STOP,	TBSTATE_ENABLED, BTNS_AUTOSIZE,	{ 0 }, 0,			  ( INT_PTR )ST_V_Stop },
+				{ MAKELONG( 5, 0 ),			 MENU_RESTART,	TBSTATE_ENABLED, BTNS_AUTOSIZE,	{ 0 }, 0,		   ( INT_PTR )ST_V_Restart },
+				{				 0,					   -1,				  0,	  BTNS_SEP,	{ 0 }, 0,							  NULL },
+				{ MAKELONG( 6, 0 ),		MENU_PAUSE_ACTIVE,	TBSTATE_ENABLED, BTNS_AUTOSIZE,	{ 0 }, 0,	  ( INT_PTR )ST_V_Pause_Active },
+				{ MAKELONG( 7, 0 ),			MENU_STOP_ALL,	TBSTATE_ENABLED, BTNS_AUTOSIZE,	{ 0 }, 0,		  ( INT_PTR )ST_V_Stop_All },
+				{				 0,					   -1,				  0,	  BTNS_SEP,	{ 0 }, 0,							  NULL },
+				{ MAKELONG( 8, 0 ),			 MENU_OPTIONS,	TBSTATE_ENABLED, BTNS_AUTOSIZE,	{ 0 }, 0,		   ( INT_PTR )ST_V_Options }
 			};
 
-			_SendMessageW( g_hWnd_toolbar, TB_ADDBUTTONS, 11, ( LPARAM )&tbb );
+			_SendMessageW( g_hWnd_toolbar, TB_ADDBUTTONS, 12, ( LPARAM )&tbb );
 
 			g_hWnd_files = _CreateWindowW( WC_LISTVIEW, NULL, LVS_REPORT | LVS_EDITLABELS | LVS_OWNERDRAWFIXED | WS_CHILDWINDOW | WS_VISIBLE | ( cfg_show_toolbar ? WS_BORDER : 0 ), 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 			_SendMessageW( g_hWnd_files, LVM_SETEXTENDEDLISTVIEWSTYLE, 0, LVS_EX_DOUBLEBUFFER | LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES | LVS_EX_HEADERDRAGDROP );
@@ -622,14 +631,14 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 			int status_bar_widths[] = { 250, -1 };
 
 			_SendMessageW( g_hWnd_status, SB_SETPARTS, 2, ( LPARAM )status_bar_widths );
-			_SendMessageW( g_hWnd_status, SB_SETTEXT, MAKEWPARAM( 0, 0 ), ( LPARAM )( cfg_t_status_down_speed == SIZE_FORMAT_BYTE ? ST_Download_speed__0_B_s :
-																					( cfg_t_status_down_speed == SIZE_FORMAT_KILOBYTE ? ST_Download_speed__0_00_KB_s :
-																					( cfg_t_status_down_speed == SIZE_FORMAT_MEGABYTE ? ST_Download_speed__0_00_MB_s :
-																					( cfg_t_status_down_speed == SIZE_FORMAT_GIGABYTE ? ST_Download_speed__0_00_GB_s : ST_Download_speed__0_B_s ) ) ) ) );
-			_SendMessageW( g_hWnd_status, SB_SETTEXT, MAKEWPARAM( 1, 0 ), ( LPARAM )( cfg_t_status_downloaded == SIZE_FORMAT_BYTE ? ST_Total_downloaded__0_B :
-																					( cfg_t_status_downloaded == SIZE_FORMAT_KILOBYTE ? ST_Total_downloaded__0_00_KB :
-																					( cfg_t_status_downloaded == SIZE_FORMAT_MEGABYTE ? ST_Total_downloaded__0_00_MB :
-																					( cfg_t_status_downloaded == SIZE_FORMAT_GIGABYTE ? ST_Total_downloaded__0_00_GB : ST_Total_downloaded__0_B ) ) ) ) );
+			_SendMessageW( g_hWnd_status, SB_SETTEXT, MAKEWPARAM( 0, 0 ), ( LPARAM )( cfg_t_status_down_speed == SIZE_FORMAT_BYTE ? ST_V_Download_speed__0_B_s :
+																					( cfg_t_status_down_speed == SIZE_FORMAT_KILOBYTE ? ST_V_Download_speed__0_00_KB_s :
+																					( cfg_t_status_down_speed == SIZE_FORMAT_MEGABYTE ? ST_V_Download_speed__0_00_MB_s :
+																					( cfg_t_status_down_speed == SIZE_FORMAT_GIGABYTE ? ST_V_Download_speed__0_00_GB_s : ST_V_Download_speed__0_B_s ) ) ) ) );
+			_SendMessageW( g_hWnd_status, SB_SETTEXT, MAKEWPARAM( 1, 0 ), ( LPARAM )( cfg_t_status_downloaded == SIZE_FORMAT_BYTE ? ST_V_Total_downloaded__0_B :
+																					( cfg_t_status_downloaded == SIZE_FORMAT_KILOBYTE ? ST_V_Total_downloaded__0_00_KB :
+																					( cfg_t_status_downloaded == SIZE_FORMAT_MEGABYTE ? ST_V_Total_downloaded__0_00_MB :
+																					( cfg_t_status_downloaded == SIZE_FORMAT_GIGABYTE ? ST_V_Total_downloaded__0_00_GB : ST_V_Total_downloaded__0_B ) ) ) ) );
 
 			int arr[ NUM_COLUMNS ];
 
@@ -640,11 +649,12 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 
 			for ( char i = 0; i < NUM_COLUMNS; ++i )
 			{
-				if ( i == 1 || i == 4 || i == 5 || i == 6 || i == 10 || i == 11 )
+				// Active Parts, Download Speed, Downloaded, File Size, Time Elapsed, Time Remaining
+				if ( i == 1 || i == 4 || i == 5 || i == 6 || i == 11 || i == 12 )
 				{
 					lvc.fmt = LVCFMT_RIGHT;
 				}
-				else if ( i == 9 )
+				else if ( i == 9 )	// Progress
 				{
 					lvc.fmt = LVCFMT_CENTER;
 				}
@@ -655,7 +665,8 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 
 				if ( *download_columns[ i ] != -1 )
 				{
-					lvc.pszText = download_string_table[ i ];
+					//lvc.pszText = download_string_table[ i ].value;
+					lvc.pszText = g_locale_table[ DOWNLOAD_STRING_TABLE_OFFSET + i ].value;
 					lvc.cx = *download_columns_width[ i ];
 					_SendMessageW( g_hWnd_files, LVM_INSERTCOLUMN, g_total_columns, ( LPARAM )&lvc );
 
@@ -800,7 +811,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 								HINSTANCE hInst = _ShellExecuteW( NULL, NULL, file_path, NULL, NULL, SW_SHOWNORMAL );
 								if ( hInst == ( HINSTANCE )ERROR_FILE_NOT_FOUND )
 								{
-									if ( _MessageBoxW( hWnd, ST_PROMPT_The_specified_file_was_not_found, PROGRAM_CAPTION, MB_APPLMODAL | MB_ICONWARNING | MB_YESNO ) == IDYES )
+									if ( _MessageBoxW( hWnd, ST_V_PROMPT_The_specified_file_was_not_found, PROGRAM_CAPTION, MB_APPLMODAL | MB_ICONWARNING | MB_YESNO ) == IDYES )
 									{
 										CloseHandle( ( HANDLE )_CreateThread( NULL, 0, handle_download_list, ( void * )3, 0, NULL ) );	// Restart download (from the beginning).
 									}
@@ -836,7 +847,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 
 								if ( hInst == ( HINSTANCE )ERROR_FILE_NOT_FOUND )	// We're opening a folder, but it uses the same error code as a file if it's not found.
 								{
-									_MessageBoxW( hWnd, ST_The_specified_path_was_not_found, PROGRAM_CAPTION, MB_APPLMODAL | MB_ICONWARNING );
+									_MessageBoxW( hWnd, ST_V_The_specified_path_was_not_found, PROGRAM_CAPTION, MB_APPLMODAL | MB_ICONWARNING );
 								}
 							}
 
@@ -859,7 +870,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 					ofn.hwndOwner = hWnd;
 					ofn.lpstrFilter = L"CSV (Comma delimited) (*.csv)\0*.csv\0";
 					ofn.lpstrDefExt = L"csv";
-					ofn.lpstrTitle = ST_Save_Download_History;
+					ofn.lpstrTitle = ST_V_Save_Download_History;
 					ofn.lpstrFile = file_path;
 					ofn.nMaxFile = MAX_PATH;
 					ofn.Flags = OFN_PATHMUSTEXIST | OFN_OVERWRITEPROMPT | OFN_READONLY;
@@ -893,7 +904,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 					ofn.lStructSize = sizeof( OPENFILENAME );
 					ofn.hwndOwner = hWnd;
 					ofn.lpstrFilter = L"Download History\0*.*\0";
-					ofn.lpstrTitle = ST_Import_Download_History;
+					ofn.lpstrTitle = ST_V_Import_Download_History;
 					ofn.lpstrFile = file_name;
 					ofn.nMaxFile = MAX_PATH * MAX_PATH;
 					ofn.Flags = OFN_ALLOWMULTISELECT | OFN_EXPLORER | OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_READONLY;
@@ -934,7 +945,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 					ofn.hwndOwner = hWnd;
 					ofn.lpstrFilter = L"Download History\0*.*\0";
 					//ofn.lpstrDefExt = L"txt";
-					ofn.lpstrTitle = ST_Export_Download_History;
+					ofn.lpstrTitle = ST_V_Export_Download_History;
 					ofn.lpstrFile = file_name;
 					ofn.nMaxFile = MAX_PATH;
 					ofn.Flags = OFN_PATHMUSTEXIST | OFN_OVERWRITEPROMPT | OFN_READONLY;
@@ -981,6 +992,15 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 				}
 				break;
 
+				case MENU_RESTART:
+				{
+					if ( _MessageBoxW( hWnd, ST_V_PROMPT_restart_selected_entries, PROGRAM_CAPTION, MB_APPLMODAL | MB_ICONWARNING | MB_YESNO ) == IDYES )
+					{
+						CloseHandle( ( HANDLE )_CreateThread( NULL, 0, handle_connection, ( void * )STATUS_RESTART, 0, NULL ) );
+					}
+				}
+				break;
+
 				case MENU_PAUSE_ACTIVE:
 				{
 					CloseHandle( ( HANDLE )_CreateThread( NULL, 0, handle_download_list, ( void * )0, 0, NULL ) );
@@ -1008,7 +1028,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 						{
 							if ( g_hWnd_update_download == NULL )
 							{
-								g_hWnd_update_download = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"update_download", ST_Update_Download, WS_OVERLAPPEDWINDOW, ( ( _GetSystemMetrics( SM_CXSCREEN ) - 505 ) / 2 ), ( ( _GetSystemMetrics( SM_CYSCREEN ) - 405 ) / 2 ), 505, 405, NULL, NULL, NULL, NULL );
+								g_hWnd_update_download = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"update_download", ST_V_Update_Download, WS_OVERLAPPEDWINDOW, ( ( _GetSystemMetrics( SM_CXSCREEN ) - 525 ) / 2 ), ( ( _GetSystemMetrics( SM_CYSCREEN ) - 405 ) / 2 ), 525, 405, NULL, NULL, NULL, NULL );
 							}
 							else if ( _IsIconic( g_hWnd_update_download ) )	// If minimized, then restore the window.
 							{
@@ -1042,18 +1062,27 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 
 				case MENU_REMOVE:
 				{
-					if ( _MessageBoxW( hWnd, ST_PROMPT_remove_selected_entries, PROGRAM_CAPTION, MB_APPLMODAL | MB_ICONWARNING | MB_YESNO ) == IDYES )
+					if ( _MessageBoxW( hWnd, ST_V_PROMPT_remove_selected_entries, PROGRAM_CAPTION, MB_APPLMODAL | MB_ICONWARNING | MB_YESNO ) == IDYES )
 					{
-						CloseHandle( ( HANDLE )_CreateThread( NULL, 0, remove_items, ( void * )NULL, 0, NULL ) );
+						CloseHandle( ( HANDLE )_CreateThread( NULL, 0, remove_items, ( void * )0, 0, NULL ) );
 					}
 				}
 				break;
 
 				case MENU_REMOVE_COMPLETED:
 				{
-					if ( _MessageBoxW( hWnd, ST_PROMPT_remove_completed_entries, PROGRAM_CAPTION, MB_APPLMODAL | MB_ICONWARNING | MB_YESNO ) == IDYES )
+					if ( _MessageBoxW( hWnd, ST_V_PROMPT_remove_completed_entries, PROGRAM_CAPTION, MB_APPLMODAL | MB_ICONWARNING | MB_YESNO ) == IDYES )
 					{
 						CloseHandle( ( HANDLE )_CreateThread( NULL, 0, handle_download_list, ( void * )2, 0, NULL ) );
+					}
+				}
+				break;
+
+				case MENU_REMOVE_AND_DELETE:
+				{
+					if ( _MessageBoxW( hWnd, ST_V_PROMPT_remove_and_delete_selected_entries, PROGRAM_CAPTION, MB_APPLMODAL | MB_ICONWARNING | MB_YESNO ) == IDYES )
+					{
+						CloseHandle( ( HANDLE )_CreateThread( NULL, 0, remove_items, ( void * )1, 0, NULL ) );
 					}
 				}
 				break;
@@ -1082,7 +1111,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 
 				case MENU_DELETE:
 				{
-					if ( _MessageBoxW( hWnd, ST_PROMPT_delete_selected_files, PROGRAM_CAPTION, MB_APPLMODAL | MB_ICONWARNING | MB_YESNO ) == IDYES )
+					if ( _MessageBoxW( hWnd, ST_V_PROMPT_delete_selected_files, PROGRAM_CAPTION, MB_APPLMODAL | MB_ICONWARNING | MB_YESNO ) == IDYES )
 					{
 						CloseHandle( ( HANDLE )_CreateThread( NULL, 0, delete_files, ( void * )NULL, 0, NULL ) );
 					}
@@ -1113,9 +1142,9 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 				case MENU_FILE_TYPE:
 				case MENU_FILENAME:
 				case MENU_PROGRESS:
+				case MENU_SSL_TLS_VERSION:
 				case MENU_TIME_ELAPSED:
 				case MENU_TIME_REMAINING:
-				case MENU_TLS_SSL_VERSION:
 				case MENU_URL:
 				{
 					UpdateColumns( LOWORD( wParam ) );
@@ -1126,7 +1155,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 				{
 					if ( g_hWnd_add_urls == NULL )
 					{
-						g_hWnd_add_urls = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"add_urls", ST_Add_URL_s_, WS_OVERLAPPEDWINDOW, ( ( _GetSystemMetrics( SM_CXSCREEN ) - 505 ) / 2 ), ( ( _GetSystemMetrics( SM_CYSCREEN ) - 240 ) / 2 ), 505, 240, NULL, NULL, NULL, NULL );
+						g_hWnd_add_urls = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"add_urls", ST_V_Add_URL_s_, WS_OVERLAPPEDWINDOW, ( ( _GetSystemMetrics( SM_CXSCREEN ) - 525 ) / 2 ), ( ( _GetSystemMetrics( SM_CYSCREEN ) - 240 ) / 2 ), 525, 240, NULL, NULL, NULL, NULL );
 						_ShowWindow( g_hWnd_add_urls, SW_SHOWNORMAL );
 					}
 					else if ( _IsIconic( g_hWnd_add_urls ) )	// If minimized, then restore the window.
@@ -1186,11 +1215,22 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 				}
 				break;
 
+				case MENU_SEARCH:
+				{
+					if ( g_hWnd_search == NULL )
+					{
+						g_hWnd_search = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"search", ST_V_Search, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU, ( ( _GetSystemMetrics( SM_CXSCREEN ) - 320 ) / 2 ), ( ( _GetSystemMetrics( SM_CYSCREEN ) - 210 ) / 2 ), 320, 210, NULL, NULL, NULL, NULL );
+						_ShowWindow( g_hWnd_search, SW_SHOWNORMAL );
+					}
+					_SetForegroundWindow( g_hWnd_search );
+				}
+				break;
+
 				case MENU_OPTIONS:
 				{
 					if ( g_hWnd_options == NULL )
 					{
-						g_hWnd_options = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"options", ST_Options, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU, ( ( _GetSystemMetrics( SM_CXSCREEN ) - 390 ) / 2 ), ( ( _GetSystemMetrics( SM_CYSCREEN ) - 400 ) / 2 ), 390, 400, NULL, NULL, NULL, NULL );
+						g_hWnd_options = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"options", ST_V_Options, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU, ( ( _GetSystemMetrics( SM_CXSCREEN ) - 480 ) / 2 ), ( ( _GetSystemMetrics( SM_CYSCREEN ) - 415 ) / 2 ), 480, 415, NULL, NULL, NULL, NULL );
 						_ShowWindow( g_hWnd_options, SW_SHOWNORMAL );
 					}
 					_SetForegroundWindow( g_hWnd_options );
@@ -1225,7 +1265,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 				{
 					wchar_t msg[ 512 ];
 					__snwprintf( msg, 512, L"HTTP Downloader is made free under the GPLv3 license.\r\n\r\n" \
-										   L"Version 1.0.0.8\r\n\r\n" \
+										   L"Version 1.0.0.9\r\n\r\n" \
 										   L"Built on %s, %s %d, %04d %d:%02d:%02d %s (UTC)\r\n\r\n" \
 										   L"Copyright \xA9 2015-2018 Eric Kutcher", GetDay( g_compile_time.wDayOfWeek ), GetMonth( g_compile_time.wMonth ), g_compile_time.wDay, g_compile_time.wYear, ( g_compile_time.wHour > 12 ? g_compile_time.wHour - 12 : ( g_compile_time.wHour != 0 ? g_compile_time.wHour : 12 ) ), g_compile_time.wMinute, g_compile_time.wSecond, ( g_compile_time.wHour >= 12 ? L"PM" : L"AM" ) );
 
@@ -1259,6 +1299,99 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 
 			return 0;
 		}
+		break;
+
+		case WM_KEYDOWN:
+		{
+			// Make sure the control key is down and that we're not already in a worker thread. Prevents threads from queuing in case the user falls asleep on their keyboard.
+			if ( _GetKeyState( VK_CONTROL ) & 0x8000 )
+			{
+				// Determine which key was pressed.
+				switch ( wParam )
+				{
+					case 'A':	// Select all items if Ctrl + A is down and there are items in the list.
+					{
+						if ( !in_worker_thread && _SendMessageW( g_hWnd_files, LVM_GETITEMCOUNT, 0, 0 ) > 0 )
+						{
+							_SendMessageW( hWnd, WM_COMMAND, MENU_SELECT_ALL, 0 );
+						}
+					}
+					break;
+
+					case 'C':	// Copy URL(s).
+					{
+						if ( !in_worker_thread && _SendMessageW( g_hWnd_files, LVM_GETSELECTEDCOUNT, 0, 0 ) > 0 )
+						{
+							_SendMessageW( hWnd, WM_COMMAND, MENU_COPY_URLS, 0 );
+						}
+					}
+					break;
+
+					case 'N':	// Open Add URL(s) window.
+					{
+						_SendMessageW( hWnd, WM_COMMAND, MENU_ADD_URLS, 0 );
+					}
+					break;
+
+					case 'O':	// Open Options window.
+					{
+						_SendMessageW( hWnd, WM_COMMAND, MENU_OPTIONS, 0 );
+					}
+					break;
+
+					case 'R':	// Remove selected items.
+					{
+						if ( !in_worker_thread && _SendMessageW( g_hWnd_files, LVM_GETSELECTEDCOUNT, 0, 0 ) > 0 )
+						{
+							_SendMessageW( hWnd, WM_COMMAND, MENU_REMOVE, 0 );
+						}
+					}
+					break;
+
+					case 'S':	// Open Search window.
+					{
+						_SendMessageW( hWnd, WM_COMMAND, MENU_SEARCH, 0 );
+					}
+					break;
+
+					case VK_DELETE:	// Remove and Delete selected items.
+					{
+						if ( !in_worker_thread && _SendMessageW( g_hWnd_files, LVM_GETSELECTEDCOUNT, 0, 0 ) > 0 )
+						{
+							_SendMessageW( hWnd, WM_COMMAND, MENU_REMOVE_AND_DELETE, 0 );
+						}
+					}
+					break;
+				}
+			}
+			else
+			{
+				// Determine which key was pressed.
+				switch ( wParam )
+				{
+					case VK_DELETE:	// Delete selected items.
+					{
+						if ( !in_worker_thread && _SendMessageW( g_hWnd_files, LVM_GETSELECTEDCOUNT, 0, 0 ) > 0 )
+						{
+							_SendMessageW( hWnd, WM_COMMAND, MENU_DELETE, 0 );
+						}
+					}
+					break;
+
+					case VK_F2:	// Rename selected item.
+					{
+						if ( !in_worker_thread && _SendMessageW( g_hWnd_files, LVM_GETSELECTEDCOUNT, 0, 0 ) == 1 )
+						{
+							_SendMessageW( hWnd, WM_COMMAND, MENU_RENAME, 0 );
+						}
+					}
+					break;
+				}
+			}
+
+			return 0;
+		}
+		break;
 
 		case WM_NOTIFY:
 		{
@@ -1460,6 +1593,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 					if ( nm->hdr.hwndFrom == g_hWnd_status )
 					{
 						wchar_t status_bar_buf[ 64 ];
+						unsigned char buf_length;
 
 						if ( nm->dwItemSpec == 0 )
 						{
@@ -1472,9 +1606,11 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 								++cfg_t_status_down_speed;
 							}
 
-							_wmemcpy_s( status_bar_buf, 64, ST_Download_speed_, 15 );
-							status_bar_buf[ 15 ] = ' ';
-							unsigned int length = FormatSizes( status_bar_buf + 16, 64 - 16, cfg_t_status_down_speed, session_downloaded_speed ) + 16;
+							buf_length = ( ST_L_Download_speed_ > 38 ? 38 : ST_L_Download_speed_ ); // Let's not overflow. 64 - ( ' ' + 22 +  '/' + 's' + NULL ) = 38 remaining bytes for our string.
+							_wmemcpy_s( status_bar_buf, 64, ST_V_Download_speed_, buf_length );
+							status_bar_buf[ buf_length ] = ' ';
+							// The maximum length that FormatSizes can return is 22 bytes excluding the NULL terminator.
+							unsigned int length = FormatSizes( status_bar_buf + ( buf_length + 1 ), 64 - ( buf_length + 1 ), cfg_t_status_down_speed, session_downloaded_speed ) + ( buf_length + 1 );
 							status_bar_buf[ length ] = L'/';
 							status_bar_buf[ length + 1 ] = L's';
 							status_bar_buf[ length + 2 ] = 0;
@@ -1492,9 +1628,12 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 								++cfg_t_status_downloaded;
 							}
 
-							_wmemcpy_s( status_bar_buf, 64, ST_Total_downloaded_, 17 );
-							status_bar_buf[ 17 ] = ' ';
-							FormatSizes( status_bar_buf + 18, 64 - 18, cfg_t_status_downloaded, session_total_downloaded );
+							buf_length = ( ST_L_Total_downloaded_ > 40 ? 40 : ST_L_Total_downloaded_ ); // Let's not overflow. 64 - ( ' ' + 22 + NULL ) = 40 remaining bytes for our string.
+							_wmemcpy_s( status_bar_buf, 64, ST_V_Total_downloaded_, buf_length );
+							status_bar_buf[ buf_length ] = ' ';
+							// The maximum length that FormatSizes can return is 22 bytes excluding the NULL terminator.
+							FormatSizes( status_bar_buf + ( buf_length + 1 ), 64 - ( buf_length + 1 ), cfg_t_status_downloaded, session_total_downloaded );
+							// NULL terminator is set in FormatSizes.
 
 							_SendMessageW( g_hWnd_status, SB_SETTEXT, MAKEWPARAM( 1, 0 ), ( LPARAM )status_bar_buf );
 						}
@@ -1504,59 +1643,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 
 				case LVN_KEYDOWN:
 				{
-					NMLISTVIEW *nmlv = ( NMLISTVIEW * )lParam;
-
-					// Make sure the control key is down and that we're not already in a worker thread. Prevents threads from queuing in case the user falls asleep on their keyboard.
-					if ( _GetKeyState( VK_CONTROL ) & 0x8000 )
-					{
-						// Determine which key was pressed.
-						switch ( ( ( LPNMLVKEYDOWN )lParam )->wVKey )
-						{
-							case 'A':	// Select all items if Ctrl + A is down and there are items in the list.
-							{
-								if ( !in_worker_thread && _SendMessageW( nmlv->hdr.hwndFrom, LVM_GETITEMCOUNT, 0, 0 ) > 0 )
-								{
-									_SendMessageW( hWnd, WM_COMMAND, MENU_SELECT_ALL, 0 );
-								}
-							}
-							break;
-
-							case 'D':	// Delete selected item if Ctrl + D is down and there are items in the list.
-							{
-								if ( !in_worker_thread && _SendMessageW( nmlv->hdr.hwndFrom, LVM_GETITEMCOUNT, 0, 0 ) > 0 )
-								{
-									_SendMessageW( hWnd, WM_COMMAND, MENU_DELETE, 0 );
-								}
-							}
-							break;
-
-							case 'R':	// Rename selected item if Ctrl + R is down and there is only one selected item.
-							{
-								if ( !in_worker_thread && _SendMessageW( nmlv->hdr.hwndFrom, LVM_GETSELECTEDCOUNT, 0, 0 ) == 1 )
-								{
-									_SendMessageW( hWnd, WM_COMMAND, MENU_RENAME, 0 );
-								}
-							}
-							break;
-						}
-					}
-					else
-					{
-						// Determine which key was pressed.
-						switch ( ( ( LPNMLVKEYDOWN )lParam )->wVKey )
-						{
-							case VK_DELETE:	// Remove selected items from the list.
-							{
-								if ( !in_worker_thread &&
-									/*_SendMessageW( nmlv->hdr.hwndFrom, LVM_GETITEMCOUNT, 0, 0 ) > 0 &&*/
-									_SendMessageW( nmlv->hdr.hwndFrom, LVM_GETSELECTEDCOUNT, 0, 0 ) > 0 )
-								{
-									_SendMessageW( hWnd, WM_COMMAND, MENU_REMOVE, 0 );
-								}
-							}
-							break;
-						}
-					}
+					_SendMessageW( hWnd, WM_KEYDOWN, ( ( NMLVKEYDOWN * )lParam )->wVKey, 0 );
 				}
 				break;
 
@@ -1589,7 +1676,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 					NMLISTVIEW *nmlv = ( NMLISTVIEW * )lParam;
 
 					LVHITTESTINFO lvhti;
-					_memzero( &lvhti, sizeof( LVHITTESTINFO  ) );
+					_memzero( &lvhti, sizeof( LVHITTESTINFO ) );
 					lvhti.pt = nmlv->ptAction;
 
 					_SendMessageW( g_hWnd_files, LVM_HITTEST, 0, ( LPARAM )&lvhti );
@@ -1623,11 +1710,11 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 							{
 								if ( di->file_size > 0 )
 								{
-									__snwprintf( tooltip_buffer, 512, L"Filename: %s\r\nDownloaded: %llu / %llu bytes\r\nAdded: %s", di->file_path + di->filename_offset, di->downloaded, di->file_size, di->w_add_time );
+									__snwprintf( tooltip_buffer, 512, L"%s: %s\r\n%s: %llu / %llu bytes\r\n%s: %s", ST_V_Filename, di->file_path + di->filename_offset, ST_V_Downloaded, di->downloaded, di->file_size, ST_V_Added, di->w_add_time );
 								}
 								else
 								{
-									__snwprintf( tooltip_buffer, 512, L"Filename: %s\r\nDownloaded: %llu / ? bytes\r\nAdded: %s", di->file_path + di->filename_offset, di->downloaded, di->w_add_time );
+									__snwprintf( tooltip_buffer, 512, L"%s: %s\r\n%s: %llu / ? bytes\r\n%s: %s", ST_V_Filename, di->file_path + di->filename_offset, ST_V_Downloaded, di->downloaded, ST_V_Added, di->w_add_time );
 								}
 
 								ti.lpszText = tooltip_buffer;
@@ -2075,7 +2162,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 								}
 								else
 								{
-									buf = ST__Simulated_;
+									buf = ST_V__Simulated_;
 								}
 							}
 							break;
@@ -2191,51 +2278,55 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 
 									if ( di->status == STATUS_CONNECTING )
 									{
-										__snwprintf( buf, 128, L"%s - %d.%1d%%", ST_Connecting, i_percentage, remainder );
+										__snwprintf( buf, 128, L"%s - %d.%1d%%", ST_V_Connecting, i_percentage, remainder );
+									}
+									else if ( IS_STATUS( di->status, STATUS_RESTART ) )
+									{
+										__snwprintf( buf, 128, L"%s - %d.%1d%%", ST_V_Restarting, i_percentage, remainder );
 									}
 									else if ( IS_STATUS( di->status, STATUS_PAUSED ) )
 									{
-										__snwprintf( buf, 128, L"%s - %d.%1d%%", ST_Paused, i_percentage, remainder );
+										__snwprintf( buf, 128, L"%s - %d.%1d%%", ST_V_Paused, i_percentage, remainder );
 									}
 									else if ( di->status == STATUS_QUEUED )
 									{
-										__snwprintf( buf, 128, L"%s - %d.%1d%%", ST_Queued, i_percentage, remainder );
+										__snwprintf( buf, 128, L"%s - %d.%1d%%", ST_V_Queued, i_percentage, remainder );
 									}
 									else if ( di->status == STATUS_COMPLETED )
 									{
-										__snwprintf( buf, 128, L"%s - %d.%1d%%", ST_Completed, i_percentage, remainder );
+										__snwprintf( buf, 128, L"%s - %d.%1d%%", ST_V_Completed, i_percentage, remainder );
 									}
 									else if ( di->status == STATUS_STOPPED )
 									{
-										__snwprintf( buf, 128, L"%s - %d.%1d%%", ST_Stopped, i_percentage, remainder );
+										__snwprintf( buf, 128, L"%s - %d.%1d%%", ST_V_Stopped, i_percentage, remainder );
 									}
 									else if ( di->status == STATUS_TIMED_OUT )
 									{
-										__snwprintf( buf, 128, L"%s - %d.%1d%%", ST_Timed_Out, i_percentage, remainder );
+										__snwprintf( buf, 128, L"%s - %d.%1d%%", ST_V_Timed_Out, i_percentage, remainder );
 									}
 									else if ( di->status == STATUS_FAILED )
 									{
-										__snwprintf( buf, 128, L"%s - %d.%1d%%", ST_Failed, i_percentage, remainder );
+										__snwprintf( buf, 128, L"%s - %d.%1d%%", ST_V_Failed, i_percentage, remainder );
 									}
 									else if ( di->status == STATUS_FILE_IO_ERROR )
 									{
-										buf = ST_File_IO_Error;
+										buf = ST_V_File_IO_Error;
 									}
 									else if ( di->status == STATUS_SKIPPED )
 									{
-										__snwprintf( buf, 128, L"%s - %d.%1d%%", ST_Skipped, i_percentage, remainder );
+										__snwprintf( buf, 128, L"%s - %d.%1d%%", ST_V_Skipped, i_percentage, remainder );
 									}
 									else if ( di->status == STATUS_AUTH_REQUIRED )
 									{
-										__snwprintf( buf, 128, L"%s - %d.%1d%%", ST_Authorization_Required, i_percentage, remainder );
+										__snwprintf( buf, 128, L"%s - %d.%1d%%", ST_V_Authorization_Required, i_percentage, remainder );
 									}
 									else if ( di->status == STATUS_PROXY_AUTH_REQUIRED )
 									{
-										__snwprintf( buf, 128, L"%s - %d.%1d%%", ST_Proxy_Authentication_Required, i_percentage, remainder );
+										__snwprintf( buf, 128, L"%s - %d.%1d%%", ST_V_Proxy_Authentication_Required, i_percentage, remainder );
 									}
 									else if ( di->status == STATUS_ALLOCATING_FILE )
 									{
-										buf = ST_Allocating_File;
+										buf = ST_V_Allocating_File;
 									}
 									else	// Downloading.
 									{
@@ -2244,58 +2335,62 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 								}
 								else if ( di->status == STATUS_CONNECTING )
 								{
-									buf = ST_Connecting;
+									buf = ST_V_Connecting;
+								}
+								else if ( IS_STATUS( di->status, STATUS_RESTART ) )
+								{
+									buf = ST_V_Restarting;
 								}
 								else if ( IS_STATUS( di->status, STATUS_PAUSED ) )
 								{
-									buf = ST_Paused;
+									buf = ST_V_Paused;
 								}
 								else if ( di->status == STATUS_QUEUED )
 								{
-									buf = ST_Queued;
+									buf = ST_V_Queued;
 								}
 								else if ( di->status == STATUS_COMPLETED )
 								{
 									if ( di->last_downloaded == 0 )
 									{
-										__snwprintf( buf, 128, L"%s - 100.0%%", ST_Completed );
+										__snwprintf( buf, 128, L"%s - 100.0%%", ST_V_Completed );
 									}
 									else
 									{
-										buf = ST_Completed;
+										buf = ST_V_Completed;
 									}
 								}
 								else if ( di->status == STATUS_STOPPED )
 								{
-									buf = ST_Stopped;
+									buf = ST_V_Stopped;
 								}
 								else if ( di->status == STATUS_TIMED_OUT )
 								{
-									buf = ST_Timed_Out;
+									buf = ST_V_Timed_Out;
 								}
 								else if ( di->status == STATUS_FAILED )
 								{
-									buf = ST_Failed;
+									buf = ST_V_Failed;
 								}
 								else if ( di->status == STATUS_FILE_IO_ERROR )
 								{
-									buf = ST_File_IO_Error;
+									buf = ST_V_File_IO_Error;
 								}
 								else if ( di->status == STATUS_SKIPPED )
 								{
-									buf = ST_Skipped;
+									buf = ST_V_Skipped;
 								}
 								else if ( di->status == STATUS_AUTH_REQUIRED )
 								{
-									buf = ST_Authorization_Required;
+									buf = ST_V_Authorization_Required;
 								}
 								else if ( di->status == STATUS_PROXY_AUTH_REQUIRED )
 								{
-									buf = ST_Proxy_Authentication_Required;
+									buf = ST_V_Proxy_Authentication_Required;
 								}
 								else if ( di->status == STATUS_ALLOCATING_FILE )
 								{
-									buf = ST_Allocating_File;
+									buf = ST_V_Allocating_File;
 								}
 								else	// Downloading.
 								{
@@ -2304,8 +2399,24 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 							}
 							break;
 
-							case 10:	// TIME ELAPSED
-							case 11:	// TIME REMAINING
+							case 10:	// SSL / TLS Version
+							{
+								DT_ALIGN = DT_LEFT;
+
+								switch ( di->ssl_version )
+								{
+									case 0: { buf = ST_V_SSL_2_0; } break;
+									case 1: { buf = ST_V_SSL_3_0; } break;
+									case 2: { buf = ST_V_TLS_1_0; } break;
+									case 3: { buf = ST_V_TLS_1_1; } break;
+									case 4: { buf = ST_V_TLS_1_2; } break;
+									default: { buf = L""; } break;
+								}
+							}
+							break;
+
+							case 11:	// TIME ELAPSED
+							case 12:	// TIME REMAINING
 							{
 								DT_ALIGN = DT_RIGHT;
 
@@ -2345,22 +2456,6 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 									{
 										buf = L"";
 									}
-								}
-							}
-							break;
-
-							case 12:	// TLS/SSL Version
-							{
-								DT_ALIGN = DT_LEFT;
-
-								switch ( di->ssl_version )
-								{
-									case 0: { buf = ST_SSL_2_0; } break;
-									case 1: { buf = ST_SSL_3_0; } break;
-									case 2: { buf = ST_TLS_1_0; } break;
-									case 3: { buf = ST_TLS_1_1; } break;
-									case 4: { buf = ST_TLS_1_2; } break;
-									default: { buf = L""; } break;
 								}
 							}
 							break;
@@ -2620,7 +2715,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 		{
 			if ( g_hWnd_add_urls == NULL )
 			{
-				g_hWnd_add_urls = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"add_urls", ST_Add_URL_s_, WS_OVERLAPPEDWINDOW, ( ( _GetSystemMetrics( SM_CXSCREEN ) - 505 ) / 2 ), ( ( _GetSystemMetrics( SM_CYSCREEN ) - 240 ) / 2 ), 505, 240, NULL, NULL, NULL, NULL );
+				g_hWnd_add_urls = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"add_urls", ST_V_Add_URL_s_, WS_OVERLAPPEDWINDOW, ( ( _GetSystemMetrics( SM_CXSCREEN ) - 525 ) / 2 ), ( ( _GetSystemMetrics( SM_CYSCREEN ) - 240 ) / 2 ), 525, 240, NULL, NULL, NULL, NULL );
 			}
 			else if ( _IsIconic( g_hWnd_add_urls ) )	// If minimized, then restore the window.
 			{
@@ -2639,7 +2734,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 			}
 			else if ( wParam == 1 )
 			{
-				if ( _MessageBoxW( hWnd, ST_PROMPT_The_specified_file_was_not_found, PROGRAM_CAPTION, MB_APPLMODAL | MB_ICONWARNING | MB_YESNO ) == IDYES )
+				if ( _MessageBoxW( hWnd, ST_V_PROMPT_The_specified_file_was_not_found, PROGRAM_CAPTION, MB_APPLMODAL | MB_ICONWARNING | MB_YESNO ) == IDYES )
 				{
 					CloseHandle( ( HANDLE )_CreateThread( NULL, 0, handle_download_list, ( void * )3, 0, NULL ) );	// Restart download (from the beginning).
 				}
@@ -2679,6 +2774,12 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 			{
 				_EnableWindow( g_hWnd_update_download, FALSE );
 				_ShowWindow( g_hWnd_update_download, SW_HIDE );
+			}
+
+			if ( g_hWnd_search != NULL )
+			{
+				_EnableWindow( g_hWnd_search, FALSE );
+				_ShowWindow( g_hWnd_search, SW_HIDE );
 			}
 
 			if ( g_hWnd_url_drop_window != NULL )
@@ -2739,6 +2840,11 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 				_DestroyWindow( g_hWnd_update_download );
 			}
 
+			if ( g_hWnd_search != NULL )
+			{
+				_DestroyWindow( g_hWnd_search );
+			}
+
 			if ( g_hWnd_url_drop_window != NULL )
 			{
 				_DestroyWindow( g_hWnd_url_drop_window );
@@ -2773,6 +2879,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 					GlobalFree( di->w_add_time );
 					GlobalFree( di->cookies );
 					GlobalFree( di->headers );
+					GlobalFree( di->data );
 					//GlobalFree( di->etag );
 					GlobalFree( di->auth_info.username );
 					GlobalFree( di->auth_info.password );

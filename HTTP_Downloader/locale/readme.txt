@@ -1,0 +1,5 @@
+The locale files that have been generated here are loaded by HTTP Downloader based the user's default locale name. Windows XP and Windows 2000 users will need to determine what their locale is, copy the appropriate file, and rename it to "default". The "default" locale will also take precedence over the user's default locale if the locale name can be determined (Widows Vista and newer systems).
+
+Each locale file is a concatenation of the strings found in "string_list.txt" where all of the carriage return and newline character pairs have been replaced with null, and the escaped string values have been replaced with their binary equivalents.
+
+The included "locale_generator.exe" program will generate a compatible file if you'd like to write your own translation. All you need to do is translate the strings in "string_list.txt", move "string_list.txt" in the same folder as "locale_generator.exe", and then run the program. It's a command-line program that takes no input and will simply output a locale file in the same folder.

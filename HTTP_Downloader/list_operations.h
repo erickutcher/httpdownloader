@@ -45,4 +45,6 @@ THREAD_RETURN create_download_history_csv_file( void *file_path );
 THREAD_RETURN export_list( void *pArguments );
 THREAD_RETURN import_list( void *pArguments );
 
+THREAD_RETURN search_list( void *pArguments );
+
 #endif

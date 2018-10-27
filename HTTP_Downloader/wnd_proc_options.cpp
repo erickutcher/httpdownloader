@@ -104,10 +104,10 @@
 #define BTN_CERTIFICATE_KEY				1054
 #define CB_SERVER_SSL_VERSION			1055
 
-#define BTN_SET_FILETIME		1056
-#define BTN_USE_ONE_INSTANCE	1057
-#define BTN_ENABLE_DROP_WINDOW	1058
-
+#define BTN_SET_FILETIME			1056
+#define BTN_USE_ONE_INSTANCE		1057
+#define BTN_ENABLE_DROP_WINDOW		1058
+#define BTN_DOWNLOAD_IMMEDIATELY	1059
 
 HWND g_hWnd_options = NULL;
 
@@ -237,6 +237,7 @@ HWND g_hWnd_chk_quick_allocation = NULL;
 HWND g_hWnd_chk_set_filetime = NULL;
 HWND g_hWnd_chk_use_one_instance = NULL;
 HWND g_hWnd_chk_enable_drop_window = NULL;
+HWND g_hWnd_chk_download_immediately = NULL;
 
 HWND g_hWnd_thread_count = NULL;
 
@@ -789,31 +790,33 @@ LRESULT CALLBACK GeneralTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 			RECT rc;
 			_GetClientRect( hWnd, &rc );
 
-			g_hWnd_chk_tray_icon = _CreateWindowW( WC_BUTTON, ST_Enable_System_Tray_icon_, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 200, 20, hWnd, ( HMENU )BTN_TRAY_ICON, NULL, NULL );
-			g_hWnd_chk_minimize = _CreateWindowW( WC_BUTTON, ST_Minimize_to_System_Tray, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 15, 20, 200, 20, hWnd, ( HMENU )BTN_MINIMIZE_TO_TRAY, NULL, NULL );
-			g_hWnd_chk_close = _CreateWindowW( WC_BUTTON, ST_Close_to_System_Tray, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 15, 40, 200, 20, hWnd, ( HMENU )BTN_CLOSE_TO_TRAY, NULL, NULL );
+			g_hWnd_chk_tray_icon = _CreateWindowW( WC_BUTTON, ST_V_Enable_System_Tray_icon_, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, rc.right, 20, hWnd, ( HMENU )BTN_TRAY_ICON, NULL, NULL );
+			g_hWnd_chk_minimize = _CreateWindowW( WC_BUTTON, ST_V_Minimize_to_System_Tray, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 15, 20, rc.right - 15, 20, hWnd, ( HMENU )BTN_MINIMIZE_TO_TRAY, NULL, NULL );
+			g_hWnd_chk_close = _CreateWindowW( WC_BUTTON, ST_V_Close_to_System_Tray, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 15, 40, rc.right - 15, 20, hWnd, ( HMENU )BTN_CLOSE_TO_TRAY, NULL, NULL );
 
-			g_hWnd_chk_always_on_top = _CreateWindowW( WC_BUTTON, ST_Always_on_top, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 65, 200, 20, hWnd, ( HMENU )BTN_ALWAYS_ON_TOP, NULL, NULL );
+			g_hWnd_chk_always_on_top = _CreateWindowW( WC_BUTTON, ST_V_Always_on_top, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 65, rc.right, 20, hWnd, ( HMENU )BTN_ALWAYS_ON_TOP, NULL, NULL );
 
-			g_hWnd_chk_download_history = _CreateWindowW( WC_BUTTON, ST_Enable_download_history, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 85, 200, 20, hWnd, ( HMENU )BTN_DOWNLOAD_HISTORY, NULL, NULL );
+			g_hWnd_chk_download_history = _CreateWindowW( WC_BUTTON, ST_V_Enable_download_history, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 85, rc.right, 20, hWnd, ( HMENU )BTN_DOWNLOAD_HISTORY, NULL, NULL );
 
-			g_hWnd_chk_quick_allocation = _CreateWindowW( WC_BUTTON, ST_Enable_quick_file_allocation, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 105, 325, 20, hWnd, ( HMENU )BTN_QUICK_ALLOCATION, NULL, NULL );
+			g_hWnd_chk_quick_allocation = _CreateWindowW( WC_BUTTON, ST_V_Enable_quick_file_allocation, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 105, rc.right, 20, hWnd, ( HMENU )BTN_QUICK_ALLOCATION, NULL, NULL );
 
-			g_hWnd_chk_set_filetime = _CreateWindowW( WC_BUTTON, ST_Set_date_and_time_of_file, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 125, 325, 20, hWnd, ( HMENU )BTN_SET_FILETIME, NULL, NULL );
+			g_hWnd_chk_set_filetime = _CreateWindowW( WC_BUTTON, ST_V_Set_date_and_time_of_file, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 125, rc.right, 20, hWnd, ( HMENU )BTN_SET_FILETIME, NULL, NULL );
 
-			g_hWnd_chk_use_one_instance = _CreateWindowW( WC_BUTTON, ST_Allow_only_one_instance, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 145, 325, 20, hWnd, ( HMENU )BTN_USE_ONE_INSTANCE, NULL, NULL );
+			g_hWnd_chk_use_one_instance = _CreateWindowW( WC_BUTTON, ST_V_Allow_only_one_instance, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 145, rc.right, 20, hWnd, ( HMENU )BTN_USE_ONE_INSTANCE, NULL, NULL );
 
-			g_hWnd_chk_enable_drop_window = _CreateWindowW( WC_BUTTON, ST_Enable_URL_drop_window, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 165, 325, 20, hWnd, ( HMENU )BTN_ENABLE_DROP_WINDOW, NULL, NULL );
+			g_hWnd_chk_enable_drop_window = _CreateWindowW( WC_BUTTON, ST_V_Enable_URL_drop_window, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 165, rc.right, 20, hWnd, ( HMENU )BTN_ENABLE_DROP_WINDOW, NULL, NULL );
 
-			HWND hWnd_static_default_download_directory = _CreateWindowW( WC_STATIC, ST_Default_download_directory_, WS_CHILD | WS_VISIBLE, 0, 190, 150, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_default_download_directory = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, cfg_default_download_directory, ES_AUTOHSCROLL | ES_READONLY | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 205, rc.right - 40, 20, hWnd, NULL, NULL, NULL );
-			g_hWnd_btn_default_download_directory = _CreateWindowW( WC_BUTTON, ST_BTN___, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 35, 205, 35, 20, hWnd, ( HMENU )BTN_DEFAULT_DOWNLOAD_DIRECTORY, NULL, NULL );
+			g_hWnd_chk_download_immediately = _CreateWindowW( WC_BUTTON, ST_V_Download_drag_and_drop_immediately, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 185, rc.right, 20, hWnd, ( HMENU )BTN_DOWNLOAD_IMMEDIATELY, NULL, NULL );
 
-			HWND hWnd_static_thread_count = _CreateWindowW( WC_STATIC, ST_Thread_pool_count_, WS_CHILD | WS_VISIBLE, 0, 230, 130, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_thread_count = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 245, 85, 20, hWnd, ( HMENU )EDIT_THREAD_COUNT, NULL, NULL );
+			HWND hWnd_static_default_download_directory = _CreateWindowW( WC_STATIC, ST_V_Default_download_directory_, WS_CHILD | WS_VISIBLE, 0, 210, rc.right, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_default_download_directory = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, cfg_default_download_directory, ES_AUTOHSCROLL | ES_READONLY | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 225, rc.right - 40, 20, hWnd, NULL, NULL, NULL );
+			g_hWnd_btn_default_download_directory = _CreateWindowW( WC_BUTTON, ST_V_BTN___, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 35, 225, 35, 20, hWnd, ( HMENU )BTN_DEFAULT_DOWNLOAD_DIRECTORY, NULL, NULL );
+
+			HWND hWnd_static_thread_count = _CreateWindowW( WC_STATIC, ST_V_Thread_pool_count_, WS_CHILD | WS_VISIBLE, 0, 250, rc.right, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_thread_count = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 265, 100, 20, hWnd, ( HMENU )EDIT_THREAD_COUNT, NULL, NULL );
 
 			// Keep this unattached. Looks ugly inside the text box.
-			HWND hWnd_ud_thread_count = _CreateWindowW( UPDOWN_CLASS, NULL, /*UDS_ALIGNRIGHT |*/ UDS_ARROWKEYS | UDS_NOTHOUSANDS | UDS_SETBUDDYINT | WS_CHILD | WS_VISIBLE, 85, 244, _GetSystemMetrics( SM_CXVSCROLL ), 22, hWnd, NULL, NULL, NULL );
+			HWND hWnd_ud_thread_count = _CreateWindowW( UPDOWN_CLASS, NULL, /*UDS_ALIGNRIGHT |*/ UDS_ARROWKEYS | UDS_NOTHOUSANDS | UDS_SETBUDDYINT | WS_CHILD | WS_VISIBLE, 100, 264, _GetSystemMetrics( SM_CXVSCROLL ), 22, hWnd, NULL, NULL, NULL );
 
 			_SendMessageW( g_hWnd_thread_count, EM_LIMITTEXT, 10, 0 );
 			_SendMessageW( hWnd_ud_thread_count, UDM_SETBUDDY, ( WPARAM )g_hWnd_thread_count, 0 );
@@ -833,6 +836,7 @@ LRESULT CALLBACK GeneralTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 			_SendMessageW( g_hWnd_chk_set_filetime, WM_SETFONT, ( WPARAM )hFont, 0 );
 			_SendMessageW( g_hWnd_chk_use_one_instance, WM_SETFONT, ( WPARAM )hFont, 0 );
 			_SendMessageW( g_hWnd_chk_enable_drop_window, WM_SETFONT, ( WPARAM )hFont, 0 );
+			_SendMessageW( g_hWnd_chk_download_immediately, WM_SETFONT, ( WPARAM )hFont, 0 );
 
 			_SendMessageW( hWnd_static_thread_count, WM_SETFONT, ( WPARAM )hFont, 0 );
 			_SendMessageW( g_hWnd_thread_count, WM_SETFONT, ( WPARAM )hFont, 0 );
@@ -881,6 +885,7 @@ LRESULT CALLBACK GeneralTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 				case BTN_SET_FILETIME:
 				case BTN_USE_ONE_INSTANCE:
 				case BTN_ENABLE_DROP_WINDOW:
+				case BTN_DOWNLOAD_IMMEDIATELY:
 				{
 					options_state_changed = true;
 					_EnableWindow( g_hWnd_apply, TRUE );
@@ -930,7 +935,7 @@ LRESULT CALLBACK GeneralTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 					BROWSEINFO bi;
 					_memzero( &bi, sizeof( BROWSEINFO ) );
 					bi.hwndOwner = hWnd;
-					bi.lpszTitle = ST_Select_the_default_download_directory;
+					bi.lpszTitle = ST_V_Select_the_default_download_directory;
 					bi.ulFlags = BIF_EDITBOX | BIF_NEWDIALOGSTYLE | BIF_VALIDATE;
 
 					bool destroy = true;
@@ -1015,11 +1020,11 @@ LRESULT CALLBACK ConnectionTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 			RECT rc;
 			_GetClientRect( hWnd, &rc );
 
-			HWND hWnd_static_max_downloads = _CreateWindowW( WC_STATIC, ST_Active_download_limit_, WS_CHILD | WS_VISIBLE, 0, 0, 150, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_max_downloads = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 15, 85, 20, hWnd, ( HMENU )EDIT_MAX_DOWNLOADS, NULL, NULL );
+			HWND hWnd_static_max_downloads = _CreateWindowW( WC_STATIC, ST_V_Active_download_limit_, WS_CHILD | WS_VISIBLE, 0, 0, 190, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_max_downloads = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 15, 100, 20, hWnd, ( HMENU )EDIT_MAX_DOWNLOADS, NULL, NULL );
 
 			// Keep this unattached. Looks ugly inside the text box.
-			HWND hWnd_ud_max_downloads = _CreateWindowW( UPDOWN_CLASS, NULL, /*UDS_ALIGNRIGHT |*/ UDS_ARROWKEYS | UDS_NOTHOUSANDS | UDS_SETBUDDYINT | WS_CHILD | WS_VISIBLE, 85, 14, _GetSystemMetrics( SM_CXVSCROLL ), 22, hWnd, NULL, NULL, NULL );
+			HWND hWnd_ud_max_downloads = _CreateWindowW( UPDOWN_CLASS, NULL, /*UDS_ALIGNRIGHT |*/ UDS_ARROWKEYS | UDS_NOTHOUSANDS | UDS_SETBUDDYINT | WS_CHILD | WS_VISIBLE, 100, 14, _GetSystemMetrics( SM_CXVSCROLL ), 22, hWnd, NULL, NULL, NULL );
 
 			_SendMessageW( g_hWnd_max_downloads, EM_LIMITTEXT, 3, 0 );
 			_SendMessageW( hWnd_ud_max_downloads, UDM_SETBUDDY, ( WPARAM )g_hWnd_max_downloads, 0 );
@@ -1028,11 +1033,11 @@ LRESULT CALLBACK ConnectionTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 			_SendMessageW( hWnd_ud_max_downloads, UDM_SETPOS, 0, cfg_max_downloads );
 
 
-			HWND hWnd_static_retry_downloads_count = _CreateWindowW( WC_STATIC, ST_Retry_incomplete_downloads_, WS_CHILD | WS_VISIBLE, 150, 0, 150, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_retry_downloads_count = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 150, 15, 85, 20, hWnd, ( HMENU )EDIT_RETRY_DOWNLOADS_COUNT, NULL, NULL );
+			HWND hWnd_static_retry_downloads_count = _CreateWindowW( WC_STATIC, ST_V_Retry_incomplete_downloads_, WS_CHILD | WS_VISIBLE, 200, 0, 190, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_retry_downloads_count = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 200, 15, 100, 20, hWnd, ( HMENU )EDIT_RETRY_DOWNLOADS_COUNT, NULL, NULL );
 
 			// Keep this unattached. Looks ugly inside the text box.
-			HWND hWnd_ud_retry_downloads_count = _CreateWindowW( UPDOWN_CLASS, NULL, /*UDS_ALIGNRIGHT |*/ UDS_ARROWKEYS | UDS_NOTHOUSANDS | UDS_SETBUDDYINT | WS_CHILD | WS_VISIBLE, 235, 14, _GetSystemMetrics( SM_CXVSCROLL ), 22, hWnd, NULL, NULL, NULL );
+			HWND hWnd_ud_retry_downloads_count = _CreateWindowW( UPDOWN_CLASS, NULL, /*UDS_ALIGNRIGHT |*/ UDS_ARROWKEYS | UDS_NOTHOUSANDS | UDS_SETBUDDYINT | WS_CHILD | WS_VISIBLE, 300, 14, _GetSystemMetrics( SM_CXVSCROLL ), 22, hWnd, NULL, NULL, NULL );
 
 			_SendMessageW( g_hWnd_retry_downloads_count, EM_LIMITTEXT, 3, 0 );
 			_SendMessageW( hWnd_ud_retry_downloads_count, UDM_SETBUDDY, ( WPARAM )g_hWnd_retry_downloads_count, 0 );
@@ -1042,11 +1047,11 @@ LRESULT CALLBACK ConnectionTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 
 			//
 
-			HWND hWnd_static_download_parts = _CreateWindowW( WC_STATIC, ST_Default_download_parts_, WS_CHILD | WS_VISIBLE, 0, 45, 150, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_default_download_parts = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 60, 85, 20, hWnd, ( HMENU )EDIT_DEFAULT_DOWNLOAD_PARTS, NULL, NULL );
+			HWND hWnd_static_download_parts = _CreateWindowW( WC_STATIC, ST_V_Default_download_parts_, WS_CHILD | WS_VISIBLE, 0, 45, 190, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_default_download_parts = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 60, 100, 20, hWnd, ( HMENU )EDIT_DEFAULT_DOWNLOAD_PARTS, NULL, NULL );
 
 			// Keep this unattached. Looks ugly inside the text box.
-			HWND hWnd_ud_download_parts = _CreateWindowW( UPDOWN_CLASS, NULL, /*UDS_ALIGNRIGHT |*/ UDS_ARROWKEYS | UDS_NOTHOUSANDS | UDS_SETBUDDYINT | WS_CHILD | WS_VISIBLE, 85, 59, _GetSystemMetrics( SM_CXVSCROLL ), 22, hWnd, NULL, NULL, NULL );
+			HWND hWnd_ud_download_parts = _CreateWindowW( UPDOWN_CLASS, NULL, /*UDS_ALIGNRIGHT |*/ UDS_ARROWKEYS | UDS_NOTHOUSANDS | UDS_SETBUDDYINT | WS_CHILD | WS_VISIBLE, 100, 59, _GetSystemMetrics( SM_CXVSCROLL ), 22, hWnd, NULL, NULL, NULL );
 
 			_SendMessageW( g_hWnd_default_download_parts, EM_LIMITTEXT, 3, 0 );
 			_SendMessageW( hWnd_ud_download_parts, UDM_SETBUDDY, ( WPARAM )g_hWnd_default_download_parts, 0 );
@@ -1055,11 +1060,11 @@ LRESULT CALLBACK ConnectionTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 			_SendMessageW( hWnd_ud_download_parts, UDM_SETPOS, 0, cfg_default_download_parts );
 
 
-			HWND hWnd_static_retry_parts_count = _CreateWindowW( WC_STATIC, ST_Retry_incomplete_parts_, WS_CHILD | WS_VISIBLE, 150, 45, 150, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_retry_parts_count = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 150, 60, 85, 20, hWnd, ( HMENU )EDIT_RETRY_PARTS_COUNT, NULL, NULL );
+			HWND hWnd_static_retry_parts_count = _CreateWindowW( WC_STATIC, ST_V_Retry_incomplete_parts_, WS_CHILD | WS_VISIBLE, 200, 45, 190, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_retry_parts_count = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 200, 60, 100, 20, hWnd, ( HMENU )EDIT_RETRY_PARTS_COUNT, NULL, NULL );
 
 			// Keep this unattached. Looks ugly inside the text box.
-			HWND hWnd_ud_retry_parts_count = _CreateWindowW( UPDOWN_CLASS, NULL, /*UDS_ALIGNRIGHT |*/ UDS_ARROWKEYS | UDS_NOTHOUSANDS | UDS_SETBUDDYINT | WS_CHILD | WS_VISIBLE, 235, 59, _GetSystemMetrics( SM_CXVSCROLL ), 22, hWnd, NULL, NULL, NULL );
+			HWND hWnd_ud_retry_parts_count = _CreateWindowW( UPDOWN_CLASS, NULL, /*UDS_ALIGNRIGHT |*/ UDS_ARROWKEYS | UDS_NOTHOUSANDS | UDS_SETBUDDYINT | WS_CHILD | WS_VISIBLE, 300, 59, _GetSystemMetrics( SM_CXVSCROLL ), 22, hWnd, NULL, NULL, NULL );
 
 			_SendMessageW( g_hWnd_retry_parts_count, EM_LIMITTEXT, 3, 0 );
 			_SendMessageW( hWnd_ud_retry_parts_count, UDM_SETBUDDY, ( WPARAM )g_hWnd_retry_parts_count, 0 );
@@ -1069,11 +1074,11 @@ LRESULT CALLBACK ConnectionTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 
 			//
 
-			HWND hWnd_static_timeout = _CreateWindowW( WC_STATIC, ST_Timeout__seconds__, WS_CHILD | WS_VISIBLE, 0, 90, 150, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_timeout = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 105, 85, 20, hWnd, ( HMENU )EDIT_TIMEOUT, NULL, NULL );
+			HWND hWnd_static_timeout = _CreateWindowW( WC_STATIC, ST_V_Timeout__seconds__, WS_CHILD | WS_VISIBLE, 0, 90, 190, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_timeout = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 105, 100, 20, hWnd, ( HMENU )EDIT_TIMEOUT, NULL, NULL );
 
 			// Keep this unattached. Looks ugly inside the text box.
-			HWND hWnd_ud_timeout = _CreateWindowW( UPDOWN_CLASS, NULL, /*UDS_ALIGNRIGHT |*/ UDS_ARROWKEYS | UDS_NOTHOUSANDS | UDS_SETBUDDYINT | WS_CHILD | WS_VISIBLE, 85, 104, _GetSystemMetrics( SM_CXVSCROLL ), 22, hWnd, NULL, NULL, NULL );
+			HWND hWnd_ud_timeout = _CreateWindowW( UPDOWN_CLASS, NULL, /*UDS_ALIGNRIGHT |*/ UDS_ARROWKEYS | UDS_NOTHOUSANDS | UDS_SETBUDDYINT | WS_CHILD | WS_VISIBLE, 100, 104, _GetSystemMetrics( SM_CXVSCROLL ), 22, hWnd, NULL, NULL, NULL );
 
 			_SendMessageW( g_hWnd_timeout, EM_LIMITTEXT, 3, 0 );
 			_SendMessageW( hWnd_ud_timeout, UDM_SETBUDDY, ( WPARAM )g_hWnd_timeout, 0 );
@@ -1086,11 +1091,11 @@ LRESULT CALLBACK ConnectionTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 			}
 
 
-			HWND hWnd_static_max_redirects = _CreateWindowW( WC_STATIC, ST_Maximum_redirects_, WS_CHILD | WS_VISIBLE, 150, 90, 150, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_max_redirects = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 150, 105, 85, 20, hWnd, ( HMENU )EDIT_MAX_REDIRECTS, NULL, NULL );
+			HWND hWnd_static_max_redirects = _CreateWindowW( WC_STATIC, ST_V_Maximum_redirects_, WS_CHILD | WS_VISIBLE, 200, 90, 190, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_max_redirects = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 200, 105, 100, 20, hWnd, ( HMENU )EDIT_MAX_REDIRECTS, NULL, NULL );
 
 			// Keep this unattached. Looks ugly inside the text box.
-			HWND hWnd_ud_max_redirects = _CreateWindowW( UPDOWN_CLASS, NULL, /*UDS_ALIGNRIGHT |*/ UDS_ARROWKEYS | UDS_NOTHOUSANDS | UDS_SETBUDDYINT | WS_CHILD | WS_VISIBLE, 235, 104, _GetSystemMetrics( SM_CXVSCROLL ), 22, hWnd, NULL, NULL, NULL );
+			HWND hWnd_ud_max_redirects = _CreateWindowW( UPDOWN_CLASS, NULL, /*UDS_ALIGNRIGHT |*/ UDS_ARROWKEYS | UDS_NOTHOUSANDS | UDS_SETBUDDYINT | WS_CHILD | WS_VISIBLE, 300, 104, _GetSystemMetrics( SM_CXVSCROLL ), 22, hWnd, NULL, NULL, NULL );
 
 			_SendMessageW( g_hWnd_max_redirects, EM_LIMITTEXT, 3, 0 );
 			_SendMessageW( hWnd_ud_max_redirects, UDM_SETBUDDY, ( WPARAM )g_hWnd_max_redirects, 0 );
@@ -1100,78 +1105,78 @@ LRESULT CALLBACK ConnectionTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 
 			//
 
-			HWND hWnd_static_ssl_version = _CreateWindowW( WC_STATIC, ST_Default_SSL___TLS_version_, WS_CHILD | WS_VISIBLE, 0, 135, 150, 15, hWnd, NULL, NULL, NULL );
+			HWND hWnd_static_ssl_version = _CreateWindowW( WC_STATIC, ST_V_Default_SSL___TLS_version_, WS_CHILD | WS_VISIBLE, 0, 135, rc.right - 10, 15, hWnd, NULL, NULL, NULL );
 			g_hWnd_default_ssl_version = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_COMBOBOX, NULL, CBS_AUTOHSCROLL | CBS_DROPDOWNLIST | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE, 0, 150, 100, 20, hWnd, ( HMENU )CB_DEFAULT_SSL_VERSION, NULL, NULL );
-			_SendMessageW( g_hWnd_default_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_SSL_2_0 );
-			_SendMessageW( g_hWnd_default_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_SSL_3_0 );
-			_SendMessageW( g_hWnd_default_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_TLS_1_0 );
-			_SendMessageW( g_hWnd_default_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_TLS_1_1 );
-			_SendMessageW( g_hWnd_default_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_TLS_1_2 );
+			_SendMessageW( g_hWnd_default_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_V_SSL_2_0 );
+			_SendMessageW( g_hWnd_default_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_V_SSL_3_0 );
+			_SendMessageW( g_hWnd_default_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_V_TLS_1_0 );
+			_SendMessageW( g_hWnd_default_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_V_TLS_1_1 );
+			_SendMessageW( g_hWnd_default_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_V_TLS_1_2 );
 
 			_SendMessageW( g_hWnd_default_ssl_version, CB_SETCURSEL, cfg_default_ssl_version, 0 );
 
 			//
 
-			g_hWnd_chk_enable_server = _CreateWindowW( WC_BUTTON, ST_Enable_server_, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 180, 200, 20, hWnd, ( HMENU )BTN_ENABLE_SERVER, NULL, NULL );
+			g_hWnd_chk_enable_server = _CreateWindowW( WC_BUTTON, ST_V_Enable_server_, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 180, rc.right - 10, 20, hWnd, ( HMENU )BTN_ENABLE_SERVER, NULL, NULL );
 
 			g_hWnd_static_hoz1 = _CreateWindowW( WC_STATIC, NULL, SS_ETCHEDHORZ | WS_CHILD | WS_VISIBLE, 0, 205, rc.right - 10, 5, hWnd, NULL, NULL, NULL );
 
-			g_hWnd_chk_type_server_hostname = _CreateWindowW( WC_BUTTON, ST_Hostname___IPv6_address_, BS_AUTORADIOBUTTON | WS_CHILD | WS_GROUP | WS_TABSTOP | WS_VISIBLE, 0, 210, 150, 20, hWnd, ( HMENU )BTN_TYPE_SERVER_HOST, NULL, NULL );
-			g_hWnd_chk_type_server_ip_address = _CreateWindowW( WC_BUTTON, ST_IPv4_address_, BS_AUTORADIOBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 150, 210, 95, 20, hWnd, ( HMENU )BTN_TYPE_SERVER_IP_ADDRESS, NULL, NULL );
+			g_hWnd_chk_type_server_hostname = _CreateWindowW( WC_BUTTON, ST_V_Hostname___IPv6_address_, BS_AUTORADIOBUTTON | WS_CHILD | WS_GROUP | WS_TABSTOP | WS_VISIBLE, 0, 210, 200, 20, hWnd, ( HMENU )BTN_TYPE_SERVER_HOST, NULL, NULL );
+			g_hWnd_chk_type_server_ip_address = _CreateWindowW( WC_BUTTON, ST_V_IPv4_address_, BS_AUTORADIOBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 205, 210, 110, 20, hWnd, ( HMENU )BTN_TYPE_SERVER_IP_ADDRESS, NULL, NULL );
 
-			g_hWnd_server_hostname = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 230, 235, 20, hWnd, ( HMENU )EDIT_SERVER_HOST, NULL, NULL );
-			g_hWnd_server_ip_address = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_IPADDRESS, NULL, WS_CHILD | WS_TABSTOP, 0, 230, 235, 20, hWnd, ( HMENU )EDIT_SERVER_IP_ADDRESS, NULL, NULL );
-
-
-			g_hWnd_static_server_colon = _CreateWindowW( WC_STATIC, ST__, WS_CHILD | WS_VISIBLE, 239, 232, 75, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_server_hostname = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 230, 310, 20, hWnd, ( HMENU )EDIT_SERVER_HOST, NULL, NULL );
+			g_hWnd_server_ip_address = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_IPADDRESS, NULL, WS_CHILD | WS_TABSTOP, 0, 230, 310, 20, hWnd, ( HMENU )EDIT_SERVER_IP_ADDRESS, NULL, NULL );
 
 
-			g_hWnd_static_server_port = _CreateWindowW( WC_STATIC, ST_Port_, WS_CHILD | WS_VISIBLE, 245, 215, 75, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_server_port = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 245, 230, 60, 20, hWnd, ( HMENU )EDIT_SERVER_PORT, NULL, NULL );
-
-			g_hWnd_chk_use_authentication = _CreateWindowW( WC_BUTTON, ST_Require_authentication_, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 260, 200, 20, hWnd, ( HMENU )BTN_USE_AUTHENTICATION, NULL, NULL );
-
-			g_hWnd_chk_authentication_type_basic = _CreateWindowW( WC_BUTTON, ST_Basic_Authentication, BS_AUTORADIOBUTTON | WS_CHILD | WS_GROUP | WS_TABSTOP | WS_VISIBLE, 15, 282, 135, 20, hWnd, ( HMENU )BTN_AUTH_TYPE_BASIC, NULL, NULL );
-			g_hWnd_chk_authentication_type_digest = _CreateWindowW( WC_BUTTON, ST_Digest_Authentication, BS_AUTORADIOBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 150, 282, 135, 20, hWnd, ( HMENU )BTN_AUTH_TYPE_DIGEST, NULL, NULL );
-
-			g_hWnd_static_authentication_username = _CreateWindowW( WC_STATIC, ST_Username_, WS_CHILD | WS_VISIBLE, 15, 305, 90, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_authentication_username = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 15, 320, 100, 20, hWnd, ( HMENU )EDIT_AUTHENTICATION_USERNAME, NULL, NULL );
-
-			g_hWnd_static_authentication_password = _CreateWindowW( WC_STATIC, ST_Password_, WS_CHILD | WS_VISIBLE, 120, 305, 90, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_authentication_password = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_PASSWORD | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 120, 320, 100, 20, hWnd, ( HMENU )EDIT_AUTHENTICATION_PASSWORD, NULL, NULL );
+			g_hWnd_static_server_colon = _CreateWindowW( WC_STATIC, ST_V__, WS_CHILD | WS_VISIBLE, 314, 232, 75, 15, hWnd, NULL, NULL, NULL );
 
 
-			g_hWnd_chk_server_enable_ssl = _CreateWindowW( WC_BUTTON, ST_Enable_SSL___TLS_, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 350, 150, 20, hWnd, ( HMENU )BTN_SERVER_ENABLE_SSL, NULL, NULL );
+			g_hWnd_static_server_port = _CreateWindowW( WC_STATIC, ST_V_Port_, WS_CHILD | WS_VISIBLE, 320, 215, 75, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_server_port = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 320, 230, 75, 20, hWnd, ( HMENU )EDIT_SERVER_PORT, NULL, NULL );
+
+			g_hWnd_chk_use_authentication = _CreateWindowW( WC_BUTTON, ST_V_Require_authentication_, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 260, rc.right - 10, 20, hWnd, ( HMENU )BTN_USE_AUTHENTICATION, NULL, NULL );
+
+			g_hWnd_chk_authentication_type_basic = _CreateWindowW( WC_BUTTON, ST_V_Basic_Authentication, BS_AUTORADIOBUTTON | WS_CHILD | WS_GROUP | WS_TABSTOP | WS_VISIBLE, 15, 282, 150, 20, hWnd, ( HMENU )BTN_AUTH_TYPE_BASIC, NULL, NULL );
+			g_hWnd_chk_authentication_type_digest = _CreateWindowW( WC_BUTTON, ST_V_Digest_Authentication, BS_AUTORADIOBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 170, 282, 150, 20, hWnd, ( HMENU )BTN_AUTH_TYPE_DIGEST, NULL, NULL );
+
+			g_hWnd_static_authentication_username = _CreateWindowW( WC_STATIC, ST_V_Username_, WS_CHILD | WS_VISIBLE, 15, 305, 150, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_authentication_username = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 15, 320, 150, 20, hWnd, ( HMENU )EDIT_AUTHENTICATION_USERNAME, NULL, NULL );
+
+			g_hWnd_static_authentication_password = _CreateWindowW( WC_STATIC, ST_V_Password_, WS_CHILD | WS_VISIBLE, 175, 305, 150, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_authentication_password = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_PASSWORD | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 175, 320, 150, 20, hWnd, ( HMENU )EDIT_AUTHENTICATION_PASSWORD, NULL, NULL );
+
+
+			g_hWnd_chk_server_enable_ssl = _CreateWindowW( WC_BUTTON, ST_V_Enable_SSL___TLS_, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 350, rc.right - 10, 20, hWnd, ( HMENU )BTN_SERVER_ENABLE_SSL, NULL, NULL );
 
 			g_hWnd_static_hoz2 = _CreateWindowW( WC_STATIC, NULL, SS_ETCHEDHORZ | WS_CHILD | WS_VISIBLE, 0, 375, rc.right - 10, 5, hWnd, NULL, NULL, NULL );
 
 
-			g_hWnd_chk_type_pkcs = _CreateWindowW( WC_BUTTON, ST_PKCS_NUM12_, BS_AUTORADIOBUTTON | WS_CHILD | WS_GROUP | WS_TABSTOP | WS_VISIBLE, 0, 380, 90, 20, hWnd, ( HMENU )BTN_TYPE_PKCS, NULL, NULL );
-			g_hWnd_chk_type_pair = _CreateWindowW( WC_BUTTON, ST_Public___Private_key_pair_, BS_AUTORADIOBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 90, 380, 150, 20, hWnd, ( HMENU )BTN_TYPE_PAIR, NULL, NULL );
+			g_hWnd_chk_type_pkcs = _CreateWindowW( WC_BUTTON, ST_V_PKCS_NUM12_, BS_AUTORADIOBUTTON | WS_CHILD | WS_GROUP | WS_TABSTOP | WS_VISIBLE, 0, 380, 100, 20, hWnd, ( HMENU )BTN_TYPE_PKCS, NULL, NULL );
+			g_hWnd_chk_type_pair = _CreateWindowW( WC_BUTTON, ST_V_Public___Private_key_pair_, BS_AUTORADIOBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 110, 380, 250, 20, hWnd, ( HMENU )BTN_TYPE_PAIR, NULL, NULL );
 
 
-			g_hWnd_static_certificate_pkcs_location = _CreateWindowW( WC_STATIC, ST_PKCS_NUM12_file_, WS_CHILD | WS_VISIBLE, 15, 405, 150, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_static_certificate_pkcs_location = _CreateWindowW( WC_STATIC, ST_V_PKCS_NUM12_file_, WS_CHILD | WS_VISIBLE, 15, 405, rc.right - 65, 15, hWnd, NULL, NULL, NULL );
 			g_hWnd_certificate_pkcs_location = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_READONLY | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 15, 420, rc.right - 65, 20, hWnd, ( HMENU )EDIT_CERTIFICATE_PKCS, NULL, NULL );
-			g_hWnd_btn_certificate_pkcs_location = _CreateWindowW( WC_BUTTON, ST_BTN___, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 45, 420, 35, 20, hWnd, ( HMENU )BTN_CERTIFICATE_PKCS, NULL, NULL );
+			g_hWnd_btn_certificate_pkcs_location = _CreateWindowW( WC_BUTTON, ST_V_BTN___, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 45, 420, 35, 20, hWnd, ( HMENU )BTN_CERTIFICATE_PKCS, NULL, NULL );
 
-			g_hWnd_static_certificate_pkcs_password = _CreateWindowW( WC_STATIC, ST_PKCS_NUM12_password_, WS_CHILD | WS_VISIBLE, 15, 445, 150, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_static_certificate_pkcs_password = _CreateWindowW( WC_STATIC, ST_V_PKCS_NUM12_password_, WS_CHILD | WS_VISIBLE, 15, 445, rc.right - 65, 15, hWnd, NULL, NULL, NULL );
 			g_hWnd_certificate_pkcs_password = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_PASSWORD | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 15, 460, rc.right - 65, 20, hWnd, ( HMENU )EDIT_CERTIFICATE_PKCS_PASSWORD, NULL, NULL );
 
-			g_hWnd_static_certificate_cer_location = _CreateWindowW( WC_STATIC, ST_Certificate_file_, WS_CHILD | WS_VISIBLE, 15, 405, 150, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_static_certificate_cer_location = _CreateWindowW( WC_STATIC, ST_V_Certificate_file_, WS_CHILD | WS_VISIBLE, 15, 405, rc.right - 65, 15, hWnd, NULL, NULL, NULL );
 			g_hWnd_certificate_cer_location = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_READONLY | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 15, 420, rc.right - 65, 20, hWnd, ( HMENU )EDIT_CERTIFICATE_CER, NULL, NULL );
-			g_hWnd_btn_certificate_cer_location = _CreateWindowW( WC_BUTTON, ST_BTN___, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 45, 420, 35, 20, hWnd, ( HMENU )BTN_CERTIFICATE_CER, NULL, NULL );
+			g_hWnd_btn_certificate_cer_location = _CreateWindowW( WC_BUTTON, ST_V_BTN___, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 45, 420, 35, 20, hWnd, ( HMENU )BTN_CERTIFICATE_CER, NULL, NULL );
 
-			g_hWnd_static_certificate_key_location = _CreateWindowW( WC_STATIC, ST_Key_file_, WS_CHILD | WS_VISIBLE, 15, 445, 150, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_static_certificate_key_location = _CreateWindowW( WC_STATIC, ST_V_Key_file_, WS_CHILD | WS_VISIBLE, 15, 445, rc.right - 65, 15, hWnd, NULL, NULL, NULL );
 			g_hWnd_certificate_key_location = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_READONLY | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 15, 460, rc.right - 65, 20, hWnd, ( HMENU )EDIT_CERTIFICATE_KEY, NULL, NULL );
-			g_hWnd_btn_certificate_key_location = _CreateWindowW( WC_BUTTON, ST_BTN___, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 45, 460, 35, 20, hWnd, ( HMENU )BTN_CERTIFICATE_KEY, NULL, NULL );
+			g_hWnd_btn_certificate_key_location = _CreateWindowW( WC_BUTTON, ST_V_BTN___, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 45, 460, 35, 20, hWnd, ( HMENU )BTN_CERTIFICATE_KEY, NULL, NULL );
 
-			g_hWnd_static_server_ssl_version = _CreateWindowW( WC_STATIC, ST_Server_SSL___TLS_version_, WS_CHILD | WS_VISIBLE, 0, 490, 150, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_static_server_ssl_version = _CreateWindowW( WC_STATIC, ST_V_Server_SSL___TLS_version_, WS_CHILD | WS_VISIBLE, 0, 490, rc.right - 10, 15, hWnd, NULL, NULL, NULL );
 			g_hWnd_server_ssl_version = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_COMBOBOX, NULL, CBS_AUTOHSCROLL | CBS_DROPDOWNLIST | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE, 0, 505, 100, 20, hWnd, ( HMENU )CB_SERVER_SSL_VERSION, NULL, NULL );
-			_SendMessageW( g_hWnd_server_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_SSL_2_0 );
-			_SendMessageW( g_hWnd_server_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_SSL_3_0 );
-			_SendMessageW( g_hWnd_server_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_TLS_1_0 );
-			_SendMessageW( g_hWnd_server_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_TLS_1_1 );
-			_SendMessageW( g_hWnd_server_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_TLS_1_2 );
+			_SendMessageW( g_hWnd_server_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_V_SSL_2_0 );
+			_SendMessageW( g_hWnd_server_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_V_SSL_3_0 );
+			_SendMessageW( g_hWnd_server_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_V_TLS_1_0 );
+			_SendMessageW( g_hWnd_server_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_V_TLS_1_1 );
+			_SendMessageW( g_hWnd_server_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_V_TLS_1_2 );
 
 			_SendMessageW( g_hWnd_server_hostname, EM_LIMITTEXT, 254, 0 );
 			_SendMessageW( g_hWnd_server_port, EM_LIMITTEXT, 5, 0 );
@@ -1180,7 +1185,7 @@ LRESULT CALLBACK ConnectionTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 			//
 
 			connection_tab_scroll_pos = 0;
-			connection_tab_height = ( rc.bottom - rc.top ) + 230;
+			connection_tab_height = ( rc.bottom - rc.top ) + 195;	// Needs 10px more padding for Windows 10.
 
 			SCROLLINFO si;
 			si.cbSize = sizeof( SCROLLINFO );
@@ -1769,7 +1774,7 @@ LRESULT CALLBACK ConnectionTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 					ofn.lStructSize = sizeof( OPENFILENAME );
 					ofn.hwndOwner = hWnd;
 					ofn.lpstrFilter = L"Personal Information Exchange (*.pfx;*.p12)\0*.pfx;*.p12\0All Files (*.*)\0*.*\0";
-					ofn.lpstrTitle = ST_Load_PKCS_NUM12_File;
+					ofn.lpstrTitle = ST_V_Load_PKCS_NUM12_File;
 					ofn.lpstrFile = file_name;
 					ofn.nMaxFile = MAX_PATH;
 					ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_READONLY;
@@ -1811,7 +1816,7 @@ LRESULT CALLBACK ConnectionTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 					ofn.lStructSize = sizeof( OPENFILENAME );
 					ofn.hwndOwner = hWnd;
 					ofn.lpstrFilter = L"X.509 Certificate (*.cer;*.crt)\0*.cer;*.crt\0All Files (*.*)\0*.*\0";
-					ofn.lpstrTitle = ST_Load_X_509_Certificate_File;
+					ofn.lpstrTitle = ST_V_Load_X_509_Certificate_File;
 					ofn.lpstrFile = file_name;
 					ofn.nMaxFile = MAX_PATH;
 					ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_READONLY;
@@ -1853,7 +1858,7 @@ LRESULT CALLBACK ConnectionTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 					ofn.lStructSize = sizeof( OPENFILENAME );
 					ofn.hwndOwner = hWnd;
 					ofn.lpstrFilter = L"Private Key (*.key)\0*.key\0All Files (*.*)\0*.*\0";
-					ofn.lpstrTitle = ST_Load_Private_Key_File;
+					ofn.lpstrTitle = ST_V_Load_Private_Key_File;
 					ofn.lpstrFile = file_name;
 					ofn.nMaxFile = MAX_PATH;
 					ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_READONLY;
@@ -1936,28 +1941,28 @@ LRESULT CALLBACK ProxyTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPa
 
 			//
 
-			g_hWnd_chk_proxy = _CreateWindowW( WC_BUTTON, ST_Enable_HTTP_proxy_, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 200, 20, hWnd, ( HMENU )BTN_PROXY, NULL, NULL );
+			g_hWnd_chk_proxy = _CreateWindowW( WC_BUTTON, ST_V_Enable_HTTP_proxy_, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, rc.right, 20, hWnd, ( HMENU )BTN_PROXY, NULL, NULL );
 
 
-			g_hWnd_chk_type_hostname = _CreateWindowW( WC_BUTTON, ST_Hostname___IPv6_address_, BS_AUTORADIOBUTTON | WS_CHILD | WS_GROUP | WS_TABSTOP | WS_VISIBLE, 0, 20, 150, 20, hWnd, ( HMENU )BTN_TYPE_HOST, NULL, NULL );
-			g_hWnd_chk_type_ip_address = _CreateWindowW( WC_BUTTON, ST_IPv4_address_, BS_AUTORADIOBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 150, 20, 95, 20, hWnd, ( HMENU )BTN_TYPE_IP_ADDRESS, NULL, NULL );
+			g_hWnd_chk_type_hostname = _CreateWindowW( WC_BUTTON, ST_V_Hostname___IPv6_address_, BS_AUTORADIOBUTTON | WS_CHILD | WS_GROUP | WS_TABSTOP | WS_VISIBLE, 0, 20, 200, 20, hWnd, ( HMENU )BTN_TYPE_HOST, NULL, NULL );
+			g_hWnd_chk_type_ip_address = _CreateWindowW( WC_BUTTON, ST_V_IPv4_address_, BS_AUTORADIOBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 205, 20, 110, 20, hWnd, ( HMENU )BTN_TYPE_IP_ADDRESS, NULL, NULL );
 
-			g_hWnd_hostname = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 40, 235, 20, hWnd, ( HMENU )EDIT_HOST, NULL, NULL );
-			g_hWnd_ip_address = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_IPADDRESS, NULL, WS_CHILD | WS_TABSTOP, 0, 40, 235, 20, hWnd, ( HMENU )EDIT_IP_ADDRESS, NULL, NULL );
-
-
-			g_hWnd_static_colon = _CreateWindowW( WC_STATIC, ST__, WS_CHILD | WS_VISIBLE, 239, 42, 75, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_hostname = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 40, 310, 20, hWnd, ( HMENU )EDIT_HOST, NULL, NULL );
+			g_hWnd_ip_address = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_IPADDRESS, NULL, WS_CHILD | WS_TABSTOP, 0, 40, 310, 20, hWnd, ( HMENU )EDIT_IP_ADDRESS, NULL, NULL );
 
 
-			g_hWnd_static_port = _CreateWindowW( WC_STATIC, ST_Port_, WS_CHILD | WS_VISIBLE, 245, 25, 60, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_port = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 245, 40, 60, 20, hWnd, ( HMENU )EDIT_PORT, NULL, NULL );
+			g_hWnd_static_colon = _CreateWindowW( WC_STATIC, ST_V__, WS_CHILD | WS_VISIBLE, 314, 42, 75, 15, hWnd, NULL, NULL, NULL );
 
 
-			g_hWnd_static_auth_username = _CreateWindowW( WC_STATIC, ST_Username_, WS_CHILD | WS_VISIBLE, 0, 65, 100, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_auth_username = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 80, 100, 20, hWnd, ( HMENU )( HMENU )EDIT_AUTH_USERNAME, NULL, NULL );
+			g_hWnd_static_port = _CreateWindowW( WC_STATIC, ST_V_Port_, WS_CHILD | WS_VISIBLE, 320, 25, 75, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_port = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 320, 40, 75, 20, hWnd, ( HMENU )EDIT_PORT, NULL, NULL );
 
-			g_hWnd_static_auth_password = _CreateWindowW( WC_STATIC, ST_Password_, WS_CHILD | WS_VISIBLE, 110, 65, 100, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_auth_password = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_PASSWORD | ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 110, 80, 100, 20, hWnd, ( HMENU )( HMENU )EDIT_AUTH_PASSWORD, NULL, NULL );
+
+			g_hWnd_static_auth_username = _CreateWindowW( WC_STATIC, ST_V_Username_, WS_CHILD | WS_VISIBLE, 0, 65, 150, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_auth_username = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 80, 150, 20, hWnd, ( HMENU )( HMENU )EDIT_AUTH_USERNAME, NULL, NULL );
+
+			g_hWnd_static_auth_password = _CreateWindowW( WC_STATIC, ST_V_Password_, WS_CHILD | WS_VISIBLE, 160, 65, 150, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_auth_password = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_PASSWORD | ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 160, 80, 150, 20, hWnd, ( HMENU )( HMENU )EDIT_AUTH_PASSWORD, NULL, NULL );
 
 
 			_SendMessageW( g_hWnd_hostname, EM_LIMITTEXT, 254, 0 );
@@ -1970,28 +1975,28 @@ LRESULT CALLBACK ProxyTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPa
 
 			//
 
-			g_hWnd_chk_proxy_s = _CreateWindowW( WC_BUTTON, ST_Enable_HTTPS_proxy_, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 120, 200, 20, hWnd, ( HMENU )BTN_PROXY_S, NULL, NULL );
+			g_hWnd_chk_proxy_s = _CreateWindowW( WC_BUTTON, ST_V_Enable_HTTPS_proxy_, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 120, rc.right, 20, hWnd, ( HMENU )BTN_PROXY_S, NULL, NULL );
 
 
-			g_hWnd_chk_type_hostname_s = _CreateWindowW( WC_BUTTON, ST_Hostname___IPv6_address_, BS_AUTORADIOBUTTON | WS_CHILD | WS_GROUP | WS_TABSTOP | WS_VISIBLE, 0, 140, 150, 20, hWnd, ( HMENU )BTN_TYPE_HOST_S, NULL, NULL );
-			g_hWnd_chk_type_ip_address_s = _CreateWindowW( WC_BUTTON, ST_IPv4_address_, BS_AUTORADIOBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 150, 140, 95, 20, hWnd, ( HMENU )BTN_TYPE_IP_ADDRESS_S, NULL, NULL );
+			g_hWnd_chk_type_hostname_s = _CreateWindowW( WC_BUTTON, ST_V_Hostname___IPv6_address_, BS_AUTORADIOBUTTON | WS_CHILD | WS_GROUP | WS_TABSTOP | WS_VISIBLE, 0, 140, 200, 20, hWnd, ( HMENU )BTN_TYPE_HOST_S, NULL, NULL );
+			g_hWnd_chk_type_ip_address_s = _CreateWindowW( WC_BUTTON, ST_V_IPv4_address_, BS_AUTORADIOBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 205, 140, 110, 20, hWnd, ( HMENU )BTN_TYPE_IP_ADDRESS_S, NULL, NULL );
 
-			g_hWnd_hostname_s = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 160, 235, 20, hWnd, ( HMENU )EDIT_HOST_S, NULL, NULL );
-			g_hWnd_ip_address_s = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_IPADDRESS, NULL, WS_CHILD | WS_TABSTOP, 0, 160, 235, 20, hWnd, ( HMENU )EDIT_IP_ADDRESS_S, NULL, NULL );
-
-
-			g_hWnd_static_colon_s = _CreateWindowW( WC_STATIC, ST__, WS_CHILD | WS_VISIBLE, 239, 162, 75, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_hostname_s = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 160, 310, 20, hWnd, ( HMENU )EDIT_HOST_S, NULL, NULL );
+			g_hWnd_ip_address_s = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_IPADDRESS, NULL, WS_CHILD | WS_TABSTOP, 0, 160, 310, 20, hWnd, ( HMENU )EDIT_IP_ADDRESS_S, NULL, NULL );
 
 
-			g_hWnd_static_port_s = _CreateWindowW( WC_STATIC, ST_Port_, WS_CHILD | WS_VISIBLE, 245, 145, 60, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_port_s = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 245, 160, 60, 20, hWnd, ( HMENU )EDIT_PORT_S, NULL, NULL );
+			g_hWnd_static_colon_s = _CreateWindowW( WC_STATIC, ST_V__, WS_CHILD | WS_VISIBLE, 314, 162, 75, 15, hWnd, NULL, NULL, NULL );
 
 
-			g_hWnd_static_auth_username_s = _CreateWindowW( WC_STATIC, ST_Username_, WS_CHILD | WS_VISIBLE, 0, 185, 100, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_auth_username_s = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 200, 100, 20, hWnd, ( HMENU )( HMENU )EDIT_AUTH_USERNAME_S, NULL, NULL );
+			g_hWnd_static_port_s = _CreateWindowW( WC_STATIC, ST_V_Port_, WS_CHILD | WS_VISIBLE, 320, 145, 75, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_port_s = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 320, 160, 75, 20, hWnd, ( HMENU )EDIT_PORT_S, NULL, NULL );
 
-			g_hWnd_static_auth_password_s = _CreateWindowW( WC_STATIC, ST_Password_, WS_CHILD | WS_VISIBLE, 110, 185, 100, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_auth_password_s = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_PASSWORD | ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 110, 200, 100, 20, hWnd, ( HMENU )( HMENU )EDIT_AUTH_PASSWORD_S, NULL, NULL );
+
+			g_hWnd_static_auth_username_s = _CreateWindowW( WC_STATIC, ST_V_Username_, WS_CHILD | WS_VISIBLE, 0, 185, 150, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_auth_username_s = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 200, 150, 20, hWnd, ( HMENU )( HMENU )EDIT_AUTH_USERNAME_S, NULL, NULL );
+
+			g_hWnd_static_auth_password_s = _CreateWindowW( WC_STATIC, ST_V_Password_, WS_CHILD | WS_VISIBLE, 160, 185, 150, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_auth_password_s = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_PASSWORD | ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 160, 200, 150, 20, hWnd, ( HMENU )( HMENU )EDIT_AUTH_PASSWORD_S, NULL, NULL );
 
 
 			_SendMessageW( g_hWnd_hostname_s, EM_LIMITTEXT, 254, 0 );
@@ -2366,22 +2371,22 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			_memzero( &ti, sizeof( TCITEM ) );
 			ti.mask = TCIF_PARAM | TCIF_TEXT;	// The tab will have text and an lParam value.
 
-			ti.pszText = ( LPWSTR )ST_General;
+			ti.pszText = ( LPWSTR )ST_V_General;
 			ti.lParam = ( LPARAM )&g_hWnd_general_tab;
 			_SendMessageW( g_hWnd_options_tab, TCM_INSERTITEM, 0, ( LPARAM )&ti );	// Insert a new tab at the end.
 
-			ti.pszText = ( LPWSTR )ST_Connection;
+			ti.pszText = ( LPWSTR )ST_V_Connection;
 			ti.lParam = ( LPARAM )&g_hWnd_connection_tab;
 			_SendMessageW( g_hWnd_options_tab, TCM_INSERTITEM, 1, ( LPARAM )&ti );	// Insert a new tab at the end.
 
-			ti.pszText = ( LPWSTR )ST_Proxy;
+			ti.pszText = ( LPWSTR )ST_V_Proxy;
 			ti.lParam = ( LPARAM )&g_hWnd_proxy_tab;
 			_SendMessageW( g_hWnd_options_tab, TCM_INSERTITEM, 2, ( LPARAM )&ti );	// Insert a new tab at the end.
 
 
-			HWND g_hWnd_ok = _CreateWindowW( WC_BUTTON, ST_OK, BS_DEFPUSHBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 260, rc.bottom - 32, 80, 23, hWnd, ( HMENU )BTN_OK, NULL, NULL );
-			HWND g_hWnd_cancel = _CreateWindowW( WC_BUTTON, ST_Cancel, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 175, rc.bottom - 32, 80, 23, hWnd, ( HMENU )BTN_CANCEL, NULL, NULL );
-			g_hWnd_apply = _CreateWindowW( WC_BUTTON, ST_Apply, WS_CHILD | WS_DISABLED | WS_TABSTOP | WS_VISIBLE, rc.right - 90, rc.bottom - 32, 80, 23, hWnd, ( HMENU )BTN_APPLY, NULL, NULL );
+			HWND g_hWnd_ok = _CreateWindowW( WC_BUTTON, ST_V_OK, BS_DEFPUSHBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 260, rc.bottom - 32, 80, 23, hWnd, ( HMENU )BTN_OK, NULL, NULL );
+			HWND g_hWnd_cancel = _CreateWindowW( WC_BUTTON, ST_V_Cancel, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 175, rc.bottom - 32, 80, 23, hWnd, ( HMENU )BTN_CANCEL, NULL, NULL );
+			g_hWnd_apply = _CreateWindowW( WC_BUTTON, ST_V_Apply, WS_CHILD | WS_DISABLED | WS_TABSTOP | WS_VISIBLE, rc.right - 90, rc.bottom - 32, 80, 23, hWnd, ( HMENU )BTN_APPLY, NULL, NULL );
 
 
 			_SendMessageW( g_hWnd_options_tab, WM_SETFONT, ( WPARAM )hFont, 0 );
@@ -2433,6 +2438,8 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			_SendMessageW( g_hWnd_chk_use_one_instance, BM_SETCHECK, ( cfg_use_one_instance ? BST_CHECKED : BST_UNCHECKED ), 0 );
 
 			_SendMessageW( g_hWnd_chk_enable_drop_window, BM_SETCHECK, ( cfg_enable_drop_window ? BST_CHECKED : BST_UNCHECKED ), 0 );
+
+			_SendMessageW( g_hWnd_chk_download_immediately, BM_SETCHECK, ( cfg_download_immediately ? BST_CHECKED : BST_UNCHECKED ), 0 );
 
 			/*char value[ 11 ];
 
@@ -2628,6 +2635,7 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 						if ( g_hWnd_add_urls != NULL ){ _SetWindowPos( g_hWnd_add_urls, ( cfg_always_on_top ? HWND_TOPMOST : HWND_NOTOPMOST ), 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE ); }
 						if ( g_hWnd_options != NULL ){ _SetWindowPos( g_hWnd_options, ( cfg_always_on_top ? HWND_TOPMOST : HWND_NOTOPMOST ), 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE ); }
 						if ( g_hWnd_update_download != NULL ){ _SetWindowPos( g_hWnd_update_download, ( cfg_always_on_top ? HWND_TOPMOST : HWND_NOTOPMOST ), 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE ); }
+						if ( g_hWnd_search != NULL ){ _SetWindowPos( g_hWnd_search, ( cfg_always_on_top ? HWND_TOPMOST : HWND_NOTOPMOST ), 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE ); }
 					}
 
 					cfg_enable_download_history = ( _SendMessageW( g_hWnd_chk_download_history, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
@@ -2652,9 +2660,12 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 					{
 						if ( g_hWnd_url_drop_window == NULL )
 						{
-							g_hWnd_url_drop_window = _CreateWindowExW( WS_EX_NOPARENTNOTIFY | WS_EX_NOACTIVATE | WS_EX_TOPMOST, L"url_drop_window", NULL, WS_CLIPCHILDREN | WS_POPUP | WS_VISIBLE, cfg_drop_pos_x, cfg_drop_pos_y, 48, 48, NULL, NULL, NULL, NULL );
+							g_hWnd_url_drop_window = _CreateWindowExW( WS_EX_NOPARENTNOTIFY | WS_EX_NOACTIVATE | WS_EX_TOPMOST, L"url_drop_window", NULL, WS_CLIPCHILDREN | WS_POPUP, 0, 0, 0, 0, NULL, NULL, NULL, NULL );
 							_SetWindowLongW( g_hWnd_url_drop_window, GWL_EXSTYLE, _GetWindowLongW( g_hWnd_url_drop_window, GWL_EXSTYLE ) | WS_EX_LAYERED );
 							_SetLayeredWindowAttributes( g_hWnd_url_drop_window, 0, 0x80, LWA_ALPHA );
+
+							// Prevents it from stealing focus.
+							_SetWindowPos( g_hWnd_url_drop_window, HWND_TOPMOST, cfg_drop_pos_x, cfg_drop_pos_y, 48, 48, SWP_SHOWWINDOW | SWP_NOACTIVATE | SWP_NOOWNERZORDER );
 						}
 					}
 					else
@@ -2664,6 +2675,8 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 							_DestroyWindow( g_hWnd_url_drop_window );
 						}
 					}
+
+					cfg_download_immediately = ( _SendMessageW( g_hWnd_chk_download_immediately, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
 
 					char value[ 11 ];
 					_SendMessageA( g_hWnd_max_downloads, WM_GETTEXT, 11, ( LPARAM )value );
@@ -2891,15 +2904,15 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 					if ( display_notice == 1 )
 					{
-						_MessageBoxW( hWnd, ST_A_restart_is_required_allocation, PROGRAM_CAPTION, MB_APPLMODAL | MB_ICONINFORMATION );
+						_MessageBoxW( hWnd, ST_V_A_restart_is_required_allocation, PROGRAM_CAPTION, MB_APPLMODAL | MB_ICONINFORMATION );
 					}
 					else if ( display_notice == 2 )
 					{
-						_MessageBoxW( hWnd, ST_A_restart_is_required_threads, PROGRAM_CAPTION, MB_APPLMODAL | MB_ICONINFORMATION );
+						_MessageBoxW( hWnd, ST_V_A_restart_is_required_threads, PROGRAM_CAPTION, MB_APPLMODAL | MB_ICONINFORMATION );
 					}
 					else if ( display_notice > 2 )	// Multiple settings changed.
 					{
-						_MessageBoxW( hWnd, ST_A_restart_is_required, PROGRAM_CAPTION, MB_APPLMODAL | MB_ICONINFORMATION );
+						_MessageBoxW( hWnd, ST_V_A_restart_is_required, PROGRAM_CAPTION, MB_APPLMODAL | MB_ICONINFORMATION );
 					}
 
 					options_state_changed = false;

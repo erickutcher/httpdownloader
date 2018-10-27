@@ -1,0 +1,225 @@
+January
+February
+March
+April
+May
+June
+July
+August
+September
+October
+November
+December
+Sunday
+Monday
+Tuesday
+Wednesday
+Thursday
+Friday
+Saturday
+#
+Active Parts
+Date and Time Added
+Download Directory
+Download Speed
+Downloaded
+File Size
+File Type
+Filename
+Progress
+SSL / TLS Version
+Time Elapsed
+Time Remaining
+URL
+#
+&About
+Active Parts
+&Add URL(s)...\tCtrl+N
+Add URL(s)...
+Always on Top
+&Copy URL(s)\tCtrl+C
+Copy URL(s)
+Date and Time Added
+&Delete\tDel
+Delete
+Download Directory
+Download Speed
+Downloaded
+&Edit
+E&xit
+Exit
+&Export Download History...
+&File
+File Size
+File Type
+Filename
+&Help
+HTTP Downloader &Home Page
+&Import Download History...
+Move Down
+Move to Bottom
+Move to Top
+Move Up
+Open Directory
+Open File
+Open Download List
+&Options...\tCtrl+O
+Options...
+&Pause
+Pause
+Pause Active
+Progress
+Queue
+&Remove\tCtrl+R
+Remove
+Remove and Delete\tCtrl+Del
+Remove and Delete
+Remove Completed
+Rename\tF2
+Rename
+Restart
+&Save Download History...
+&Search...\tCtrl+S
+&Select All\tCtrl+A
+Select All
+SSL / TLS Version
+St&art
+Start
+&Status Bar
+St&op
+Stop
+Stop All
+Time Elapsed
+Time Remaining
+&Toolbar
+&Tools
+Update Download...
+URL
+&View
+:
+Active download limit:
+Allow only one instance of the program to run
+Always on top
+Apply
+Basic Authentication
+Certificate file:
+Close to System Tray
+Configure Proxies
+Connection
+Default download directory:
+Default download parts:
+Default SSL / TLS version:
+Digest Authentication
+Download drag and drop URL(s) immediately
+Enable download history
+Enable HTTP proxy
+Enable HTTPS proxy
+Enable quick file allocation (administrator access required)
+Enable server:
+Enable SSL / TLS:
+Enable System Tray icon:
+Enable URL drop window
+General
+Hostname / IPv6 address:
+IPv4 address:
+Key file:
+Load PKCS #12 File
+Load Private Key File
+Load X.509 Certificate File
+Maximum redirects:
+Minimize to System Tray
+OK
+PKCS #12:
+PKCS #12 file:
+PKCS #12 password:
+Port:
+Proxy
+Public / Private key pair:
+Require authentication:
+Retry incomplete downloads:
+Retry incomplete parts:
+Server SSL / TLS version:
+Set date and time of file from server response
+Thread pool count:
+Timeout (seconds):
+Advanced \xAB
+Advanced \xBB
+Authentication
+Cookies:
+Download
+Download directory:
+Download parts:
+Headers:
+Password:
+Send POST Data:
+Simulate download
+SSL / TLS version:
+URL(s):
+Username:
+Match case
+Match whole word
+Search
+Search All
+Search for:
+Search Next
+Search Type
+...
+[Simulated]
+Add URL(s)
+Added
+Allocating File
+Authorization Required
+Cancel
+Completed
+Connecting
+Download speed: 
+Download speed: 0 B/s
+Download speed: 0.00 GB/s
+Download speed: 0.00 KB/s
+Download speed: 0.00 MB/s
+Export Download History
+Failed
+File IO Error
+Import Download History
+Options
+Paused
+Proxy Authentication Required
+Queued
+Restarting
+Save Download History
+Skipped
+Stopped
+SSL 2.0
+SSL 3.0
+Timed Out
+TLS 1.0
+TLS 1.1
+TLS 1.2
+Total downloaded: 
+Total downloaded: 0 B
+Total downloaded: 0.00 GB
+Total downloaded: 0.00 KB
+Total downloaded: 0.00 MB
+URL:
+Update
+Update Download
+A restart is required for these changes to take effect.
+A restart is required to enable quick file allocation.
+A restart is required to update the thread pool count.
+Are you sure you want to delete the selected files?
+Are you sure you want to remove the completed entries?
+Are you sure you want to remove and delete the selected entries?
+Are you sure you want to remove the selected entries?
+Are you sure you want to restart the selected entries?
+One or more files are in use and cannot be deleted.
+One or more files were not found.
+Select the default download directory.
+Select the download directory.
+The download will be resumed after it's updated.
+The file is currently in use and cannot be deleted.
+The file is currently in use and cannot be renamed.
+The file(s) could not be imported because the format is incorrect.
+The specified file was not found.\r\n\r\nDo you want to download the file again?
+The specified path was not found.
+There is already a file with the same name in this location.
+You must supply a download directory.

@@ -96,6 +96,14 @@ struct ICON_INFO
 	unsigned int count;
 };
 
+struct SEARCH_INFO
+{
+	wchar_t *text;
+	unsigned char type;			// 0 = Filename, 1 = URL
+	unsigned char case_flag;	// 0x00 = None, 0x01 = Match case, 0x02 = Match whole word.
+	bool search_all;
+};
+
 union QFILETIME
 {
 	FILETIME ft;
@@ -109,6 +117,7 @@ extern HWND g_hWnd_main;				// Handle to our main window.
 extern HWND g_hWnd_add_urls;
 extern HWND g_hWnd_options;
 extern HWND g_hWnd_update_download;
+extern HWND g_hWnd_search;
 extern HWND g_hWnd_url_drop_window;
 
 extern HWND g_hWnd_toolbar;
@@ -219,6 +228,7 @@ extern bool cfg_enable_quick_allocation;
 extern bool cfg_set_filetime;
 extern bool cfg_use_one_instance;
 extern bool cfg_enable_drop_window;
+extern bool cfg_download_immediately;
 
 extern unsigned long cfg_thread_count;
 extern unsigned long g_max_threads;

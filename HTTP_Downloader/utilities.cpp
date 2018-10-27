@@ -37,9 +37,9 @@ int cfg_column_width7 = 110;
 int cfg_column_width8 = 25;
 int cfg_column_width9 = 200;
 int cfg_column_width10 = 200;
-int cfg_column_width11 = 90;
+int cfg_column_width11 = 100;
 int cfg_column_width12 = 90;
-int cfg_column_width13 = 100;
+int cfg_column_width13 = 90;
 int cfg_column_width14 = 1000;
 
 // Column (1-14) / Virtual position (0-13)
@@ -51,12 +51,12 @@ char cfg_column_order4 = 5;		// 3 Download Directory
 char cfg_column_order5 = 6;		// 4 Download Speed
 char cfg_column_order6 = 9;		// 5 Downloaded
 char cfg_column_order7 = 4;		// 6 File Size
-char cfg_column_order8 = 11;	// 7 File Type
+char cfg_column_order8 = 12;	// 7 File Type
 char cfg_column_order9 = 1;		// 8 Filename
-char cfg_column_order10 = 10;	// 9 Progress
-char cfg_column_order11 = 2;	// 10 Time Elapsed
-char cfg_column_order12 = 3;	// 11 Time Remaining
-char cfg_column_order13 = 12;	// 12 TLS/SSL Version
+char cfg_column_order10 = 11;	// 9 Progress
+char cfg_column_order11 = 2;	// 10 SSL / TLS Version
+char cfg_column_order12 = 3;	// 11 Time Elapsed
+char cfg_column_order13 = 10;	// 12 Time Remaining
 char cfg_column_order14 = 13;	// 13 URL
 
 bool cfg_show_toolbar = false;
@@ -82,6 +82,7 @@ bool cfg_enable_quick_allocation = false;
 bool cfg_set_filetime = false;
 bool cfg_use_one_instance = false;
 bool cfg_enable_drop_window = false;
+bool cfg_download_immediately = false;
 
 unsigned long cfg_thread_count = 1;	// Default is 1.
 unsigned long g_max_threads = 2;	// Default is 2.
@@ -206,7 +207,8 @@ wchar_t *GetMonth( unsigned short month )
 		return L"";
 	}
 
-	return month_string_table[ month - 1 ];
+	//return month_string_table[ month - 1 ].value;
+	return g_locale_table[ MONTH_STRING_TABLE_OFFSET + ( month - 1 ) ].value;
 }
 
 wchar_t *GetDay( unsigned short day )
@@ -216,7 +218,8 @@ wchar_t *GetDay( unsigned short day )
 		return L"";
 	}
 
-	return day_string_table[ day ];
+	//return day_string_table[ day ].value;
+	return g_locale_table[ DAY_STRING_TABLE_OFFSET + day ].value;
 }
 
 void UnixTimeToSystemTime( DWORD t, SYSTEMTIME *st )
@@ -298,12 +301,12 @@ void SetDefaultColumnOrder()
 	cfg_column_order5 = 6;		// 4 Download Speed
 	cfg_column_order6 = 9;		// 5 Downloaded
 	cfg_column_order7 = 4;		// 6 File Size
-	cfg_column_order8 = 11;		// 7 File Type
+	cfg_column_order8 = 12;		// 7 File Type
 	cfg_column_order9 = 1;		// 8 Filename
-	cfg_column_order10 = 10;	// 9 Progress
-	cfg_column_order11 = 2;		// 10 Time Elapsed
-	cfg_column_order12 = 3;		// 11 Time Remaining
-	cfg_column_order13 = 12;	// 12 TLS/SSL Version
+	cfg_column_order10 = 11;	// 9 Progress
+	cfg_column_order11 = 2;		// 10 SSL / TLS Version
+	cfg_column_order12 = 3;		// 11 Time Elapsed
+	cfg_column_order13 = 10;	// 12 Time Remaining
 	cfg_column_order14 = 13;	// 13 URL
 }
 
@@ -376,9 +379,9 @@ void CheckColumnWidths()
 	if ( cfg_column_width8 < 0 || cfg_column_width8 > 2560 ) { cfg_column_width8 = 25; }
 	if ( cfg_column_width9 < 0 || cfg_column_width9 > 2560 ) { cfg_column_width9 = 200; }
 	if ( cfg_column_width10 < 0 || cfg_column_width10 > 2560 ) { cfg_column_width10 = 200; }
-	if ( cfg_column_width11 < 0 || cfg_column_width11 > 2560 ) { cfg_column_width11 = 90; }
+	if ( cfg_column_width11 < 0 || cfg_column_width11 > 2560 ) { cfg_column_width11 = 100; }
 	if ( cfg_column_width12 < 0 || cfg_column_width12 > 2560 ) { cfg_column_width12 = 90; }
-	if ( cfg_column_width13 < 0 || cfg_column_width13 > 2560 ) { cfg_column_width13 = 100; }
+	if ( cfg_column_width13 < 0 || cfg_column_width13 > 2560 ) { cfg_column_width13 = 90; }
 	if ( cfg_column_width14 < 0 || cfg_column_width14 > 2560 ) { cfg_column_width14 = 1000; }
 }
 
@@ -1661,10 +1664,10 @@ void ConstructRequest( SOCKET_CONTEXT *context, bool use_connect )
 	else
 	{
 		request_length += __snprintf( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length,
-				"GET %s " \
+				"%s %s " \
 				"HTTP/1.1\r\n" \
 				"Host: %s\r\n"/* \
-				"Cache-Control: no-cache\r\n"*/, context->request_info.resource, context->request_info.host );
+				"Cache-Control: no-cache\r\n"*/, ( context->download_info != NULL && context->download_info->method == METHOD_POST ? "POST" : "GET" ), context->request_info.resource, context->request_info.host );
 
 		//_memcpy_s( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length, "Accept-Encoding: gzip, deflate\r\n\0", 33 );
 		//request_length += 32;
@@ -1746,7 +1749,7 @@ void ConstructRequest( SOCKET_CONTEXT *context, bool use_connect )
 					DWORD auth_key_length = 0;
 					CreateDigestAuthorizationKey( context->download_info->auth_info.username,
 												  context->download_info->auth_info.password,
-												  ( use_connect ? "CONNECT" : "GET" ),
+												  ( use_connect ? "CONNECT" : ( context->download_info->method == METHOD_POST ? "POST" : "GET" ) ),
 												  context->request_info.resource,
 												  context->header_info.digest_info,
 												  &auth_key,
@@ -1827,7 +1830,7 @@ void ConstructRequest( SOCKET_CONTEXT *context, bool use_connect )
 				DWORD auth_key_length = 0;
 				CreateDigestAuthorizationKey( proxy_auth_username,
 											  proxy_auth_password,
-											  ( use_connect ? "CONNECT" : "GET" ),
+											  ( use_connect ? "CONNECT" : ( context->download_info != NULL && context->download_info->method == METHOD_POST ? "POST" : "GET" ) ),
 											  context->request_info.resource,
 											  context->header_info.proxy_digest_info,
 											  &auth_key,
@@ -1850,6 +1853,19 @@ void ConstructRequest( SOCKET_CONTEXT *context, bool use_connect )
 		}
 	}
 
+	int post_data_length = 0;
+
+	if ( context->download_info != NULL && context->download_info->method == METHOD_POST )
+	{
+		post_data_length = lstrlenA( context->download_info->data );
+
+		request_length += __snprintf( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length,
+					"Content-Length: %lu\r\n", post_data_length );
+
+		_memcpy_s( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length, "Content-Type: application/x-www-form-urlencoded\r\n\0", 50 );
+		request_length += 49;
+	}
+
 	if ( context->parts > 1 )
 	{
 		_memcpy_s( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length, "Connection: keep-alive\r\n\r\n\0", 27 );
@@ -1861,6 +1877,11 @@ void ConstructRequest( SOCKET_CONTEXT *context, bool use_connect )
 		request_length += 21;
 	}
 
+	if ( context->download_info != NULL && context->download_info->method == METHOD_POST )
+	{
+		_memcpy_s( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length, context->download_info->data, post_data_length );
+		request_length += post_data_length;
+	}
+
 	context->wsabuf.len = request_length;
 }
-

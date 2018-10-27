@@ -39,11 +39,11 @@ char read_config()
 		DWORD read = 0, pos = 0;
 		DWORD fz = GetFileSize( hFile_cfg, NULL );
 
-		int reserved = 1024 - 156;
+		int reserved = 1024 - 157;
 
 		// Our config file is going to be small. If it's something else, we're not going to read it.
 		// Add 21 for the strings.
-		if ( fz >= ( 156 + 21 ) && fz < 10240 )
+		if ( fz >= ( 157 + 21 ) && fz < 10240 )
 		{
 			char *cfg_buf = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * fz + 1 );
 
@@ -254,6 +254,9 @@ char read_config()
 
 				_memcpy_s( &cfg_min_max, sizeof( unsigned char ), next, sizeof( unsigned char ) );
 				next += sizeof( unsigned char );
+
+				_memcpy_s( &cfg_download_immediately, sizeof( bool ), next, sizeof( bool ) );
+				next += sizeof( bool );
 
 				//
 
@@ -710,8 +713,8 @@ char save_config()
 	HANDLE hFile_cfg = CreateFile( base_directory, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL );
 	if ( hFile_cfg != INVALID_HANDLE_VALUE )
 	{
-		int reserved = 1024 - 156;
-		int size = ( sizeof( int ) * 20 ) + ( sizeof( unsigned short ) * 4 ) + ( sizeof( char ) * 36 ) + ( sizeof( bool ) * 16 ) + ( sizeof( unsigned long ) * 4 ) + reserved;
+		int reserved = 1024 - 157;
+		int size = ( sizeof( int ) * 20 ) + ( sizeof( unsigned short ) * 4 ) + ( sizeof( char ) * 36 ) + ( sizeof( bool ) * 17 ) + ( sizeof( unsigned long ) * 4 ) + reserved;
 		int pos = 0;
 
 		char *write_buf = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * size );
@@ -917,6 +920,9 @@ char save_config()
 
 		_memcpy_s( write_buf + pos, size - pos, &cfg_min_max, sizeof( unsigned char ) );
 		pos += sizeof( unsigned char );
+
+		_memcpy_s( write_buf + pos, size - pos, &cfg_download_immediately, sizeof( bool ) );
+		pos += sizeof( bool );
 
 		//
 
@@ -1214,10 +1220,11 @@ char read_download_history( wchar_t *file_path )
 		DoublyLinkedList	*range_list;
 		unsigned char		parts;
 		unsigned char		parts_limit;
-		unsigned short		status;
+		unsigned int		status;
 
 		char				*cookies;
 		char				*headers;
+		char				*data;
 
 		char				*username;
 		char				*password;
@@ -1226,6 +1233,7 @@ char read_download_history( wchar_t *file_path )
 
 		bool				processed_header;
 		unsigned char		download_operations;
+		unsigned char		method;
 
 		unsigned char range_count;
 
@@ -1246,11 +1254,13 @@ char read_download_history( wchar_t *file_path )
 				history_buf[ read ] = 0;	// Guarantee a NULL terminated buffer.
 
 				// Make sure that we have at least part of the entry. This is the minimum size an entry could be.
-				// Include 3 wide NULL strings and 2 char NULL strings.
+				// Include 3 wide NULL strings and 3 char NULL strings.
+				// Include 2 ints for username and password lengths.
 				// Include 1 unsigned char for range info.
-				if ( read < ( ( ( sizeof( int ) * 2 ) + sizeof( ULONGLONG ) + ( sizeof( unsigned long long ) * 2 ) + ( sizeof( unsigned char ) * 4 ) + sizeof( unsigned short ) + sizeof( bool ) ) +
-							  ( ( sizeof( wchar_t ) * 3 ) + ( sizeof( char ) * 2 ) ) +
-								  sizeof( unsigned char ) ) )
+				if ( read < ( ( sizeof( ULONGLONG ) + ( sizeof( unsigned long long ) * 2 ) + ( sizeof( unsigned char ) * 5 ) + sizeof( unsigned int ) + sizeof( bool ) ) +
+							( ( sizeof( wchar_t ) * 3 ) + ( sizeof( char ) * 3 ) ) +
+							  ( sizeof( int ) * 2 ) + 
+								sizeof( unsigned char ) ) )
 				{
 					break;
 				}
@@ -1278,6 +1288,7 @@ char read_download_history( wchar_t *file_path )
 					url = NULL;
 					cookies = NULL;
 					headers = NULL;
+					data = NULL;
 					username = NULL;
 					password = NULL;
 					range_list = NULL;
@@ -1313,10 +1324,10 @@ char read_download_history( wchar_t *file_path )
 					p += sizeof( unsigned char );
 
 					// Status
-					offset += sizeof( unsigned short );
+					offset += sizeof( unsigned int );
 					if ( offset >= read ) { goto CLEANUP; }
-					_memcpy_s( &status, sizeof( unsigned short ), p, sizeof( unsigned short ) );
-					p += sizeof( unsigned short );
+					_memcpy_s( &status, sizeof( unsigned int ), p, sizeof( unsigned int ) );
+					p += sizeof( unsigned int );
 
 					// SSL Version
 					offset += sizeof( char );
@@ -1334,6 +1345,12 @@ char read_download_history( wchar_t *file_path )
 					offset += sizeof( unsigned char );
 					if ( offset >= read ) { goto CLEANUP; }
 					_memcpy_s( &download_operations, sizeof( unsigned char ), p, sizeof( unsigned char ) );
+					p += sizeof( unsigned char );
+
+					// Method
+					offset += sizeof( unsigned char );
+					if ( offset >= read ) { goto CLEANUP; }
+					_memcpy_s( &method, sizeof( unsigned char ), p, sizeof( unsigned char ) );
 					p += sizeof( unsigned char );
 
 					// Download Directory
@@ -1398,6 +1415,22 @@ char read_download_history( wchar_t *file_path )
 						headers = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * string_length );
 						_memcpy_s( headers, string_length, p, string_length );
 						*( headers + ( string_length - 1 ) ) = 0;	// Sanity
+					}
+
+					p += string_length;
+
+					// Data
+					string_length = lstrlenA( ( char * )p ) + 1;
+
+					offset += string_length;
+					if ( offset >= read ) { goto CLEANUP; }
+
+					// Let's not allocate an empty string.
+					if ( string_length > 1 )
+					{
+						data = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * string_length );
+						_memcpy_s( data, string_length, p, string_length );
+						*( data + ( string_length - 1 ) ) = 0;	// Sanity
 					}
 
 					p += string_length;
@@ -1496,9 +1529,11 @@ char read_download_history( wchar_t *file_path )
 					di->ssl_version = ssl_version;
 					di->processed_header = processed_header;
 					di->download_operations = download_operations;
+					di->method = method;
 					di->url = url;
 					di->cookies = cookies;
 					di->headers = headers;
+					di->data = data;
 					di->auth_info.username = username;
 					di->auth_info.password = password;
 
@@ -1546,9 +1581,10 @@ char read_download_history( wchar_t *file_path )
 
 					LVITEM lvi;
 					_memzero( &lvi, sizeof( LVITEM ) );
-					lvi.mask = LVIF_PARAM;
+					lvi.mask = LVIF_PARAM | LVIF_TEXT;
 					lvi.iItem = _SendMessageW( g_hWnd_files, LVM_GETITEMCOUNT, 0, 0 );
 					lvi.lParam = ( LPARAM )di;
+					lvi.pszText = di->file_path + di->filename_offset;
 					_SendMessageW( g_hWnd_files, LVM_INSERTITEM, 0, ( LPARAM )&lvi );
 
 					if ( IS_STATUS( di->status, STATUS_PAUSED ) )	// Paused
@@ -1575,6 +1611,7 @@ char read_download_history( wchar_t *file_path )
 					GlobalFree( url );
 					GlobalFree( cookies );
 					GlobalFree( headers );
+					GlobalFree( data );
 					GlobalFree( username );
 					GlobalFree( password );
 
@@ -1655,12 +1692,14 @@ char save_download_history( wchar_t *file_path )
 
 			int cookies_length = lstrlenA( di->cookies ) + 1;
 			int headers_length = lstrlenA( di->headers ) + 1;
+			int data_length = lstrlenA( di->data ) + 1;
 
 			int username_length = lstrlenA( di->auth_info.username );
 			int password_length = lstrlenA( di->auth_info.password );
 
 			// See if the next entry can fit in the buffer. If it can't, then we dump the buffer.
-			if ( ( signed )( pos + filename_length + download_directory_length + url_length + cookies_length + headers_length + username_length + password_length + ( sizeof( int ) * 2 ) + sizeof( ULONGLONG ) + ( sizeof( unsigned long long ) * 2 ) + ( sizeof( unsigned char ) * 4 ) + sizeof( unsigned short ) + sizeof( bool ) ) > size )
+			if ( ( signed )( pos + filename_length + download_directory_length + url_length + cookies_length + headers_length + data_length + username_length + password_length +
+						   ( sizeof( int ) * 2 ) + sizeof( ULONGLONG ) + ( sizeof( unsigned long long ) * 2 ) + ( sizeof( unsigned char ) * 5 ) + sizeof( unsigned int ) + sizeof( bool ) ) > size )
 			{
 				// Dump the buffer.
 				WriteFile( hFile_downloads, write_buf, pos, &write, NULL );
@@ -1682,8 +1721,8 @@ char save_download_history( wchar_t *file_path )
 			_memcpy_s( write_buf + pos, size - pos, &di->parts_limit, sizeof( unsigned char ) );
 			pos += sizeof( unsigned char );
 
-			_memcpy_s( write_buf + pos, size - pos, &di->status, sizeof( unsigned short ) );
-			pos += sizeof( unsigned short );
+			_memcpy_s( write_buf + pos, size - pos, &di->status, sizeof( unsigned int ) );
+			pos += sizeof( unsigned int );
 
 			_memcpy_s( write_buf + pos, size - pos, &di->ssl_version, sizeof( char ) );
 			pos += sizeof( char );
@@ -1692,6 +1731,9 @@ char save_download_history( wchar_t *file_path )
 			pos += sizeof( bool );
 
 			_memcpy_s( write_buf + pos, size - pos, &di->download_operations, sizeof( unsigned char ) );
+			pos += sizeof( unsigned char );
+
+			_memcpy_s( write_buf + pos, size - pos, &di->method, sizeof( unsigned char ) );
 			pos += sizeof( unsigned char );
 
 			_memcpy_s( write_buf + pos, size - pos, di->file_path, download_directory_length );
@@ -1708,6 +1750,9 @@ char save_download_history( wchar_t *file_path )
 
 			_memcpy_s( write_buf + pos, size - pos, di->headers, headers_length );
 			pos += headers_length;
+
+			_memcpy_s( write_buf + pos, size - pos, di->data, data_length );
+			pos += data_length;
 
 			if ( di->auth_info.username != NULL )
 			{

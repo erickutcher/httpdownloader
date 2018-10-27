@@ -2,7 +2,7 @@
 <html>
 	<head>
 		<meta charset="utf-8">
-		<title>HTTP Downloader</title>
+		<title>HTTP Downloader - Add URL(s)</title>
 		<style>
 			html, body
 			{
@@ -38,7 +38,7 @@
 		<input type="hidden" id="server_username" value="">
 		<input type="hidden" id="server_password" value="">
 		<input type="hidden" id="last_urls" value="">
-		<div style="display: flex; flex-flow: column; height: 100%; min-width: 245px;">
+		<div style="display: flex; flex-flow: column; height: 100%; min-width: 545px;">
 			<div style="flex: 1; display: flex; flex-flow: column; height: 100%; margin: 15px 15px 0px 15px;">
 				<div style="flex: 1; display: flex; flex-flow: column; height: 100%; padding: 15px; background-color: Window; border: 1px solid grey;">
 					<div style="flex: 1; display: flex; flex-flow: column; height: 100%;">
@@ -60,6 +60,14 @@
 							</div>
 						</div>
 						<textarea id="urls" rows="4" style="flex: 1;"></textarea>
+						<div style="margin-top: 10px;">
+							<div style="margin-top: auto;">
+								<label for="directory">Download directory:</label>
+							</div>
+							<div>
+								<input type="text" id="directory" value="" placeholder="[Use Program Default]" style="box-sizing: border-box; width: 100%;">
+							</div>
+						</div>
 					</div>
 					<div id="advanced_info" style="display: none; margin-top: 15px;">
 						<div style="display: flex; flex-flow: row wrap;">
@@ -100,7 +108,7 @@
 								<label for="cookies">Cookies:</label>
 							</div>
 							<div>
-								<textarea id="cookies" rows="4"></textarea>
+								<textarea id="cookies" rows="2"></textarea>
 							</div>
 						</div>
 						<div style="margin-top: 15px;">
@@ -108,7 +116,15 @@
 								<label for="headers">Headers:</label>
 							</div>
 							<div>
-								<textarea id="headers" rows="4"></textarea>
+								<textarea id="headers" rows="2"></textarea>
+							</div>
+						</div>
+						<div style="margin-top: 15px;">
+							<div style="margin-top: auto;">
+								<input type="checkbox" id="method"><label for="method">Send POST Data:</label>
+							</div>
+							<div>
+								<textarea id="post_data" rows="2"></textarea>
 							</div>
 						</div>
 						<div style="margin-top: 15px;">

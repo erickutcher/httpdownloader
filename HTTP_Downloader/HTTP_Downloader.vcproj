@@ -250,6 +250,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\lite_kernel32.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\lite_normaliz.cpp"
 				>
 			</File>
@@ -319,6 +323,10 @@
 			</File>
 			<File
 				RelativePath=".\wnd_proc_options.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\wnd_proc_search.cpp"
 				>
 			</File>
 			<File
@@ -413,6 +421,10 @@
 			</File>
 			<File
 				RelativePath=".\lite_gdi32.h"
+				>
+			</File>
+			<File
+				RelativePath=".\lite_kernel32.h"
 				>
 			</File>
 			<File

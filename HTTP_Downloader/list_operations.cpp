@@ -18,6 +18,8 @@
 
 #include "globals.h"
 
+#include "lite_kernel32.h"
+
 #include "connection.h"
 
 #include "doublylinkedlist.h"
@@ -51,6 +53,10 @@ void ProcessingList( bool processing )
 
 THREAD_RETURN remove_items( void *pArguments )
 {
+	unsigned char handle_type = ( unsigned char )pArguments;	// 0 = remove, 1 = remove and delete
+
+	unsigned int status = ( handle_type == 1 ? STATUS_DELETE : STATUS_NONE );
+
 	// This will block every other thread from entering until the first thread is complete.
 	EnterCriticalSection( &worker_cs );
 
@@ -60,6 +66,9 @@ THREAD_RETURN remove_items( void *pArguments )
 	skip_list_draw = true;
 
 	ProcessingList( true );
+
+	bool delete_success = true;
+	unsigned char error_type = 0;
 
 	LVITEM lvi;
 	_memzero( &lvi, sizeof( LVITEM ) );
@@ -148,7 +157,7 @@ THREAD_RETURN remove_items( void *pArguments )
 			// If there are still active connections.
 			if ( di->download_node.data != NULL )
 			{
-				di->status = STATUS_STOP_AND_REMOVE;
+				di->status = STATUS_STOPPED | STATUS_REMOVE | status;
 
 				while ( context_node != NULL )
 				{
@@ -164,7 +173,7 @@ THREAD_RETURN remove_items( void *pArguments )
 						// We'll fall through in IOCPConnection.
 						if ( IS_STATUS( context->status, STATUS_PAUSED ) && !context->is_paused )
 						{
-							context->status = STATUS_STOP_AND_REMOVE;
+							context->status = STATUS_STOPPED | STATUS_REMOVE | status;
 
 							if ( context->cleanup == 0 )
 							{
@@ -189,7 +198,7 @@ THREAD_RETURN remove_items( void *pArguments )
 							// Paused contexts shouldn't have any pending operations.
 							unsigned char cleanup_type = ( IS_STATUS( context->status, STATUS_PAUSED ) ? 1 : 2 );
 
-							context->status = STATUS_STOP_AND_REMOVE;
+							context->status = STATUS_STOPPED | STATUS_REMOVE | status;
 
 							if ( context->cleanup == 0 )
 							{
@@ -254,6 +263,7 @@ THREAD_RETURN remove_items( void *pArguments )
 				GlobalFree( di->w_add_time );
 				GlobalFree( di->cookies );
 				GlobalFree( di->headers );
+				GlobalFree( di->data );
 				//GlobalFree( di->etag );
 				GlobalFree( di->auth_info.username );
 				GlobalFree( di->auth_info.password );
@@ -281,6 +291,27 @@ THREAD_RETURN remove_items( void *pArguments )
 					GlobalFree( range_node );
 				}
 
+				if ( handle_type == 1 )
+				{
+					// We're freeing this anyway so it's safe to modify.
+					di->file_path[ di->filename_offset - 1 ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
+
+					if ( DeleteFileW( di->file_path ) == FALSE )
+					{
+						delete_success = false;
+
+						int error = GetLastError();
+						if ( error == ERROR_ACCESS_DENIED )
+						{
+							error_type |= 1;
+						}
+						else if ( error == ERROR_FILE_NOT_FOUND )
+						{
+							error_type |= 2;
+						}
+					}
+				}
+
 				DeleteCriticalSection( &di->shared_cs );
 
 				GlobalFree( di );
@@ -288,6 +319,33 @@ THREAD_RETURN remove_items( void *pArguments )
 		}
 
 		LeaveCriticalSection( &cleanup_cs );
+	}
+
+	if ( handle_type == 1 && !delete_success )
+	{
+		if ( sel_count == 1 )
+		{
+			if ( error_type & 1 )	// Access Denied
+			{
+				_SendNotifyMessageW( g_hWnd_main, WM_ALERT, 0, ( LPARAM )ST_V_File_is_in_use_cannot_delete );
+			}
+			else if ( error_type & 2 )	// File Not Found.
+			{
+				_SendNotifyMessageW( g_hWnd_main, WM_ALERT, 0, ( LPARAM )ST_V_The_specified_path_was_not_found );
+			}
+		}
+		else if ( sel_count > 1 )
+		{
+			if ( error_type & 1 )	// Access Denied
+			{
+				_SendNotifyMessageW( g_hWnd_main, WM_ALERT, 0, ( LPARAM )ST_V_One_or_more_files_are_in_use );
+			}
+
+			if ( error_type & 2 )	// File Not Found.
+			{
+				_SendNotifyMessageW( g_hWnd_main, WM_ALERT, 0, ( LPARAM )ST_V_One_or_more_files_were_not_found );
+			}
+		}
 	}
 
 	if ( index_array != NULL )
@@ -595,6 +653,7 @@ THREAD_RETURN handle_download_list( void *pArguments )
 					GlobalFree( di->w_add_time );
 					GlobalFree( di->cookies );
 					GlobalFree( di->headers );
+					GlobalFree( di->data );
 					//GlobalFree( di->etag );
 					GlobalFree( di->auth_info.username );
 					GlobalFree( di->auth_info.password );
@@ -709,7 +768,7 @@ THREAD_RETURN handle_download_list( void *pArguments )
 
 THREAD_RETURN handle_connection( void *pArguments )
 {
-	unsigned short status = ( unsigned short )pArguments;
+	unsigned int status = ( unsigned int )pArguments;
 
 	EnterCriticalSection( &worker_cs );
 
@@ -796,9 +855,17 @@ THREAD_RETURN handle_connection( void *pArguments )
 							}
 						}
 					}
-					else if ( status == STATUS_PAUSED )
+					else if ( status == STATUS_PAUSED ||
+							  status == STATUS_RESTART )
 					{
-						di->status |= STATUS_PAUSED;
+						if ( status == STATUS_RESTART )
+						{
+							di->status = STATUS_STOPPED | STATUS_RESTART;
+						}
+						else
+						{
+							di->status |= STATUS_PAUSED;
+						}
 
 						while ( context_node != NULL )
 						{
@@ -843,12 +910,20 @@ THREAD_RETURN handle_connection( void *pArguments )
 							 STATUS_PAUSED |
 							 STATUS_QUEUED ) )	// The download is currently paused, or queued.
 				{
-					if ( status == STATUS_DOWNLOADING )	// Resume downloading.
+					if ( status == STATUS_DOWNLOADING ||
+						 status == STATUS_RESTART )	// Resume downloading or restart download.
 					{
 						// Download is active, continue where we left off.
 						if ( di->download_node.data != NULL )
 						{
-							di->status &= ~STATUS_PAUSED;
+							if ( status == STATUS_RESTART )
+							{
+								di->status = STATUS_STOPPED | STATUS_RESTART;
+							}
+							else
+							{
+								di->status &= ~STATUS_PAUSED;
+							}
 
 							// Run through our parts list and connect to each context.
 							while ( context_node != NULL )
@@ -890,6 +965,31 @@ THREAD_RETURN handle_connection( void *pArguments )
 								{
 									DLL_RemoveNode( &download_queue, &di->queue_node );
 									di->queue_node.data = NULL;
+
+									if ( status == STATUS_RESTART )
+									{
+										while ( di->range_list != NULL )
+										{
+											DoublyLinkedList *range_node = di->range_list;
+											di->range_list = di->range_list->next;
+
+											GlobalFree( range_node->data );
+											GlobalFree( range_node );
+										}
+
+										while ( di->range_queue != NULL )
+										{
+											DoublyLinkedList *range_node = di->range_queue;
+											di->range_queue = di->range_queue->next;
+
+											GlobalFree( range_node->data );
+											GlobalFree( range_node );
+										}
+
+										di->processed_header = false;
+
+										di->downloaded = 0;
+									}
 
 									// If we manually start a download, then set the incomplete retry attempts back to 0.
 									di->retries = 0;
@@ -1011,6 +1111,7 @@ THREAD_RETURN handle_connection( void *pArguments )
 							 STATUS_TIMED_OUT |
 							 STATUS_FAILED |
 							 STATUS_FILE_IO_ERROR |
+							 STATUS_SKIPPED |
 							 STATUS_AUTH_REQUIRED |
 							 STATUS_PROXY_AUTH_REQUIRED ) )	// The download is currently stopped.
 				{
@@ -1019,6 +1120,31 @@ THREAD_RETURN handle_connection( void *pArguments )
 					{
 						download_history_changed = true;
 
+						if ( status == STATUS_RESTART )
+						{
+							while ( di->range_list != NULL )
+							{
+								DoublyLinkedList *range_node = di->range_list;
+								di->range_list = di->range_list->next;
+
+								GlobalFree( range_node->data );
+								GlobalFree( range_node );
+							}
+
+							while ( di->range_queue != NULL )
+							{
+								DoublyLinkedList *range_node = di->range_queue;
+								di->range_queue = di->range_queue->next;
+
+								GlobalFree( range_node->data );
+								GlobalFree( range_node );
+							}
+
+							di->processed_header = false;
+
+							di->downloaded = 0;
+						}
+
 						// If we manually start a download, then set the incomplete retry attempts back to 0.
 						di->retries = 0;
 						di->start_time.QuadPart = 0;
@@ -1026,24 +1152,7 @@ THREAD_RETURN handle_connection( void *pArguments )
 						// If we manually start a download that was added remotely, then allow the prompts to display.
 						di->download_operations &= ~DOWNLOAD_OPERATION_OVERRIDE_PROMPTS;
 
-						StartDownload( di, false );
-					}
-				}
-				else if ( di->status == STATUS_SKIPPED )
-				{
-					// Ensure that the download is actually stopped and that there are no active parts downloading.
-					if ( di->active_parts == 0 )
-					{
-						download_history_changed = true;
-
-						// If we manually start a download, then set the incomplete retry attempts back to 0.
-						di->retries = 0;
-						di->start_time.QuadPart = 0;
-
-						// If we manually start a download that was added remotely, then allow the prompts to display.
-						di->download_operations &= ~DOWNLOAD_OPERATION_OVERRIDE_PROMPTS;
-
-						StartDownload( di, true );
+						StartDownload( di, ( di->status == STATUS_SKIPPED ? true : false ) );
 					}
 				}
 				/*else
@@ -1531,21 +1640,31 @@ THREAD_RETURN rename_file( void *pArguments )
 					{
 						if ( di->hFile != INVALID_HANDLE_VALUE )
 						{
-							FILE_RENAME_INFO *fri = ( FILE_RENAME_INFO * )GlobalAlloc( GPTR, sizeof( FILE_RENAME_INFO ) + ( sizeof( wchar_t ) * MAX_PATH ) );
-
-							_wmemcpy_s( fri->FileName, MAX_PATH, di->file_path, di->filename_offset );
-							fri->FileName[ di->filename_offset - 1 ] = L'\\';
-							_wmemcpy_s( fri->FileName + di->filename_offset, MAX_PATH - di->filename_offset, ri->filename, ri->filename_length );
-							fri->FileNameLength = di->filename_offset + ri->filename_length;
-							fri->ReplaceIfExists = FALSE;
-							fri->RootDirectory = NULL;
-
-							if ( SetFileInformationByHandle( di->hFile, FileRenameInfo, fri, sizeof( FILE_RENAME_INFO ) + ( sizeof( wchar_t ) * MAX_PATH ) ) == FALSE )
+							// Make sure SetFileInformationByHandle is available on our system.
+							if ( kernel32_state != KERNEL32_STATE_SHUTDOWN )
 							{
+								FILE_RENAME_INFO *fri = ( FILE_RENAME_INFO * )GlobalAlloc( GPTR, sizeof( FILE_RENAME_INFO ) + ( sizeof( wchar_t ) * MAX_PATH ) );
+
+								_wmemcpy_s( fri->FileName, MAX_PATH, di->file_path, di->filename_offset );
+								fri->FileName[ di->filename_offset - 1 ] = L'\\';
+								_wmemcpy_s( fri->FileName + di->filename_offset, MAX_PATH - di->filename_offset, ri->filename, ri->filename_length );
+								fri->FileNameLength = di->filename_offset + ri->filename_length;
+								fri->ReplaceIfExists = FALSE;
+								fri->RootDirectory = NULL;
+
+								if ( _SetFileInformationByHandle( di->hFile, FileRenameInfo, fri, sizeof( FILE_RENAME_INFO ) + ( sizeof( wchar_t ) * MAX_PATH ) ) == FALSE )
+								{
+									renamed = false;
+								}
+
+								GlobalFree( fri );
+							}
+							else
+							{
+								SetLastError( ERROR_ACCESS_DENIED );
+
 								renamed = false;
 							}
-
-							GlobalFree( fri );
 						}
 						else
 						{
@@ -1648,11 +1767,15 @@ THREAD_RETURN rename_file( void *pArguments )
 						int error = GetLastError();
 						if ( error == ERROR_ALREADY_EXISTS )
 						{
-							_SendNotifyMessageW( g_hWnd_main, WM_ALERT, 0, ( LPARAM )ST_There_is_already_a_file );
+							_SendNotifyMessageW( g_hWnd_main, WM_ALERT, 0, ( LPARAM )ST_V_There_is_already_a_file );
 						}
 						else if ( error == ERROR_FILE_NOT_FOUND )
 						{
 							_SendNotifyMessageW( g_hWnd_main, WM_ALERT, 1, 0 );
+						}
+						else if ( error == ERROR_ACCESS_DENIED )
+						{
+							_SendNotifyMessageW( g_hWnd_main, WM_ALERT, 0, ( LPARAM )ST_V_File_is_in_use_cannot_rename );
 						}
 					}
 				}
@@ -1716,12 +1839,12 @@ THREAD_RETURN create_download_history_csv_file( void *file_path )
 
 THREAD_RETURN export_list( void *pArguments )
 {
+	importexportinfo *iei = ( importexportinfo * )pArguments;
+
 	// This will block every other thread from entering until the first thread is complete.
 	EnterCriticalSection( &worker_cs );
 
 	in_worker_thread = true;
-
-	importexportinfo *iei = ( importexportinfo * )pArguments;
 
 	ProcessingList( true );
 
@@ -1756,12 +1879,12 @@ THREAD_RETURN export_list( void *pArguments )
 
 THREAD_RETURN import_list( void *pArguments )
 {
+	importexportinfo *iei = ( importexportinfo * )pArguments;
+
 	// This will block every other thread from entering until the first thread is complete.
 	EnterCriticalSection( &worker_cs );
 
 	in_worker_thread = true;
-
-	importexportinfo *iei = ( importexportinfo * )pArguments;
 
 	ProcessingList( true );
 
@@ -1769,10 +1892,6 @@ THREAD_RETURN import_list( void *pArguments )
 
 	wchar_t file_path[ MAX_PATH ];
 	wchar_t *filename = NULL;
-
-	LVITEM lvi;
-	_memzero( &lvi, sizeof( LVITEM ) );
-	lvi.mask = LVIF_PARAM;
 
 	if ( iei != NULL )
 	{
@@ -1815,7 +1934,7 @@ THREAD_RETURN import_list( void *pArguments )
 			// Only display if the import from menu failed.
 			if ( bad_format && iei->type == 1 )
 			{
-				_SendNotifyMessageW( g_hWnd_main, WM_ALERT, 0, ( LPARAM )ST_File_format_is_incorrect );
+				_SendNotifyMessageW( g_hWnd_main, WM_ALERT, 0, ( LPARAM )ST_V_File_format_is_incorrect );
 			}
 		}
 
@@ -1859,10 +1978,10 @@ THREAD_RETURN delete_files( void *pArguments )
 	int item_count = _SendMessageW( g_hWnd_files, LVM_GETITEMCOUNT, 0, 0 );
 	int sel_count = _SendMessageW( g_hWnd_files, LVM_GETSELECTEDCOUNT, 0, 0 );
 
-	bool copy_all = false;
+	bool delete_all = false;
 	if ( item_count == sel_count )
 	{
-		copy_all = true;
+		delete_all = true;
 	}
 	else
 	{
@@ -1878,7 +1997,7 @@ THREAD_RETURN delete_files( void *pArguments )
 			break;
 		}
 
-		if ( copy_all )
+		if ( delete_all )
 		{
 			lvi.iItem = i;
 		}
@@ -1923,7 +2042,7 @@ THREAD_RETURN delete_files( void *pArguments )
 		{
 			if ( error_type & 1 )	// Access Denied
 			{
-				_SendNotifyMessageW( g_hWnd_main, WM_ALERT, 0, ( LPARAM )ST_File_is_in_use );
+				_SendNotifyMessageW( g_hWnd_main, WM_ALERT, 0, ( LPARAM )ST_V_File_is_in_use_cannot_delete );
 			}
 			else if ( error_type & 2 )	// File Not Found.
 			{
@@ -1934,15 +2053,162 @@ THREAD_RETURN delete_files( void *pArguments )
 		{
 			if ( error_type & 1 )	// Access Denied
 			{
-				_SendNotifyMessageW( g_hWnd_main, WM_ALERT, 0, ( LPARAM )ST_One_or_more_files_are_in_use );
+				_SendNotifyMessageW( g_hWnd_main, WM_ALERT, 0, ( LPARAM )ST_V_One_or_more_files_are_in_use );
 			}
 
 			if ( error_type & 2 )	// File Not Found.
 			{
-				_SendNotifyMessageW( g_hWnd_main, WM_ALERT, 0, ( LPARAM )ST_One_or_more_files_were_not_found );
+				_SendNotifyMessageW( g_hWnd_main, WM_ALERT, 0, ( LPARAM )ST_V_One_or_more_files_were_not_found );
 			}
 		}
 	}
+
+	ProcessingList( false );
+
+	// Release the semaphore if we're killing the thread.
+	if ( worker_semaphore != NULL )
+	{
+		ReleaseSemaphore( worker_semaphore, 1, NULL );
+	}
+
+	in_worker_thread = false;
+
+	// We're done. Let other threads continue.
+	LeaveCriticalSection( &worker_cs );
+
+	_ExitThread( 0 );
+	return 0;
+}
+
+THREAD_RETURN search_list( void *pArguments )
+{
+	SEARCH_INFO *si = ( SEARCH_INFO * )pArguments;
+
+	// This will block every other thread from entering until the first thread is complete.
+	EnterCriticalSection( &worker_cs );
+
+	in_worker_thread = true;
+
+	ProcessingList( true );
+
+	if ( si != NULL )
+	{
+		if ( si->text != NULL )
+		{
+			LVITEM lvi, new_lvi;
+
+			_memzero( &lvi, sizeof( LVITEM ) );
+			lvi.mask = LVIF_PARAM | LVIF_STATE;
+			lvi.stateMask = LVIS_FOCUSED | LVIS_SELECTED;
+
+			_memzero( &new_lvi, sizeof( LVITEM ) );
+			new_lvi.mask = LVIF_STATE;
+			new_lvi.state = LVIS_FOCUSED | LVIS_SELECTED;
+			new_lvi.stateMask = LVIS_FOCUSED | LVIS_SELECTED;
+
+			int item_count = _SendMessageW( g_hWnd_files, LVM_GETITEMCOUNT, 0, 0 );
+
+			int current_item_index;
+
+			if ( si->search_all )
+			{
+				current_item_index = 0;
+			}
+			else
+			{
+				current_item_index = _SendMessageW( g_hWnd_files, LVM_GETNEXTITEM, -1, LVNI_FOCUSED | LVNI_SELECTED ) + 1;
+			}
+
+			// Go through each item, and delete the file.
+			for ( int i = 0; i < item_count; ++i, ++current_item_index )
+			{
+				// Stop processing and exit the thread.
+				if ( kill_worker_thread_flag )
+				{
+					break;
+				}
+
+				if ( current_item_index >= item_count )
+				{
+					current_item_index = 0;
+				}
+
+				lvi.iItem = current_item_index;
+				_SendMessageW( g_hWnd_files, LVM_GETITEM, 0, ( LPARAM )&lvi );
+
+				DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )lvi.lParam;
+
+				if ( di != NULL )
+				{
+					bool found_match = false;
+
+					wchar_t *text = ( si->type == 1 ? di->url : ( di->file_path + di->filename_offset ) );
+
+					if ( si->case_flag == ( 0x01 | 0x02 ) )	// Match case and whole word.
+					{
+						if ( lstrcmpW( text, si->text ) == 0 )
+						{
+							found_match = true;
+						}
+					}
+					else if ( si->case_flag == 0x02 )	// Match whole word.
+					{
+						if ( lstrcmpiW( text, si->text ) == 0 )
+						{
+							found_match = true;
+						}
+					}
+					else if ( si->case_flag == 0x01 )	// Match case.
+					{
+						if ( _StrStrW( text, si->text ) != NULL )
+						{
+							found_match = true;
+						}
+					}
+					else
+					{
+						if ( _StrStrIW( text, si->text ) != NULL )
+						{
+							found_match = true;
+						}
+					}
+
+					if ( found_match )
+					{
+						if ( !si->search_all )
+						{
+							new_lvi.state = 0;
+							_SendMessageW( g_hWnd_files, LVM_SETITEMSTATE, -1, ( LPARAM )&new_lvi );
+						}
+
+						new_lvi.state = LVIS_FOCUSED | LVIS_SELECTED;
+						_SendMessageW( g_hWnd_files, LVM_SETITEMSTATE, current_item_index, ( LPARAM )&new_lvi );
+
+						if ( !si->search_all )
+						{
+							_SendMessageW( g_hWnd_files, LVM_ENSUREVISIBLE, current_item_index, FALSE );
+
+							break;
+						}
+					}
+					else
+					{
+						if ( lvi.state & LVIS_SELECTED )
+						{
+							new_lvi.state = 0;
+							_SendMessageW( g_hWnd_files, LVM_SETITEMSTATE, current_item_index, ( LPARAM )&new_lvi );
+						}
+					}
+				}
+			}
+
+			GlobalFree( si->text );
+		}
+
+		GlobalFree( si );
+	}
+
+	_SendMessageW( g_hWnd_search, WM_PROPAGATE, 0, 0 );
 
 	ProcessingList( false );
 

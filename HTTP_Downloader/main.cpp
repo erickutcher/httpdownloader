@@ -22,9 +22,11 @@
 #include "utilities.h"
 
 #include "file_operations.h"
+#include "string_tables.h"
 
 #include "ssl.h"
 
+#include "lite_kernel32.h"
 #include "lite_shell32.h"
 #include "lite_advapi32.h"
 #include "lite_comdlg32.h"
@@ -103,10 +105,10 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 		if ( !InitializeAdvApi32() ){ goto UNLOAD_DLLS; }
 	#endif
 	#ifndef COMDLG32_USE_STATIC_LIB
-		if ( !InitializeComDlg32() ){ return false; }
+		if ( !InitializeComDlg32() ){ goto UNLOAD_DLLS; }
 	#endif
 	#ifndef COMCTL32_USE_STATIC_LIB
-		if ( !InitializeComCtl32() ){ return false; }
+		if ( !InitializeComCtl32() ){ goto UNLOAD_DLLS; }
 	#endif
 	#ifndef CRYPT32_USE_STATIC_LIB
 		if ( !InitializeCrypt32() ){ goto UNLOAD_DLLS; }
@@ -114,6 +116,8 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 	#ifndef ZLIB1_USE_STATIC_LIB
 		if ( !InitializeZLib1() )
 		{
+			UnInitializeZLib1();
+
 			if ( _MessageBoxW( NULL, L"The zlib compression library (zlib1.dll) could not be loaded.\r\n\r\nCompressed downloads will need to be manually decompressed.\r\n\r\nWould you like to visit www.zlib.net to download the DLL file?", PROGRAM_CAPTION, MB_APPLMODAL | MB_ICONWARNING | MB_YESNO ) == IDYES )
 			{
 				bool destroy = true;
@@ -139,7 +143,19 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 		}
 	#endif
 	#ifndef NORMALIZ_USE_STATIC_LIB
-		InitializeNormaliz();
+		if ( !InitializeNormaliz() )
+		{
+			UnInitializeNormaliz();
+		}
+	#endif
+	// Loaded only for SetFileInformationByHandle and GetUserDefaultLocaleName.
+	// If SetFileInformationByHandle doesn't exist (on Windows XP), then rename won't work when the file is in use.
+	// But at least the program will run.
+	#ifndef KERNEL32_USE_STATIC_LIB
+		if ( !InitializeKernel32() )
+		{
+			UnInitializeKernel32();
+		}
 	#endif
 
 	_memzero( &g_compile_time, sizeof( SYSTEMTIME ) );
@@ -315,13 +331,15 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 
 	CF_HTML = _RegisterClipboardFormatW( L"HTML Format" );
 
+	InitializeLocaleValues();
+
 	read_config();
 
 	// See if there's an instance of the program running.
-	HANDLE app_instance_mutex = OpenMutexW( MUTEX_ALL_ACCESS, 0, L"HTTP Downloader" );
+	HANDLE app_instance_mutex = OpenMutexW( MUTEX_ALL_ACCESS, 0, PROGRAM_CAPTION );
 	if ( app_instance_mutex == NULL )
 	{
-		app_instance_mutex = CreateMutexW( NULL, 0, L"HTTP Downloader" );
+		app_instance_mutex = CreateMutexW( NULL, 0, PROGRAM_CAPTION );
 		if ( app_instance_mutex == NULL )
 		{
 			goto CLEANUP;
@@ -623,6 +641,15 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 		goto CLEANUP;
 	}
 
+	wcex.lpfnWndProc    = SearchWndProc;
+	wcex.lpszClassName  = L"search";
+
+	if ( !_RegisterClassExW( &wcex ) )
+	{
+		fail_type = 1;
+		goto CLEANUP;
+	}
+
 	wcex.hIcon			= NULL;
 	wcex.hbrBackground  = ( HBRUSH )( COLOR_WINDOWFRAME );
 
@@ -653,6 +680,7 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 		goto CLEANUP;
 	}
 
+	wcex.style		   |= CS_DBLCLKS;
 	wcex.lpfnWndProc    = URLDropWndProc;
 	wcex.lpszClassName  = L"url_drop_window";
 
@@ -688,9 +716,12 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 
 	if ( cfg_enable_drop_window )
 	{
-		g_hWnd_url_drop_window = _CreateWindowExW( WS_EX_NOPARENTNOTIFY | WS_EX_NOACTIVATE | WS_EX_TOPMOST, L"url_drop_window", NULL, WS_CLIPCHILDREN | WS_POPUP | WS_VISIBLE, cfg_drop_pos_x, cfg_drop_pos_y, 48, 48, NULL, NULL, NULL, NULL );
+		g_hWnd_url_drop_window = _CreateWindowExW( WS_EX_NOPARENTNOTIFY | WS_EX_NOACTIVATE | WS_EX_TOPMOST, L"url_drop_window", NULL, WS_CLIPCHILDREN | WS_POPUP, 0, 0, 0, 0, NULL, NULL, NULL, NULL );
 		_SetWindowLongW( g_hWnd_url_drop_window, GWL_EXSTYLE, _GetWindowLongW( g_hWnd_url_drop_window, GWL_EXSTYLE ) | WS_EX_LAYERED );
 		_SetLayeredWindowAttributes( g_hWnd_url_drop_window, 0, 0x80, LWA_ALPHA );
+
+		// Prevents it from stealing focus.
+		_SetWindowPos( g_hWnd_url_drop_window, HWND_TOPMOST, cfg_drop_pos_x, cfg_drop_pos_y, 48, 48, SWP_SHOWWINDOW | SWP_NOACTIVATE | SWP_NOOWNERZORDER );
 	}
 
 	// Main message loop:
@@ -767,12 +798,14 @@ CLEANUP:
 
 	if ( fail_type == 1 )
 	{
-		_MessageBoxA( NULL, "Call to _RegisterClassExW failed!", PROGRAM_CAPTION_A, MB_ICONWARNING );
+		_MessageBoxW( NULL, L"Call to _RegisterClassExW failed!", PROGRAM_CAPTION, MB_ICONWARNING );
 	}
 	else if ( fail_type == 2 )
 	{
-		_MessageBoxA( NULL, "Call to CreateWindow failed!", PROGRAM_CAPTION_A, MB_ICONWARNING );
+		_MessageBoxW( NULL, L"Call to CreateWindow failed!", PROGRAM_CAPTION, MB_ICONWARNING );
 	}
+
+	UninitializeLocaleValues();
 
 	DeleteCriticalSection( &context_list_cs );
 	DeleteCriticalSection( &active_download_list_cs );
@@ -813,6 +846,9 @@ UNLOAD_DLLS:
 	#endif
 	#ifndef ZLIB1_USE_STATIC_LIB
 		UnInitializeZLib1();
+	#endif
+	#ifndef KERNEL32_USE_STATIC_LIB
+		UnInitializeKernel32();
 	#endif
 	#ifndef CRYPT32_USE_STATIC_LIB
 		UnInitializeCrypt32();

@@ -1205,8 +1205,9 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 
 					if ( IS_STATUS_NOT( context->status,
 							STATUS_STOPPED |
-							STATUS_STOP_AND_REMOVE |
-							STATUS_UPDATING ) )	// Stop, Stop and Remove, or Updating.
+							STATUS_REMOVE |
+							STATUS_RESTART |
+							STATUS_UPDATING ) )	// Stop, Stop and Remove, Restart, or Updating.
 					{
 						context->timed_out = TIME_OUT_RETRY;
 
@@ -1256,8 +1257,9 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 
 					if ( IS_STATUS( context->status,
 							STATUS_STOPPED |
-							STATUS_STOP_AND_REMOVE |
-							STATUS_UPDATING ) )	// Stop, Stop and Remove, or Updating.
+							STATUS_REMOVE |
+							STATUS_RESTART |
+							STATUS_UPDATING ) )	// Stop, Stop and Remove, Restart, or Updating.
 					{
 						if ( *current_operation != IO_GetContent )
 						{
@@ -3350,6 +3352,7 @@ DWORD WINAPI AddURL( void *add_info )
 	int password_length = 0;
 	int cookies_length = 0;
 	int headers_length = 0;
+	int data_length = 0;
 
 	if ( ai->auth_info.username != NULL )
 	{
@@ -3369,6 +3372,16 @@ DWORD WINAPI AddURL( void *add_info )
 	if ( ai->utf8_headers != NULL )
 	{
 		headers_length = lstrlenA( ai->utf8_headers );
+	}
+
+	if ( ai->utf8_data != NULL )
+	{
+		data_length = lstrlenA( ai->utf8_data );
+	}
+
+	if ( ai->method == METHOD_NONE )
+	{
+		ai->method = METHOD_GET;
 	}
 
 	SHFILEINFO *sfi = ( SHFILEINFO * )GlobalAlloc( GMEM_FIXED, sizeof( SHFILEINFO ) );
@@ -3529,6 +3542,8 @@ DWORD WINAPI AddURL( void *add_info )
 
 			di->download_operations = ai->download_operations;
 
+			di->method = ai->method;
+
 			if ( ai->auth_info.username != NULL && username_length > 0 )
 			{
 				di->auth_info.username = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( username_length + 1 ) );
@@ -3555,6 +3570,13 @@ DWORD WINAPI AddURL( void *add_info )
 				di->headers = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( headers_length + 1 ) );
 				_memcpy_s( di->headers, headers_length + 1, ai->utf8_headers, headers_length );
 				di->headers[ headers_length ] = 0;	// Sanity.
+			}
+
+			if ( ai->utf8_data != NULL && data_length > 0 )
+			{
+				di->data = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( data_length + 1 ) );
+				_memcpy_s( di->data, data_length + 1, ai->utf8_data, data_length );
+				di->data[ data_length ] = 0;	// Sanity.
 			}
 
 			SYSTEMTIME st;
@@ -3590,9 +3612,10 @@ DWORD WINAPI AddURL( void *add_info )
 
 			LVITEM lvi;
 			_memzero( &lvi, sizeof( LVITEM ) );
-			lvi.mask = LVIF_PARAM;
+			lvi.mask = LVIF_PARAM | LVIF_TEXT;
 			lvi.iItem = _SendMessageW( g_hWnd_files, LVM_GETITEMCOUNT, 0, 0 );
 			lvi.lParam = ( LPARAM )di;
+			lvi.pszText = di->file_path + di->filename_offset;
 			_SendMessageW( g_hWnd_files, LVM_INSERTITEM, 0, ( LPARAM )&lvi );
 
 			download_history_changed = true;
@@ -3609,6 +3632,7 @@ DWORD WINAPI AddURL( void *add_info )
 
 	GlobalFree( sfi );
 
+	GlobalFree( ai->utf8_data );
 	GlobalFree( ai->utf8_headers );
 	GlobalFree( ai->utf8_cookies );
 	GlobalFree( ai->auth_info.username );
@@ -3919,7 +3943,8 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 						if ( /*!incomplete_part &&*/
 							 IS_STATUS_NOT( context->status,
 								STATUS_STOPPED |
-								STATUS_STOP_AND_REMOVE |
+								STATUS_REMOVE |
+								STATUS_RESTART |
 								STATUS_UPDATING ) &&
 							 context->download_info->range_queue != NULL )
 						{
@@ -4089,7 +4114,7 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 							context->download_info->time_elapsed = ( current_time.QuadPart - context->download_info->start_time.QuadPart ) / FILETIME_TICKS_PER_SECOND;
 
 							// Stop and Remove.
-							if ( context->status == STATUS_STOP_AND_REMOVE )
+							if ( IS_STATUS( context->status, STATUS_REMOVE ) )
 							{
 								// Find the icon info
 								EnterCriticalSection( &icon_cache_cs );
@@ -4121,6 +4146,7 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 								GlobalFree( context->download_info->w_add_time );
 								GlobalFree( context->download_info->cookies );
 								GlobalFree( context->download_info->headers );
+								GlobalFree( context->download_info->data );
 								//GlobalFree( context->download_info->etag );
 								GlobalFree( context->download_info->auth_info.username );
 								GlobalFree( context->download_info->auth_info.password );
@@ -4143,10 +4169,51 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 									GlobalFree( range_node );
 								}
 
+								// Do we want to delete the file as well?
+								if ( IS_STATUS( context->status, STATUS_DELETE ) )
+								{
+									// We're freeing this anyway so it's safe to modify.
+									context->download_info->file_path[ context->download_info->filename_offset - 1 ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
+
+									DeleteFileW( context->download_info->file_path );
+								}
+
 								DeleteCriticalSection( &context->download_info->shared_cs );
 
 								GlobalFree( context->download_info );
 								context->download_info = NULL;
+							}
+							else if ( IS_STATUS( context->status, STATUS_RESTART ) )
+							{
+								while ( context->download_info->range_list != NULL )
+								{
+									DoublyLinkedList *range_node = context->download_info->range_list;
+									context->download_info->range_list = context->download_info->range_list->next;
+
+									GlobalFree( range_node->data );
+									GlobalFree( range_node );
+								}
+
+								while ( context->download_info->range_queue != NULL )
+								{
+									DoublyLinkedList *range_node = context->download_info->range_queue;
+									context->download_info->range_queue = context->download_info->range_queue->next;
+
+									GlobalFree( range_node->data );
+									GlobalFree( range_node );
+								}
+
+								context->download_info->processed_header = false;
+
+								context->download_info->downloaded = 0;
+
+								// If we restart a download, then set the incomplete retry attempts back to 0.
+								context->download_info->retries = 0;
+								context->download_info->start_time.QuadPart = 0;
+
+								StartDownload( context->download_info, false );
+
+								LeaveCriticalSection( &context->download_info->shared_cs );
 							}
 							else
 							{
@@ -4172,6 +4239,8 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 									context->download_info->cookies = NULL;
 									GlobalFree( context->download_info->headers );
 									context->download_info->headers = NULL;
+									GlobalFree( context->download_info->data );
+									context->download_info->data = NULL;
 									//GlobalFree( context->download_info->etag );
 									//context->download_info->etag = NULL;
 									GlobalFree( context->download_info->auth_info.username );
@@ -4287,12 +4356,15 @@ void FreePOSTInfo( POST_INFO **post_info )
 {
 	if ( *post_info != NULL )
 	{
+		if ( ( *post_info )->method != NULL ) { GlobalFree( ( *post_info )->method ); }
 		if ( ( *post_info )->urls != NULL ) { GlobalFree( ( *post_info )->urls ); }
 		if ( ( *post_info )->username != NULL ) { GlobalFree( ( *post_info )->username ); }
 		if ( ( *post_info )->password != NULL ) { GlobalFree( ( *post_info )->password ); }
 		if ( ( *post_info )->cookies != NULL ) { GlobalFree( ( *post_info )->cookies ); }
 		if ( ( *post_info )->headers != NULL ) { GlobalFree( ( *post_info )->headers ); }
+		if ( ( *post_info )->data != NULL ) { GlobalFree( ( *post_info )->data ); }
 		if ( ( *post_info )->parts != NULL ) { GlobalFree( ( *post_info )->parts ); }
+		if ( ( *post_info )->directory != NULL ) { GlobalFree( ( *post_info )->directory ); }
 		if ( ( *post_info )->simulate_download != NULL ) { GlobalFree( ( *post_info )->simulate_download ); }
 
 		GlobalFree( *post_info );

@@ -1,0 +1,87 @@
+Version:	1.0.0.9
+Released:	2018-10-26
+
+Added POST data field to advanced options in Add URL(s) window.
+Added option to download drag and drop URL(s) immediately.
+Added the ability to restart downloads.
+Added the ability to remove and delete downloads at the same time.
+Added translation support.
+Added Spanish string translations (thanks to c-sanchez).
+Added Search window to search filenames and URLs.
+URL drop window can toggle Always On Top from its context menu or by middle clicking window.
+Improved support for browser extensions.
+Dynamically loaded SetFileInformationByHandle to hopefully get Windows XP working.
+
+Version:	1.0.0.8
+Released:	2018-10-12
+
+Fixed paused downloads not stopping when server doesn't reply.
+Fixed flickering status bar when resizing window.
+Fixed incorrect size and position being saved when program is closed while minimized.
+Fixed speed measurement jumping to 0.
+Fixed infinite loop caused by partial digest authorization values.
+Various optimizations and bug fixes.
+Added option to run one instance of the program.
+Added option to display a URL drop window.
+Added toolbar to manage (Start, Pause, Stop, etc.) downloads.
+Selected downloads can now be renamed.
+Selected downloads can now be deleted from disk.
+Selected downloads can now be remove with Delete key.
+Download history can be saved as a CSV file.
+Download history can be imported from and exported as download_history files.
+Added -u command-line switch to add a URL.
+Drag and drop windows can now accept download_history files.
+
+Version:	1.0.0.7
+Released:	2018-09-26
+
+Fixed program exit when window is set to close to the system tray.
+Open Directory menu will highlight the file in the opened Explorer window.
+Added option to set a downloaded file's date and time from the server's Last-Modified header value.
+Added detection of an extensionless "portable" file (in the executable's directory) to enable portable mode.
+
+Version:	1.0.0.6
+Released:	2018-06-23
+
+Added Copy URL(s) menu item.
+Added the ability to update various download settings after download has been added.
+Fixed paused contexts not being shutdown, closed, and removed when its list item is removed.
+Fixed connections that time out not being stopped manually.
+
+Version:	1.0.0.5
+Released:	2018-01-10
+
+Fixed file attachment name detection.
+
+Version:	1.0.0.4
+Released:	2017-12-27
+
+Rename file based on last redirect location.
+Added maximum redirect count to options.
+
+Version:	1.0.0.3
+Released:	2017-11-21
+
+Removed counter increment if file write fails.
+
+Version:	1.0.0.2
+Released:	2017-11-20
+
+Added server to remotely add URLs.
+Added custom header support.
+Padded settings file for future settings.
+Detect encoded filename attachments.
+Improved HTTP handling of small byte transfers.
+Improved URL parsing.
+Maximum number of parts will be used for resumed downloads.
+Fixed race condition that could occur during context cleanup.
+
+Version:	1.0.0.1
+Released:	2017-07-16
+
+Prevented tooltip from displaying when not hovered over list item.
+
+Version:	1.0.0.0
+Released:	2017-07-15
+
+Initial commit.

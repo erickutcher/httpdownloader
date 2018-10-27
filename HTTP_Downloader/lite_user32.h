@@ -55,10 +55,12 @@
 	#define _EnableMenuItem			EnableMenuItem
 	#define _EnableWindow			EnableWindow
 	#define _EndDeferWindowPos		EndDeferWindowPos
+	//#define _EndMenu				EndMenu
 	#define _EndPaint				EndPaint
 	//#define _EnumChildWindows		EnumChildWindows
 	#define _FillRect				FillRect
 	#define _FlashWindow			FlashWindow
+	#define _FrameRect				FrameRect
 	//#define _GetClassLongPtrW		GetClassLongPtrW
 	#define _GetClientRect			GetClientRect
 	//#define _GetClipboardData		GetClipboardData
@@ -88,7 +90,7 @@
 	#define _LoadIconW				LoadIconW
 	#define _LoadImageW				LoadImageW
 	//#define _MapWindowPoints		MapWindowPoints
-	#define _MessageBoxA			MessageBoxA
+	//#define _MessageBoxA			MessageBoxA
 	#define _MessageBoxW			MessageBoxW
 	#define _OffsetRect				OffsetRect
 	#define _OpenClipboard			OpenClipboard
@@ -158,10 +160,12 @@
 	typedef BOOL ( WINAPI *pEnableMenuItem )( HMENU hMenu, UINT uIDEnableItem, UINT uEnable );
 	typedef BOOL ( WINAPI *pEnableWindow )( HWND hWnd, BOOL bEnable );
 	typedef BOOL ( WINAPI *pEndDeferWindowPos )( HDWP hWinPosInfo );
+	//typedef BOOL ( WINAPI *pEndMenu )();
 	typedef BOOL ( WINAPI *pEndPaint )( HWND hWnd, const PAINTSTRUCT *lpPaint );
 	//typedef BOOL ( WINAPI *pEnumChildWindows )( HWND hWndParent, WNDENUMPROC lpEnumFunc, LPARAM lParam );
 	typedef int ( WINAPI *pFillRect )( HDC hDC, const RECT *lprc, HBRUSH hbr );
 	typedef BOOL ( WINAPI *pFlashWindow )( HWND hWnd, BOOL bInvert );
+	typedef int ( WINAPI *pFrameRect )( HDC hDC, const RECT *lprc, HBRUSH hbr );
 	//typedef ULONG_PTR WINAPI ( WINAPI *pGetClassLongPtrW )( HWND hWnd, int nIndex );
 	typedef BOOL ( WINAPI *pGetClientRect )( HWND hWnd, LPRECT lpRect );
 	//typedef HANDLE ( WINAPI *pGetClipboardData )( UINT uFormat );
@@ -191,7 +195,7 @@
 	typedef HICON ( WINAPI *pLoadIconW )( HINSTANCE hInstance, LPCTSTR lpIconName );
 	typedef HANDLE ( WINAPI *pLoadImageW )( HINSTANCE hinst, LPCTSTR lpszName, UINT uType, int cxDesired, int cyDesired, UINT fuLoad );
 	//typedef int ( WINAPI *pMapWindowPoints )( HWND hWndFrom, HWND hWndTo, LPPOINT lpPoints, UINT cPoints );
-	typedef int ( WINAPI *pMessageBoxA )( HWND hWnd, LPCSTR lpText, LPCSTR lpCaption, UINT uType );
+	//typedef int ( WINAPI *pMessageBoxA )( HWND hWnd, LPCSTR lpText, LPCSTR lpCaption, UINT uType );
 	typedef int ( WINAPI *pMessageBoxW )( HWND hWnd, LPCTSTR lpText, LPCTSTR lpCaption, UINT uType );
 	typedef BOOL ( WINAPI *pOffsetRect )( LPRECT lprc, int dx, int dy );
 	typedef BOOL ( WINAPI *pOpenClipboard )( HWND hWndNewOwner );
@@ -254,10 +258,12 @@
 	extern pEnableMenuItem			_EnableMenuItem;
 	extern pEnableWindow			_EnableWindow;
 	extern pEndDeferWindowPos		_EndDeferWindowPos;
+	//extern pEndMenu					_EndMenu;
 	extern pEndPaint				_EndPaint;
 	//extern pEnumChildWindows		_EnumChildWindows;
 	extern pFillRect				_FillRect;
 	extern pFlashWindow				_FlashWindow;
+	extern pFrameRect				_FrameRect;
 	//extern pGetClassLongPtrW		_GetClassLongPtrW;
 	extern pGetClientRect			_GetClientRect;
 	//extern pGetClipboardData		_GetClipboardData
@@ -287,7 +293,7 @@
 	extern pLoadIconW				_LoadIconW;
 	extern pLoadImageW				_LoadImageW;
 	//extern pMapWindowPoints			_MapWindowPoints;
-	extern pMessageBoxA				_MessageBoxA;
+	//extern pMessageBoxA				_MessageBoxA;
 	extern pMessageBoxW				_MessageBoxW;
 	extern pOffsetRect				_OffsetRect;
 	extern pOpenClipboard			_OpenClipboard;
