@@ -1,3 +1,9 @@
+Version:	1.0.1.0
+Released:	2018-10-28
+
+Fixed incorrect values for remaining and elapsed time columns.
+Better handling of improper range responses.
+
 Version:	1.0.0.9
 Released:	2018-10-26
 

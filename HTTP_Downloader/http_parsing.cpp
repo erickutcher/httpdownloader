@@ -2773,10 +2773,32 @@ char GetHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int h
 				}
 				else	// The range connections have not been made. We've only requested the length (Range: 0-0) so far.
 				{
-					// Make sure we can split the download into enough parts.
-					if ( context->header_info.range_info->content_length < context->parts )
+					// The stupid server gave us more than we requested (probably the full range).
+					// If we ignore this, then the download will fail at some point.
+					// If it reconnects, then it may end up redownloading already downloaded bytes.
+					//if ( context->header_info.range_info->range_end + 1 == context->header_info.range_info->content_length )
+					if ( context->header_info.range_info->range_end > 0 )
 					{
-						context->parts = ( context->header_info.range_info->content_length > 0 ? ( unsigned char )context->header_info.range_info->content_length : 1 );
+						if ( context->download_info != NULL )
+						{
+							EnterCriticalSection( &context->download_info->shared_cs );
+
+							context->download_info->processed_header = true;
+
+							LeaveCriticalSection( &context->download_info->shared_cs );
+						}
+
+						context->parts = 1;	// Allow only one connection.
+
+						context->processed_header = true;	// Assume we created our range request.
+					}
+					else
+					{
+						// Make sure we can split the download into enough parts.
+						if ( context->header_info.range_info->content_length < context->parts )
+						{
+							context->parts = ( context->header_info.range_info->content_length > 0 ? ( unsigned char )context->header_info.range_info->content_length : 1 );
+						}
 					}
 				}
 			}

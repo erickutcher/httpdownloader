@@ -1265,9 +1265,17 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 				{
 					wchar_t msg[ 512 ];
 					__snwprintf( msg, 512, L"HTTP Downloader is made free under the GPLv3 license.\r\n\r\n" \
-										   L"Version 1.0.0.9\r\n\r\n" \
+										   L"Version 1.0.1.0\r\n\r\n" \
 										   L"Built on %s, %s %d, %04d %d:%02d:%02d %s (UTC)\r\n\r\n" \
-										   L"Copyright \xA9 2015-2018 Eric Kutcher", GetDay( g_compile_time.wDayOfWeek ), GetMonth( g_compile_time.wMonth ), g_compile_time.wDay, g_compile_time.wYear, ( g_compile_time.wHour > 12 ? g_compile_time.wHour - 12 : ( g_compile_time.wHour != 0 ? g_compile_time.wHour : 12 ) ), g_compile_time.wMinute, g_compile_time.wSecond, ( g_compile_time.wHour >= 12 ? L"PM" : L"AM" ) );
+										   L"Copyright \xA9 2015-2018 Eric Kutcher",
+										   ( g_compile_time.wDayOfWeek > 6 ? L"" : day_string_table[ g_compile_time.wDayOfWeek ].value ),
+										   ( ( g_compile_time.wMonth > 12 || g_compile_time.wMonth < 1 ) ? L"" : month_string_table[ g_compile_time.wMonth - 1 ].value ),
+										   g_compile_time.wDay,
+										   g_compile_time.wYear,
+										   ( g_compile_time.wHour > 12 ? g_compile_time.wHour - 12 : ( g_compile_time.wHour != 0 ? g_compile_time.wHour : 12 ) ),
+										   g_compile_time.wMinute,
+										   g_compile_time.wSecond,
+										   ( g_compile_time.wHour >= 12 ? L"PM" : L"AM" ) );
 
 					_MessageBoxW( hWnd, msg, PROGRAM_CAPTION, MB_APPLMODAL | MB_ICONINFORMATION );
 				}
@@ -2421,7 +2429,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 								DT_ALIGN = DT_RIGHT;
 
 								// Use the infinity symbol for remaining time if it can't be calculated.
-								if ( arr2[ i ] == 11 &&
+								if ( arr2[ i ] == 12 &&
 								   ( IS_STATUS( di->status, STATUS_CONNECTING | STATUS_PAUSED ) ||
 								   ( di->status == STATUS_DOWNLOADING && ( di->file_size == 0 || di->speed == 0 ) ) ) )
 								{
@@ -2429,7 +2437,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 								}
 								else
 								{
-									unsigned long long time_length = ( arr2[ i ] == 10 ? di->time_elapsed : di->time_remaining );
+									unsigned long long time_length = ( arr2[ i ] == 11 ? di->time_elapsed : di->time_remaining );
 
 									if ( IS_STATUS( di->status, STATUS_DOWNLOADING ) || time_length > 0 )
 									{
