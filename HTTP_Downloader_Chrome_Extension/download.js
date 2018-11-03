@@ -152,6 +152,7 @@ function GetDownloadInfo( id )
 		document.getElementById( "last_urls" ).value = info.urls;
 		document.getElementById( "urls" ).value = info.urls;
 		document.getElementById( "cookies" ).value = ( info.cookies ? info.cookies : "" );
+		document.getElementById( "headers" ).value = ( info.headers ? info.headers : "" );
 		document.getElementById( "parts" ).value = info.parts;
 		document.getElementById( "directory" ).value = ( info.directory ? info.directory : "" );
 		var enable_post = ( info.method == 2 ? true : false );

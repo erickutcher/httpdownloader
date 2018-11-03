@@ -230,6 +230,9 @@ extern bool cfg_use_one_instance;
 extern bool cfg_enable_drop_window;
 extern bool cfg_download_immediately;
 
+extern bool cfg_play_sound;
+extern wchar_t *cfg_sound_file_path;
+
 extern unsigned long cfg_thread_count;
 extern unsigned long g_max_threads;
 

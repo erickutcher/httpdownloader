@@ -336,7 +336,7 @@ LRESULT CALLBACK CustomMessageBoxWndProc( HWND hWnd, UINT msg, WPARAM wParam, LP
 					{
 						_SendMessageW( hWnd_static_icon, STM_SETICON, ( WPARAM )_LoadIconW( NULL, IDI_ASTERISK ), 0 );
 
-						_PlaySoundW( ( LPCTSTR )SND_ALIAS_SYSTEMASTERISK, NULL, SND_ASYNC | SND_ALIAS_ID | SND_NODEFAULT );
+						if ( play ) { _PlaySoundW( ( LPCTSTR )SND_ALIAS_SYSTEMASTERISK, NULL, SND_ASYNC | SND_ALIAS_ID | SND_NODEFAULT ); }
 					}
 					break;
 
@@ -344,7 +344,7 @@ LRESULT CALLBACK CustomMessageBoxWndProc( HWND hWnd, UINT msg, WPARAM wParam, LP
 					{
 						_SendMessageW( hWnd_static_icon, STM_SETICON, ( WPARAM )_LoadIconW( NULL, IDI_EXCLAMATION ), 0 );
 
-						_PlaySoundW( ( LPCTSTR )SND_ALIAS_SYSTEMEXCLAMATION, NULL, SND_ASYNC | SND_ALIAS_ID | SND_NODEFAULT );
+						if ( play ) { _PlaySoundW( ( LPCTSTR )SND_ALIAS_SYSTEMEXCLAMATION, NULL, SND_ASYNC | SND_ALIAS_ID | SND_NODEFAULT ); }
 					}
 					break;
 
@@ -352,7 +352,7 @@ LRESULT CALLBACK CustomMessageBoxWndProc( HWND hWnd, UINT msg, WPARAM wParam, LP
 					{
 						_SendMessageW( hWnd_static_icon, STM_SETICON, ( WPARAM )_LoadIconW( NULL, IDI_QUESTION ), 0 );
 
-						_PlaySoundW( ( LPCTSTR )SND_ALIAS_SYSTEMQUESTION, NULL, SND_ASYNC | SND_ALIAS_ID | SND_NODEFAULT );
+						if ( play ) { _PlaySoundW( ( LPCTSTR )SND_ALIAS_SYSTEMQUESTION, NULL, SND_ASYNC | SND_ALIAS_ID | SND_NODEFAULT ); }
 					}
 					break;
 
@@ -360,7 +360,7 @@ LRESULT CALLBACK CustomMessageBoxWndProc( HWND hWnd, UINT msg, WPARAM wParam, LP
 					{
 						_SendMessageW( hWnd_static_icon, STM_SETICON, ( WPARAM )_LoadIconW( NULL, IDI_HAND ), 0 );
 
-						_PlaySoundW( ( LPCTSTR )SND_ALIAS_SYSTEMHAND, NULL, SND_ASYNC | SND_ALIAS_ID | SND_NODEFAULT );
+						if ( play ) { _PlaySoundW( ( LPCTSTR )SND_ALIAS_SYSTEMHAND, NULL, SND_ASYNC | SND_ALIAS_ID | SND_NODEFAULT ); }
 					}
 					break;
 				}

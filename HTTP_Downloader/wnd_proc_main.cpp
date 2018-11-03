@@ -22,6 +22,7 @@
 #include "lite_ole32.h"
 #include "lite_comctl32.h"
 #include "lite_comdlg32.h"
+#include "lite_winmm.h"
 
 #include "list_operations.h"
 #include "file_operations.h"
@@ -522,6 +523,19 @@ DWORD WINAPI UpdateWindow( LPVOID WorkThreadContext )
 			_Shell_NotifyIconW( NIM_MODIFY, &g_nid );
 
 			_SendMessageW( g_hWnd_main, WM_SETTEXT, NULL, ( LPARAM )PROGRAM_CAPTION );
+
+			if ( cfg_play_sound && cfg_sound_file_path != NULL )
+			{
+				bool play = true;
+				#ifndef WINMM_USE_STATIC_LIB
+					if ( winmm_state == WINMM_STATE_SHUTDOWN )
+					{
+						play = false;	// Should have been loaded in main if cfg_play_sound was true. 
+					}
+				#endif
+
+				if ( play ) { _PlaySoundW( cfg_sound_file_path, NULL, SND_ASYNC | SND_FILENAME ); }
+			}
 		}
 	}
 
@@ -1093,6 +1107,15 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 				}
 				break;
 
+				case MENU_DELETE:
+				{
+					if ( _MessageBoxW( hWnd, ST_V_PROMPT_delete_selected_files, PROGRAM_CAPTION, MB_APPLMODAL | MB_ICONWARNING | MB_YESNO ) == IDYES )
+					{
+						CloseHandle( ( HANDLE )_CreateThread( NULL, 0, delete_files, ( void * )NULL, 0, NULL ) );
+					}
+				}
+				break;
+
 				case MENU_RENAME:
 				{
 					LVITEM lvi;
@@ -1105,15 +1128,6 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 						edit_from_menu = true;
 
 						_SendMessageW( g_hWnd_files, LVM_EDITLABEL, lvi.iItem, 0 );
-					}
-				}
-				break;
-
-				case MENU_DELETE:
-				{
-					if ( _MessageBoxW( hWnd, ST_V_PROMPT_delete_selected_files, PROGRAM_CAPTION, MB_APPLMODAL | MB_ICONWARNING | MB_YESNO ) == IDYES )
-					{
-						CloseHandle( ( HANDLE )_CreateThread( NULL, 0, delete_files, ( void * )NULL, 0, NULL ) );
 					}
 				}
 				break;
@@ -1230,7 +1244,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 				{
 					if ( g_hWnd_options == NULL )
 					{
-						g_hWnd_options = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"options", ST_V_Options, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU, ( ( _GetSystemMetrics( SM_CXSCREEN ) - 480 ) / 2 ), ( ( _GetSystemMetrics( SM_CYSCREEN ) - 415 ) / 2 ), 480, 415, NULL, NULL, NULL, NULL );
+						g_hWnd_options = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"options", ST_V_Options, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU, ( ( _GetSystemMetrics( SM_CXSCREEN ) - 480 ) / 2 ), ( ( _GetSystemMetrics( SM_CYSCREEN ) - 455 ) / 2 ), 480, 455, NULL, NULL, NULL, NULL );
 						_ShowWindow( g_hWnd_options, SW_SHOWNORMAL );
 					}
 					_SetForegroundWindow( g_hWnd_options );
@@ -1265,7 +1279,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 				{
 					wchar_t msg[ 512 ];
 					__snwprintf( msg, 512, L"HTTP Downloader is made free under the GPLv3 license.\r\n\r\n" \
-										   L"Version 1.0.1.0\r\n\r\n" \
+										   L"Version 1.0.1.1\r\n\r\n" \
 										   L"Built on %s, %s %d, %04d %d:%02d:%02d %s (UTC)\r\n\r\n" \
 										   L"Copyright \xA9 2015-2018 Eric Kutcher",
 										   ( g_compile_time.wDayOfWeek > 6 ? L"" : day_string_table[ g_compile_time.wDayOfWeek ].value ),

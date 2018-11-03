@@ -2255,6 +2255,16 @@ char ParseHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int
 			// Then see if the new cookie is not blank.
 			if ( new_cookies[ 0 ] != NULL )
 			{
+				if ( context->download_info != NULL )
+				{
+					EnterCriticalSection( &context->download_info->shared_cs );
+
+					GlobalFree( context->download_info->cookies );
+					context->download_info->cookies = GlobalStrDupA( new_cookies );
+
+					LeaveCriticalSection( &context->download_info->shared_cs );
+				}
+
 				// If it's not, then free the old cookie and update it to the new one.
 				GlobalFree( context->header_info.cookies );
 				context->header_info.cookies = new_cookies;

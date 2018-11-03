@@ -123,6 +123,7 @@ General
 Hostname / IPv6 address:
 IPv4 address:
 Key file:
+Load Download Finish Sound File
 Load PKCS #12 File
 Load Private Key File
 Load X.509 Certificate File
@@ -132,6 +133,7 @@ OK
 PKCS #12:
 PKCS #12 file:
 PKCS #12 password:
+Play sound when all downloads finish:
 Port:
 Proxy
 Public / Private key pair:

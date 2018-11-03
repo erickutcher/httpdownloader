@@ -39,11 +39,11 @@ char read_config()
 		DWORD read = 0, pos = 0;
 		DWORD fz = GetFileSize( hFile_cfg, NULL );
 
-		int reserved = 1024 - 157;
+		int reserved = 1024 - 158;
 
 		// Our config file is going to be small. If it's something else, we're not going to read it.
 		// Add 21 for the strings.
-		if ( fz >= ( 157 + 21 ) && fz < 10240 )
+		if ( fz >= ( 158 + 21 ) && fz < 10240 )
 		{
 			char *cfg_buf = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * fz + 1 );
 
@@ -256,6 +256,9 @@ char read_config()
 				next += sizeof( unsigned char );
 
 				_memcpy_s( &cfg_download_immediately, sizeof( bool ), next, sizeof( bool ) );
+				next += sizeof( bool );
+
+				_memcpy_s( &cfg_play_sound, sizeof( bool ), next, sizeof( bool ) );
 				next += sizeof( bool );
 
 				//
@@ -584,6 +587,20 @@ char read_config()
 					next += string_length;
 				}
 
+				if ( ( DWORD )( next - cfg_buf ) < read )
+				{
+					string_length = lstrlenA( next ) + 1;
+
+					if ( string_length > 1 )
+					{
+						cfg_val_length = MultiByteToWideChar( CP_UTF8, 0, next, string_length, NULL, 0 );	// Include the NULL terminator.
+						cfg_sound_file_path = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * cfg_val_length );
+						MultiByteToWideChar( CP_UTF8, 0, next, string_length, cfg_sound_file_path, cfg_val_length );
+					}
+
+					next += string_length;
+				}
+
 				// Set the default values for bad configuration values.
 
 				CheckColumnOrders( download_columns, NUM_COLUMNS );
@@ -713,8 +730,8 @@ char save_config()
 	HANDLE hFile_cfg = CreateFile( base_directory, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL );
 	if ( hFile_cfg != INVALID_HANDLE_VALUE )
 	{
-		int reserved = 1024 - 157;
-		int size = ( sizeof( int ) * 20 ) + ( sizeof( unsigned short ) * 4 ) + ( sizeof( char ) * 36 ) + ( sizeof( bool ) * 17 ) + ( sizeof( unsigned long ) * 4 ) + reserved;
+		int reserved = 1024 - 158;
+		int size = ( sizeof( int ) * 20 ) + ( sizeof( unsigned short ) * 4 ) + ( sizeof( char ) * 36 ) + ( sizeof( bool ) * 18 ) + ( sizeof( unsigned long ) * 4 ) + reserved;
 		int pos = 0;
 
 		char *write_buf = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * size );
@@ -922,6 +939,9 @@ char save_config()
 		pos += sizeof( unsigned char );
 
 		_memcpy_s( write_buf + pos, size - pos, &cfg_download_immediately, sizeof( bool ) );
+		pos += sizeof( bool );
+
+		_memcpy_s( write_buf + pos, size - pos, &cfg_play_sound, sizeof( bool ) );
 		pos += sizeof( bool );
 
 		//
@@ -1176,6 +1196,21 @@ char save_config()
 			cfg_val_length = WideCharToMultiByte( CP_UTF8, 0, cfg_hostname_s, -1, NULL, 0, NULL, NULL );
 			utf8_cfg_val = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * cfg_val_length ); // Size includes the null character.
 			cfg_val_length = WideCharToMultiByte( CP_UTF8, 0, cfg_hostname_s, -1, utf8_cfg_val, cfg_val_length, NULL, NULL );
+
+			WriteFile( hFile_cfg, utf8_cfg_val, cfg_val_length, &write, NULL );
+
+			GlobalFree( utf8_cfg_val );
+		}
+		else
+		{
+			WriteFile( hFile_cfg, "\0", 1, &write, NULL );
+		}
+
+		if ( cfg_sound_file_path != NULL )
+		{
+			cfg_val_length = WideCharToMultiByte( CP_UTF8, 0, cfg_sound_file_path, -1, NULL, 0, NULL, NULL );
+			utf8_cfg_val = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * cfg_val_length ); // Size includes the null character.
+			cfg_val_length = WideCharToMultiByte( CP_UTF8, 0, cfg_sound_file_path, -1, utf8_cfg_val, cfg_val_length, NULL, NULL );
 
 			WriteFile( hFile_cfg, utf8_cfg_val, cfg_val_length, &write, NULL );
 

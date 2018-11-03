@@ -373,8 +373,8 @@ void UpdateMenus( bool enable )
 		_EnableMenuItem( g_hMenuSub_download, MENU_UPDATE_DOWNLOAD, MF_DISABLED );
 		_EnableMenuItem( g_hMenuSub_download, MENU_REMOVE, MF_DISABLED );
 		_EnableMenuItem( g_hMenuSub_download, MENU_REMOVE_AND_DELETE, MF_DISABLED );
-		_EnableMenuItem( g_hMenuSub_download, MENU_RENAME, MF_DISABLED );
 		_EnableMenuItem( g_hMenuSub_download, MENU_DELETE, MF_DISABLED );
+		_EnableMenuItem( g_hMenuSub_download, MENU_RENAME, MF_DISABLED );
 		_EnableMenuItem( g_hMenuSub_download, MENU_COPY_URLS, MF_DISABLED );
 		_EnableMenuItem( g_hMenuSub_download, MENU_SELECT_ALL, MF_DISABLED );
 
@@ -388,8 +388,8 @@ void UpdateMenus( bool enable )
 		_EnableMenuItem( g_hMenuSub_edit, MENU_REMOVE, MF_DISABLED );
 		_EnableMenuItem( g_hMenuSub_edit, MENU_REMOVE_COMPLETED, MF_DISABLED );
 		_EnableMenuItem( g_hMenuSub_edit, MENU_REMOVE_AND_DELETE, MF_DISABLED );
-		_EnableMenuItem( g_hMenuSub_edit, MENU_RENAME, MF_DISABLED );
 		_EnableMenuItem( g_hMenuSub_edit, MENU_DELETE, MF_DISABLED );
+		_EnableMenuItem( g_hMenuSub_edit, MENU_RENAME, MF_DISABLED );
 		_EnableMenuItem( g_hMenuSub_edit, MENU_COPY_URLS, MF_DISABLED );
 		_EnableMenuItem( g_hMenuSub_edit, MENU_SELECT_ALL, MF_DISABLED );
 
@@ -528,14 +528,14 @@ void CreateMenus()
 	_InsertMenuItemW( g_hMenuSub_download, 14, TRUE, &mii );
 
 	mii.fType = MFT_STRING;
-	mii.dwTypeData = ST_V_Rename;
-	mii.cch = ST_L_Rename;
-	mii.wID = MENU_RENAME;
-	_InsertMenuItemW( g_hMenuSub_download, 15, TRUE, &mii );
-
 	mii.dwTypeData = ST_V_Delete;
 	mii.cch = ST_L_Delete;
 	mii.wID = MENU_DELETE;
+	_InsertMenuItemW( g_hMenuSub_download, 15, TRUE, &mii );
+
+	mii.dwTypeData = ST_V_Rename;
+	mii.cch = ST_L_Rename;
+	mii.wID = MENU_RENAME;
 	_InsertMenuItemW( g_hMenuSub_download, 16, TRUE, &mii );
 
 	mii.fType = MFT_SEPARATOR;
@@ -851,14 +851,14 @@ void CreateMenus()
 	_InsertMenuItemW( g_hMenuSub_edit, 15, TRUE, &mii );
 
 	mii.fType = MFT_STRING;
-	mii.dwTypeData = ST_V_Rename_;
-	mii.cch = ST_L_Rename_;
-	mii.wID = MENU_RENAME;
-	_InsertMenuItemW( g_hMenuSub_edit, 16, TRUE, &mii );
-
 	mii.dwTypeData = ST_V__Delete_;
 	mii.cch = ST_L__Delete_;
 	mii.wID = MENU_DELETE;
+	_InsertMenuItemW( g_hMenuSub_edit, 16, TRUE, &mii );
+
+	mii.dwTypeData = ST_V_Rename_;
+	mii.cch = ST_L_Rename_;
+	mii.wID = MENU_RENAME;
 	_InsertMenuItemW( g_hMenuSub_edit, 17, TRUE, &mii );
 
 	mii.fType = MFT_SEPARATOR;

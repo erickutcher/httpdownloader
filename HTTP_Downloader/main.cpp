@@ -242,7 +242,10 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 	// Use our default directory if none was supplied or check if there's a "portable" file in the same directory.
 	if ( default_directory )
 	{
-		base_directory_length = GetCurrentDirectoryW( MAX_PATH, base_directory );
+		//base_directory_length = GetCurrentDirectoryW( MAX_PATH, base_directory );
+		base_directory_length = GetModuleFileNameW( NULL, base_directory, MAX_PATH );
+		while ( base_directory_length != 0 && base_directory[ --base_directory_length ] != L'\\' );
+		base_directory[ base_directory_length ] = 0;	// Sanity.
 		_wmemcpy_s( base_directory + base_directory_length, MAX_PATH - base_directory_length, L"\\portable\0", 10 );
 
 		// If there's a portable file in the same directory, then we'll use that directory as our base.
@@ -519,6 +522,13 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 		}
 	}
 
+	if ( cfg_play_sound )
+	{
+		#ifndef WINMM_USE_STATIC_LIB
+			InitializeWinMM();
+		#endif
+	}
+
 	if ( normaliz_state == NORMALIZ_STATE_RUNNING )
 	{
 		int hostname_length = 0;
@@ -742,6 +752,7 @@ CLEANUP:
 
 	if ( base_directory != NULL ) { GlobalFree( base_directory ); }
 	if ( cfg_default_download_directory != NULL ) { GlobalFree( cfg_default_download_directory ); }
+	if ( cfg_sound_file_path != NULL ) { GlobalFree( cfg_sound_file_path ); }
 
 	if ( cfg_hostname != NULL ) { GlobalFree( cfg_hostname ); }
 	if ( g_punycode_hostname != NULL ) { GlobalFree( g_punycode_hostname ); }

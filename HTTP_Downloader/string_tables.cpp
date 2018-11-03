@@ -169,6 +169,7 @@ STRING_TABLE_DATA options_string_table[] =
 	{ L"Hostname / IPv6 address:", 24 },
 	{ L"IPv4 address:", 13 },
 	{ L"Key file:", 9 },
+	{ L"Load Download Finish Sound File", 31 },
 	{ L"Load PKCS #12 File", 18 },
 	{ L"Load Private Key File", 21 },
 	{ L"Load X.509 Certificate File", 27 },
@@ -178,6 +179,7 @@ STRING_TABLE_DATA options_string_table[] =
 	{ L"PKCS #12:", 9 },
 	{ L"PKCS #12 file:", 14 },
 	{ L"PKCS #12 password:", 18 },
+	{ L"Play sound when all downloads finish:", 37 },
 	{ L"Port:", 5 },
 	{ L"Proxy", 5 },
 	{ L"Public / Private key pair:", 26 },
@@ -296,7 +298,10 @@ void InitializeLocaleValues()
 	_memzero( g_locale_table, sizeof( STRING_TABLE_DATA ) * TOTAL_LOCALE_STRINGS );
 
 	wchar_t directory[ MAX_PATH ];
-	int directory_length = GetCurrentDirectoryW( MAX_PATH, directory );
+	//int directory_length = GetCurrentDirectoryW( MAX_PATH, directory );
+	int directory_length = GetModuleFileNameW( NULL, directory, MAX_PATH );
+	while ( directory_length != 0 && directory[ --directory_length ] != L'\\' );
+	directory[ directory_length ] = 0;	// Sanity.
 
 	// Find the default locale.
 	_wmemcpy_s( directory + directory_length, MAX_PATH - directory_length, L"\\locale\\default\0", 16 );

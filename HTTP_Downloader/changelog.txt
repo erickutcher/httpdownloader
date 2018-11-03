@@ -1,3 +1,15 @@
+Version:	1.0.1.1
+Released:	2018-11-03
+
+Fixed Completed downloads not being able to be restarted.
+Got program's directory from module path so "portable" file is detected when using PATH environment variable.
+Swapped Rename and Delete menu items.
+Added option to play sound when all downloads finish.
+Cookies in download info will be updated if found.
+Extensions can optionally pass Referer and User-Agent strings to program.
+Updated locale files.
+Refactored list operations code.
+
 Version:	1.0.1.0
 Released:	2018-10-28
 

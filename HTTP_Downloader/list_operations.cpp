@@ -51,6 +51,101 @@ void ProcessingList( bool processing )
 	}
 }
 
+void ResetDownload( DOWNLOAD_INFO *di, bool from_beginning, bool check_if_file_exists )
+{
+	if ( di != NULL )
+	{
+		DoublyLinkedList *range_node = NULL;
+
+		if ( from_beginning )
+		{
+			while ( di->range_list != NULL )
+			{
+				range_node = di->range_list;
+				di->range_list = di->range_list->next;
+
+				GlobalFree( range_node->data );
+				GlobalFree( range_node );
+			}
+
+			while ( di->range_queue != NULL )
+			{
+				range_node = di->range_queue;
+				di->range_queue = di->range_queue->next;
+
+				GlobalFree( range_node->data );
+				GlobalFree( range_node );
+			}
+
+			di->processed_header = false;
+
+			di->downloaded = 0;
+		}
+
+		// If we manually start a download, then set the incomplete retry attempts back to 0.
+		di->retries = 0;
+		di->start_time.QuadPart = 0;
+
+		// If we manually start a download that was added remotely, then allow the prompts to display.
+		di->download_operations &= ~DOWNLOAD_OPERATION_OVERRIDE_PROMPTS;
+
+		StartDownload( di, check_if_file_exists );
+	}
+}
+
+void SetContextStatus( SOCKET_CONTEXT *context, unsigned int status )
+{
+	if ( context != NULL )
+	{
+		EnterCriticalSection( &context->context_cs );
+
+		// The paused operation has not completed or it has and is_paused is waiting to be set.
+		// We'll fall through in IOCPConnection.
+		if ( IS_STATUS( context->status, STATUS_PAUSED ) && !context->is_paused )
+		{
+			context->status = status;
+
+			if ( context->cleanup == 0 )
+			{
+				context->cleanup = 1;	// Auto cleanup.
+			}
+
+			// The operation is probably stuck (server isn't responding). Force close the socket it to release the operation.
+			if ( context->pending_operations > 0 )
+			{
+				if ( context->socket != INVALID_SOCKET )
+				{
+					SOCKET s = context->socket;
+					context->socket = INVALID_SOCKET;
+					_shutdown( s, SD_BOTH );
+					_closesocket( s );	// Saves us from having to post if there's already a pending IO operation. Should force the operation to complete.
+				}
+			}
+		}
+		else
+		{
+			// 1 = auto cleanup, 2 = force the cleanup.
+			// Paused contexts shouldn't have any pending operations.
+			unsigned char cleanup_type = ( IS_STATUS( context->status, STATUS_PAUSED ) ? 1 : 2 );
+
+			context->status = status;
+
+			if ( context->cleanup == 0 )
+			{
+				context->cleanup = cleanup_type;
+
+				InterlockedIncrement( &context->pending_operations );
+
+				context->overlapped_close.current_operation = ( context->ssl != NULL ? IO_Shutdown : IO_Close );
+
+				PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped_close );
+			}
+		}
+
+		LeaveCriticalSection( &context->context_cs );
+	}
+}
+
 THREAD_RETURN remove_items( void *pArguments )
 {
 	unsigned char handle_type = ( unsigned char )pArguments;	// 0 = remove, 1 = remove and delete
@@ -165,55 +260,7 @@ THREAD_RETURN remove_items( void *pArguments )
 
 					context_node = context_node->next;
 
-					if ( context != NULL )
-					{
-						EnterCriticalSection( &context->context_cs );
-
-						// The paused operation has not completed or it has and is_paused is waiting to be set.
-						// We'll fall through in IOCPConnection.
-						if ( IS_STATUS( context->status, STATUS_PAUSED ) && !context->is_paused )
-						{
-							context->status = STATUS_STOPPED | STATUS_REMOVE | status;
-
-							if ( context->cleanup == 0 )
-							{
-								context->cleanup = 1;	// Auto cleanup.
-							}
-
-							// The operation is probably stuck (server isn't responding). Force close the socket it to release the operation.
-							if ( context->pending_operations > 0 )
-							{
-								if ( context->socket != INVALID_SOCKET )
-								{
-									SOCKET s = context->socket;
-									context->socket = INVALID_SOCKET;
-									_shutdown( s, SD_BOTH );
-									_closesocket( s );	// Saves us from having to post if there's already a pending IO operation. Should force the operation to complete.
-								}
-							}
-						}
-						else
-						{
-							// 1 = auto cleanup, 2 = force the cleanup.
-							// Paused contexts shouldn't have any pending operations.
-							unsigned char cleanup_type = ( IS_STATUS( context->status, STATUS_PAUSED ) ? 1 : 2 );
-
-							context->status = STATUS_STOPPED | STATUS_REMOVE | status;
-
-							if ( context->cleanup == 0 )
-							{
-								context->cleanup = cleanup_type;
-
-								InterlockedIncrement( &context->pending_operations );
-
-								context->overlapped_close.current_operation = ( context->ssl != NULL ? IO_Shutdown : IO_Close );
-
-								PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped_close );
-							}
-						}
-
-						LeaveCriticalSection( &context->context_cs );
-					}
+					SetContextStatus( context, STATUS_STOPPED | STATUS_REMOVE | status );
 				}
 
 				LeaveCriticalSection( &di->shared_cs );
@@ -510,55 +557,7 @@ THREAD_RETURN handle_download_list( void *pArguments )
 
 							context_node = context_node->next;
 
-							if ( context != NULL )
-							{
-								EnterCriticalSection( &context->context_cs );
-
-								// The paused operation has not completed or it has and is_paused is waiting to be set.
-								// We'll fall through in IOCPConnection.
-								if ( IS_STATUS( context->status, STATUS_PAUSED ) && !context->is_paused )
-								{
-									context->status = STATUS_STOPPED;
-
-									if ( context->cleanup == 0 )
-									{
-										context->cleanup = 1;	// Auto cleanup.
-									}
-
-									// The operation is probably stuck (server isn't responding). Force close the socket it to release the operation.
-									if ( context->pending_operations > 0 )
-									{
-										if ( context->socket != INVALID_SOCKET )
-										{
-											SOCKET s = context->socket;
-											context->socket = INVALID_SOCKET;
-											_shutdown( s, SD_BOTH );
-											_closesocket( s );	// Saves us from having to post if there's already a pending IO operation. Should force the operation to complete.
-										}
-									}
-								}
-								else
-								{
-									// 1 = auto cleanup, 2 = force the cleanup.
-									// Paused contexts shouldn't have any pending operations.
-									unsigned char cleanup_type = ( IS_STATUS( context->status, STATUS_PAUSED ) ? 1 : 2 );
-
-									context->status = STATUS_STOPPED;
-
-									if ( context->cleanup == 0 )
-									{
-										context->cleanup = cleanup_type;
-
-										InterlockedIncrement( &context->pending_operations );
-
-										context->overlapped_close.current_operation = ( context->ssl != NULL ? IO_Shutdown : IO_Close );
-
-										PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped_close );
-									}
-								}
-
-								LeaveCriticalSection( &context->context_cs );
-							}
+							SetContextStatus( context, STATUS_STOPPED );
 						}
 					}
 					else if ( di->queue_node.data != NULL )	// Download is queued.
@@ -710,36 +709,7 @@ THREAD_RETURN handle_download_list( void *pArguments )
 				{
 					download_history_changed = true;
 
-					while ( di->range_list != NULL )
-					{
-						DoublyLinkedList *range_node = di->range_list;
-						di->range_list = di->range_list->next;
-
-						GlobalFree( range_node->data );
-						GlobalFree( range_node );
-					}
-
-					while ( di->range_queue != NULL )
-					{
-						DoublyLinkedList *range_node = di->range_queue;
-						di->range_queue = di->range_queue->next;
-
-						GlobalFree( range_node->data );
-						GlobalFree( range_node );
-					}
-
-					di->processed_header = false;
-
-					di->downloaded = 0;
-
-					// If we manually start a download, then set the incomplete retry attempts back to 0.
-					di->retries = 0;
-					di->start_time.QuadPart = 0;
-
-					// If we manually start a download that was added remotely, then allow the prompts to display.
-					di->download_operations &= ~DOWNLOAD_OPERATION_OVERRIDE_PROMPTS;
-
-					StartDownload( di, false );
+					ResetDownload( di, true, false );
 				}
 
 				LeaveCriticalSection( &di->shared_cs );
@@ -816,203 +786,18 @@ THREAD_RETURN handle_connection( void *pArguments )
 			EnterCriticalSection( &di->shared_cs );
 
 			// Make sure we're not already in the process of shutting down or closing the connection.
-			if ( di->status != STATUS_COMPLETED && di->status != status )
+			if ( di->status != status )
 			{
-				DoublyLinkedList *context_node = di->parts_list;
-				SOCKET_CONTEXT *context = NULL;
-
-				// Make sure the status is exclusively connecting or downloading.
-				if ( di->status == STATUS_CONNECTING ||
-					 di->status == STATUS_DOWNLOADING )
+				if ( di->status != STATUS_COMPLETED )
 				{
-					if ( status == STATUS_STOPPED )	// Stop (close) the active connection.
+					DoublyLinkedList *context_node = di->parts_list;
+					SOCKET_CONTEXT *context = NULL;
+
+					// Make sure the status is exclusively connecting or downloading.
+					if ( di->status == STATUS_CONNECTING ||
+						 di->status == STATUS_DOWNLOADING )
 					{
-						// di->status will be set to STATUS_STOPPED in CleanupConnection().
-						while ( context_node != NULL )
-						{
-							context = ( SOCKET_CONTEXT * )context_node->data;
-
-							context_node = context_node->next;
-
-							if ( context != NULL )
-							{
-								EnterCriticalSection( &context->context_cs );
-
-								context->status = STATUS_STOPPED;
-
-								if ( context->cleanup == 0 )
-								{
-									context->cleanup = 2;	// Force the cleanup.
-
-									InterlockedIncrement( &context->pending_operations );
-
-									context->overlapped_close.current_operation = ( context->ssl != NULL ? IO_Shutdown : IO_Close );
-
-									PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped_close );
-								}
-
-								LeaveCriticalSection( &context->context_cs );
-							}
-						}
-					}
-					else if ( status == STATUS_PAUSED ||
-							  status == STATUS_RESTART )
-					{
-						if ( status == STATUS_RESTART )
-						{
-							di->status = STATUS_STOPPED | STATUS_RESTART;
-						}
-						else
-						{
-							di->status |= STATUS_PAUSED;
-						}
-
-						while ( context_node != NULL )
-						{
-							context = ( SOCKET_CONTEXT * )context_node->data;
-
-							context_node = context_node->next;
-
-							if ( context != NULL )
-							{
-								EnterCriticalSection( &context->context_cs );
-
-								context->is_paused = false;	// Set to true when last IO operation has completed.
-
-								context->status = di->status;
-
-								LeaveCriticalSection( &context->context_cs );
-							}
-						}
-					}
-					/*else
-					{
-						di->status = status;
-
-						while ( context_node != NULL )
-						{
-							context = ( SOCKET_CONTEXT * )context_node->data;
-
-							context_node = context_node->next;
-
-							if ( context != NULL )
-							{
-								EnterCriticalSection( &context->context_cs );
-
-								context->status = status;
-
-								LeaveCriticalSection( &context->context_cs );
-							}
-						}
-					}*/
-				}
-				else if ( IS_STATUS( di->status,
-							 STATUS_PAUSED |
-							 STATUS_QUEUED ) )	// The download is currently paused, or queued.
-				{
-					if ( status == STATUS_DOWNLOADING ||
-						 status == STATUS_RESTART )	// Resume downloading or restart download.
-					{
-						// Download is active, continue where we left off.
-						if ( di->download_node.data != NULL )
-						{
-							if ( status == STATUS_RESTART )
-							{
-								di->status = STATUS_STOPPED | STATUS_RESTART;
-							}
-							else
-							{
-								di->status &= ~STATUS_PAUSED;
-							}
-
-							// Run through our parts list and connect to each context.
-							while ( context_node != NULL )
-							{
-								context = ( SOCKET_CONTEXT * )context_node->data;
-
-								context_node = context_node->next;
-
-								if ( context != NULL )
-								{
-									EnterCriticalSection( &context->context_cs );
-
-									context->status = di->status;
-
-									// The paused operation has not completed or it has and is_paused is waiting to be set (when the completion fails).
-									// We'll fall through in IOCPConnection.
-									//if ( !( context->status == STATUS_CONNECTING && !context->is_paused ) )
-									if ( context->is_paused )
-									{
-										context->is_paused = false;	// Reset.
-
-										InterlockedIncrement( &context->pending_operations );
-
-										// Post a completion status to the completion port that we're going to continue with whatever it left off at.
-										PostQueuedCompletionStatus( g_hIOCP, context->current_bytes_read, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped );
-									}
-
-									LeaveCriticalSection( &context->context_cs );
-								}
-							}
-						}
-						else if ( di->queue_node.data != NULL )	// Download is not active, attempt to resume or queue.
-						{
-							if ( total_downloading < cfg_max_downloads )
-							{
-								EnterCriticalSection( &download_queue_cs );
-
-								if ( download_queue != NULL )
-								{
-									DLL_RemoveNode( &download_queue, &di->queue_node );
-									di->queue_node.data = NULL;
-
-									if ( status == STATUS_RESTART )
-									{
-										while ( di->range_list != NULL )
-										{
-											DoublyLinkedList *range_node = di->range_list;
-											di->range_list = di->range_list->next;
-
-											GlobalFree( range_node->data );
-											GlobalFree( range_node );
-										}
-
-										while ( di->range_queue != NULL )
-										{
-											DoublyLinkedList *range_node = di->range_queue;
-											di->range_queue = di->range_queue->next;
-
-											GlobalFree( range_node->data );
-											GlobalFree( range_node );
-										}
-
-										di->processed_header = false;
-
-										di->downloaded = 0;
-									}
-
-									// If we manually start a download, then set the incomplete retry attempts back to 0.
-									di->retries = 0;
-									di->start_time.QuadPart = 0;
-
-									// If we manually start a download that was added remotely, then allow the prompts to display.
-									di->download_operations &= ~DOWNLOAD_OPERATION_OVERRIDE_PROMPTS;
-
-									StartDownload( di, false );
-								}
-
-								LeaveCriticalSection( &download_queue_cs );
-							}
-							/*else
-							{
-								di->status = STATUS_QUEUED;	// Queued.
-							}*/
-						}
-					}
-					else if ( status == STATUS_STOPPED )	// Stop (close) the active connection.
-					{
-						// Download is active, close the connection.
-						if ( di->download_node.data != NULL )
+						if ( status == STATUS_STOPPED )	// Stop (close) the active connection.
 						{
 							// di->status will be set to STATUS_STOPPED in CleanupConnection().
 							while ( context_node != NULL )
@@ -1025,64 +810,209 @@ THREAD_RETURN handle_connection( void *pArguments )
 								{
 									EnterCriticalSection( &context->context_cs );
 
-									// The paused operation has not completed or it has and is_paused is waiting to be set.
-									// We'll fall through in IOCPConnection.
-									if ( IS_STATUS( context->status, STATUS_PAUSED ) && !context->is_paused )
+									context->status = STATUS_STOPPED;
+
+									if ( context->cleanup == 0 )
 									{
-										context->status = STATUS_STOPPED;
+										context->cleanup = 2;	// Force the cleanup.
 
-										if ( context->cleanup == 0 )
-										{
-											context->cleanup = 1;	// Auto cleanup.
-										}
+										InterlockedIncrement( &context->pending_operations );
 
-										// The operation is probably stuck (server isn't responding). Force close the socket it to release the operation.
-										if ( context->pending_operations > 0 )
-										{
-											if ( context->socket != INVALID_SOCKET )
-											{
-												SOCKET s = context->socket;
-												context->socket = INVALID_SOCKET;
-												_shutdown( s, SD_BOTH );
-												_closesocket( s );	// Saves us from having to post if there's already a pending IO operation. Should force the operation to complete.
-											}
-										}
-									}
-									else
-									{
-										// 1 = auto cleanup, 2 = force the cleanup.
-										// Paused contexts shouldn't have any pending operations.
-										unsigned char cleanup_type = ( IS_STATUS( context->status, STATUS_PAUSED ) ? 1 : 2 );
+										context->overlapped_close.current_operation = ( context->ssl != NULL ? IO_Shutdown : IO_Close );
 
-										context->status = STATUS_STOPPED;
-
-										if ( context->cleanup == 0 )
-										{
-											context->cleanup = cleanup_type;
-
-											InterlockedIncrement( &context->pending_operations );
-
-											context->overlapped_close.current_operation = ( context->ssl != NULL ? IO_Shutdown : IO_Close );
-
-											PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped_close );
-										}
+										PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped_close );
 									}
 
 									LeaveCriticalSection( &context->context_cs );
 								}
 							}
 						}
-						else if ( di->queue_node.data != NULL )	// Download is queued.
+						else if ( status == STATUS_PAUSED ||
+								  status == STATUS_RESTART )
 						{
-							di->status = STATUS_STOPPED;
+							if ( status == STATUS_RESTART )
+							{
+								di->status = STATUS_STOPPED | STATUS_RESTART;
+							}
+							else
+							{
+								di->status |= STATUS_PAUSED;
+							}
 
-							EnterCriticalSection( &download_queue_cs );
+							while ( context_node != NULL )
+							{
+								context = ( SOCKET_CONTEXT * )context_node->data;
 
-							// Remove the item from the download queue.
-							DLL_RemoveNode( &download_queue, &di->queue_node );
-							di->queue_node.data = NULL;
+								context_node = context_node->next;
 
-							LeaveCriticalSection( &download_queue_cs );
+								if ( context != NULL )
+								{
+									EnterCriticalSection( &context->context_cs );
+
+									context->is_paused = false;	// Set to true when last IO operation has completed.
+
+									context->status = di->status;
+
+									LeaveCriticalSection( &context->context_cs );
+								}
+							}
+						}
+						/*else
+						{
+							di->status = status;
+
+							while ( context_node != NULL )
+							{
+								context = ( SOCKET_CONTEXT * )context_node->data;
+
+								context_node = context_node->next;
+
+								if ( context != NULL )
+								{
+									EnterCriticalSection( &context->context_cs );
+
+									context->status = status;
+
+									LeaveCriticalSection( &context->context_cs );
+								}
+							}
+						}*/
+					}
+					else if ( IS_STATUS( di->status,
+								 STATUS_PAUSED |
+								 STATUS_QUEUED ) )	// The download is currently paused, or queued.
+					{
+						if ( status == STATUS_DOWNLOADING ||
+							 status == STATUS_RESTART )	// Resume downloading or restart download.
+						{
+							// Download is active, continue where we left off.
+							if ( di->download_node.data != NULL )
+							{
+								if ( status == STATUS_RESTART )
+								{
+									di->status = STATUS_STOPPED | STATUS_RESTART;
+								}
+								else
+								{
+									di->status &= ~STATUS_PAUSED;
+								}
+
+								// Run through our parts list and connect to each context.
+								while ( context_node != NULL )
+								{
+									context = ( SOCKET_CONTEXT * )context_node->data;
+
+									context_node = context_node->next;
+
+									if ( context != NULL )
+									{
+										EnterCriticalSection( &context->context_cs );
+
+										context->status = di->status;
+
+										// The paused operation has not completed or it has and is_paused is waiting to be set (when the completion fails).
+										// We'll fall through in IOCPConnection.
+										//if ( !( context->status == STATUS_CONNECTING && !context->is_paused ) )
+										if ( context->is_paused )
+										{
+											context->is_paused = false;	// Reset.
+
+											InterlockedIncrement( &context->pending_operations );
+
+											// Post a completion status to the completion port that we're going to continue with whatever it left off at.
+											PostQueuedCompletionStatus( g_hIOCP, context->current_bytes_read, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped );
+										}
+
+										LeaveCriticalSection( &context->context_cs );
+									}
+								}
+							}
+							else if ( di->queue_node.data != NULL )	// Download is not active, attempt to resume or queue.
+							{
+								if ( total_downloading < cfg_max_downloads )
+								{
+									EnterCriticalSection( &download_queue_cs );
+
+									if ( download_queue != NULL )
+									{
+										DLL_RemoveNode( &download_queue, &di->queue_node );
+										di->queue_node.data = NULL;
+
+										ResetDownload( di, ( status == STATUS_RESTART ? true : false ), false );
+									}
+
+									LeaveCriticalSection( &download_queue_cs );
+								}
+								/*else
+								{
+									di->status = STATUS_QUEUED;	// Queued.
+								}*/
+							}
+						}
+						else if ( status == STATUS_STOPPED )	// Stop (close) the active connection.
+						{
+							// Download is active, close the connection.
+							if ( di->download_node.data != NULL )
+							{
+								// di->status will be set to STATUS_STOPPED in CleanupConnection().
+								while ( context_node != NULL )
+								{
+									context = ( SOCKET_CONTEXT * )context_node->data;
+
+									context_node = context_node->next;
+
+									SetContextStatus( context, STATUS_STOPPED );
+								}
+							}
+							else if ( di->queue_node.data != NULL )	// Download is queued.
+							{
+								di->status = STATUS_STOPPED;
+
+								EnterCriticalSection( &download_queue_cs );
+
+								// Remove the item from the download queue.
+								DLL_RemoveNode( &download_queue, &di->queue_node );
+								di->queue_node.data = NULL;
+
+								LeaveCriticalSection( &download_queue_cs );
+							}
+						}
+						/*else
+						{
+							di->status = status;
+
+							while ( context_node != NULL )
+							{
+								context = ( SOCKET_CONTEXT * )context_node->data;
+
+								context_node = context_node->next;
+
+								if ( context != NULL )
+								{
+									EnterCriticalSection( &context->context_cs );
+
+									context->status = status;
+
+									LeaveCriticalSection( &context->context_cs );
+								}
+							}
+						}*/
+					}
+					else if ( IS_STATUS( di->status,
+								 STATUS_STOPPED |
+								 STATUS_TIMED_OUT |
+								 STATUS_FAILED |
+								 STATUS_FILE_IO_ERROR |
+								 STATUS_SKIPPED |
+								 STATUS_AUTH_REQUIRED |
+								 STATUS_PROXY_AUTH_REQUIRED ) )	// The download is currently stopped.
+					{
+						// Ensure that the download is actually stopped and that there are no active parts downloading.
+						if ( di->active_parts == 0 )
+						{
+							download_history_changed = true;
+
+							ResetDownload( di, ( status == STATUS_RESTART ? true : false ), ( di->status == STATUS_SKIPPED ? true : false ) );
 						}
 					}
 					/*else
@@ -1106,75 +1036,19 @@ THREAD_RETURN handle_connection( void *pArguments )
 						}
 					}*/
 				}
-				else if ( IS_STATUS( di->status,
-							 STATUS_STOPPED |
-							 STATUS_TIMED_OUT |
-							 STATUS_FAILED |
-							 STATUS_FILE_IO_ERROR |
-							 STATUS_SKIPPED |
-							 STATUS_AUTH_REQUIRED |
-							 STATUS_PROXY_AUTH_REQUIRED ) )	// The download is currently stopped.
+				else
 				{
-					// Ensure that the download is actually stopped and that there are no active parts downloading.
-					if ( di->active_parts == 0 )
+					if ( status == STATUS_RESTART )
 					{
-						download_history_changed = true;
-
-						if ( status == STATUS_RESTART )
+						// Ensure that there are no active parts downloading.
+						if ( di->active_parts == 0 )
 						{
-							while ( di->range_list != NULL )
-							{
-								DoublyLinkedList *range_node = di->range_list;
-								di->range_list = di->range_list->next;
+							download_history_changed = true;
 
-								GlobalFree( range_node->data );
-								GlobalFree( range_node );
-							}
-
-							while ( di->range_queue != NULL )
-							{
-								DoublyLinkedList *range_node = di->range_queue;
-								di->range_queue = di->range_queue->next;
-
-								GlobalFree( range_node->data );
-								GlobalFree( range_node );
-							}
-
-							di->processed_header = false;
-
-							di->downloaded = 0;
+							ResetDownload( di, true, false );
 						}
-
-						// If we manually start a download, then set the incomplete retry attempts back to 0.
-						di->retries = 0;
-						di->start_time.QuadPart = 0;
-
-						// If we manually start a download that was added remotely, then allow the prompts to display.
-						di->download_operations &= ~DOWNLOAD_OPERATION_OVERRIDE_PROMPTS;
-
-						StartDownload( di, ( di->status == STATUS_SKIPPED ? true : false ) );
 					}
 				}
-				/*else
-				{
-					di->status = status;
-
-					while ( context_node != NULL )
-					{
-						context = ( SOCKET_CONTEXT * )context_node->data;
-
-						context_node = context_node->next;
-
-						if ( context != NULL )
-						{
-							EnterCriticalSection( &context->context_cs );
-
-							context->status = status;
-
-							LeaveCriticalSection( &context->context_cs );
-						}
-					}
-				}*/
 			}
 
 			LeaveCriticalSection( &di->shared_cs );
@@ -1382,55 +1256,7 @@ THREAD_RETURN handle_download_update( void *pArguments )
 
 					context_node = context_node->next;
 
-					if ( context != NULL )
-					{
-						EnterCriticalSection( &context->context_cs );
-
-						// The paused operation has not completed or it has and is_paused is waiting to be set.
-						// We'll fall through in IOCPConnection.
-						if ( IS_STATUS( context->status, STATUS_PAUSED ) && !context->is_paused )
-						{
-							context->status = STATUS_UPDATING;
-
-							if ( context->cleanup == 0 )
-							{
-								context->cleanup = 1;	// Auto cleanup.
-							}
-
-							// The operation is probably stuck (server isn't responding). Force close the socket it to release the operation.
-							if ( context->pending_operations > 0 )
-							{
-								if ( context->socket != INVALID_SOCKET )
-								{
-									SOCKET s = context->socket;
-									context->socket = INVALID_SOCKET;
-									_shutdown( s, SD_BOTH );
-									_closesocket( s );	// Saves us from having to post if there's already a pending IO operation. Should force the operation to complete.
-								}
-							}
-						}
-						else
-						{
-							// 1 = auto cleanup, 2 = force the cleanup.
-							// Paused contexts shouldn't have any pending operations.
-							unsigned char cleanup_type = ( IS_STATUS( context->status, STATUS_PAUSED ) ? 1 : 2 );
-
-							context->status = STATUS_UPDATING;
-
-							if ( context->cleanup == 0 )
-							{
-								context->cleanup = cleanup_type;
-
-								InterlockedIncrement( &context->pending_operations );
-
-								context->overlapped_close.current_operation = ( context->ssl != NULL ? IO_Shutdown : IO_Close );
-
-								PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped_close );
-							}
-						}
-
-						LeaveCriticalSection( &context->context_cs );
-					}
+					SetContextStatus( context, STATUS_UPDATING );
 				}
 			}
 

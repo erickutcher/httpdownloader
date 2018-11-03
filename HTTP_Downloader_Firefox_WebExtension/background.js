@@ -23,35 +23,15 @@ function GetDomain( url )
 
 function OnGetOptions( options )
 {
-	if ( !options.server )
-	{
-		options.server = "http://localhost:80/";
-	}
-
-	if ( !options.username )
-	{
-		options.username = "";
-	}
-
-	if ( !options.password )
-	{
-		options.password = "";
-	}
-
-	if ( !options.parts )
-	{
-		options.parts = "1";
-	}
-
-	if ( !options.default_directory )
-	{
-		options.default_directory = "";
-	}
-
-	if ( !options.override )
-	{
-		options.override = false;
-	}
+	if ( typeof options.server == "undefined" ) { options.server = "http://localhost:80/"; }
+	if ( typeof options.username == "undefined" ) { options.username = ""; }
+	if ( typeof options.password == "undefined" ) { options.password = ""; }
+	if ( typeof options.parts == "undefined" ) { options.parts = "1"; }
+	if ( typeof options.default_directory == "undefined" ) { options.default_directory = ""; }
+	if ( typeof options.user_agent == "undefined" ) { options.user_agent = true; }
+	if ( typeof options.referer == "undefined" ) { options.referer = true; }
+	if ( typeof options.override == "undefined" ) { options.override = false; }
+	if ( typeof options.show_add_window == "undefined" ) { options.show_add_window = false; }
 
 	return options;
 }
@@ -77,6 +57,7 @@ function CreateDownloadWindow( download_info, message = "" )
 		var method = download_info.method;
 		var url = download_info.url;
 		var cookie_string = download_info.cookie_string;
+		var headers = download_info.headers;
 		var post_data = download_info.post_data;
 		var directory = download_info.directory;
 
@@ -90,6 +71,7 @@ function CreateDownloadWindow( download_info, message = "" )
 			method,
 			url,
 			cookie_string,
+			headers,
 			post_data,
 			directory,
 			message
@@ -168,9 +150,10 @@ function HandleMessages( request, sender, sendResponse )
 					method: window[ 5 ],
 					urls: window[ 6 ],
 					cookies: window[ 7 ],
-					post_data: window[ 8 ],
-					directory: window[ 9 ],
-					message: window[ 10 ]
+					headers: window[ 8 ],
+					post_data: window[ 9 ],
+					directory: window[ 10 ],
+					message: window[ 11 ]
 				} );
 
 				break;
@@ -227,6 +210,8 @@ function HandleMessages( request, sender, sendResponse )
 				}
 			}
 		} );
+
+		sendResponse( {} );
 	}
 
 	return true;
@@ -244,7 +229,6 @@ function SendDownloadToClient( download_info )
 		var password = "";
 		var parts = g_options.parts;
 		var simulate_download = "0";
-		var headers = "";
 
 		request.onerror = function( e )
 		{
@@ -286,7 +270,7 @@ function SendDownloadToClient( download_info )
 					  download_info.directory + "\x1f" +
 					  simulate_download + "\x1f" +
 					  download_info.cookie_string + "\x1f" +
-					  headers + "\x1f" +
+					  download_info.headers + "\x1f" +
 					  download_info.post_data + "\x1f" );
 	}
 	else
@@ -334,20 +318,32 @@ function OnDownloadItemCreated( item )
 
 		last_request = null;
 
-		var directory = ( item.filename != "" ? item.filename.substring( 0, item.filename.lastIndexOf( "\\" ) ) : g_options.default_directory );
-
 		// Cancel the download before it begins.
 		browser.downloads.cancel( item.id )
 		.then ( function()
 		{
 			var id = item.id;
 			var url = item.url;
+			var directory = ( item.filename != "" ? item.filename.substring( 0, item.filename.lastIndexOf( "\\" ) ) : g_options.default_directory );
 			var show_add_window = g_options.show_add_window;
+
+			var headers = "";
+
+			if ( g_options.user_agent )
+			{
+				headers = "User-Agent: " + window.navigator.userAgent + "\r\n";
+			}
+
+			if ( g_options.referer && item.referrer != null && item.referrer != "" )
+			{
+				headers += "Referer: " + item.referrer + "\r\n";
+			}
 
 			var download_info = { id: id,
 								  method: method,
 								  url: url,
 								  cookie_string: "",
+								  headers: headers,
 								  post_data: post_data,
 								  directory: directory,
 								  show_add_window: show_add_window };
@@ -385,6 +381,18 @@ function GetURLRequest( request )
 
 function OnMenuClicked( info, tab )
 {
+	var headers = "";
+
+	if ( g_options.user_agent )
+	{
+		headers = "User-Agent: " + window.navigator.userAgent + "\r\n";
+	}
+
+	if ( g_options.referer && info.pageUrl != null )
+	{
+		headers += "Referer: " + info.pageUrl.split( '#' )[ 0 ] + "\r\n";
+	}
+
 	if ( info.menuItemId == "download-all-images" ||
 		 info.menuItemId == "download-all-media" ||
 		 info.menuItemId == "download-all-links" )
@@ -409,7 +417,7 @@ function OnMenuClicked( info, tab )
 		{
 			var directory = g_options.default_directory;
 
-			CreateDownloadWindow( { show_add_window: true, id: null, method: "1", url: urls, cookie_string: "", directory: directory, post_data: "" } );
+			CreateDownloadWindow( { show_add_window: true, id: null, method: "1", url: urls, cookie_string: "", headers: headers, directory: directory, post_data: "" } );
 		} );
 	}
 	else
@@ -438,7 +446,7 @@ function OnMenuClicked( info, tab )
 			var directory = g_options.default_directory;
 
 			GetCookies( { domain: domain, cookie_stores: cookie_stores, index: 0 },
-						{ show_add_window: true, id: null, method: "1", url: url, cookie_string: "", directory: directory, post_data: "" } );
+						{ show_add_window: true, id: null, method: "1", url: url, cookie_string: "", headers: headers, directory: directory, post_data: "" } );
 		} );
 	}
 }
