@@ -114,6 +114,8 @@
 #define EDIT_SOUND_FILE				1061
 #define BTN_LOAD_SOUND_FILE			1062
 
+#define BTN_SHOW_NOTIFICATION		1063
+
 HWND g_hWnd_options = NULL;
 
 
@@ -236,6 +238,7 @@ HWND g_hWnd_auth_password_s = NULL;
 HWND g_hWnd_chk_tray_icon = NULL;
 HWND g_hWnd_chk_minimize = NULL;
 HWND g_hWnd_chk_close = NULL;
+HWND g_hWnd_chk_show_notification = NULL;
 
 HWND g_hWnd_chk_always_on_top = NULL;
 HWND g_hWnd_chk_download_history = NULL;
@@ -803,34 +806,35 @@ LRESULT CALLBACK GeneralTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 			g_hWnd_chk_tray_icon = _CreateWindowW( WC_BUTTON, ST_V_Enable_System_Tray_icon_, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, rc.right, 20, hWnd, ( HMENU )BTN_TRAY_ICON, NULL, NULL );
 			g_hWnd_chk_minimize = _CreateWindowW( WC_BUTTON, ST_V_Minimize_to_System_Tray, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 15, 20, rc.right - 15, 20, hWnd, ( HMENU )BTN_MINIMIZE_TO_TRAY, NULL, NULL );
 			g_hWnd_chk_close = _CreateWindowW( WC_BUTTON, ST_V_Close_to_System_Tray, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 15, 40, rc.right - 15, 20, hWnd, ( HMENU )BTN_CLOSE_TO_TRAY, NULL, NULL );
+			g_hWnd_chk_show_notification = _CreateWindowW( WC_BUTTON, ST_V_Show_notification_when_downloads_finish, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 15, 60, rc.right - 15, 20, hWnd, ( HMENU )BTN_SHOW_NOTIFICATION, NULL, NULL );
 
-			g_hWnd_chk_always_on_top = _CreateWindowW( WC_BUTTON, ST_V_Always_on_top, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 65, rc.right, 20, hWnd, ( HMENU )BTN_ALWAYS_ON_TOP, NULL, NULL );
+			g_hWnd_chk_always_on_top = _CreateWindowW( WC_BUTTON, ST_V_Always_on_top, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 80, rc.right, 20, hWnd, ( HMENU )BTN_ALWAYS_ON_TOP, NULL, NULL );
 
-			g_hWnd_chk_download_history = _CreateWindowW( WC_BUTTON, ST_V_Enable_download_history, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 85, rc.right, 20, hWnd, ( HMENU )BTN_DOWNLOAD_HISTORY, NULL, NULL );
+			g_hWnd_chk_download_history = _CreateWindowW( WC_BUTTON, ST_V_Enable_download_history, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 100, rc.right, 20, hWnd, ( HMENU )BTN_DOWNLOAD_HISTORY, NULL, NULL );
 
-			g_hWnd_chk_quick_allocation = _CreateWindowW( WC_BUTTON, ST_V_Enable_quick_file_allocation, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 105, rc.right, 20, hWnd, ( HMENU )BTN_QUICK_ALLOCATION, NULL, NULL );
+			g_hWnd_chk_quick_allocation = _CreateWindowW( WC_BUTTON, ST_V_Enable_quick_file_allocation, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 120, rc.right, 20, hWnd, ( HMENU )BTN_QUICK_ALLOCATION, NULL, NULL );
 
-			g_hWnd_chk_set_filetime = _CreateWindowW( WC_BUTTON, ST_V_Set_date_and_time_of_file, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 125, rc.right, 20, hWnd, ( HMENU )BTN_SET_FILETIME, NULL, NULL );
+			g_hWnd_chk_set_filetime = _CreateWindowW( WC_BUTTON, ST_V_Set_date_and_time_of_file, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 140, rc.right, 20, hWnd, ( HMENU )BTN_SET_FILETIME, NULL, NULL );
 
-			g_hWnd_chk_use_one_instance = _CreateWindowW( WC_BUTTON, ST_V_Allow_only_one_instance, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 145, rc.right, 20, hWnd, ( HMENU )BTN_USE_ONE_INSTANCE, NULL, NULL );
+			g_hWnd_chk_use_one_instance = _CreateWindowW( WC_BUTTON, ST_V_Allow_only_one_instance, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 160, rc.right, 20, hWnd, ( HMENU )BTN_USE_ONE_INSTANCE, NULL, NULL );
 
-			g_hWnd_chk_enable_drop_window = _CreateWindowW( WC_BUTTON, ST_V_Enable_URL_drop_window, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 165, rc.right, 20, hWnd, ( HMENU )BTN_ENABLE_DROP_WINDOW, NULL, NULL );
+			g_hWnd_chk_enable_drop_window = _CreateWindowW( WC_BUTTON, ST_V_Enable_URL_drop_window, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 180, rc.right, 20, hWnd, ( HMENU )BTN_ENABLE_DROP_WINDOW, NULL, NULL );
 
-			g_hWnd_chk_download_immediately = _CreateWindowW( WC_BUTTON, ST_V_Download_drag_and_drop_immediately, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 185, rc.right, 20, hWnd, ( HMENU )BTN_DOWNLOAD_IMMEDIATELY, NULL, NULL );
+			g_hWnd_chk_download_immediately = _CreateWindowW( WC_BUTTON, ST_V_Download_drag_and_drop_immediately, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 200, rc.right, 20, hWnd, ( HMENU )BTN_DOWNLOAD_IMMEDIATELY, NULL, NULL );
 
-			g_hWnd_chk_play_sound = _CreateWindowW( WC_BUTTON, ST_V_Play_sound_when_downloads_finish_, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 205, rc.right, 20, hWnd, ( HMENU )BTN_PLAY_SOUND, NULL, NULL );
-			g_hWnd_sound_file = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, cfg_sound_file_path, ES_AUTOHSCROLL | ES_READONLY | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 225, rc.right - 40, 20, hWnd, NULL, NULL, NULL );
-			g_hWnd_load_sound_file = _CreateWindowW( WC_BUTTON, ST_V_BTN___, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 35, 225, 35, 20, hWnd, ( HMENU )BTN_LOAD_SOUND_FILE, NULL, NULL );
+			g_hWnd_chk_play_sound = _CreateWindowW( WC_BUTTON, ST_V_Play_sound_when_downloads_finish_, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 220, rc.right, 20, hWnd, ( HMENU )BTN_PLAY_SOUND, NULL, NULL );
+			g_hWnd_sound_file = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, cfg_sound_file_path, ES_AUTOHSCROLL | ES_READONLY | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 240, rc.right - 40, 20, hWnd, NULL, NULL, NULL );
+			g_hWnd_load_sound_file = _CreateWindowW( WC_BUTTON, ST_V_BTN___, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 35, 240, 35, 20, hWnd, ( HMENU )BTN_LOAD_SOUND_FILE, NULL, NULL );
 
-			HWND hWnd_static_default_download_directory = _CreateWindowW( WC_STATIC, ST_V_Default_download_directory_, WS_CHILD | WS_VISIBLE, 0, 250, rc.right, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_default_download_directory = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, cfg_default_download_directory, ES_AUTOHSCROLL | ES_READONLY | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 265, rc.right - 40, 20, hWnd, NULL, NULL, NULL );
-			g_hWnd_btn_default_download_directory = _CreateWindowW( WC_BUTTON, ST_V_BTN___, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 35, 265, 35, 20, hWnd, ( HMENU )BTN_DEFAULT_DOWNLOAD_DIRECTORY, NULL, NULL );
+			HWND hWnd_static_default_download_directory = _CreateWindowW( WC_STATIC, ST_V_Default_download_directory_, WS_CHILD | WS_VISIBLE, 0, 265, rc.right, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_default_download_directory = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, cfg_default_download_directory, ES_AUTOHSCROLL | ES_READONLY | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 280, rc.right - 40, 20, hWnd, NULL, NULL, NULL );
+			g_hWnd_btn_default_download_directory = _CreateWindowW( WC_BUTTON, ST_V_BTN___, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 35, 280, 35, 20, hWnd, ( HMENU )BTN_DEFAULT_DOWNLOAD_DIRECTORY, NULL, NULL );
 
-			HWND hWnd_static_thread_count = _CreateWindowW( WC_STATIC, ST_V_Thread_pool_count_, WS_CHILD | WS_VISIBLE, 0, 290, rc.right, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_thread_count = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 305, 100, 20, hWnd, ( HMENU )EDIT_THREAD_COUNT, NULL, NULL );
+			HWND hWnd_static_thread_count = _CreateWindowW( WC_STATIC, ST_V_Thread_pool_count_, WS_CHILD | WS_VISIBLE, 0, 305, rc.right, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_thread_count = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 320, 100, 20, hWnd, ( HMENU )EDIT_THREAD_COUNT, NULL, NULL );
 
 			// Keep this unattached. Looks ugly inside the text box.
-			HWND hWnd_ud_thread_count = _CreateWindowW( UPDOWN_CLASS, NULL, /*UDS_ALIGNRIGHT |*/ UDS_ARROWKEYS | UDS_NOTHOUSANDS | UDS_SETBUDDYINT | WS_CHILD | WS_VISIBLE, 100, 304, _GetSystemMetrics( SM_CXVSCROLL ), 22, hWnd, NULL, NULL, NULL );
+			HWND hWnd_ud_thread_count = _CreateWindowW( UPDOWN_CLASS, NULL, /*UDS_ALIGNRIGHT |*/ UDS_ARROWKEYS | UDS_NOTHOUSANDS | UDS_SETBUDDYINT | WS_CHILD | WS_VISIBLE, 100, 319, _GetSystemMetrics( SM_CXVSCROLL ), 22, hWnd, NULL, NULL, NULL );
 
 			_SendMessageW( g_hWnd_thread_count, EM_LIMITTEXT, 10, 0 );
 			_SendMessageW( hWnd_ud_thread_count, UDM_SETBUDDY, ( WPARAM )g_hWnd_thread_count, 0 );
@@ -843,6 +847,7 @@ LRESULT CALLBACK GeneralTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 			_SendMessageW( g_hWnd_chk_tray_icon, WM_SETFONT, ( WPARAM )hFont, 0 );
 			_SendMessageW( g_hWnd_chk_minimize, WM_SETFONT, ( WPARAM )hFont, 0 );
 			_SendMessageW( g_hWnd_chk_close, WM_SETFONT, ( WPARAM )hFont, 0 );
+			_SendMessageW( g_hWnd_chk_show_notification, WM_SETFONT, ( WPARAM )hFont, 0 );
 
 			_SendMessageW( g_hWnd_chk_always_on_top, WM_SETFONT, ( WPARAM )hFont, 0 );
 			_SendMessageW( g_hWnd_chk_download_history, WM_SETFONT, ( WPARAM )hFont, 0 );
@@ -870,16 +875,19 @@ LRESULT CALLBACK GeneralTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 				_SendMessageW( g_hWnd_chk_tray_icon, BM_SETCHECK, BST_CHECKED, 0 );
 				_EnableWindow( g_hWnd_chk_minimize, TRUE );
 				_EnableWindow( g_hWnd_chk_close, TRUE );
+				_EnableWindow( g_hWnd_chk_show_notification, TRUE );
 			}
 			else
 			{
 				_SendMessageW( g_hWnd_chk_tray_icon, BM_SETCHECK, BST_UNCHECKED, 0 );
 				_EnableWindow( g_hWnd_chk_minimize, FALSE );
 				_EnableWindow( g_hWnd_chk_close, FALSE );
+				_EnableWindow( g_hWnd_chk_show_notification, FALSE );
 			}
 
 			_SendMessageW( g_hWnd_chk_minimize, BM_SETCHECK, ( cfg_minimize_to_tray ? BST_CHECKED : BST_UNCHECKED ), 0 );
 			_SendMessageW( g_hWnd_chk_close, BM_SETCHECK, ( cfg_close_to_tray ? BST_CHECKED : BST_UNCHECKED ), 0 );
+			_SendMessageW( g_hWnd_chk_show_notification, BM_SETCHECK, ( cfg_show_notification ? BST_CHECKED : BST_UNCHECKED ), 0 );
 
 			_SendMessageW( g_hWnd_chk_always_on_top, BM_SETCHECK, ( cfg_always_on_top ? BST_CHECKED : BST_UNCHECKED ), 0 );
 
@@ -938,11 +946,13 @@ LRESULT CALLBACK GeneralTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 					{
 						_EnableWindow( g_hWnd_chk_minimize, TRUE );
 						_EnableWindow( g_hWnd_chk_close, TRUE );
+						_EnableWindow( g_hWnd_chk_show_notification, TRUE );
 					}
 					else
 					{
 						_EnableWindow( g_hWnd_chk_minimize, FALSE );
 						_EnableWindow( g_hWnd_chk_close, FALSE );
+						_EnableWindow( g_hWnd_chk_show_notification, FALSE );
 					}
 
 					options_state_changed = true;
@@ -959,6 +969,7 @@ LRESULT CALLBACK GeneralTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 				case BTN_USE_ONE_INSTANCE:
 				case BTN_ENABLE_DROP_WINDOW:
 				case BTN_DOWNLOAD_IMMEDIATELY:
+				case BTN_SHOW_NOTIFICATION:
 				{
 					options_state_changed = true;
 					_EnableWindow( g_hWnd_apply, TRUE );
@@ -967,8 +978,15 @@ LRESULT CALLBACK GeneralTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 
 				case BTN_PLAY_SOUND:
 				{
+					bool show_dialog = false;
+
 					if ( _SendMessageW( g_hWnd_chk_play_sound, BM_GETCHECK, 0, 0 ) == BST_CHECKED )
 					{
+						if ( _SendMessageW( g_hWnd_sound_file, WM_GETTEXTLENGTH, 0, 0 ) == 0 )
+						{
+							show_dialog = true;
+						}
+
 						_EnableWindow( g_hWnd_sound_file, TRUE );
 						_EnableWindow( g_hWnd_load_sound_file, TRUE );
 					}
@@ -978,10 +996,15 @@ LRESULT CALLBACK GeneralTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 						_EnableWindow( g_hWnd_load_sound_file, FALSE );
 					}
 
-					options_state_changed = true;
-					_EnableWindow( g_hWnd_apply, TRUE );
+					// Fall through if we haven't chosen a file yet.
+					if ( !show_dialog )
+					{
+						options_state_changed = true;
+						_EnableWindow( g_hWnd_apply, TRUE );
+
+						break;
+					}
 				}
-				break;
 
 				case BTN_LOAD_SOUND_FILE:
 				{
@@ -1014,6 +1037,14 @@ LRESULT CALLBACK GeneralTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 					else
 					{
 						GlobalFree( file_name );
+
+						if ( _SendMessageW( g_hWnd_chk_play_sound, BM_GETCHECK, 0, 0 ) == BST_CHECKED &&
+							 _SendMessageW( g_hWnd_sound_file, WM_GETTEXTLENGTH, 0, 0 ) == 0 )
+						{
+							_SendMessageW( g_hWnd_chk_play_sound, BM_SETCHECK, BST_UNCHECKED, 0 );
+							_EnableWindow( g_hWnd_sound_file, FALSE );
+							_EnableWindow( g_hWnd_load_sound_file, FALSE );
+						}
 					}
 				}
 				break;
@@ -1329,7 +1360,7 @@ LRESULT CALLBACK ConnectionTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 			//
 
 			connection_tab_scroll_pos = 0;
-			connection_tab_height = ( rc.bottom - rc.top ) + 75;	// Needs 10px more padding for Windows 10.
+			connection_tab_height = ( rc.bottom - rc.top ) + 30;	// Needs 10px more padding for Windows 10.
 
 			SCROLLINFO si;
 			si.cbSize = sizeof( SCROLLINFO );
@@ -2705,19 +2736,27 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 					cfg_minimize_to_tray = ( _SendMessageW( g_hWnd_chk_minimize, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
 					cfg_close_to_tray = ( _SendMessageW( g_hWnd_chk_close, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
+					cfg_show_notification = ( _SendMessageW( g_hWnd_chk_show_notification, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
 
 					bool tray_icon = ( _SendMessageW( g_hWnd_chk_tray_icon, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
 
 					// Add the tray icon if it was not previously enabled.
 					if ( tray_icon && !cfg_tray_icon )
 					{
-						g_nid.cbSize = sizeof( g_nid );
+						_memzero( &g_nid, sizeof( NOTIFYICONDATA ) );
+						g_nid.cbSize = NOTIFYICONDATA_V2_SIZE;	// 5.0 (Windows 2000) and newer.
 						g_nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
 						g_nid.hWnd = g_hWnd_main;
 						g_nid.uCallbackMessage = WM_TRAY_NOTIFY;
 						g_nid.uID = 1000;
 						g_nid.hIcon = ( HICON )_LoadImageW( GetModuleHandle( NULL ), MAKEINTRESOURCE( IDI_ICON ), IMAGE_ICON, 16, 16, LR_SHARED );
-						_wmemcpy_s( g_nid.szTip, sizeof( g_nid.szTip ), PROGRAM_CAPTION, 15 );
+						g_nid.dwInfoFlags = NIIF_INFO;
+						_wmemcpy_s( g_nid.szInfoTitle, sizeof( g_nid.szInfoTitle ) / sizeof( g_nid.szInfoTitle[ 0 ] ), PROGRAM_CAPTION, 16 );
+						g_nid.szInfoTitle[ 15 ] = 0;	// Sanity.
+						unsigned char info_size = ( ST_L_All_downloads_have_finished_ > ( ( sizeof( g_nid.szInfo ) / sizeof( g_nid.szInfo[ 0 ] ) ) - 1 ) ? ( ( sizeof( g_nid.szInfo ) / sizeof( g_nid.szInfo[ 0 ] ) ) - 1 ) : ST_L_All_downloads_have_finished_ );
+						_wmemcpy_s( g_nid.szInfo, sizeof( g_nid.szInfo ) / sizeof( g_nid.szInfo[ 0 ] ), ST_V_All_downloads_have_finished_, info_size );
+						g_nid.szInfo[ info_size ] = 0;	// Sanity.
+						_wmemcpy_s( g_nid.szTip, sizeof( g_nid.szTip ) / sizeof( g_nid.szTip[ 0 ] ), PROGRAM_CAPTION, 16 );
 						g_nid.szTip[ 15 ] = 0;	// Sanity.
 						_Shell_NotifyIconW( NIM_ADD, &g_nid );
 					}

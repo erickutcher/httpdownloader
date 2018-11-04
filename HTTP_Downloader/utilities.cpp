@@ -75,6 +75,7 @@ int cfg_drop_pos_y = 0;	// URL drop window.
 bool cfg_tray_icon = true;
 bool cfg_close_to_tray = false;
 bool cfg_minimize_to_tray = false;
+bool cfg_show_notification = false;
 
 bool cfg_always_on_top = false;
 bool cfg_enable_download_history = true;

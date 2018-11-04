@@ -142,6 +142,7 @@ Retry incomplete downloads:
 Retry incomplete parts:
 Server SSL / TLS version:
 Set date and time of file from server response
+Show notification when all downloads finish
 Thread pool count:
 Timeout (seconds):
 Advanced \xAB
@@ -169,6 +170,7 @@ Search Type
 [Simulated]
 Add URL(s)
 Added
+All downloads have finished.
 Allocating File
 Authorization Required
 Cancel

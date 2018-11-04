@@ -328,7 +328,7 @@ DWORD WINAPI UpdateWindow( LPVOID WorkThreadContext )
 
 	_wmemcpy_s( title_text, 128, PROGRAM_CAPTION, 15 );
 
-	_wmemcpy_s( g_nid.szTip, sizeof( g_nid.szTip ), PROGRAM_CAPTION, 15 );
+	_wmemcpy_s( g_nid.szTip, sizeof( g_nid.szTip ) / sizeof( g_nid.szTip[ 0 ] ), PROGRAM_CAPTION, 15 );
 
 	while ( !g_end_program )
 	{
@@ -476,53 +476,60 @@ DWORD WINAPI UpdateWindow( LPVOID WorkThreadContext )
 				sb_download_speed_buf[ sb_download_speed_buf_length++ ] = L's';
 				sb_download_speed_buf[ sb_download_speed_buf_length ] = 0;	// Sanity.
 
-				//if ( sb_download_speed_buf_length > 0 )
-				//{
-					_wmemcpy_s( g_nid.szTip + tooltip_offset, sizeof( g_nid.szTip ) - tooltip_offset, L"\r\n", 2 );
-					tooltip_offset += 2;
-					_wmemcpy_s( g_nid.szTip + tooltip_offset, sizeof( g_nid.szTip ) - tooltip_offset, sb_download_speed_buf, sb_download_speed_buf_length );
-					tooltip_offset += sb_download_speed_buf_length;
-
-					_wmemcpy_s( title_text + title_text_offset, 128 - title_text_offset, L" - ", 3 );
-					title_text_offset += 3;
-					_wmemcpy_s( title_text + title_text_offset, 128 - title_text_offset, sb_download_speed_buf, sb_download_speed_buf_length );
-					title_text_offset += sb_download_speed_buf_length;
-				//}
-
 				// The maximum length that FormatSizes can return is 22 bytes excluding the NULL terminator.
 				sb_downloaded_buf_length = FormatSizes( sb_downloaded_buf + ( download_buf_length + 1 ), 64 - ( download_buf_length + 1 ), SIZE_FORMAT_AUTO, session_total_downloaded ) + ( download_buf_length + 1 );
 				// NULL terminator is set in FormatSizes.
 
-				//if ( sb_downloaded_buf_length > 0 )
-				//{
-					_wmemcpy_s( g_nid.szTip + tooltip_offset, sizeof( g_nid.szTip ) - tooltip_offset, L"\r\n", 2 );
-					tooltip_offset += 2;
-					_wmemcpy_s( g_nid.szTip + tooltip_offset, sizeof( g_nid.szTip ) - tooltip_offset, sb_downloaded_buf, sb_downloaded_buf_length );
-					tooltip_offset += sb_downloaded_buf_length;
+				_wmemcpy_s( title_text + title_text_offset, 128 - title_text_offset, L" - ", 3 );
+				title_text_offset += 3;
+				_wmemcpy_s( title_text + title_text_offset, 128 - title_text_offset, sb_download_speed_buf, sb_download_speed_buf_length );
+				title_text_offset += sb_download_speed_buf_length;
 
-					_wmemcpy_s( title_text + title_text_offset, 128 - title_text_offset, L" - ", 3 );
-					title_text_offset += 3;
-					_wmemcpy_s( title_text + title_text_offset, 128 - title_text_offset, sb_downloaded_buf, sb_downloaded_buf_length );
-					title_text_offset += sb_downloaded_buf_length;
-				//}
-
-				g_nid.szTip[ tooltip_offset ] = 0;	// Sanity.
-				_Shell_NotifyIconW( NIM_MODIFY, &g_nid );
+				_wmemcpy_s( title_text + title_text_offset, 128 - title_text_offset, L" - ", 3 );
+				title_text_offset += 3;
+				_wmemcpy_s( title_text + title_text_offset, 128 - title_text_offset, sb_downloaded_buf, sb_downloaded_buf_length );
+				title_text_offset += sb_downloaded_buf_length;
 
 				title_text[ title_text_offset ] = 0;	// Sanity.
 				_SendMessageW( g_hWnd_main, WM_SETTEXT, NULL, ( LPARAM )title_text );
+
+				if ( cfg_tray_icon )
+				{
+					g_nid.uFlags &= ~NIF_INFO;
+
+					_wmemcpy_s( g_nid.szTip + tooltip_offset, ( sizeof( g_nid.szTip ) / sizeof( g_nid.szTip[ 0 ] ) ) - tooltip_offset, L"\r\n", 2 );
+					tooltip_offset += 2;
+					_wmemcpy_s( g_nid.szTip + tooltip_offset, ( sizeof( g_nid.szTip ) / sizeof( g_nid.szTip[ 0 ] ) ) - tooltip_offset, sb_download_speed_buf, sb_download_speed_buf_length );
+					tooltip_offset += sb_download_speed_buf_length;
+
+					_wmemcpy_s( g_nid.szTip + tooltip_offset, ( sizeof( g_nid.szTip ) / sizeof( g_nid.szTip[ 0 ] ) ) - tooltip_offset, L"\r\n", 2 );
+					tooltip_offset += 2;
+					_wmemcpy_s( g_nid.szTip + tooltip_offset, ( sizeof( g_nid.szTip ) / sizeof( g_nid.szTip[ 0 ] ) ) - tooltip_offset, sb_downloaded_buf, sb_downloaded_buf_length );
+					tooltip_offset += sb_downloaded_buf_length;
+
+					g_nid.szTip[ tooltip_offset ] = 0;	// Sanity.
+					_Shell_NotifyIconW( NIM_MODIFY, &g_nid );
+				}
 			}
 		}
 		else
 		{
-			/*if ( g_nid.szTip[ 0 ] == NULL )
-			{
-				_wmemcpy_s( g_nid.szTip, sizeof( g_nid.szTip ), L"HTTP Downloader\0", 16 );
-			}*/
-			g_nid.szTip[ 15 ] = 0;	// Sanity.
-			_Shell_NotifyIconW( NIM_MODIFY, &g_nid );
-
 			_SendMessageW( g_hWnd_main, WM_SETTEXT, NULL, ( LPARAM )PROGRAM_CAPTION );
+
+			if ( cfg_tray_icon )
+			{
+				if ( cfg_show_notification )
+				{
+					g_nid.uFlags |= NIF_INFO;
+				}
+				else
+				{
+					g_nid.uFlags &= ~NIF_INFO;
+				}
+
+				g_nid.szTip[ 15 ] = 0;	// Sanity.
+				_Shell_NotifyIconW( NIM_MODIFY, &g_nid );
+			}
 
 			if ( cfg_play_sound && cfg_sound_file_path != NULL )
 			{
@@ -695,13 +702,19 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 			if ( cfg_tray_icon )
 			{
 				_memzero( &g_nid, sizeof( NOTIFYICONDATA ) );
-				g_nid.cbSize = sizeof( g_nid );
+				g_nid.cbSize = NOTIFYICONDATA_V2_SIZE;	// 5.0 (Windows 2000) and newer.
 				g_nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
 				g_nid.hWnd = hWnd;
 				g_nid.uCallbackMessage = WM_TRAY_NOTIFY;
 				g_nid.uID = 1000;
 				g_nid.hIcon = ( HICON )_LoadImageW( GetModuleHandle( NULL ), MAKEINTRESOURCE( IDI_ICON ), IMAGE_ICON, 16, 16, LR_SHARED );
-				_wmemcpy_s( g_nid.szTip, sizeof( g_nid.szTip ), L"HTTP Downloader\0", 16 );
+				g_nid.dwInfoFlags = NIIF_INFO;
+				_wmemcpy_s( g_nid.szInfoTitle, sizeof( g_nid.szInfoTitle ) / sizeof( g_nid.szInfoTitle[ 0 ] ), PROGRAM_CAPTION, 16 );
+				g_nid.szInfoTitle[ 15 ] = 0;	// Sanity.
+				unsigned char info_size = ( ST_L_All_downloads_have_finished_ > ( ( sizeof( g_nid.szInfo ) / sizeof( g_nid.szInfo[ 0 ] ) ) - 1 ) ? ( ( sizeof( g_nid.szInfo ) / sizeof( g_nid.szInfo[ 0 ] ) ) - 1 ) : ST_L_All_downloads_have_finished_ );
+				_wmemcpy_s( g_nid.szInfo, sizeof( g_nid.szInfo ) / sizeof( g_nid.szInfo[ 0 ] ), ST_V_All_downloads_have_finished_, info_size );
+				g_nid.szInfo[ info_size ] = 0;	// Sanity.
+				_wmemcpy_s( g_nid.szTip, sizeof( g_nid.szTip ) / sizeof( g_nid.szTip[ 0 ] ), PROGRAM_CAPTION, 16 );
 				g_nid.szTip[ 15 ] = 0;	// Sanity.
 				_Shell_NotifyIconW( NIM_ADD, &g_nid );
 			}
@@ -1244,7 +1257,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 				{
 					if ( g_hWnd_options == NULL )
 					{
-						g_hWnd_options = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"options", ST_V_Options, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU, ( ( _GetSystemMetrics( SM_CXSCREEN ) - 480 ) / 2 ), ( ( _GetSystemMetrics( SM_CYSCREEN ) - 455 ) / 2 ), 480, 455, NULL, NULL, NULL, NULL );
+						g_hWnd_options = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"options", ST_V_Options, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU, ( ( _GetSystemMetrics( SM_CXSCREEN ) - 480 ) / 2 ), ( ( _GetSystemMetrics( SM_CYSCREEN ) - 470 ) / 2 ), 480, 470, NULL, NULL, NULL, NULL );
 						_ShowWindow( g_hWnd_options, SW_SHOWNORMAL );
 					}
 					_SetForegroundWindow( g_hWnd_options );
@@ -1279,7 +1292,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 				{
 					wchar_t msg[ 512 ];
 					__snwprintf( msg, 512, L"HTTP Downloader is made free under the GPLv3 license.\r\n\r\n" \
-										   L"Version 1.0.1.1\r\n\r\n" \
+										   L"Version 1.0.1.2\r\n\r\n" \
 										   L"Built on %s, %s %d, %04d %d:%02d:%02d %s (UTC)\r\n\r\n" \
 										   L"Copyright \xA9 2015-2018 Eric Kutcher",
 										   ( g_compile_time.wDayOfWeek > 6 ? L"" : day_string_table[ g_compile_time.wDayOfWeek ].value ),

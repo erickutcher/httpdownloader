@@ -188,6 +188,7 @@ STRING_TABLE_DATA options_string_table[] =
 	{ L"Retry incomplete parts:", 23 },
 	{ L"Server SSL / TLS version:", 25 },
 	{ L"Set date and time of file from server response", 46 },
+	{ L"Show notification when all downloads finish", 43 },
 	{ L"Thread pool count:", 18 },
 	{ L"Timeout (seconds):", 18 }
 };
@@ -227,6 +228,7 @@ STRING_TABLE_DATA common_string_table[] =
 	{ L"[Simulated]", 11 },
 	{ L"Add URL(s)", 10 },
 	{ L"Added", 5 },
+	{ L"All downloads have finished.", 28 },
 	{ L"Allocating File", 15 },
 	{ L"Authorization Required", 22 },
 	{ L"Cancel", 6 },

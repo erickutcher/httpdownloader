@@ -39,11 +39,11 @@ char read_config()
 		DWORD read = 0, pos = 0;
 		DWORD fz = GetFileSize( hFile_cfg, NULL );
 
-		int reserved = 1024 - 158;
+		int reserved = 1024 - 159;
 
 		// Our config file is going to be small. If it's something else, we're not going to read it.
 		// Add 21 for the strings.
-		if ( fz >= ( 158 + 21 ) && fz < 10240 )
+		if ( fz >= ( 159 + 21 ) && fz < 10240 )
 		{
 			char *cfg_buf = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * fz + 1 );
 
@@ -259,6 +259,9 @@ char read_config()
 				next += sizeof( bool );
 
 				_memcpy_s( &cfg_play_sound, sizeof( bool ), next, sizeof( bool ) );
+				next += sizeof( bool );
+
+				_memcpy_s( &cfg_show_notification, sizeof( bool ), next, sizeof( bool ) );
 				next += sizeof( bool );
 
 				//
@@ -730,8 +733,8 @@ char save_config()
 	HANDLE hFile_cfg = CreateFile( base_directory, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL );
 	if ( hFile_cfg != INVALID_HANDLE_VALUE )
 	{
-		int reserved = 1024 - 158;
-		int size = ( sizeof( int ) * 20 ) + ( sizeof( unsigned short ) * 4 ) + ( sizeof( char ) * 36 ) + ( sizeof( bool ) * 18 ) + ( sizeof( unsigned long ) * 4 ) + reserved;
+		int reserved = 1024 - 159;
+		int size = ( sizeof( int ) * 20 ) + ( sizeof( unsigned short ) * 4 ) + ( sizeof( char ) * 36 ) + ( sizeof( bool ) * 19 ) + ( sizeof( unsigned long ) * 4 ) + reserved;
 		int pos = 0;
 
 		char *write_buf = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * size );
@@ -942,6 +945,9 @@ char save_config()
 		pos += sizeof( bool );
 
 		_memcpy_s( write_buf + pos, size - pos, &cfg_play_sound, sizeof( bool ) );
+		pos += sizeof( bool );
+
+		_memcpy_s( write_buf + pos, size - pos, &cfg_show_notification, sizeof( bool ) );
 		pos += sizeof( bool );
 
 		//
