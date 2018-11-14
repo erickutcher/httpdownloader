@@ -39,11 +39,11 @@ char read_config()
 		DWORD read = 0, pos = 0;
 		DWORD fz = GetFileSize( hFile_cfg, NULL );
 
-		int reserved = 1024 - 159;
+		int reserved = 1024 - 160;
 
 		// Our config file is going to be small. If it's something else, we're not going to read it.
 		// Add 21 for the strings.
-		if ( fz >= ( 159 + 21 ) && fz < 10240 )
+		if ( fz >= ( 160 + 21 ) && fz < 10240 )
 		{
 			char *cfg_buf = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * fz + 1 );
 
@@ -262,6 +262,9 @@ char read_config()
 				next += sizeof( bool );
 
 				_memcpy_s( &cfg_show_notification, sizeof( bool ), next, sizeof( bool ) );
+				next += sizeof( bool );
+
+				_memcpy_s( &cfg_prevent_standby, sizeof( bool ), next, sizeof( bool ) );
 				next += sizeof( bool );
 
 				//
@@ -733,8 +736,8 @@ char save_config()
 	HANDLE hFile_cfg = CreateFile( base_directory, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL );
 	if ( hFile_cfg != INVALID_HANDLE_VALUE )
 	{
-		int reserved = 1024 - 159;
-		int size = ( sizeof( int ) * 20 ) + ( sizeof( unsigned short ) * 4 ) + ( sizeof( char ) * 36 ) + ( sizeof( bool ) * 19 ) + ( sizeof( unsigned long ) * 4 ) + reserved;
+		int reserved = 1024 - 160;
+		int size = ( sizeof( int ) * 20 ) + ( sizeof( unsigned short ) * 4 ) + ( sizeof( char ) * 36 ) + ( sizeof( bool ) * 20 ) + ( sizeof( unsigned long ) * 4 ) + reserved;
 		int pos = 0;
 
 		char *write_buf = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * size );
@@ -948,6 +951,9 @@ char save_config()
 		pos += sizeof( bool );
 
 		_memcpy_s( write_buf + pos, size - pos, &cfg_show_notification, sizeof( bool ) );
+		pos += sizeof( bool );
+
+		_memcpy_s( write_buf + pos, size - pos, &cfg_prevent_standby, sizeof( bool ) );
 		pos += sizeof( bool );
 
 		//
@@ -2044,4 +2050,40 @@ char save_download_history_csv_file( wchar_t *file_path )
 	}
 
 	return ret_status;
+}
+
+wchar_t *read_url_list_file( wchar_t *file_path, unsigned int &url_list_length )
+{
+	wchar_t *urls = NULL;
+
+	HANDLE hFile_url_list = CreateFile( file_path, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL );
+	if ( hFile_url_list != INVALID_HANDLE_VALUE )
+	{
+		DWORD read = 0, pos = 0;
+		DWORD fz = GetFileSize( hFile_url_list, NULL );
+
+		// http://a.b
+		if ( fz >= 10 )
+		{
+			char *url_list_buf = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * fz + 1 );
+
+			ReadFile( hFile_url_list, url_list_buf, sizeof( char ) * fz, &read, NULL );
+
+			url_list_buf[ fz ] = 0;	// Guarantee a NULL terminated buffer.
+
+			int length = MultiByteToWideChar( CP_UTF8, 0, url_list_buf, fz + 1, NULL, 0 );
+			if ( length > 0 )
+			{
+				url_list_length = length - 1;
+				urls = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * length );
+				MultiByteToWideChar( CP_UTF8, 0, url_list_buf, fz + 1, urls, length );
+			}
+
+			GlobalFree( url_list_buf );
+		}
+
+		CloseHandle( hFile_url_list );
+	}
+
+	return urls;
 }

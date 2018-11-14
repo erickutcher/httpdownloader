@@ -64,6 +64,7 @@
 	//pGetMessagePos			_GetMessagePos;
 	pGetMessageW			_GetMessageW;
 	pGetParent				_GetParent;
+	pGetScrollInfo			_GetScrollInfo;
 	//pGetSubMenu				_GetSubMenu;
 	pGetSysColor			_GetSysColor;
 	pGetSysColorBrush		_GetSysColorBrush;
@@ -180,6 +181,7 @@
 		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_GetMessagePos, "GetMessagePos" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_GetMessageW, "GetMessageW" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_GetParent, "GetParent" ) )
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_GetScrollInfo, "GetScrollInfo" ) )
 		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_GetSubMenu, "GetSubMenu" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_GetSysColor, "GetSysColor" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_GetSysColorBrush, "GetSysColorBrush" ) )

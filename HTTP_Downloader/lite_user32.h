@@ -72,6 +72,7 @@
 	//#define _GetMessagePos			GetMessagePos
 	#define _GetMessageW			GetMessageW
 	#define _GetParent				GetParent
+	#define _GetScrollInfo			GetScrollInfo
 	//#define _GetSubMenu				GetSubMenu
 	#define _GetSysColor			GetSysColor
 	#define _GetSysColorBrush		GetSysColorBrush
@@ -177,6 +178,7 @@
 	//typedef DWORD ( WINAPI *pGetMessagePos )( void );
 	typedef BOOL ( WINAPI *pGetMessageW )( LPMSG lpMsg, HWND hWnd, UINT wMsgFilterMin, UINT wMsgFilterMax );
 	typedef HWND ( WINAPI *pGetParent )( HWND hWnd );
+	typedef BOOL ( WINAPI *pGetScrollInfo )( HWND hwnd, int nBar, LPSCROLLINFO lpsi );
 	//typedef HMENU ( WINAPI *pGetSubMenu )( HMENU hMenu, int nPos );
 	typedef DWORD ( WINAPI *pGetSysColor )( int nIndex );
 	typedef HBRUSH ( WINAPI *pGetSysColorBrush )( int nIndex );
@@ -275,6 +277,7 @@
 	//extern pGetMessagePos			_GetMessagePos;
 	extern pGetMessageW				_GetMessageW;
 	extern pGetParent				_GetParent;
+	extern pGetScrollInfo			_GetScrollInfo;
 	//extern pGetSubMenu				_GetSubMenu;
 	extern pGetSysColor				_GetSysColor;
 	extern pGetSysColorBrush		_GetSysColorBrush;

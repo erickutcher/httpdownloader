@@ -110,6 +110,30 @@ union QFILETIME
 	ULONGLONG ull;
 };
 
+struct CL_ARGS
+{
+	wchar_t *download_directory;
+	wchar_t *url_list_file;
+	wchar_t *urls;
+	wchar_t *cookies;
+	wchar_t *headers;
+	wchar_t *data;
+	wchar_t *username;
+	wchar_t *password;
+	int download_directory_length;
+	int url_list_file_length;
+	int urls_length;
+	int cookies_length;
+	int headers_length;
+	int data_length;
+	int username_length;
+	int password_length;
+	unsigned char parts;
+	unsigned char download_operations;
+	unsigned char download_immediately;
+	char ssl_version;
+};
+
 // These are all variables that are shared among the separate .cpp files.
 
 // Object handles.
@@ -230,6 +254,7 @@ extern bool cfg_set_filetime;
 extern bool cfg_use_one_instance;
 extern bool cfg_enable_drop_window;
 extern bool cfg_download_immediately;
+extern bool cfg_prevent_standby;
 
 extern bool cfg_play_sound;
 extern wchar_t *cfg_sound_file_path;
@@ -319,6 +344,8 @@ extern unsigned char g_total_columns;
 
 extern HANDLE g_timeout_semaphore;	// For updating the connection states.
 extern HANDLE g_timer_semaphore;	// For updating the listview.
+
+extern unsigned int g_session_status_count[ 8 ];	// 8 states that can be considered finished (Completed, Stopped, Failed, etc.)
 
 extern bool g_timers_running;
 

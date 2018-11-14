@@ -2052,3 +2052,168 @@ THREAD_RETURN search_list( void *pArguments )
 	_ExitThread( 0 );
 	return 0;
 }
+
+THREAD_RETURN process_command_line_args( void *pArguments )
+{
+	CL_ARGS *cla = ( CL_ARGS * )pArguments;
+
+	// This will block every other thread from entering until the first thread is complete.
+	EnterCriticalSection( &worker_cs );
+
+	in_worker_thread = true;
+
+	ProcessingList( true );
+
+	if ( cla != NULL )
+	{
+		wchar_t *url_list = NULL;
+		unsigned int url_list_length = 0;
+
+		if ( cla->url_list_file != NULL )
+		{
+			url_list = read_url_list_file( ( wchar_t * )cla->url_list_file, url_list_length );
+
+			if ( url_list != NULL )
+			{
+				if ( cla->urls == NULL )
+				{
+					cla->urls = url_list;
+					cla->urls_length = url_list_length;
+				}
+				else
+				{
+					wchar_t *realloc_buffer = ( wchar_t * )GlobalReAlloc( url_list, sizeof( wchar_t ) * ( url_list_length + cla->urls_length + 2 + 1 ), GMEM_MOVEABLE );
+					if ( realloc_buffer != NULL )
+					{
+						url_list = realloc_buffer;
+
+						url_list[ url_list_length++ ] = L'\r';
+						url_list[ url_list_length++ ] = L'\n';
+						_wmemcpy_s( url_list + url_list_length, cla->urls_length + 1, cla->urls, cla->urls_length );
+						url_list_length += cla->urls_length;
+						url_list[ url_list_length ] = 0;	// Sanity.
+
+						GlobalFree( cla->urls );
+						cla->urls = url_list;
+						cla->urls_length = url_list_length;
+					}
+				}
+			}
+		}
+
+		if ( cla->download_immediately == 1 )
+		{
+			int utf8_val_length = 0;
+
+			ADD_INFO *ai = ( ADD_INFO * )GlobalAlloc( GPTR, sizeof( ADD_INFO ) );
+			ai->method = ( cla->data != NULL ? METHOD_POST : METHOD_GET );
+
+			ai->download_operations = cla->download_operations;
+
+			ai->download_directory = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * MAX_PATH );
+			if ( cla->download_directory != NULL )
+			{
+				_wmemcpy_s( ai->download_directory, MAX_PATH, cla->download_directory, cla->download_directory_length );
+				ai->download_directory[ cla->download_directory_length ] = 0;	// Sanity.
+			}
+			else
+			{
+				_wmemcpy_s( ai->download_directory, MAX_PATH, cfg_default_download_directory, g_default_download_directory_length );
+				ai->download_directory[ g_default_download_directory_length ] = 0;	// Sanity.
+			}
+
+			ai->parts = ( cla->parts != 0 ? cla->parts : cfg_default_download_parts );
+			ai->ssl_version = ( cla->ssl_version != -1 ? cla->ssl_version : cfg_default_ssl_version );
+
+			if ( cla->urls != NULL )
+			{
+				ai->urls = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( cla->urls_length + 1 ) );
+				_wmemcpy_s( ai->urls, cla->urls_length + 1, cla->urls, cla->urls_length );
+				ai->urls[ cla->urls_length ] = 0;	// Sanity.
+			}
+
+			if ( cla->cookies != NULL )
+			{
+				utf8_val_length = WideCharToMultiByte( CP_UTF8, 0, cla->cookies, cla->cookies_length + 1, NULL, 0, NULL, NULL );
+				ai->utf8_cookies = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * utf8_val_length ); // Size includes the null character.
+				WideCharToMultiByte( CP_UTF8, 0, cla->cookies, cla->cookies_length + 1, ai->utf8_cookies, utf8_val_length, NULL, NULL );
+			}
+
+			if ( cla->headers != NULL )
+			{
+				utf8_val_length = WideCharToMultiByte( CP_UTF8, 0, cla->headers, cla->headers_length + 1, NULL, 0, NULL, NULL );
+				ai->utf8_headers = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * utf8_val_length ); // Size includes the null character.
+				WideCharToMultiByte( CP_UTF8, 0, cla->headers, cla->headers_length + 1, ai->utf8_headers, utf8_val_length, NULL, NULL );
+			}
+
+			if ( cla->data != NULL )
+			{
+				utf8_val_length = WideCharToMultiByte( CP_UTF8, 0, cla->data, cla->data_length + 1, NULL, 0, NULL, NULL );
+				ai->utf8_data = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * utf8_val_length ); // Size includes the null character.
+				WideCharToMultiByte( CP_UTF8, 0, cla->data, cla->data_length + 1, ai->utf8_data, utf8_val_length, NULL, NULL );
+			}
+
+			if ( cla->username != NULL )
+			{
+				utf8_val_length = WideCharToMultiByte( CP_UTF8, 0, cla->username, cla->username_length + 1, NULL, 0, NULL, NULL );
+				ai->auth_info.username = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * utf8_val_length ); // Size includes the null character.
+				WideCharToMultiByte( CP_UTF8, 0, cla->username, cla->username_length + 1, ai->auth_info.username, utf8_val_length, NULL, NULL );
+			}
+
+			if ( cla->password != NULL )
+			{
+				utf8_val_length = WideCharToMultiByte( CP_UTF8, 0, cla->password, cla->password_length + 1, NULL, 0, NULL, NULL );
+				ai->auth_info.password = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * utf8_val_length ); // Size includes the null character.
+				WideCharToMultiByte( CP_UTF8, 0, cla->password, cla->password_length + 1, ai->auth_info.password, utf8_val_length, NULL, NULL );
+			}
+
+			// ai is freed in AddURL.
+			HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, AddURL, ( void * )ai, 0, NULL );
+			if ( thread != NULL )
+			{
+				CloseHandle( thread );
+			}
+			else
+			{
+				GlobalFree( ai->utf8_data );
+				GlobalFree( ai->utf8_headers );
+				GlobalFree( ai->utf8_cookies );
+				GlobalFree( ai->auth_info.username );
+				GlobalFree( ai->auth_info.password );
+				GlobalFree( ai->download_directory );
+				GlobalFree( ai->urls );
+				GlobalFree( ai );
+			}
+		}
+		else
+		{
+			_SendMessageW( g_hWnd_main, WM_PROPAGATE, -1, ( LPARAM )cla );
+		}
+
+		GlobalFree( cla->download_directory );
+		GlobalFree( cla->url_list_file );
+		GlobalFree( cla->urls );
+		GlobalFree( cla->cookies );
+		GlobalFree( cla->headers );
+		GlobalFree( cla->data );
+		GlobalFree( cla->username );
+		GlobalFree( cla->password );
+		GlobalFree( cla );
+	}
+
+	ProcessingList( false );
+
+	// Release the semaphore if we're killing the thread.
+	if ( worker_semaphore != NULL )
+	{
+		ReleaseSemaphore( worker_semaphore, 1, NULL );
+	}
+
+	in_worker_thread = false;
+
+	// We're done. Let other threads continue.
+	LeaveCriticalSection( &worker_cs );
+
+	_ExitThread( 0 );
+	return 0;
+}

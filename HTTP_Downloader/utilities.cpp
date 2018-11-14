@@ -84,6 +84,7 @@ bool cfg_set_filetime = false;
 bool cfg_use_one_instance = false;
 bool cfg_enable_drop_window = false;
 bool cfg_download_immediately = false;
+bool cfg_prevent_standby = false;
 
 bool cfg_play_sound = false;
 wchar_t *cfg_sound_file_path = NULL;

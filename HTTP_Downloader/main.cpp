@@ -171,8 +171,7 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 	MSG msg;
 	_memzero( &msg, sizeof( MSG ) );
 
-	wchar_t *url_arg = NULL;
-	unsigned int url_arg_length = 0;
+	CL_ARGS *cla = NULL;
 
 	base_directory = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * MAX_PATH );
 
@@ -182,12 +181,21 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 	LPWSTR *szArgList = _CommandLineToArgvW( GetCommandLineW(), &argCount );
 	if ( szArgList != NULL )
 	{
+		if ( argCount > 1 )
+		{
+			cla = ( CL_ARGS * )GlobalAlloc( GPTR, sizeof( CL_ARGS ) );
+			cla->ssl_version = -1;	// Default.
+		}
+
 		// The first parameter (index 0) is the path to the executable.
 		for ( int arg = 1; arg < argCount; ++arg )
 		{
-			if ( szArgList[ arg ][ 0 ] == L'-' )
+			if ( szArgList[ arg ][ 0 ] == L'-' && szArgList[ arg ][ 1 ] == L'-' )
 			{
-				if ( szArgList[ arg ][ 1 ] == L'd' && szArgList[ arg ][ 2 ] == 0 )	// Set the base directory.
+				wchar_t *arg_name = szArgList[ arg ] + 2;
+				int arg_name_length = lstrlenW( arg_name );
+
+				if ( arg_name_length == 14 && _StrCmpNIW( arg_name, L"base-directory", 14 ) == 0 )	// Set the base directory.
 				{
 					++arg;	// Move to the supplied directory.
 
@@ -204,7 +212,7 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 						default_directory = false;
 					}
 				}
-				else if ( szArgList[ arg ][ 1 ] == L'p' && szArgList[ arg ][ 2 ] == 0 )	// Portable mode (use the application's current directory for our base directory).
+				else if ( arg_name_length == 8 && _StrCmpNIW( arg_name, L"portable", 8 ) == 0 )	// Portable mode (use the application's current directory for our base directory).
 				{
 					base_directory_length = lstrlenW( szArgList[ 0 ] );
 					while ( base_directory_length != 0 && szArgList[ 0 ][ --base_directory_length ] != L'\\' );
@@ -214,22 +222,171 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 
 					default_directory = false;
 				}
-				else if ( szArgList[ arg ][ 1 ] == L'u' && szArgList[ arg ][ 2 ] == 0 )	// A URL was supplied.
+				else if ( arg_name_length == 5 && _StrCmpNIW( arg_name, L"parts", 5 ) == 0 )	// Split download into parts.
 				{
-					++arg;	// Move to the supplied URL.
+					++arg;
 
-					if ( url_arg != NULL )
+					unsigned char parts = ( unsigned char )_wcstoul( szArgList[ arg ], NULL, 10 );
+					if ( parts > 100 )
 					{
-						GlobalFree( url_arg );
-						url_arg = NULL;
+						parts = 100;
+					}
+					else if ( parts == 0 )
+					{
+						parts = 1;
 					}
 
-					url_arg_length = lstrlenW( szArgList[ arg ] );
-					if ( url_arg_length > 0 )
+					cla->parts = parts;
+				}
+				else if ( arg_name_length == 10 && _StrCmpNIW( arg_name, L"encryption", 10 ) == 0 )	// SSL / TLS version.
+				{
+					++arg;
+
+					unsigned char version = ( unsigned char )_wcstoul( szArgList[ arg ], NULL, 10 );
+					if ( version > 4 )
 					{
-						url_arg = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( url_arg_length + 1 ) );
-						_wmemcpy_s( url_arg, url_arg_length + 1, szArgList[ arg ], url_arg_length );
-						url_arg[ url_arg_length ] = 0;	// Sanity.
+						version = 4;	// TLS 1.2
+					}
+
+					cla->ssl_version = version;
+				}
+				else if ( arg_name_length == 8 && _StrCmpNIW( arg_name, L"simulate", 8 ) == 0 )	// Simulate the download.
+				{
+					cla->download_operations = DOWNLOAD_OPERATION_SIMULATE;
+				}
+				else if ( arg_name_length == 9 && _StrCmpNIW( arg_name, L"immediate", 9 ) == 0 )	// Download immediately.
+				{
+					cla->download_immediately = 1;
+				}
+				else if ( ( arg_name_length == 3 && _StrCmpNIW( arg_name, L"url", 3 ) == 0 ) ||
+						  ( arg_name_length == 12 && _StrCmpNIW( arg_name, L"header-field", 12 ) == 0 ) )	// A URL or header field was supplied.
+				{
+					wchar_t **cl_val = NULL;
+					int *cl_val_length = NULL;
+
+					if ( *arg_name == L'u' )
+					{
+						cl_val = &cla->urls;
+						cl_val_length = &cla->urls_length;
+					}
+					else	// Header field.
+					{
+						cl_val = &cla->headers;
+						cl_val_length = &cla->headers_length;
+					}
+
+					++arg;	// Move to the supplied value.
+
+					int length = lstrlenW( szArgList[ arg ] );
+					if ( length > 0 )
+					{
+						if ( *cl_val == NULL )
+						{
+							*cl_val = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( length + 2 + 1 ) );
+							_wmemcpy_s( *cl_val + *cl_val_length, length + 1, szArgList[ arg ], length );
+							*cl_val_length += length;
+							( *cl_val )[ ( *cl_val_length )++ ] = L'\r';
+							( *cl_val )[ ( *cl_val_length )++ ] = L'\n';
+						}
+						else
+						{
+							wchar_t *realloc_buffer = ( wchar_t * )GlobalReAlloc( *cl_val, sizeof( wchar_t ) * ( *cl_val_length + length + 2 + 1 ), GMEM_MOVEABLE );
+							if ( realloc_buffer != NULL )
+							{
+								*cl_val = realloc_buffer;
+
+								_wmemcpy_s( *cl_val + *cl_val_length, length + 1, szArgList[ arg ], length );
+								*cl_val_length += length;
+								( *cl_val )[ ( *cl_val_length )++ ] = L'\r';
+								( *cl_val )[ ( *cl_val_length )++ ] = L'\n';
+							}
+						}
+
+						( *cl_val )[ *cl_val_length ] = 0;	// Sanity.
+					}
+				}
+				else if ( ( arg_name_length == 13 && _StrCmpNIW( arg_name, L"cookie-string", 13 ) == 0 ) ||
+						  ( arg_name_length == 9 && _StrCmpNIW( arg_name, L"post-data", 9 ) == 0 ) ||
+						  ( arg_name_length == 16 && _StrCmpNIW( arg_name, L"output-directory", 16 ) == 0 ) ||
+						  ( arg_name_length == 8 && _StrCmpNIW( arg_name, L"url-list", 8 ) == 0 ) ||
+						  ( arg_name_length == 8 && _StrCmpNIW( arg_name, L"username", 8 ) == 0 ) ||
+						  ( arg_name_length == 8 && _StrCmpNIW( arg_name, L"password", 8 ) == 0 ) )	// A cookie string, form (POST) data, URL list file, output (download) directory, username, and or password was supplied.
+				{
+					wchar_t **cl_val = NULL;
+
+					int length = lstrlenW( szArgList[ arg + 1 ] );
+					if ( length > 0 )
+					{
+						if ( *arg_name == L'c' )
+						{
+							cl_val = &cla->cookies;
+							cla->cookies_length = length;
+						}
+						else if ( arg_name[ 0 ] == L'p' )
+						{
+							if ( arg_name[ 1 ] == L'o' )	// Portable
+							{
+								cl_val = &cla->data;
+								cla->data_length = length;
+							}
+							else	// Password
+							{
+								cl_val = &cla->password;
+								cla->password_length = length;
+							}
+						}
+						else if ( *arg_name == L'o' )
+						{
+							if ( GetFileAttributesW( szArgList[ arg + 1 ] ) == FILE_ATTRIBUTE_DIRECTORY )
+							{
+								// Remove any trailing slash.
+								while ( length != 0 )
+								{
+									if ( szArgList[ arg + 1 ][ length - 1 ] == L'\\' )
+									{
+										--length;
+									}
+									else
+									{
+										break;
+									}
+								}
+
+								cl_val = &cla->download_directory;
+								cla->download_directory_length = length;
+							}
+							else
+							{
+								++arg;
+
+								continue;
+							}
+						}
+						else if ( arg_name[ 0 ] == L'u' )
+						{
+							if ( arg_name[ 1 ] == L'r' )	// URL
+							{
+								cl_val = &cla->url_list_file;
+								cla->url_list_file_length = length;
+							}
+							else	// Username
+							{
+								cl_val = &cla->username;
+								cla->username_length = length;
+							}
+						}
+
+						++arg;	// Move to the supplied value.
+
+						if ( *cl_val != NULL )
+						{
+							GlobalFree( *cl_val );
+							*cl_val = NULL;
+						}
+
+						*cl_val = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( length + 1 ) );
+						_wmemcpy_s( *cl_val, length + 1, szArgList[ arg ], length );
+						( *cl_val )[ length ] = 0;	// Sanity.
 					}
 				}
 			}
@@ -355,14 +512,87 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 			HWND hWnd_instance = FindWindow( L"http_downloader_class", NULL );
 			if ( hWnd_instance != NULL )
 			{
-				// If we're passing a URL, then the Add URLs window will take focus when the copy data is received.
-				// If we're not passing a URL, then show the main window.
-				if ( url_arg != NULL )
+				// If we're passing command-line values, then the Add URLs window will take focus when the copy data is received.
+				// If we're not passing command-line values, then show the main window.
+				if ( cla != NULL )
 				{
+					unsigned int data_offset = 0;
+					unsigned int data_size = sizeof( CL_ARGS );
+					if ( cla->download_directory > 0 ) { data_size += ( sizeof( wchar_t ) * ( cla->download_directory_length + 1 ) ); }
+					if ( cla->cookies_length > 0 ) { data_size += ( sizeof( wchar_t ) * ( cla->cookies_length + 1 ) ); }
+					if ( cla->data_length > 0 ) { data_size += ( sizeof( wchar_t ) * ( cla->data_length + 1 ) ); }
+					if ( cla->headers_length > 0 ) { data_size += ( sizeof( wchar_t ) * ( cla->headers_length + 1 ) ); }
+					if ( cla->url_list_file_length > 0 ) { data_size += ( sizeof( wchar_t ) * ( cla->url_list_file_length + 1 ) ); }
+					if ( cla->urls_length > 0 ) { data_size += ( sizeof( wchar_t ) * ( cla->urls_length + 1 ) ); }
+					if ( cla->username_length > 0 ) { data_size += ( sizeof( wchar_t ) * ( cla->username_length + 1 ) ); }
+					if ( cla->password_length > 0 ) { data_size += ( sizeof( wchar_t ) * ( cla->password_length + 1 ) ); }
+
+					// Make a contiguous memory buffer.
+					CL_ARGS *cla_data = ( CL_ARGS * )GlobalAlloc( GMEM_FIXED, data_size );
+					_memcpy_s( cla_data, sizeof( CL_ARGS ), cla, sizeof( CL_ARGS ) );
+
+					wchar_t *wbyte_buf = ( wchar_t * )( ( char * )cla_data + sizeof( CL_ARGS ) );
+
+					cla_data->download_directory = ( wchar_t * )data_offset;
+					if ( cla->download_directory_length > 0 )
+					{
+						_wmemcpy_s( wbyte_buf + data_offset, data_size - data_offset, cla->download_directory, cla->download_directory_length + 1 );
+						data_offset += ( cla->download_directory_length + 1 );
+					}
+
+					cla_data->url_list_file = ( wchar_t * )data_offset;
+					if ( cla->url_list_file_length > 0 )
+					{
+						_wmemcpy_s( wbyte_buf + data_offset, data_size - data_offset, cla->url_list_file, cla->url_list_file_length + 1 );
+						data_offset += ( cla->url_list_file_length + 1 );
+					}
+
+					cla_data->urls = ( wchar_t * )data_offset;
+					if ( cla->urls_length > 0 )
+					{
+						_wmemcpy_s( wbyte_buf + data_offset, data_size - data_offset, cla->urls, cla->urls_length + 1 );
+						data_offset += ( cla->urls_length + 1 );
+					}
+
+					cla_data->cookies = ( wchar_t * )data_offset;
+					if ( cla->cookies_length > 0 )
+					{
+						_wmemcpy_s( wbyte_buf + data_offset, data_size - data_offset, cla->cookies, cla->cookies_length + 1 );
+						data_offset += ( cla->cookies_length + 1 );
+					}
+
+					cla_data->headers = ( wchar_t * )data_offset;
+					if ( cla->headers_length > 0 )
+					{
+						_wmemcpy_s( wbyte_buf + data_offset, data_size - data_offset, cla->headers, cla->headers_length + 1 );
+						data_offset += ( cla->headers_length + 1 );
+					}
+
+					cla_data->data = ( wchar_t * )data_offset;
+					if ( cla->data_length > 0 )
+					{
+						_wmemcpy_s( wbyte_buf + data_offset, data_size - data_offset, cla->data, cla->data_length + 1 );
+						data_offset += ( cla->data_length + 1 );
+					}
+
+					cla_data->username = ( wchar_t * )data_offset;
+					if ( cla->username_length > 0 )
+					{
+						_wmemcpy_s( wbyte_buf + data_offset, data_size - data_offset, cla->username, cla->username_length + 1 );
+						data_offset += ( cla->username_length + 1 );
+					}
+
+					cla_data->password = ( wchar_t * )data_offset;
+					if ( cla->password_length > 0 )
+					{
+						_wmemcpy_s( wbyte_buf + data_offset, data_size - data_offset, cla->password, cla->password_length + 1 );
+						data_offset += ( cla->password_length + 1 );
+					}
+
 					COPYDATASTRUCT cds;
 					cds.dwData = 0;
-					cds.cbData = sizeof( wchar_t ) * ( url_arg_length + 1 );	// Include the NULL terminator.
-					cds.lpData = ( PVOID )url_arg;
+					cds.cbData = data_size;
+					cds.lpData = ( PVOID )cla_data;
 					_SendMessageW( hWnd_instance, WM_COPYDATA, 0, ( LPARAM )&cds );
 				}
 				else
@@ -716,12 +946,28 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 
 	_ShowWindow( g_hWnd_main, ( cfg_min_max == 1 ? SW_MINIMIZE : ( cfg_min_max == 2 ? SW_MAXIMIZE : SW_SHOWNORMAL ) ) );
 
-	if ( url_arg != NULL )
+	if ( cla != NULL )
 	{
-		_SendMessageW( g_hWnd_main, WM_PROPAGATE, CF_UNICODETEXT, ( LPARAM )url_arg );
+		// Only load if there's URLs that have been supplied.
+		if ( cla->url_list_file != NULL || cla->urls != NULL )
+		{
+			// cla values will be freed here.
+			_SendMessageW( g_hWnd_main, WM_PROPAGATE, -2, ( LPARAM )cla );
+		}
+		else
+		{
+			if ( cla->download_directory != NULL ) { GlobalFree( cla->download_directory ); }
+			if ( cla->url_list_file != NULL ) { GlobalFree( cla->url_list_file ); }
+			if ( cla->urls != NULL ) { GlobalFree( cla->urls ); }
+			if ( cla->cookies != NULL ) { GlobalFree( cla->cookies ); }
+			if ( cla->headers != NULL ) { GlobalFree( cla->headers ); }
+			if ( cla->data != NULL ) { GlobalFree( cla->data ); }
+			if ( cla->username != NULL ) { GlobalFree( cla->username ); }
+			if ( cla->password != NULL ) { GlobalFree( cla->password ); }
+			GlobalFree( cla );
+		}
 
-		GlobalFree( url_arg );
-		url_arg = NULL;
+		cla = NULL;
 	}
 
 	if ( cfg_enable_drop_window )
@@ -748,7 +994,18 @@ CLEANUP:
 
 	save_config();
 
-	if ( url_arg != NULL ) { GlobalFree( url_arg ); }
+	if ( cla != NULL )
+	{
+		if ( cla->download_directory != NULL ) { GlobalFree( cla->download_directory ); }
+		if ( cla->cookies != NULL ) { GlobalFree( cla->cookies ); }
+		if ( cla->data != NULL ) { GlobalFree( cla->data ); }
+		if ( cla->headers != NULL ) { GlobalFree( cla->headers ); }
+		if ( cla->url_list_file != NULL ) { GlobalFree( cla->url_list_file ); }
+		if ( cla->urls != NULL ) { GlobalFree( cla->urls ); }
+		if ( cla->username != NULL ) { GlobalFree( cla->username ); }
+		if ( cla->password != NULL ) { GlobalFree( cla->password ); }
+		GlobalFree( cla );
+	}
 
 	if ( base_directory != NULL ) { GlobalFree( base_directory ); }
 	if ( cfg_default_download_directory != NULL ) { GlobalFree( cfg_default_download_directory ); }

@@ -135,6 +135,7 @@ PKCS #12 file:
 PKCS #12 password:
 Play sound when all downloads finish:
 Port:
+Prevent system standby while downloads are active
 Proxy
 Public / Private key pair:
 Require authentication:
@@ -170,7 +171,6 @@ Search Type
 [Simulated]
 Add URL(s)
 Added
-All downloads have finished.
 Allocating File
 Authorization Required
 Cancel
@@ -181,6 +181,7 @@ Download speed: 0 B/s
 Download speed: 0.00 GB/s
 Download speed: 0.00 KB/s
 Download speed: 0.00 MB/s
+Downloads Have Finished
 Export Download History
 Failed
 File IO Error

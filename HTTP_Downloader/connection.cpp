@@ -118,7 +118,24 @@ bool rename_file_prompt_active = false;
 int g_rename_file_cmb_ret = 0;	// Message box prompt to rename files.
 int g_rename_file_cmb_ret2 = 0;	// Message box prompt to rename files.
 
+unsigned int g_session_status_count[ 8 ] = { 0 };	// 8 states that can be considered finished (Completed, Stopped, Failed, etc.)
+
 bool g_timers_running = false;
+
+void SetSessionStatusCount( unsigned int status )
+{
+	switch ( status )
+	{
+		case STATUS_COMPLETED:				{ ++g_session_status_count[ 0 ]; } break;
+		case STATUS_STOPPED:				{ ++g_session_status_count[ 1 ]; } break;
+		case STATUS_TIMED_OUT:				{ ++g_session_status_count[ 2 ]; } break;
+		case STATUS_FAILED:					{ ++g_session_status_count[ 3 ]; } break;
+		case STATUS_FILE_IO_ERROR:			{ ++g_session_status_count[ 4 ]; } break;
+		case STATUS_SKIPPED:				{ ++g_session_status_count[ 5 ]; } break;
+		case STATUS_AUTH_REQUIRED:			{ ++g_session_status_count[ 6 ]; } break;
+		case STATUS_PROXY_AUTH_REQUIRED:	{ ++g_session_status_count[ 7 ]; } break;
+	}
+}
 
 // This should be done in a critical section.
 void EnableTimers( bool timer_state )
@@ -3608,8 +3625,6 @@ DWORD WINAPI AddURL( void *add_info )
 
 			EnterCriticalSection( &cleanup_cs );
 
-			StartDownload( di, !( di->download_operations & DOWNLOAD_OPERATION_SIMULATE ) );
-
 			LVITEM lvi;
 			_memzero( &lvi, sizeof( LVITEM ) );
 			lvi.mask = LVIF_PARAM | LVIF_TEXT;
@@ -3617,6 +3632,8 @@ DWORD WINAPI AddURL( void *add_info )
 			lvi.lParam = ( LPARAM )di;
 			lvi.pszText = di->file_path + di->filename_offset;
 			_SendMessageW( g_hWnd_files, LVM_INSERTITEM, 0, ( LPARAM )&lvi );
+
+			StartDownload( di, !( di->download_operations & DOWNLOAD_OPERATION_SIMULATE ) );
 
 			download_history_changed = true;
 
@@ -4083,6 +4100,8 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 							{
 								context->download_info->status = STATUS_COMPLETED;
 							}
+
+							SetSessionStatusCount( context->download_info->status );
 
 							EnterCriticalSection( &active_download_list_cs );
 

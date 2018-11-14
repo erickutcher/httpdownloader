@@ -35,7 +35,7 @@
 	pStrCmpNW				_StrCmpNW;
 	pStrCmpNIA				_StrCmpNIA;
 
-	//pStrCmpNIW				_StrCmpNIW;
+	pStrCmpNIW				_StrCmpNIW;
 
 	pSHBrowseForFolderW		_SHBrowseForFolderW;
 	pSHGetPathFromIDListW	_SHGetPathFromIDListW;
@@ -85,7 +85,7 @@
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_shell32, ( void ** )&_StrCmpNW, "StrCmpNW" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_shell32, ( void ** )&_StrCmpNIA, "StrCmpNIA" ) )
 
-		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_shell32, ( void ** )&_StrCmpNIW, "StrCmpNIW" ) )
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_shell32, ( void ** )&_StrCmpNIW, "StrCmpNIW" ) )
 
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_shell32, ( void ** )&_SHBrowseForFolderW, "SHBrowseForFolderW" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_shell32, ( void ** )&_SHGetPathFromIDListW, "SHGetPathFromIDListW" ) )

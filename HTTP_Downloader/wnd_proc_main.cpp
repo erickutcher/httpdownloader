@@ -75,6 +75,35 @@ HANDLE g_timer_semaphore = NULL;
 bool use_drag_and_drop_main = true;		// Assumes OLE32_STATE_RUNNING is true.
 IDropTarget *List_DropTarget;
 
+void FormatTooltipStatus()
+{
+	unsigned int buf_length = 0;
+
+	wchar_t *status_strings[ 8 ] = { ST_V_Completed, ST_V_Stopped, ST_V_Timed_Out, ST_V_Failed, ST_V_File_IO_Error, ST_V_Skipped, ST_V_Authorization_Required, ST_V_Proxy_Authentication_Required };
+
+	for ( unsigned char i = 0; i < 8; ++i )
+	{
+		if ( g_session_status_count[ i ] > 0 )
+		{
+			int ret = __snwprintf( g_nid.szInfo + buf_length, sizeof( g_nid.szInfo ) / sizeof( g_nid.szInfo[ 0 ] ) - buf_length, L"%s%s: %lu", ( buf_length > 0 ? L"\r\n" : L"" ), status_strings[ i ], g_session_status_count[ i ] );
+
+			if ( ret >= 0 )
+			{
+				buf_length += ret;
+			}
+			else
+			{
+				g_nid.szInfo[ sizeof( g_nid.szInfo ) / sizeof( g_nid.szInfo[ 0 ] ) ] = 0;	// Sanity.
+
+				break;
+			}
+		}
+	}
+
+	// Reset.
+	_memzero( g_session_status_count, sizeof( unsigned int ) * 8 );
+}
+
 // Sort function for columns.
 int CALLBACK DMCompareFunc( LPARAM lParam1, LPARAM lParam2, LPARAM lParamSort )
 {
@@ -315,6 +344,7 @@ DWORD WINAPI UpdateWindow( LPVOID WorkThreadContext )
 	unsigned long long last_session_downloaded_speed = 0;
 
 	bool run_timer = g_timers_running;
+	unsigned char standby_counter = 0;
 
 	last_update.ull = 0;
 
@@ -520,6 +550,8 @@ DWORD WINAPI UpdateWindow( LPVOID WorkThreadContext )
 			{
 				if ( cfg_show_notification )
 				{
+					FormatTooltipStatus();
+
 					g_nid.uFlags |= NIF_INFO;
 				}
 				else
@@ -542,6 +574,17 @@ DWORD WINAPI UpdateWindow( LPVOID WorkThreadContext )
 				#endif
 
 				if ( play ) { _PlaySoundW( cfg_sound_file_path, NULL, SND_ASYNC | SND_FILENAME ); }
+			}
+		}
+
+		if ( cfg_prevent_standby )
+		{
+			// I think the minimum standby time is 60 seconds. This should give us some wiggle room.
+			if ( ++standby_counter >= 40 )
+			{
+				standby_counter = 0;
+
+				SetThreadExecutionState( ES_CONTINUOUS | ES_SYSTEM_REQUIRED );
 			}
 		}
 	}
@@ -709,11 +752,9 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 				g_nid.uID = 1000;
 				g_nid.hIcon = ( HICON )_LoadImageW( GetModuleHandle( NULL ), MAKEINTRESOURCE( IDI_ICON ), IMAGE_ICON, 16, 16, LR_SHARED );
 				g_nid.dwInfoFlags = NIIF_INFO;
-				_wmemcpy_s( g_nid.szInfoTitle, sizeof( g_nid.szInfoTitle ) / sizeof( g_nid.szInfoTitle[ 0 ] ), PROGRAM_CAPTION, 16 );
-				g_nid.szInfoTitle[ 15 ] = 0;	// Sanity.
-				unsigned char info_size = ( ST_L_All_downloads_have_finished_ > ( ( sizeof( g_nid.szInfo ) / sizeof( g_nid.szInfo[ 0 ] ) ) - 1 ) ? ( ( sizeof( g_nid.szInfo ) / sizeof( g_nid.szInfo[ 0 ] ) ) - 1 ) : ST_L_All_downloads_have_finished_ );
-				_wmemcpy_s( g_nid.szInfo, sizeof( g_nid.szInfo ) / sizeof( g_nid.szInfo[ 0 ] ), ST_V_All_downloads_have_finished_, info_size );
-				g_nid.szInfo[ info_size ] = 0;	// Sanity.
+				unsigned char info_size = ( ST_L_Downloads_Have_Finished > ( ( sizeof( g_nid.szInfoTitle ) / sizeof( g_nid.szInfoTitle[ 0 ] ) ) - 1 ) ? ( ( sizeof( g_nid.szInfoTitle ) / sizeof( g_nid.szInfoTitle[ 0 ] ) ) - 1 ) : ST_L_Downloads_Have_Finished );
+				_wmemcpy_s( g_nid.szInfoTitle, sizeof( g_nid.szInfoTitle ) / sizeof( g_nid.szInfoTitle[ 0 ] ), ST_V_Downloads_Have_Finished, info_size );
+				g_nid.szInfoTitle[ info_size ] = 0;	// Sanity.
 				_wmemcpy_s( g_nid.szTip, sizeof( g_nid.szTip ) / sizeof( g_nid.szTip[ 0 ] ), PROGRAM_CAPTION, 16 );
 				g_nid.szTip[ 15 ] = 0;	// Sanity.
 				_Shell_NotifyIconW( NIM_ADD, &g_nid );
@@ -1062,7 +1103,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 								_ShowWindow( g_hWnd_update_download, SW_RESTORE );
 							}
 
-							SendMessageW( g_hWnd_update_download, WM_PROPAGATE, 0, lvi.lParam );
+							_SendMessageW( g_hWnd_update_download, WM_PROPAGATE, 0, lvi.lParam );
 						}
 					}
 				}
@@ -1257,7 +1298,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 				{
 					if ( g_hWnd_options == NULL )
 					{
-						g_hWnd_options = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"options", ST_V_Options, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU, ( ( _GetSystemMetrics( SM_CXSCREEN ) - 480 ) / 2 ), ( ( _GetSystemMetrics( SM_CYSCREEN ) - 470 ) / 2 ), 480, 470, NULL, NULL, NULL, NULL );
+						g_hWnd_options = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"options", ST_V_Options, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU, ( ( _GetSystemMetrics( SM_CXSCREEN ) - 480 ) / 2 ), ( ( _GetSystemMetrics( SM_CYSCREEN ) - 490 ) / 2 ), 480, 490, NULL, NULL, NULL, NULL );
 						_ShowWindow( g_hWnd_options, SW_SHOWNORMAL );
 					}
 					_SetForegroundWindow( g_hWnd_options );
@@ -1292,7 +1333,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 				{
 					wchar_t msg[ 512 ];
 					__snwprintf( msg, 512, L"HTTP Downloader is made free under the GPLv3 license.\r\n\r\n" \
-										   L"Version 1.0.1.2\r\n\r\n" \
+										   L"Version 1.0.1.3\r\n\r\n" \
 										   L"Built on %s, %s %d, %04d %d:%02d:%02d %s (UTC)\r\n\r\n" \
 										   L"Copyright \xA9 2015-2018 Eric Kutcher",
 										   ( g_compile_time.wDayOfWeek > 6 ? L"" : day_string_table[ g_compile_time.wDayOfWeek ].value ),
@@ -1672,6 +1713,17 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 
 							_SendMessageW( g_hWnd_status, SB_SETTEXT, MAKEWPARAM( 1, 0 ), ( LPARAM )status_bar_buf );
 						}
+					}
+				}
+				break;
+
+				case NM_DBLCLK:
+				{
+					NMITEMACTIVATE *nmitem = ( NMITEMACTIVATE * )lParam;
+
+					if ( nmitem->hdr.hwndFrom == g_hWnd_files )
+					{
+						_SendMessageW( hWnd, WM_COMMAND, MENU_OPEN_DIRECTORY, 0 );
 					}
 				}
 				break;
@@ -2739,7 +2791,80 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 			// Do not free lpData.
 			if ( cds != NULL && cds->lpData != NULL )
 			{
-				_SendMessageW( ( g_hWnd_add_urls != NULL ? g_hWnd_add_urls : hWnd ), WM_PROPAGATE, CF_UNICODETEXT, ( LPARAM )cds->lpData );
+				CL_ARGS *cla = ( CL_ARGS * )cds->lpData;
+				wchar_t *cl_val = ( wchar_t * )( ( char * )cla + sizeof( CL_ARGS ) );
+
+				// Our pointers were used to store each string's offset past the CL_ARGS struct.
+				// We're reverting them back to point to their respective string.
+				cla->download_directory = ( cla->download_directory_length > 0 ? cl_val + ( unsigned int )cla->download_directory : NULL );
+				cla->url_list_file = ( cla->url_list_file_length > 0 ? cl_val + ( unsigned int )cla->url_list_file : NULL );
+				cla->urls = ( cla->urls_length > 0 ? cl_val + ( unsigned int )cla->urls : NULL );
+				cla->cookies = ( cla->cookies_length > 0 ? cl_val + ( unsigned int )cla->cookies : NULL );
+				cla->headers = ( cla->headers_length > 0 ? cl_val + ( unsigned int )cla->headers : NULL );
+				cla->data = ( cla->data_length > 0 ? cl_val + ( unsigned int )cla->data : NULL );
+				cla->username = ( cla->username_length > 0 ? cl_val + ( unsigned int )cla->username : NULL );
+				cla->password = ( cla->password_length > 0 ? cl_val + ( unsigned int )cla->password : NULL );
+
+				CL_ARGS *new_cla = ( CL_ARGS * )GlobalAlloc( GMEM_FIXED, sizeof( CL_ARGS ) );
+				_memcpy_s( new_cla, sizeof( CL_ARGS ), cla, sizeof( CL_ARGS ) );
+
+				if ( cla->download_directory != NULL )
+				{
+					new_cla->download_directory = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( cla->download_directory_length + 1 ) );
+					_wmemcpy_s( new_cla->download_directory, cla->download_directory_length + 1, cla->download_directory, cla->download_directory_length );
+					new_cla->download_directory[ cla->download_directory_length ] = 0;	// Sanity.
+				}
+
+				if ( cla->url_list_file != NULL )
+				{
+					new_cla->url_list_file = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( cla->url_list_file_length + 1 ) );
+					_wmemcpy_s( new_cla->url_list_file, cla->url_list_file_length + 1, cla->url_list_file, cla->url_list_file_length );
+					new_cla->url_list_file[ cla->url_list_file_length ] = 0;	// Sanity.
+				}
+
+				if ( cla->urls != NULL )
+				{
+					new_cla->urls = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( cla->urls_length + 1 ) );
+					_wmemcpy_s( new_cla->urls, cla->urls_length + 1, cla->urls, cla->urls_length );
+					new_cla->urls[ cla->urls_length ] = 0;	// Sanity.
+				}
+
+				if ( cla->cookies != NULL )
+				{
+					new_cla->cookies = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( cla->cookies_length + 1 ) );
+					_wmemcpy_s( new_cla->cookies, cla->cookies_length + 1, cla->cookies, cla->cookies_length );
+					new_cla->cookies[ cla->cookies_length ] = 0;	// Sanity.
+				}
+
+				if ( cla->headers != NULL )
+				{
+					new_cla->headers = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( cla->headers_length + 1 ) );
+					_wmemcpy_s( new_cla->headers, cla->headers_length + 1, cla->headers, cla->headers_length );
+					new_cla->headers[ cla->headers_length ] = 0;	// Sanity.
+				}
+
+				if ( cla->data != NULL )
+				{
+					new_cla->data = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( cla->data_length + 1 ) );
+					_wmemcpy_s( new_cla->data, cla->data_length + 1, cla->data, cla->data_length );
+					new_cla->data[ cla->data_length ] = 0;	// Sanity.
+				}
+
+				if ( cla->username != NULL )
+				{
+					new_cla->username = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( cla->username_length + 1 ) );
+					_wmemcpy_s( new_cla->username, cla->username_length + 1, cla->username, cla->username_length );
+					new_cla->username[ cla->username_length ] = 0;	// Sanity.
+				}
+
+				if ( cla->password != NULL )
+				{
+					new_cla->password = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( cla->password_length + 1 ) );
+					_wmemcpy_s( new_cla->password, cla->password_length + 1, cla->password, cla->password_length );
+					new_cla->password[ cla->password_length ] = 0;	// Sanity.
+				}
+
+				_SendMessageW( hWnd, WM_PROPAGATE, -2, ( LPARAM )new_cla );
 			}
 
 			return TRUE;
@@ -2748,16 +2873,45 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 
 		case WM_PROPAGATE:
 		{
-			if ( g_hWnd_add_urls == NULL )
+			if ( wParam == -2 )	// Load command-line parameters.
 			{
-				g_hWnd_add_urls = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"add_urls", ST_V_Add_URL_s_, WS_OVERLAPPEDWINDOW, ( ( _GetSystemMetrics( SM_CXSCREEN ) - 525 ) / 2 ), ( ( _GetSystemMetrics( SM_CYSCREEN ) - 240 ) / 2 ), 525, 240, NULL, NULL, NULL, NULL );
-			}
-			else if ( _IsIconic( g_hWnd_add_urls ) )	// If minimized, then restore the window.
-			{
-				_ShowWindow( g_hWnd_add_urls, SW_RESTORE );
-			}
+				CL_ARGS *cla = ( CL_ARGS * )lParam;
 
-			SendMessageW( g_hWnd_add_urls, WM_PROPAGATE, wParam, lParam );
+				if ( cla != NULL )
+				{
+					// cli is freed in process_command_line_args.
+					HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, process_command_line_args, ( void * )cla, 0, NULL );
+					if ( thread != NULL )
+					{
+						CloseHandle( thread );
+					}
+					else
+					{
+						GlobalFree( cla->download_directory );
+						GlobalFree( cla->url_list_file );
+						GlobalFree( cla->urls );
+						GlobalFree( cla->cookies );
+						GlobalFree( cla->headers );
+						GlobalFree( cla->data );
+						GlobalFree( cla->username );
+						GlobalFree( cla->password );
+						GlobalFree( cla );
+					}
+				}
+			}
+			else
+			{
+				if ( g_hWnd_add_urls == NULL )
+				{
+					g_hWnd_add_urls = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"add_urls", ST_V_Add_URL_s_, WS_OVERLAPPEDWINDOW, ( ( _GetSystemMetrics( SM_CXSCREEN ) - 525 ) / 2 ), ( ( _GetSystemMetrics( SM_CYSCREEN ) - 240 ) / 2 ), 525, 240, NULL, NULL, NULL, NULL );
+				}
+				else if ( _IsIconic( g_hWnd_add_urls ) )	// If minimized, then restore the window.
+				{
+					_ShowWindow( g_hWnd_add_urls, SW_RESTORE );
+				}
+
+				_SendMessageW( g_hWnd_add_urls, WM_PROPAGATE, wParam, lParam );
+			}
 		}
 		break;
 

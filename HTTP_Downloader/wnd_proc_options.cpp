@@ -115,6 +115,7 @@
 #define BTN_LOAD_SOUND_FILE			1062
 
 #define BTN_SHOW_NOTIFICATION		1063
+#define BTN_PREVENT_STANDBY			1064
 
 HWND g_hWnd_options = NULL;
 
@@ -194,9 +195,6 @@ HWND g_hWnd_btn_certificate_key_location = NULL;
 HWND g_hWnd_static_server_ssl_version = NULL;
 HWND g_hWnd_server_ssl_version = NULL;
 
-int connection_tab_height = 0;
-int connection_tab_scroll_pos = 0;
-
 // Proxy Tab
 // HTTP proxy
 HWND g_hWnd_chk_proxy = NULL;
@@ -247,6 +245,7 @@ HWND g_hWnd_chk_set_filetime = NULL;
 HWND g_hWnd_chk_use_one_instance = NULL;
 HWND g_hWnd_chk_enable_drop_window = NULL;
 HWND g_hWnd_chk_download_immediately = NULL;
+HWND g_hWnd_chk_prevent_standby = NULL;
 
 HWND g_hWnd_chk_play_sound = NULL;
 HWND g_hWnd_sound_file = NULL;
@@ -822,19 +821,21 @@ LRESULT CALLBACK GeneralTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 
 			g_hWnd_chk_download_immediately = _CreateWindowW( WC_BUTTON, ST_V_Download_drag_and_drop_immediately, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 200, rc.right, 20, hWnd, ( HMENU )BTN_DOWNLOAD_IMMEDIATELY, NULL, NULL );
 
-			g_hWnd_chk_play_sound = _CreateWindowW( WC_BUTTON, ST_V_Play_sound_when_downloads_finish_, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 220, rc.right, 20, hWnd, ( HMENU )BTN_PLAY_SOUND, NULL, NULL );
-			g_hWnd_sound_file = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, cfg_sound_file_path, ES_AUTOHSCROLL | ES_READONLY | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 240, rc.right - 40, 20, hWnd, NULL, NULL, NULL );
-			g_hWnd_load_sound_file = _CreateWindowW( WC_BUTTON, ST_V_BTN___, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 35, 240, 35, 20, hWnd, ( HMENU )BTN_LOAD_SOUND_FILE, NULL, NULL );
+			g_hWnd_chk_prevent_standby = _CreateWindowW( WC_BUTTON, ST_V_Prevent_system_standby, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 220, rc.right, 20, hWnd, ( HMENU )BTN_PREVENT_STANDBY, NULL, NULL );
 
-			HWND hWnd_static_default_download_directory = _CreateWindowW( WC_STATIC, ST_V_Default_download_directory_, WS_CHILD | WS_VISIBLE, 0, 265, rc.right, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_default_download_directory = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, cfg_default_download_directory, ES_AUTOHSCROLL | ES_READONLY | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 280, rc.right - 40, 20, hWnd, NULL, NULL, NULL );
-			g_hWnd_btn_default_download_directory = _CreateWindowW( WC_BUTTON, ST_V_BTN___, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 35, 280, 35, 20, hWnd, ( HMENU )BTN_DEFAULT_DOWNLOAD_DIRECTORY, NULL, NULL );
+			g_hWnd_chk_play_sound = _CreateWindowW( WC_BUTTON, ST_V_Play_sound_when_downloads_finish_, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 240, rc.right, 20, hWnd, ( HMENU )BTN_PLAY_SOUND, NULL, NULL );
+			g_hWnd_sound_file = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, cfg_sound_file_path, ES_AUTOHSCROLL | ES_READONLY | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 260, rc.right - 40, 20, hWnd, NULL, NULL, NULL );
+			g_hWnd_load_sound_file = _CreateWindowW( WC_BUTTON, ST_V_BTN___, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 35, 260, 35, 20, hWnd, ( HMENU )BTN_LOAD_SOUND_FILE, NULL, NULL );
 
-			HWND hWnd_static_thread_count = _CreateWindowW( WC_STATIC, ST_V_Thread_pool_count_, WS_CHILD | WS_VISIBLE, 0, 305, rc.right, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_thread_count = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 320, 100, 20, hWnd, ( HMENU )EDIT_THREAD_COUNT, NULL, NULL );
+			HWND hWnd_static_default_download_directory = _CreateWindowW( WC_STATIC, ST_V_Default_download_directory_, WS_CHILD | WS_VISIBLE, 0, 285, rc.right, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_default_download_directory = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, cfg_default_download_directory, ES_AUTOHSCROLL | ES_READONLY | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 300, rc.right - 40, 20, hWnd, NULL, NULL, NULL );
+			g_hWnd_btn_default_download_directory = _CreateWindowW( WC_BUTTON, ST_V_BTN___, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 35, 300, 35, 20, hWnd, ( HMENU )BTN_DEFAULT_DOWNLOAD_DIRECTORY, NULL, NULL );
+
+			HWND hWnd_static_thread_count = _CreateWindowW( WC_STATIC, ST_V_Thread_pool_count_, WS_CHILD | WS_VISIBLE, 0, 325, rc.right, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_thread_count = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 340, 100, 20, hWnd, ( HMENU )EDIT_THREAD_COUNT, NULL, NULL );
 
 			// Keep this unattached. Looks ugly inside the text box.
-			HWND hWnd_ud_thread_count = _CreateWindowW( UPDOWN_CLASS, NULL, /*UDS_ALIGNRIGHT |*/ UDS_ARROWKEYS | UDS_NOTHOUSANDS | UDS_SETBUDDYINT | WS_CHILD | WS_VISIBLE, 100, 319, _GetSystemMetrics( SM_CXVSCROLL ), 22, hWnd, NULL, NULL, NULL );
+			HWND hWnd_ud_thread_count = _CreateWindowW( UPDOWN_CLASS, NULL, /*UDS_ALIGNRIGHT |*/ UDS_ARROWKEYS | UDS_NOTHOUSANDS | UDS_SETBUDDYINT | WS_CHILD | WS_VISIBLE, 100, 339, _GetSystemMetrics( SM_CXVSCROLL ), 22, hWnd, NULL, NULL, NULL );
 
 			_SendMessageW( g_hWnd_thread_count, EM_LIMITTEXT, 10, 0 );
 			_SendMessageW( hWnd_ud_thread_count, UDM_SETBUDDY, ( WPARAM )g_hWnd_thread_count, 0 );
@@ -856,6 +857,7 @@ LRESULT CALLBACK GeneralTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 			_SendMessageW( g_hWnd_chk_use_one_instance, WM_SETFONT, ( WPARAM )hFont, 0 );
 			_SendMessageW( g_hWnd_chk_enable_drop_window, WM_SETFONT, ( WPARAM )hFont, 0 );
 			_SendMessageW( g_hWnd_chk_download_immediately, WM_SETFONT, ( WPARAM )hFont, 0 );
+			_SendMessageW( g_hWnd_chk_prevent_standby, WM_SETFONT, ( WPARAM )hFont, 0 );
 
 			_SendMessageW( g_hWnd_chk_play_sound, WM_SETFONT, ( WPARAM )hFont, 0 );
 			_SendMessageW( g_hWnd_sound_file, WM_SETFONT, ( WPARAM )hFont, 0 );
@@ -902,6 +904,8 @@ LRESULT CALLBACK GeneralTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 			_SendMessageW( g_hWnd_chk_enable_drop_window, BM_SETCHECK, ( cfg_enable_drop_window ? BST_CHECKED : BST_UNCHECKED ), 0 );
 
 			_SendMessageW( g_hWnd_chk_download_immediately, BM_SETCHECK, ( cfg_download_immediately ? BST_CHECKED : BST_UNCHECKED ), 0 );
+
+			_SendMessageW( g_hWnd_chk_prevent_standby, BM_SETCHECK, ( cfg_prevent_standby ? BST_CHECKED : BST_UNCHECKED ), 0 );
 
 			if ( cfg_play_sound )
 			{
@@ -970,6 +974,7 @@ LRESULT CALLBACK GeneralTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 				case BTN_ENABLE_DROP_WINDOW:
 				case BTN_DOWNLOAD_IMMEDIATELY:
 				case BTN_SHOW_NOTIFICATION:
+				case BTN_PREVENT_STANDBY:
 				{
 					options_state_changed = true;
 					_EnableWindow( g_hWnd_apply, TRUE );
@@ -1359,15 +1364,12 @@ LRESULT CALLBACK ConnectionTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 
 			//
 
-			connection_tab_scroll_pos = 0;
-			connection_tab_height = ( rc.bottom - rc.top ) + 30;	// Needs 10px more padding for Windows 10.
-
 			SCROLLINFO si;
 			si.cbSize = sizeof( SCROLLINFO );
 			si.fMask = SIF_ALL;
 			si.nMin = 0;
-			si.nMax = connection_tab_height;
-			si.nPage = ( ( connection_tab_height / 2 ) + ( ( connection_tab_height % 2 ) != 0 ) );
+			si.nMax = 525 + 13;	// Value is the position and height of the bottom most control. Needs 13px more padding for Windows 10.
+			si.nPage = ( rc.bottom - rc.top );
 			si.nPos = 0;
 			_SetScrollInfo( hWnd, SB_VERT, &si, TRUE );
 
@@ -1497,7 +1499,12 @@ LRESULT CALLBACK ConnectionTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 		case WM_MOUSEWHEEL:
 		case WM_VSCROLL:
 		{
-			int delta = 0;
+			SCROLLINFO si;
+			si.cbSize = sizeof( SCROLLINFO );
+			si.fMask = SIF_POS;
+			_GetScrollInfo( hWnd, SB_VERT, &si );
+
+			int delta = si.nPos;
 
 			if ( msg == WM_VSCROLL )
 			{
@@ -1509,37 +1516,28 @@ LRESULT CALLBACK ConnectionTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 
 				switch ( LOWORD( wParam ) )
 				{
-					case SB_LINEUP: { delta = -10; } break;
-					case SB_LINEDOWN: { delta = 10; } break;
-					case SB_PAGEUP: { delta = -50; } break;
-					case SB_PAGEDOWN: { delta = 50; } break;
+					case SB_LINEUP: { si.nPos -= 10; } break;
+					case SB_LINEDOWN: { si.nPos += 10; } break;
+					case SB_PAGEUP: { si.nPos -= 50; } break;
+					case SB_PAGEDOWN: { si.nPos += 50; } break;
 					//case SB_THUMBPOSITION:
-					case SB_THUMBTRACK: { delta = ( int )HIWORD( wParam ) - connection_tab_scroll_pos; } break;
+					case SB_THUMBTRACK: { si.nPos = ( int )HIWORD( wParam ); } break;
 					default: { return 0; } break;
 				}
 			}
 			else if ( msg == WM_MOUSEWHEEL )
 			{
-				delta = -( GET_WHEEL_DELTA_WPARAM( wParam ) / WHEEL_DELTA ) * 20;
+				si.nPos -= ( GET_WHEEL_DELTA_WPARAM( wParam ) / WHEEL_DELTA ) * 20;
 			}
 
-			connection_tab_scroll_pos += delta;
+			_SetScrollPos( hWnd, SB_VERT, si.nPos, TRUE );
 
-			if ( connection_tab_scroll_pos < 0 )
-			{
-				delta -= connection_tab_scroll_pos;
-				connection_tab_scroll_pos = 0;
-			}
-			else if ( connection_tab_scroll_pos > ( ( connection_tab_height / 2 ) + ( ( connection_tab_height % 2 ) != 0 ) ) )
-			{
-				delta -= ( connection_tab_scroll_pos - ( ( connection_tab_height / 2 ) + ( ( connection_tab_height % 2 ) != 0 ) ) );
-				connection_tab_scroll_pos = ( ( connection_tab_height / 2 ) + ( ( connection_tab_height % 2 ) != 0 ) );
-			}
+			si.fMask = SIF_POS;
+			_GetScrollInfo( hWnd, SB_VERT, &si );
 
-			if ( delta != 0 )
+			if ( si.nPos != delta )
 			{
-				_SetScrollPos( hWnd, SB_VERT, connection_tab_scroll_pos, TRUE );
-				_ScrollWindow( hWnd, 0, -delta, NULL, NULL );
+				_ScrollWindow( hWnd, 0, delta - si.nPos, NULL, NULL );
 			}
 
 			return 0;
@@ -2751,11 +2749,9 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 						g_nid.uID = 1000;
 						g_nid.hIcon = ( HICON )_LoadImageW( GetModuleHandle( NULL ), MAKEINTRESOURCE( IDI_ICON ), IMAGE_ICON, 16, 16, LR_SHARED );
 						g_nid.dwInfoFlags = NIIF_INFO;
-						_wmemcpy_s( g_nid.szInfoTitle, sizeof( g_nid.szInfoTitle ) / sizeof( g_nid.szInfoTitle[ 0 ] ), PROGRAM_CAPTION, 16 );
-						g_nid.szInfoTitle[ 15 ] = 0;	// Sanity.
-						unsigned char info_size = ( ST_L_All_downloads_have_finished_ > ( ( sizeof( g_nid.szInfo ) / sizeof( g_nid.szInfo[ 0 ] ) ) - 1 ) ? ( ( sizeof( g_nid.szInfo ) / sizeof( g_nid.szInfo[ 0 ] ) ) - 1 ) : ST_L_All_downloads_have_finished_ );
-						_wmemcpy_s( g_nid.szInfo, sizeof( g_nid.szInfo ) / sizeof( g_nid.szInfo[ 0 ] ), ST_V_All_downloads_have_finished_, info_size );
-						g_nid.szInfo[ info_size ] = 0;	// Sanity.
+						unsigned char info_size = ( ST_L_Downloads_Have_Finished > ( ( sizeof( g_nid.szInfoTitle ) / sizeof( g_nid.szInfoTitle[ 0 ] ) ) - 1 ) ? ( ( sizeof( g_nid.szInfoTitle ) / sizeof( g_nid.szInfoTitle[ 0 ] ) ) - 1 ) : ST_L_Downloads_Have_Finished );
+						_wmemcpy_s( g_nid.szInfoTitle, sizeof( g_nid.szInfoTitle ) / sizeof( g_nid.szInfoTitle[ 0 ] ), ST_V_Downloads_Have_Finished, info_size );
+						g_nid.szInfoTitle[ info_size ] = 0;	// Sanity.
 						_wmemcpy_s( g_nid.szTip, sizeof( g_nid.szTip ) / sizeof( g_nid.szTip[ 0 ] ), PROGRAM_CAPTION, 16 );
 						g_nid.szTip[ 15 ] = 0;	// Sanity.
 						_Shell_NotifyIconW( NIM_ADD, &g_nid );
@@ -2826,6 +2822,8 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 					}
 
 					cfg_download_immediately = ( _SendMessageW( g_hWnd_chk_download_immediately, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
+
+					cfg_prevent_standby = ( _SendMessageW( g_hWnd_chk_prevent_standby, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
 
 					cfg_play_sound = ( _SendMessageW( g_hWnd_chk_play_sound, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
 

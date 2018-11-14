@@ -30,4 +30,6 @@ char save_download_history( wchar_t *file_path );
 
 char save_download_history_csv_file( wchar_t *file_path );
 
+wchar_t *read_url_list_file( wchar_t *file_path, unsigned int &url_list_length );
+
 #endif

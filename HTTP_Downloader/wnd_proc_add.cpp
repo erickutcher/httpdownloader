@@ -696,17 +696,89 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 		case WM_PROPAGATE:
 		{
-			if ( wParam == CF_UNICODETEXT || wParam == CF_HTML )
+			if ( wParam == -1 )
 			{
-				SendMessageW( g_hWnd_edit_add, EM_REPLACESEL, 0, lParam );
-			}
-			else// if ( wParam == CF_TEXT )
-			{
-				SendMessageA( g_hWnd_edit_add, EM_REPLACESEL, 0, lParam );
-			}
+				CL_ARGS *cla = ( CL_ARGS * )lParam;
 
-			// Append a newline after our dropped text.
-			SendMessageW( g_hWnd_edit_add, EM_REPLACESEL, 0, ( LPARAM )L"\r\n" );
+				if ( cla != NULL )
+				{
+					if ( cla->download_directory != NULL && cla->download_directory_length < MAX_PATH )
+					{
+						if ( t_download_directory == NULL )
+						{
+							t_download_directory = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * MAX_PATH );
+						}
+
+						_wmemcpy_s( t_download_directory, MAX_PATH, cla->download_directory, cla->download_directory_length );
+						t_download_directory[ cla->download_directory_length ] = 0;	// Sanity.
+
+						_SendMessageW( g_hWnd_download_directory, WM_SETTEXT, 0, ( LPARAM )t_download_directory );
+					}
+
+					if ( cla->urls != NULL )
+					{
+						_SendMessageW( g_hWnd_edit_add, EM_REPLACESEL, 0, ( LPARAM )cla->urls );
+					}
+
+					if ( cla->cookies != NULL )
+					{
+						_SendMessageW( g_hWnd_edit_cookies, EM_REPLACESEL, 0, ( LPARAM )cla->cookies );
+					}
+
+					if ( cla->headers != NULL )
+					{
+						_SendMessageW( g_hWnd_edit_headers, EM_REPLACESEL, 0, ( LPARAM )cla->headers );
+					}
+
+					if ( cla->data != NULL )
+					{
+						_SendMessageW( g_hWnd_chk_send_data, BM_SETCHECK, BST_CHECKED, 0 );
+						_SendMessageW( g_hWnd_edit_data, EM_REPLACESEL, 0, ( LPARAM )cla->data );
+						_EnableWindow( g_hWnd_edit_data, TRUE );
+					}
+
+					if ( cla->parts > 0 )
+					{
+						_SendMessageW( g_hWnd_ud_download_parts, UDM_SETPOS, 0, cla->parts );
+					}
+
+					if ( cla->ssl_version >= 0 )
+					{
+						_SendMessageW( g_hWnd_ssl_version, CB_SETCURSEL, cla->ssl_version, 0 );
+					}
+
+					if ( cla->username != NULL )
+					{
+						_SendMessageW( g_hWnd_edit_username, WM_SETTEXT, 0, ( LPARAM )cla->username );
+					}
+
+					if ( cla->password != NULL )
+					{
+						_SendMessageW( g_hWnd_edit_password, WM_SETTEXT, 0, ( LPARAM )cla->password );
+					}
+
+					if ( cla->download_operations & DOWNLOAD_OPERATION_SIMULATE )
+					{
+						_SendMessageW( g_hWnd_chk_simulate_download, BM_SETCHECK, BST_CHECKED, 0 );
+						_EnableWindow( g_hWnd_download_directory, FALSE );
+						_EnableWindow( g_hWnd_btn_download_directory, FALSE );
+					}
+				}
+			}
+			else
+			{
+				if ( wParam == CF_UNICODETEXT || wParam == CF_HTML )
+				{
+					_SendMessageW( g_hWnd_edit_add, EM_REPLACESEL, 0, lParam );
+				}
+				else// if ( wParam == CF_TEXT )
+				{
+					_SendMessageA( g_hWnd_edit_add, EM_REPLACESEL, 0, lParam );
+				}
+
+				// Append a newline after our dropped text.
+				_SendMessageW( g_hWnd_edit_add, EM_REPLACESEL, 0, ( LPARAM )L"\r\n" );
+			}
 
 			_ShowWindow( hWnd, SW_SHOWNORMAL );
 

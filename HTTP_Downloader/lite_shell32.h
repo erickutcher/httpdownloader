@@ -49,7 +49,7 @@
 	#define _StrCmpNW			StrCmpNW
 	#define _StrCmpNIA			StrCmpNIA
 
-	//#define _StrCmpNIW			StrCmpNIW
+	#define _StrCmpNIW			StrCmpNIW
 
 	#define _SHBrowseForFolderW	SHBrowseForFolderW
 	#define _SHGetPathFromIDListW	SHGetPathFromIDListW
@@ -86,7 +86,7 @@
 	typedef int ( WINAPI *pStrCmpNW )( PCWSTR psz1, PCWSTR psz2, int nChar );
 	typedef int ( WINAPI *pStrCmpNIA )( PCSTR psz1, PCSTR psz2, int nChar );
 
-	//typedef int ( WINAPI *pStrCmpNIW )( PCTSTR psz1, PCTSTR psz2, int nChar );
+	typedef int ( WINAPI *pStrCmpNIW )( PCTSTR psz1, PCTSTR psz2, int nChar );
 
 	typedef PIDLIST_ABSOLUTE ( WINAPI *pSHBrowseForFolderW )( LPBROWSEINFO lpbi );
 	typedef BOOL ( WINAPI *pSHGetPathFromIDListW )( PCIDLIST_ABSOLUTE pidl, LPTSTR pszPath );
@@ -118,7 +118,7 @@
 	extern pStrCmpNW			_StrCmpNW;
 	extern pStrCmpNIA			_StrCmpNIA;
 
-	//extern pStrCmpNIW			_StrCmpNIW;
+	extern pStrCmpNIW			_StrCmpNIW;
 
 	extern pSHBrowseForFolderW	_SHBrowseForFolderW;
 	extern pSHGetPathFromIDListW	_SHGetPathFromIDListW;
