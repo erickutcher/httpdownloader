@@ -1863,15 +1863,29 @@ char *GetContentDisposition( char *header, unsigned int &filename_length )
 					--content_disposition_header_end;
 				}
 
-				char delimiter = content_disposition_header[ 0 ];
-				if ( delimiter == '\"' || delimiter == '\'' )
+				char delimiter;
+				if ( content_disposition_header[ 0 ] == '\"' || content_disposition_header[ 0 ] == '\'' )
 				{
-					++content_disposition_header;
+					delimiter = content_disposition_header[ 0 ];
 
-					if ( *( content_disposition_header_end - 1 ) == delimiter )
+					++content_disposition_header;
+				}
+				else
+				{
+					delimiter = ';';
+				}
+
+				char *tmp_content_disposition_header_end = content_disposition_header;
+				while ( tmp_content_disposition_header_end < content_disposition_header_end )
+				{
+					if ( *tmp_content_disposition_header_end == delimiter )
 					{
-						--content_disposition_header_end;
+						content_disposition_header_end = tmp_content_disposition_header_end;
+
+						break;
 					}
+
+					++tmp_content_disposition_header_end;
 				}
 
 				return url_decode_a( content_disposition_header, content_disposition_header_end - content_disposition_header, &filename_length );
@@ -3517,7 +3531,7 @@ char AllocateFile( SOCKET_CONTEXT *context )
 				if ( GetFileAttributes( file_path ) != INVALID_FILE_ATTRIBUTES && context->download_info->downloaded > 0 )
 				{
 					// If the file has downloaded data (we're resuming), then open it, otherwise truncate its size to 0.
-					context->download_info->hFile = CreateFile( file_path, GENERIC_WRITE | FILE_WRITE_ATTRIBUTES | DELETE, 0, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED, NULL );
+					context->download_info->hFile = CreateFile( file_path, GENERIC_WRITE | FILE_WRITE_ATTRIBUTES | DELETE, FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED, NULL );
 
 					if ( context->download_info->hFile != INVALID_HANDLE_VALUE )
 					{
@@ -3542,7 +3556,7 @@ char AllocateFile( SOCKET_CONTEXT *context )
 				}
 				else	// Pre-allocate our file on the disk if it does not exist, or if we're overwriting one that already exists.
 				{
-					context->download_info->hFile = CreateFile( file_path, GENERIC_WRITE | FILE_WRITE_ATTRIBUTES | DELETE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED, NULL );
+					context->download_info->hFile = CreateFile( file_path, GENERIC_WRITE | FILE_WRITE_ATTRIBUTES | DELETE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED, NULL );
 
 					if ( context->download_info->hFile != INVALID_HANDLE_VALUE )
 					{
