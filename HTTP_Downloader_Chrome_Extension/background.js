@@ -375,55 +375,60 @@ function OnDownloadItemCreated( item )
 	// Do we want to handle the download management?
 	if ( g_options.override )
 	{
-		var method = 1; // GET
-		var post_data = "";
+		var protocol = item.url.substring( 0, 8 ).toLowerCase();
 
-		if ( last_request != null && last_request.url == item.url )
+		if ( protocol.startsWith( "http:" ) || protocol.startsWith( "https:" ) )
 		{
-			method = 2; // POST
+			var method = 1; // GET
+			var post_data = "";
 
-			// Format the POST data as a URL encoded string.
-			if ( last_request.requestBody != null && last_request.requestBody.formData != null )
+			if ( last_request != null && last_request.url == item.url )
 			{
-				var values = Object.entries( last_request.requestBody.formData );
-				post_data = values[ 0 ][ 0 ] + "=" + values[ 0 ][ 1 ];
+				method = 2; // POST
 
-				for ( var i = 1; i < values.length; ++i )
+				// Format the POST data as a URL encoded string.
+				if ( last_request.requestBody != null && last_request.requestBody.formData != null )
 				{
-					post_data += "&" + values[ i ][ 0 ] + "=" + values[ i ][ 1 ];
+					var values = Object.entries( last_request.requestBody.formData );
+					post_data = values[ 0 ][ 0 ] + "=" + values[ 0 ][ 1 ];
+
+					for ( var i = 1; i < values.length; ++i )
+					{
+						post_data += "&" + values[ i ][ 0 ] + "=" + values[ i ][ 1 ];
+					}
 				}
 			}
+
+			last_request = null;
+
+			var id = item.id;
+			var url = item.url;
+			var directory = g_options.default_directory;
+			var show_add_window = g_options.show_add_window;
+
+			var headers = "";
+
+			if ( g_options.user_agent )
+			{
+				headers = "User-Agent: " + window.navigator.userAgent + "\r\n";
+			}
+
+			if ( g_options.referer && item.referrer != null && item.referrer != "" )
+			{
+				headers += "Referer: " + item.referrer + "\r\n";
+			}
+
+			// Add our download info to the global array and then wait for a filename in chrome.downloads.onChanged.
+			g_download_info.push( { have_everything: false,
+									id: id,
+									method: method,
+									url: url,
+									cookie_string: "",
+									headers: headers,
+									post_data: post_data,
+									directory: directory,
+									show_add_window: show_add_window } );
 		}
-
-		last_request = null;
-
-		var id = item.id;
-		var url = item.url;
-		var directory = g_options.default_directory;
-		var show_add_window = g_options.show_add_window;
-
-		var headers = "";
-
-		if ( g_options.user_agent )
-		{
-			headers = "User-Agent: " + window.navigator.userAgent + "\r\n";
-		}
-
-		if ( g_options.referer && item.referrer != null && item.referrer != "" )
-		{
-			headers += "Referer: " + item.referrer + "\r\n";
-		}
-
-		// Add our download info to the global array and then wait for a filename in chrome.downloads.onChanged.
-		g_download_info.push( { have_everything: false,
-								id: id,
-								method: method,
-								url: url,
-								cookie_string: "",
-								headers: headers,
-								post_data: post_data,
-								directory: directory,
-								show_add_window: show_add_window } );
 	}
 }
 
