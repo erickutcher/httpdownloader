@@ -63,6 +63,8 @@ unsigned char g_total_columns = 0;
 unsigned long long session_total_downloaded = 0;
 unsigned long long session_downloaded_speed = 0;
 
+WNDPROC ListViewProc = NULL;			// Subclassed listview window.
+
 HWND g_hWnd_lv_edit = NULL;				// Handle to the listview edit control.
 WNDPROC EditProc = NULL;				// Subclassed listview edit window.
 RECT current_edit_pos;					// Current position of the listview edit control.
@@ -575,6 +577,11 @@ DWORD WINAPI UpdateWindow( LPVOID WorkThreadContext )
 
 				if ( play ) { _PlaySoundW( cfg_sound_file_path, NULL, SND_ASYNC | SND_FILENAME ); }
 			}
+
+			if ( cfg_enable_download_history && download_history_changed )
+			{
+				CloseHandle( ( HANDLE )_CreateThread( NULL, 0, save_session, ( void * )NULL, 0, NULL ) );
+			}
 		}
 
 		if ( cfg_prevent_standby )
@@ -614,6 +621,439 @@ LRESULT CALLBACK EditSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 
 	// Everything that we don't handle gets passed back to the parent to process.
 	return CallWindowProc( EditProc, hWnd, msg, wParam, lParam );
+}
+
+wchar_t *GetDownloadInfoString( DOWNLOAD_INFO *di, int column, int item_index, wchar_t *tbuf, unsigned short tbuf_size )
+{
+	wchar_t *buf = tbuf;
+
+	// Save the appropriate text in our buffer for the current column.
+	switch ( column )
+	{
+		case 0:	// NUM
+		{
+			buf = tbuf;	// Reset the buffer pointer.
+
+			__snwprintf( buf, tbuf_size, L"%lu", item_index );
+		}
+		break;
+
+		case 1:	// ACTIVE PARTS
+		{
+			buf = tbuf;	// Reset the buffer pointer.
+
+			if ( di->parts_limit > 0 )
+			{
+				__snwprintf( buf, tbuf_size, L"%lu/%lu/%lu", di->active_parts, di->parts_limit, di->parts );
+			}
+			else
+			{
+				__snwprintf( buf, tbuf_size, L"%lu/%lu", di->active_parts, di->parts );
+			}
+		}
+		break;
+
+		case 2:	// DATE AND TIME ADDED
+		{
+			buf = di->w_add_time;
+		}
+		break;
+
+		case 3:	// DOWNLOAD DIRECTORY
+		{
+			if ( !( di->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
+			{
+				buf = di->file_path;
+			}
+			else
+			{
+				buf = ST_V__Simulated_;
+			}
+		}
+		break;
+
+		case 4:	// DOWNLOAD SPEED
+		{
+			if ( IS_STATUS( di->status, STATUS_DOWNLOADING ) )
+			{
+				buf = tbuf;	// Reset the buffer pointer.
+
+				unsigned int length = FormatSizes( buf, tbuf_size, cfg_t_down_speed, di->speed );
+				buf[ length ] = L'/';
+				buf[ length + 1 ] = L's';
+				buf[ length + 2 ] = 0;
+			}
+			else
+			{
+				buf = L"";
+			}
+		}
+		break;
+
+		case 5:	// DOWNLOADED
+		{
+			buf = tbuf;	// Reset the buffer pointer.
+
+			FormatSizes( buf, tbuf_size, cfg_t_downloaded, di->last_downloaded );
+		}
+		break;
+
+		case 6:	// FILE SIZE
+		{
+			buf = tbuf;	// Reset the buffer pointer.
+
+			if ( di->file_size > 0 ||
+			   ( di->status == STATUS_COMPLETED && di->file_size == 0 && di->last_downloaded == 0 ) )
+			{
+				FormatSizes( buf, tbuf_size, cfg_t_file_size, di->file_size );
+			}
+			else
+			{
+				buf[ 0 ] = L'?';
+				buf[ 1 ] = L' ';
+
+				if ( cfg_t_file_size == SIZE_FORMAT_KILOBYTE )
+				{
+					buf[ 2 ] = L'K';
+					buf[ 3 ] = L'B';
+					buf[ 4 ] = 0;
+				}
+				else if ( cfg_t_file_size == SIZE_FORMAT_MEGABYTE )
+				{
+					buf[ 2 ] = L'M';
+					buf[ 3 ] = L'B';
+					buf[ 4 ] = 0;
+				}
+				else if ( cfg_t_file_size == SIZE_FORMAT_GIGABYTE )
+				{
+					buf[ 2 ] = L'G';
+					buf[ 3 ] = L'B';
+					buf[ 4 ] = 0;
+				}
+				else
+				{
+					buf[ 2 ] = L'B';
+					buf[ 3 ] = 0;
+				}
+			}
+		}
+		break;
+
+		/*case 7:	// FILE TYPE
+		{
+		}
+		break;*/
+
+		case 8:	// FILENAME
+		{
+			buf = di->file_path + di->filename_offset;
+		}
+		break;
+
+		case 9:	// PROGRESS
+		{
+			buf = tbuf;	// Reset the buffer pointer.
+
+			if ( di->file_size > 0 )
+			{
+				// Multiply the floating point division by 1000%.
+				// This leaves us with an integer in which the last digit will represent the decimal value.
+				float f_percentage = 1000.f * ( ( float )di->last_downloaded / ( float )di->file_size );
+				int i_percentage = 0;
+				_asm
+				{
+					fld f_percentage;	//; Load the floating point value onto the FPU stack.
+					fistp i_percentage;	//; Convert the floating point value into an integer, store it in an integer, and then pop it off the stack.
+				}
+
+				// Get the last digit (decimal value).
+				int remainder = i_percentage % 10;
+				// Divide the integer by (10%) to get it back in range of 0% to 100%.
+				i_percentage /= 10;
+
+				if ( di->status == STATUS_CONNECTING )
+				{
+					__snwprintf( buf, tbuf_size, L"%s - %d.%1d%%", ST_V_Connecting, i_percentage, remainder );
+				}
+				else if ( IS_STATUS( di->status, STATUS_RESTART ) )
+				{
+					__snwprintf( buf, tbuf_size, L"%s - %d.%1d%%", ST_V_Restarting, i_percentage, remainder );
+				}
+				else if ( IS_STATUS( di->status, STATUS_PAUSED ) )
+				{
+					__snwprintf( buf, tbuf_size, L"%s - %d.%1d%%", ST_V_Paused, i_percentage, remainder );
+				}
+				else if ( di->status == STATUS_QUEUED )
+				{
+					__snwprintf( buf, tbuf_size, L"%s - %d.%1d%%", ST_V_Queued, i_percentage, remainder );
+				}
+				else if ( di->status == STATUS_COMPLETED )
+				{
+					__snwprintf( buf, tbuf_size, L"%s - %d.%1d%%", ST_V_Completed, i_percentage, remainder );
+				}
+				else if ( di->status == STATUS_STOPPED )
+				{
+					__snwprintf( buf, tbuf_size, L"%s - %d.%1d%%", ST_V_Stopped, i_percentage, remainder );
+				}
+				else if ( di->status == STATUS_TIMED_OUT )
+				{
+					__snwprintf( buf, tbuf_size, L"%s - %d.%1d%%", ST_V_Timed_Out, i_percentage, remainder );
+				}
+				else if ( di->status == STATUS_FAILED )
+				{
+					__snwprintf( buf, tbuf_size, L"%s - %d.%1d%%", ST_V_Failed, i_percentage, remainder );
+				}
+				else if ( di->status == STATUS_FILE_IO_ERROR )
+				{
+					buf = ST_V_File_IO_Error;
+				}
+				else if ( di->status == STATUS_SKIPPED )
+				{
+					__snwprintf( buf, tbuf_size, L"%s - %d.%1d%%", ST_V_Skipped, i_percentage, remainder );
+				}
+				else if ( di->status == STATUS_AUTH_REQUIRED )
+				{
+					__snwprintf( buf, tbuf_size, L"%s - %d.%1d%%", ST_V_Authorization_Required, i_percentage, remainder );
+				}
+				else if ( di->status == STATUS_PROXY_AUTH_REQUIRED )
+				{
+					__snwprintf( buf, tbuf_size, L"%s - %d.%1d%%", ST_V_Proxy_Authentication_Required, i_percentage, remainder );
+				}
+				else if ( di->status == STATUS_ALLOCATING_FILE )
+				{
+					buf = ST_V_Allocating_File;
+				}
+				else	// Downloading.
+				{
+					__snwprintf( buf, tbuf_size, L"%d.%1d%%", i_percentage, remainder );
+				}
+			}
+			else if ( di->status == STATUS_CONNECTING )
+			{
+				buf = ST_V_Connecting;
+			}
+			else if ( IS_STATUS( di->status, STATUS_RESTART ) )
+			{
+				buf = ST_V_Restarting;
+			}
+			else if ( IS_STATUS( di->status, STATUS_PAUSED ) )
+			{
+				buf = ST_V_Paused;
+			}
+			else if ( di->status == STATUS_QUEUED )
+			{
+				buf = ST_V_Queued;
+			}
+			else if ( di->status == STATUS_COMPLETED )
+			{
+				if ( di->last_downloaded == 0 )
+				{
+					__snwprintf( buf, tbuf_size, L"%s - 100.0%%", ST_V_Completed );
+				}
+				else
+				{
+					buf = ST_V_Completed;
+				}
+			}
+			else if ( di->status == STATUS_STOPPED )
+			{
+				buf = ST_V_Stopped;
+			}
+			else if ( di->status == STATUS_TIMED_OUT )
+			{
+				buf = ST_V_Timed_Out;
+			}
+			else if ( di->status == STATUS_FAILED )
+			{
+				buf = ST_V_Failed;
+			}
+			else if ( di->status == STATUS_FILE_IO_ERROR )
+			{
+				buf = ST_V_File_IO_Error;
+			}
+			else if ( di->status == STATUS_SKIPPED )
+			{
+				buf = ST_V_Skipped;
+			}
+			else if ( di->status == STATUS_AUTH_REQUIRED )
+			{
+				buf = ST_V_Authorization_Required;
+			}
+			else if ( di->status == STATUS_PROXY_AUTH_REQUIRED )
+			{
+				buf = ST_V_Proxy_Authentication_Required;
+			}
+			else if ( di->status == STATUS_ALLOCATING_FILE )
+			{
+				buf = ST_V_Allocating_File;
+			}
+			else	// Downloading.
+			{
+				buf = L"\x221E\0";	// Infinity symbol.
+			}
+		}
+		break;
+
+		case 10:	// SSL / TLS Version
+		{
+			switch ( di->ssl_version )
+			{
+				case 0: { buf = ST_V_SSL_2_0; } break;
+				case 1: { buf = ST_V_SSL_3_0; } break;
+				case 2: { buf = ST_V_TLS_1_0; } break;
+				case 3: { buf = ST_V_TLS_1_1; } break;
+				case 4: { buf = ST_V_TLS_1_2; } break;
+				default: { buf = L""; } break;
+			}
+		}
+		break;
+
+		case 11:	// TIME ELAPSED
+		case 12:	// TIME REMAINING
+		{
+			// Use the infinity symbol for remaining time if it can't be calculated.
+			if ( column == 12 &&
+			   ( IS_STATUS( di->status, STATUS_CONNECTING | STATUS_PAUSED ) ||
+			   ( di->status == STATUS_DOWNLOADING && ( di->file_size == 0 || di->speed == 0 ) ) ) )
+			{
+				buf = L"\x221E\0";	// Infinity symbol.
+			}
+			else
+			{
+				unsigned long long time_length = ( column == 11 ? di->time_elapsed : di->time_remaining );
+
+				if ( IS_STATUS( di->status, STATUS_DOWNLOADING ) || time_length > 0 )
+				{
+					buf = tbuf;	// Reset the buffer pointer.
+
+					if ( time_length < 60 )	// Less than 1 minute.
+					{
+						__snwprintf( buf, tbuf_size, L"%llus", time_length );
+					}
+					else if ( time_length < 3600 )	// Less than 1 hour.
+					{
+						__snwprintf( buf, tbuf_size, L"%llum%02llus", time_length / 60, time_length % 60 );
+					}
+					else if ( time_length < 86400 )	// Less than 1 day.
+					{
+						__snwprintf( buf, tbuf_size, L"%lluh%02llum%02llus", time_length / 3600, ( time_length / 60 ) % 60, time_length % 60 );
+					}
+					else	// More than 1 day.
+					{
+						__snwprintf( buf, tbuf_size, L"%llud%02lluh%02llum%02llus", time_length / 86400, ( time_length / 3600 ) % 24, ( time_length / 60 ) % 60, time_length % 60 );
+					}
+				}
+				else
+				{
+					buf = L"";
+				}
+			}
+		}
+		break;
+
+		case 13:	// URL
+		{
+			buf = di->url;
+		}
+		break;
+	}
+
+	return buf;
+}
+
+LRESULT CALLBACK ListViewSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
+{
+	switch( msg )
+	{
+		case WM_NOTIFY:
+		{
+			// Get our listview codes.
+			switch ( ( ( LPNMHDR )lParam )->code )
+			{
+				case HDN_DIVIDERDBLCLICK:
+				{
+					NMHEADER *nmh = ( NMHEADER * )lParam;
+
+					int largest_width;
+
+					int virtual_index = GetVirtualIndexFromColumnIndex( nmh->iItem, download_columns, NUM_COLUMNS );
+
+					if ( GetKeyState( VK_CONTROL ) & 0x8000 )
+					{
+						largest_width = LVSCW_AUTOSIZE_USEHEADER;
+					}
+					else
+					{
+						largest_width = 26;	// 5 + 16 + 5.
+
+						if ( virtual_index != 7 )	// File Type
+						{
+							wchar_t tbuf[ 128 ];
+
+							LVITEM lvi;
+							_memzero( &lvi, sizeof( LVITEM ) );
+
+							int index = _SendMessageW( hWnd, LVM_GETTOPINDEX, 0, 0 );
+							int index_end = _SendMessageW( hWnd, LVM_GETCOUNTPERPAGE, 0, 0 ) + index;
+
+							RECT rc;
+							HDC hDC = _GetDC( hWnd );
+							HFONT ohf = ( HFONT )_SelectObject( hDC, hFont );
+							_DeleteObject( ohf );
+
+							for ( ; index <= index_end; ++index )
+							{
+								lvi.iItem = index;
+								lvi.mask = LVIF_PARAM;
+								if ( _SendMessageW( hWnd, LVM_GETITEM, 0, ( LPARAM )&lvi ) == TRUE )
+								{
+									DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )lvi.lParam;
+									if ( di != NULL )
+									{
+										wchar_t *buf = GetDownloadInfoString( di, virtual_index, index, tbuf, 128 );
+
+										if ( buf == NULL )
+										{
+											tbuf[ 0 ] = L'\0';
+											buf = tbuf;
+										}
+
+										rc.bottom = rc.left = rc.right = rc.top = 0;
+
+										_DrawTextW( hDC, buf, -1, &rc, DT_SINGLELINE | DT_NOPREFIX | DT_CALCRECT );
+
+										int width = ( rc.right - rc.left ) + 10;	// 5 + 5 padding.
+										if ( width > largest_width )
+										{
+											largest_width = width;
+										}
+									}
+								}
+								else
+								{
+									break;
+								}
+							}
+
+							_ReleaseDC( hWnd, hDC );
+						}
+					}
+
+					_SendMessageW( hWnd, LVM_SETCOLUMNWIDTH, nmh->iItem, largest_width );
+
+					// Save our new column width.
+					*download_columns_width[ virtual_index ] = _SendMessageW( hWnd, LVM_GETCOLUMNWIDTH, nmh->iItem, 0 );
+
+					return TRUE;
+				}
+				break;
+			}
+		}
+		break;
+	}
+
+	// Everything that we don't handle gets passed back to the parent to process.
+	return CallWindowProc( ListViewProc, hWnd, msg, wParam, lParam );
 }
 
 LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
@@ -677,6 +1117,9 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 			_SendMessageW( g_hWnd_toolbar, WM_SETFONT, ( WPARAM )hFont, 0 );
 			_SendMessageW( g_hWnd_files, WM_SETFONT, ( WPARAM )hFont, 0 );
 			_SendMessageW( g_hWnd_status, WM_SETFONT, ( WPARAM )hFont, 0 );
+
+			ListViewProc = ( WNDPROC )_GetWindowLongW( g_hWnd_files, GWL_WNDPROC );
+			_SetWindowLongW( g_hWnd_files, GWL_WNDPROC, ( LONG )ListViewSubProc );
 
 			#ifndef OLE32_USE_STATIC_LIB
 				if ( ole32_state == OLE32_STATE_SHUTDOWN )
@@ -1333,7 +1776,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 				{
 					wchar_t msg[ 512 ];
 					__snwprintf( msg, 512, L"HTTP Downloader is made free under the GPLv3 license.\r\n\r\n" \
-										   L"Version 1.0.1.4\r\n\r\n" \
+										   L"Version 1.0.1.5\r\n\r\n" \
 										   L"Built on %s, %s %d, %04d %d:%02d:%02d %s (UTC)\r\n\r\n" \
 										   L"Copyright \xA9 2015-2018 Eric Kutcher",
 										   ( g_compile_time.wDayOfWeek > 6 ? L"" : day_string_table[ g_compile_time.wDayOfWeek ].value ),
@@ -2202,128 +2645,29 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 					if ( dis->hwndItem == g_hWnd_files )
 					{
 						// Save the appropriate text in our buffer for the current column.
+						buf = GetDownloadInfoString( di, arr2[ i ], dis->itemID + 1, tbuf, 128 );
+
 						switch ( arr2[ i ] )
 						{
-							case 0:	// NUM
+							case 0:		// NUM
+							case 2:		// DATE AND TIME ADDED
+							case 3:		// DOWNLOAD DIRECTORY
+							case 8:		// FILENAME
+							case 10:	// SSL / TLS Version
+							case 13:	// URL
 							{
 								DT_ALIGN = DT_LEFT;
-
-								buf = tbuf;	// Reset the buffer pointer.
-
-								__snwprintf( buf, 128, L"%lu", dis->itemID + 1 );
 							}
 							break;
 
-							case 1:	// ACTIVE PARTS
+							case 1:		// ACTIVE PARTS
+							case 4:		// DOWNLOAD SPEED
+							case 5:		// DOWNLOADED
+							case 6:		// FILE SIZE
+							case 11:	// TIME ELAPSED
+							case 12:	// TIME REMAINING
 							{
 								DT_ALIGN = DT_RIGHT;
-
-								buf = tbuf;	// Reset the buffer pointer.
-
-								if ( di->parts_limit > 0 )
-								{
-									__snwprintf( buf, 128, L"%lu/%lu/%lu", di->active_parts, di->parts_limit, di->parts );
-								}
-								else
-								{
-									__snwprintf( buf, 128, L"%lu/%lu", di->active_parts, di->parts );
-								}
-							}
-							break;
-
-							case 2:	// DATE AND TIME ADDED
-							{
-								DT_ALIGN = DT_LEFT;
-
-								buf = di->w_add_time;
-							}
-							break;
-
-							case 3:	// DOWNLOAD DIRECTORY
-							{
-								DT_ALIGN = DT_LEFT;
-
-								if ( !( di->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
-								{
-									buf = di->file_path;
-								}
-								else
-								{
-									buf = ST_V__Simulated_;
-								}
-							}
-							break;
-
-							case 4:	// DOWNLOAD SPEED
-							{
-								DT_ALIGN = DT_RIGHT;
-
-								if ( IS_STATUS( di->status, STATUS_DOWNLOADING ) )
-								{
-									buf = tbuf;	// Reset the buffer pointer.
-
-									unsigned int length = FormatSizes( buf, 128, cfg_t_down_speed, di->speed );
-									buf[ length ] = L'/';
-									buf[ length + 1 ] = L's';
-									buf[ length + 2 ] = 0;
-								}
-								else
-								{
-									buf = L"";
-								}
-							}
-							break;
-
-							case 5:	// DOWNLOADED
-							{
-								DT_ALIGN = DT_RIGHT;
-
-								buf = tbuf;	// Reset the buffer pointer.
-
-								FormatSizes( buf, 128, cfg_t_downloaded, di->last_downloaded );
-							}
-							break;
-
-							case 6:	// FILE SIZE
-							{
-								DT_ALIGN = DT_RIGHT;
-
-								buf = tbuf;	// Reset the buffer pointer.
-
-								if ( di->file_size > 0 ||
-								   ( di->status == STATUS_COMPLETED && di->file_size == 0 && di->last_downloaded == 0 ) )
-								{
-									FormatSizes( buf, 128, cfg_t_file_size, di->file_size );
-								}
-								else
-								{
-									buf[ 0 ] = L'?';
-									buf[ 1 ] = L' ';
-
-									if ( cfg_t_file_size == SIZE_FORMAT_KILOBYTE )
-									{
-										buf[ 2 ] = L'K';
-										buf[ 3 ] = L'B';
-										buf[ 4 ] = 0;
-									}
-									else if ( cfg_t_file_size == SIZE_FORMAT_MEGABYTE )
-									{
-										buf[ 2 ] = L'M';
-										buf[ 3 ] = L'B';
-										buf[ 4 ] = 0;
-									}
-									else if ( cfg_t_file_size == SIZE_FORMAT_GIGABYTE )
-									{
-										buf[ 2 ] = L'G';
-										buf[ 3 ] = L'B';
-										buf[ 4 ] = 0;
-									}
-									else
-									{
-										buf[ 2 ] = L'B';
-										buf[ 3 ] = 0;
-									}
-								}
 							}
 							break;
 
@@ -2332,230 +2676,12 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 							}
 							break;*/
 
-							case 8:	// FILENAME
-							{
-								DT_ALIGN = DT_LEFT;
-
-								buf = di->file_path + di->filename_offset;
-							}
-							break;
-
-							case 9:	// PROGRESS
+							case 9:		// PROGRESS
 							{
 								DT_ALIGN = DT_CENTER;
-
-								buf = tbuf;	// Reset the buffer pointer.
-
-								if ( di->file_size > 0 )
-								{
-									// Multiply the floating point division by 1000%.
-									// This leaves us with an integer in which the last digit will represent the decimal value.
-									float f_percentage = 1000.f * ( ( float )di->last_downloaded / ( float )di->file_size );
-									int i_percentage = 0;
-									_asm
-									{
-										fld f_percentage;	//; Load the floating point value onto the FPU stack.
-										fistp i_percentage;	//; Convert the floating point value into an integer, store it in an integer, and then pop it off the stack.
-									}
-
-									// Get the last digit (decimal value).
-									int remainder = i_percentage % 10;
-									// Divide the integer by (10%) to get it back in range of 0% to 100%.
-									i_percentage /= 10;
-
-									if ( di->status == STATUS_CONNECTING )
-									{
-										__snwprintf( buf, 128, L"%s - %d.%1d%%", ST_V_Connecting, i_percentage, remainder );
-									}
-									else if ( IS_STATUS( di->status, STATUS_RESTART ) )
-									{
-										__snwprintf( buf, 128, L"%s - %d.%1d%%", ST_V_Restarting, i_percentage, remainder );
-									}
-									else if ( IS_STATUS( di->status, STATUS_PAUSED ) )
-									{
-										__snwprintf( buf, 128, L"%s - %d.%1d%%", ST_V_Paused, i_percentage, remainder );
-									}
-									else if ( di->status == STATUS_QUEUED )
-									{
-										__snwprintf( buf, 128, L"%s - %d.%1d%%", ST_V_Queued, i_percentage, remainder );
-									}
-									else if ( di->status == STATUS_COMPLETED )
-									{
-										__snwprintf( buf, 128, L"%s - %d.%1d%%", ST_V_Completed, i_percentage, remainder );
-									}
-									else if ( di->status == STATUS_STOPPED )
-									{
-										__snwprintf( buf, 128, L"%s - %d.%1d%%", ST_V_Stopped, i_percentage, remainder );
-									}
-									else if ( di->status == STATUS_TIMED_OUT )
-									{
-										__snwprintf( buf, 128, L"%s - %d.%1d%%", ST_V_Timed_Out, i_percentage, remainder );
-									}
-									else if ( di->status == STATUS_FAILED )
-									{
-										__snwprintf( buf, 128, L"%s - %d.%1d%%", ST_V_Failed, i_percentage, remainder );
-									}
-									else if ( di->status == STATUS_FILE_IO_ERROR )
-									{
-										buf = ST_V_File_IO_Error;
-									}
-									else if ( di->status == STATUS_SKIPPED )
-									{
-										__snwprintf( buf, 128, L"%s - %d.%1d%%", ST_V_Skipped, i_percentage, remainder );
-									}
-									else if ( di->status == STATUS_AUTH_REQUIRED )
-									{
-										__snwprintf( buf, 128, L"%s - %d.%1d%%", ST_V_Authorization_Required, i_percentage, remainder );
-									}
-									else if ( di->status == STATUS_PROXY_AUTH_REQUIRED )
-									{
-										__snwprintf( buf, 128, L"%s - %d.%1d%%", ST_V_Proxy_Authentication_Required, i_percentage, remainder );
-									}
-									else if ( di->status == STATUS_ALLOCATING_FILE )
-									{
-										buf = ST_V_Allocating_File;
-									}
-									else	// Downloading.
-									{
-										__snwprintf( buf, 128, L"%d.%1d%%", i_percentage, remainder );
-									}
-								}
-								else if ( di->status == STATUS_CONNECTING )
-								{
-									buf = ST_V_Connecting;
-								}
-								else if ( IS_STATUS( di->status, STATUS_RESTART ) )
-								{
-									buf = ST_V_Restarting;
-								}
-								else if ( IS_STATUS( di->status, STATUS_PAUSED ) )
-								{
-									buf = ST_V_Paused;
-								}
-								else if ( di->status == STATUS_QUEUED )
-								{
-									buf = ST_V_Queued;
-								}
-								else if ( di->status == STATUS_COMPLETED )
-								{
-									if ( di->last_downloaded == 0 )
-									{
-										__snwprintf( buf, 128, L"%s - 100.0%%", ST_V_Completed );
-									}
-									else
-									{
-										buf = ST_V_Completed;
-									}
-								}
-								else if ( di->status == STATUS_STOPPED )
-								{
-									buf = ST_V_Stopped;
-								}
-								else if ( di->status == STATUS_TIMED_OUT )
-								{
-									buf = ST_V_Timed_Out;
-								}
-								else if ( di->status == STATUS_FAILED )
-								{
-									buf = ST_V_Failed;
-								}
-								else if ( di->status == STATUS_FILE_IO_ERROR )
-								{
-									buf = ST_V_File_IO_Error;
-								}
-								else if ( di->status == STATUS_SKIPPED )
-								{
-									buf = ST_V_Skipped;
-								}
-								else if ( di->status == STATUS_AUTH_REQUIRED )
-								{
-									buf = ST_V_Authorization_Required;
-								}
-								else if ( di->status == STATUS_PROXY_AUTH_REQUIRED )
-								{
-									buf = ST_V_Proxy_Authentication_Required;
-								}
-								else if ( di->status == STATUS_ALLOCATING_FILE )
-								{
-									buf = ST_V_Allocating_File;
-								}
-								else	// Downloading.
-								{
-									buf = L"\x221E\0";	// Infinity symbol.
-								}
-							}
-							break;
-
-							case 10:	// SSL / TLS Version
-							{
-								DT_ALIGN = DT_LEFT;
-
-								switch ( di->ssl_version )
-								{
-									case 0: { buf = ST_V_SSL_2_0; } break;
-									case 1: { buf = ST_V_SSL_3_0; } break;
-									case 2: { buf = ST_V_TLS_1_0; } break;
-									case 3: { buf = ST_V_TLS_1_1; } break;
-									case 4: { buf = ST_V_TLS_1_2; } break;
-									default: { buf = L""; } break;
-								}
-							}
-							break;
-
-							case 11:	// TIME ELAPSED
-							case 12:	// TIME REMAINING
-							{
-								DT_ALIGN = DT_RIGHT;
-
-								// Use the infinity symbol for remaining time if it can't be calculated.
-								if ( arr2[ i ] == 12 &&
-								   ( IS_STATUS( di->status, STATUS_CONNECTING | STATUS_PAUSED ) ||
-								   ( di->status == STATUS_DOWNLOADING && ( di->file_size == 0 || di->speed == 0 ) ) ) )
-								{
-									buf = L"\x221E\0";	// Infinity symbol.
-								}
-								else
-								{
-									unsigned long long time_length = ( arr2[ i ] == 11 ? di->time_elapsed : di->time_remaining );
-
-									if ( IS_STATUS( di->status, STATUS_DOWNLOADING ) || time_length > 0 )
-									{
-										buf = tbuf;	// Reset the buffer pointer.
-
-										if ( time_length < 60 )	// Less than 1 minute.
-										{
-											__snwprintf( buf, 128, L"%llus", time_length );
-										}
-										else if ( time_length < 3600 )	// Less than 1 hour.
-										{
-											__snwprintf( buf, 128, L"%llum%02llus", time_length / 60, time_length % 60 );
-										}
-										else if ( time_length < 86400 )	// Less than 1 day.
-										{
-											__snwprintf( buf, 128, L"%lluh%02llum%02llus", time_length / 3600, ( time_length / 60 ) % 60, time_length % 60 );
-										}
-										else	// More than 1 day.
-										{
-											__snwprintf( buf, 128, L"%llud%02lluh%02llum%02llus", time_length / 86400, ( time_length / 3600 ) % 24, ( time_length / 60 ) % 60, time_length % 60 );
-										}
-									}
-									else
-									{
-										buf = L"";
-									}
-								}
-							}
-							break;
-
-							case 13:	// URL
-							{
-								DT_ALIGN = DT_LEFT;
-
-								buf = di->url;
 							}
 							break;
 						}
-
 					}
 
 					if ( buf == NULL )

@@ -2217,3 +2217,37 @@ THREAD_RETURN process_command_line_args( void *pArguments )
 	_ExitThread( 0 );
 	return 0;
 }
+
+THREAD_RETURN save_session( void *pArguments )
+{
+	// This will block every other thread from entering until the first thread is complete.
+	EnterCriticalSection( &worker_cs );
+
+	in_worker_thread = true;
+
+	if ( cfg_enable_download_history && download_history_changed )
+	{
+		wchar_t t_base_directory[ MAX_PATH ];
+
+		_wmemcpy_s( t_base_directory, MAX_PATH, base_directory, base_directory_length );
+		_wmemcpy_s( t_base_directory + base_directory_length, MAX_PATH - base_directory_length, L"\\download_history\0", 18 );
+		t_base_directory[ base_directory_length + 17 ] = 0;	// Sanity.
+
+		save_download_history( t_base_directory );
+		download_history_changed = false;
+	}
+
+	// Release the semaphore if we're killing the thread.
+	if ( worker_semaphore != NULL )
+	{
+		ReleaseSemaphore( worker_semaphore, 1, NULL );
+	}
+
+	in_worker_thread = false;
+
+	// We're done. Let other threads continue.
+	LeaveCriticalSection( &worker_cs );
+
+	_ExitThread( 0 );
+	return 0;
+}

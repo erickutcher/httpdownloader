@@ -1,3 +1,9 @@
+Version:	1.0.1.5
+Released:	2018-12-01
+
+Columns can be resized to fit their content by double clicking on their expander. Hold Ctrl when double clicking to resize the column to fit its name.
+Download history (if enabled) is now saved when all active downloads are finished.
+
 Version:	1.0.1.4
 Released:	2018-11-25
 
