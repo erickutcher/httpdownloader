@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP and HTTPS connections.
-	Copyright (C) 2015-2018 Eric Kutcher
+	Copyright (C) 2015-2019 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -106,7 +106,7 @@ int CMessageBoxW( HWND hWnd, LPCWSTR lpText, LPCWSTR lpCaption, UINT uType )
 		LeaveCriticalSection( &cmessagebox_prompt_cs );
 
 		// Pass our messagebox info to the window.
-		_SetWindowLongW( hWnd_cmsgbox, 0, ( LONG_PTR )cmb_info );
+		_SetWindowLongPtrW( hWnd_cmsgbox, 0, ( LONG_PTR )cmb_info );
 
 		// Force the window to be painted.
 		_ShowWindow( hWnd_cmsgbox, SW_SHOW );
@@ -118,7 +118,7 @@ int CMessageBoxW( HWND hWnd, LPCWSTR lpText, LPCWSTR lpCaption, UINT uType )
 			// Destroy the window and exit the loop.
 			if ( msg.message == WM_DESTROY_CMSGBOX )
 			{
-				ret = msg.wParam;	// The messagebox's return value before being destroyed.
+				ret = ( int )msg.wParam;	// The messagebox's return value before being destroyed.
 
 				_DestroyWindow( msg.hwnd );
 
@@ -428,7 +428,7 @@ LRESULT CALLBACK CustomMessageBoxWndProc( HWND hWnd, UINT msg, WPARAM wParam, LP
 
 		case WM_CTLCOLORSTATIC:
 		{
-			CMSGBOX_INFO *cmb_info = ( CMSGBOX_INFO * )_GetWindowLongW( hWnd, 0 );
+			CMSGBOX_INFO *cmb_info = ( CMSGBOX_INFO * )_GetWindowLongPtrW( hWnd, 0 );
 			if ( cmb_info != NULL )
 			{
 				if ( ( HWND )lParam != cmb_info->hWnd_checkbox )
@@ -483,7 +483,7 @@ LRESULT CALLBACK CustomMessageBoxWndProc( HWND hWnd, UINT msg, WPARAM wParam, LP
 				case BTN_OK:
 				case BTN_RENAME:
 				{
-					CMSGBOX_INFO *cmb_info = ( CMSGBOX_INFO * )_GetWindowLongW( hWnd, 0 );
+					CMSGBOX_INFO *cmb_info = ( CMSGBOX_INFO * )_GetWindowLongPtrW( hWnd, 0 );
 					if ( cmb_info != NULL )
 					{
 						if ( ( cmb_info->type & 0x0F ) == CMB_YESNOALL )
@@ -517,7 +517,7 @@ LRESULT CALLBACK CustomMessageBoxWndProc( HWND hWnd, UINT msg, WPARAM wParam, LP
 				case BTN_NO:
 				case BTN_SKIP:
 				{
-					CMSGBOX_INFO *cmb_info = ( CMSGBOX_INFO * )_GetWindowLongW( hWnd, 0 );
+					CMSGBOX_INFO *cmb_info = ( CMSGBOX_INFO * )_GetWindowLongPtrW( hWnd, 0 );
 					if ( cmb_info != NULL )
 					{
 						if ( ( cmb_info->type & 0x0F ) == CMB_YESNOALL )
@@ -546,7 +546,7 @@ LRESULT CALLBACK CustomMessageBoxWndProc( HWND hWnd, UINT msg, WPARAM wParam, LP
 
 				case BTN_OVERWRITE:
 				{
-					CMSGBOX_INFO *cmb_info = ( CMSGBOX_INFO * )_GetWindowLongW( hWnd, 0 );
+					CMSGBOX_INFO *cmb_info = ( CMSGBOX_INFO * )_GetWindowLongPtrW( hWnd, 0 );
 					if ( cmb_info != NULL )
 					{
 						if ( ( cmb_info->type & 0x0F ) == CMB_RENAMEOVERWRITESKIPALL )
@@ -593,7 +593,7 @@ LRESULT CALLBACK CustomMessageBoxWndProc( HWND hWnd, UINT msg, WPARAM wParam, LP
 
 		case WM_DESTROY:
 		{
-			CMSGBOX_INFO *cmb_info = ( CMSGBOX_INFO * )_GetWindowLongW( hWnd, 0 );
+			CMSGBOX_INFO *cmb_info = ( CMSGBOX_INFO * )_GetWindowLongPtrW( hWnd, 0 );
 			if ( cmb_info != NULL )
 			{
 				GlobalFree( cmb_info->cmsgbox_message );

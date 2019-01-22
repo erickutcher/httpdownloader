@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP and HTTPS connections.
-	Copyright (C) 2015-2018 Eric Kutcher
+	Copyright (C) 2015-2019 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -964,6 +964,12 @@ THREAD_RETURN FileSizePrompt( void *pArguments )
 			{
 				EnterCriticalSection( &context->context_cs );
 
+				context->header_info.range_info->content_length = 0;
+				context->header_info.range_info->range_start = 0;
+				context->header_info.range_info->range_end = 0;
+				context->header_info.range_info->content_offset = 0;
+				context->header_info.range_info->file_write_offset = 0;
+
 				context->status = STATUS_SKIPPED;
 
 				if ( context->cleanup == 0 )
@@ -1774,7 +1780,7 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 
 				if ( context->cleanup == 0 )
 				{
-					context->current_bytes_read = io_size + ( context->wsabuf.buf - context->buffer );
+					context->current_bytes_read = io_size + ( DWORD )( context->wsabuf.buf - context->buffer );
 
 					context->wsabuf.buf = context->buffer;
 					context->wsabuf.len = BUFFER_SIZE;
@@ -1864,7 +1870,7 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 									if ( context->header_info.connection == CONNECTION_KEEP_ALIVE )
 									{
 										char *response_buffer = context->header_info.end_of_header;
-										int response_buffer_length = context->current_bytes_read - ( context->header_info.end_of_header - context->wsabuf.buf );
+										int response_buffer_length = context->current_bytes_read - ( DWORD )( context->header_info.end_of_header - context->wsabuf.buf );
 
 										// Look for a chunk terminator.
 										if ( context->header_info.chunked_transfer )
@@ -1964,7 +1970,7 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 						//if ( *current_operation == IO_GetContent || *current_operation == IO_GetRequest )
 						if ( *current_operation != IO_ResumeGetContent )
 						{
-							context->current_bytes_read = bytes_decrypted + ( context->wsabuf.buf - context->buffer );
+							context->current_bytes_read = bytes_decrypted + ( DWORD )( context->wsabuf.buf - context->buffer );
 
 							context->wsabuf.buf = context->buffer;
 							context->wsabuf.len = BUFFER_SIZE;
@@ -2667,6 +2673,10 @@ void UpdateRangeList( DOWNLOAD_INFO *di )
 		{
 			unsigned char rem_parts = 0;
 
+#ifdef _WIN64
+			rem_parts = parts % range_info_count;
+			parts /= range_info_count;
+#else
 			// Avoids having to do a mod to get the remainder.
 			__asm
 			{
@@ -2676,6 +2686,7 @@ void UpdateRangeList( DOWNLOAD_INFO *di )
 				mov		parts, al			;// Store the results
 				mov		rem_parts, ah		;// Store the remainder
 			}
+#endif
 
 			DoublyLinkedList *range_list = NULL;
 			range_node = di->range_list;
@@ -2714,6 +2725,10 @@ void UpdateRangeList( DOWNLOAD_INFO *di )
 
 					if ( rem_range_info_count > 0 )
 					{
+#ifdef _WIN64
+						rem_parts = total_rem_parts % rem_range_info_count;
+						parts = total_rem_parts / rem_range_info_count;
+#else
 						// Avoids having to do a mod to get the remainder.
 						__asm
 						{
@@ -2723,6 +2738,7 @@ void UpdateRangeList( DOWNLOAD_INFO *di )
 							mov		parts, al				;// Store the results
 							mov		rem_parts, ah			;// Store the remainder
 						}
+#endif
 					}
 				}
 				else
@@ -2881,7 +2897,7 @@ void StartDownload( DOWNLOAD_INFO *di, bool check_if_file_exists )
 		if ( *w_resource == L'#' )
 		{
 			*w_resource = 0;
-			resource_length = w_resource - resource;
+			resource_length = ( unsigned int )( w_resource - resource );
 
 			break;
 		}
@@ -3508,7 +3524,7 @@ DWORD WINAPI AddURL( void *add_info )
 					// Adjust for '/'. current_directory will always be at least 1 greater than last_directory.
 					if ( last_directory != NULL && ( current_directory - 1 ) - last_directory > 0 )
 					{
-						w_filename_length = ( current_directory - 1 ) - last_directory;
+						w_filename_length = ( unsigned int )( ( current_directory - 1 ) - last_directory );
 						current_directory = last_directory;
 					}
 					else	// No filename could be made from the resource path. Use the host name instead.
@@ -3519,7 +3535,7 @@ DWORD WINAPI AddURL( void *add_info )
 				}
 				else
 				{
-					w_filename_length = directory_ptr - current_directory;
+					w_filename_length = ( unsigned int )( directory_ptr - current_directory );
 				}
 
 				w_filename_length = min( w_filename_length, ( int )( MAX_PATH - di->filename_offset - 1 ) );
@@ -3628,7 +3644,7 @@ DWORD WINAPI AddURL( void *add_info )
 			LVITEM lvi;
 			_memzero( &lvi, sizeof( LVITEM ) );
 			lvi.mask = LVIF_PARAM | LVIF_TEXT;
-			lvi.iItem = _SendMessageW( g_hWnd_files, LVM_GETITEMCOUNT, 0, 0 );
+			lvi.iItem = ( int )_SendMessageW( g_hWnd_files, LVM_GETITEMCOUNT, 0, 0 );
 			lvi.lParam = ( LPARAM )di;
 			lvi.pszText = di->file_path + di->filename_offset;
 			_SendMessageW( g_hWnd_files, LVM_INSERTITEM, 0, ( LPARAM )&lvi );

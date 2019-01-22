@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP and HTTPS connections.
-	Copyright (C) 2015-2018 Eric Kutcher
+	Copyright (C) 2015-2019 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -834,7 +834,7 @@ char *url_encode_a( char *str, unsigned int str_len, unsigned int *enc_len )
 
 	if ( enc_len != NULL )
 	{
-		*enc_len = pbuf - buf;
+		*enc_len = ( unsigned int )( pbuf - buf );
 	}
 
 	return buf;
@@ -898,7 +898,7 @@ wchar_t *url_encode_w( wchar_t *str, unsigned int str_len, unsigned int *enc_len
 
 	if ( enc_len != NULL )
 	{
-		*enc_len = pbuf - buf;
+		*enc_len = ( unsigned int )( pbuf - buf );
 	}
 
 	return buf;
@@ -950,7 +950,7 @@ char *url_decode_a( char *str, unsigned int str_len, unsigned int *dec_len )
 
 	if ( dec_len != NULL )
 	{
-		*dec_len = pbuf - buf;
+		*dec_len = ( unsigned int )( pbuf - buf );
 	}
 
 	return buf;
@@ -1002,7 +1002,7 @@ wchar_t *url_decode_w( wchar_t *str, unsigned int str_len, unsigned int *dec_len
 
 	if ( dec_len != NULL )
 	{
-		*dec_len = pbuf - buf;
+		*dec_len = ( unsigned int )( pbuf - buf );
 	}
 
 	return buf;
@@ -1056,7 +1056,7 @@ char *html_entity_decode_a( char *str, unsigned int str_len, unsigned int *dec_l
 
 	if ( dec_len != NULL )
 	{
-		*dec_len = pbuf - buf;
+		*dec_len = ( unsigned int )( pbuf - buf );
 	}
 
 	return buf;

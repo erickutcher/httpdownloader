@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP and HTTPS connections.
-	Copyright (C) 2015-2018 Eric Kutcher
+	Copyright (C) 2015-2019 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -167,12 +167,15 @@ int CALLBACK DMCompareFunc( LPARAM lParam1, LPARAM lParam2, LPARAM lParamSort )
 						{
 							return 1;
 						}
-
+#ifdef _WIN64
+						int i_percentage1 = ( int )( 1000.f * ( ( float )di1->last_downloaded / ( float )di1->file_size ) );
+						int i_percentage2 = ( int )( 1000.f * ( ( float )di2->last_downloaded / ( float )di2->file_size ) );
+#else
 						// Multiply the floating point division by 1000%.
 						// This leaves us with an integer in which the last digit will represent the decimal value.
 						float f_percentage1 = 1000.f * ( ( float )di1->last_downloaded / ( float )di1->file_size );
 						int i_percentage1 = 0;
-						_asm
+						__asm
 						{
 							fld f_percentage1;		//; Load the floating point value onto the FPU stack.
 							fistp i_percentage1;	//; Convert the floating point value into an integer, store it in an integer, and then pop it off the stack.
@@ -182,15 +185,14 @@ int CALLBACK DMCompareFunc( LPARAM lParam1, LPARAM lParam2, LPARAM lParamSort )
 						// This leaves us with an integer in which the last digit will represent the decimal value.
 						float f_percentage2 = 1000.f * ( ( float )di2->last_downloaded / ( float )di2->file_size );
 						int i_percentage2 = 0;
-						_asm
+						__asm
 						{
 							fld f_percentage2;		//; Load the floating point value onto the FPU stack.
 							fistp i_percentage2;	//; Convert the floating point value into an integer, store it in an integer, and then pop it off the stack.
 						}
-
+#endif
 						return i_percentage1 > i_percentage2;
 					}
-
 
 					//return ( ( di1->file_size - di1->downloaded ) > ( di2->file_size - di2->downloaded ) );
 				}
@@ -272,15 +274,18 @@ unsigned int FormatSizes( wchar_t *buffer, unsigned int buffer_size, unsigned ch
 
 	if ( toggle_type == SIZE_FORMAT_KILOBYTE )
 	{
+#ifdef _WIN64
+		unsigned int i_percentage = ( unsigned int )( 100.0f * ( float )data_size / 1024.0f );
+#else
 		// This leaves us with an integer in which the last digit will represent the decimal value.
 		float f_percentage = 100.0f * ( float )data_size / 1024.0f;
 		unsigned int i_percentage = 0;
-		_asm
+		__asm
 		{
 			fld f_percentage;	//; Load the floating point value onto the FPU stack.
 			fistp i_percentage;	//; Convert the floating point value into an integer, store it in an integer, and then pop it off the stack.
 		}
-
+#endif
 		// Get the last digit (decimal value).
 		unsigned int remainder = i_percentage % 100;
 		i_percentage /= 100;
@@ -289,15 +294,18 @@ unsigned int FormatSizes( wchar_t *buffer, unsigned int buffer_size, unsigned ch
 	}
 	else if ( toggle_type == SIZE_FORMAT_MEGABYTE )
 	{
+#ifdef _WIN64
+		unsigned int i_percentage = ( unsigned int )( 100.0f * ( float )data_size / 1048576.0f );
+#else
 		// This leaves us with an integer in which the last digit will represent the decimal value.
 		float f_percentage = 100.0f * ( float )data_size / 1048576.0f;
 		unsigned int i_percentage = 0;
-		_asm
+		__asm
 		{
 			fld f_percentage;	//; Load the floating point value onto the FPU stack.
 			fistp i_percentage;	//; Convert the floating point value into an integer, store it in an integer, and then pop it off the stack.
 		}
-
+#endif
 		// Get the last digit (decimal value).
 		unsigned int remainder = i_percentage % 100;
 		i_percentage /= 100;
@@ -306,15 +314,18 @@ unsigned int FormatSizes( wchar_t *buffer, unsigned int buffer_size, unsigned ch
 	}
 	else if ( toggle_type == SIZE_FORMAT_GIGABYTE )
 	{
+#ifdef _WIN64
+		unsigned int i_percentage = ( unsigned int )( 100.0f * ( float )data_size / 1073741824.0f );
+#else
 		// This leaves us with an integer in which the last digit will represent the decimal value.
 		float f_percentage = 100.0f * ( float )data_size / 1073741824.0f;
 		unsigned int i_percentage = 0;
-		_asm
+		__asm
 		{
 			fld f_percentage;	//; Load the floating point value onto the FPU stack.
 			fistp i_percentage;	//; Convert the floating point value into an integer, store it in an integer, and then pop it off the stack.
 		}
-
+#endif
 		// Get the last digit (decimal value).
 		unsigned int remainder = i_percentage % 100;
 		i_percentage /= 100;
@@ -756,16 +767,19 @@ wchar_t *GetDownloadInfoString( DOWNLOAD_INFO *di, int column, int item_index, w
 
 			if ( di->file_size > 0 )
 			{
+#ifdef _WIN64
+				int i_percentage = ( int )( 1000.f * ( ( float )di->last_downloaded / ( float )di->file_size ) );
+#else
 				// Multiply the floating point division by 1000%.
 				// This leaves us with an integer in which the last digit will represent the decimal value.
 				float f_percentage = 1000.f * ( ( float )di->last_downloaded / ( float )di->file_size );
 				int i_percentage = 0;
-				_asm
+				__asm
 				{
 					fld f_percentage;	//; Load the floating point value onto the FPU stack.
 					fistp i_percentage;	//; Convert the floating point value into an integer, store it in an integer, and then pop it off the stack.
 				}
-
+#endif
 				// Get the last digit (decimal value).
 				int remainder = i_percentage % 10;
 				// Divide the integer by (10%) to get it back in range of 0% to 100%.
@@ -993,8 +1007,8 @@ LRESULT CALLBACK ListViewSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPa
 							LVITEM lvi;
 							_memzero( &lvi, sizeof( LVITEM ) );
 
-							int index = _SendMessageW( hWnd, LVM_GETTOPINDEX, 0, 0 );
-							int index_end = _SendMessageW( hWnd, LVM_GETCOUNTPERPAGE, 0, 0 ) + index;
+							int index = ( int )_SendMessageW( hWnd, LVM_GETTOPINDEX, 0, 0 );
+							int index_end = ( int )_SendMessageW( hWnd, LVM_GETCOUNTPERPAGE, 0, 0 ) + index;
 
 							RECT rc;
 							HDC hDC = _GetDC( hWnd );
@@ -1042,7 +1056,7 @@ LRESULT CALLBACK ListViewSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPa
 					_SendMessageW( hWnd, LVM_SETCOLUMNWIDTH, nmh->iItem, largest_width );
 
 					// Save our new column width.
-					*download_columns_width[ virtual_index ] = _SendMessageW( hWnd, LVM_GETCOLUMNWIDTH, nmh->iItem, 0 );
+					*download_columns_width[ virtual_index ] = ( int )_SendMessageW( hWnd, LVM_GETCOLUMNWIDTH, nmh->iItem, 0 );
 
 					return TRUE;
 				}
@@ -1054,6 +1068,548 @@ LRESULT CALLBACK ListViewSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPa
 
 	// Everything that we don't handle gets passed back to the parent to process.
 	return CallWindowProc( ListViewProc, hWnd, msg, wParam, lParam );
+}
+
+void HandleCommand( HWND hWnd, WPARAM wParam, LPARAM lParam )
+{
+	switch( LOWORD( wParam ) )
+	{
+		case MENU_OPEN_FILE:
+		case MENU_OPEN_DIRECTORY:
+		{
+			LVITEM lvi;
+			_memzero( &lvi, sizeof( LVITEM ) );
+			lvi.mask = LVIF_PARAM;
+			lvi.iItem = ( int )_SendMessageW( g_hWnd_files, LVM_GETNEXTITEM, -1, LVNI_FOCUSED | LVNI_SELECTED );
+
+			if ( lvi.iItem != -1 )
+			{
+				_SendMessageW( g_hWnd_files, LVM_GETITEM, 0, ( LPARAM )&lvi );
+
+				DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )lvi.lParam;
+				if ( di != NULL && !( di->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
+				{
+					bool destroy = true;
+					#ifndef OLE32_USE_STATIC_LIB
+						if ( ole32_state == OLE32_STATE_SHUTDOWN )
+						{
+							destroy = InitializeOle32();
+						}
+					#endif
+
+					if ( destroy )
+					{
+						_CoInitializeEx( NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE );
+					}
+
+					wchar_t file_path[ MAX_PATH ];
+
+					if ( LOWORD( wParam ) == MENU_OPEN_FILE )
+					{
+						_wmemcpy_s( file_path, MAX_PATH, di->file_path, MAX_PATH );
+						if ( di->filename_offset > 0 )
+						{
+							file_path[ di->filename_offset - 1 ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
+						}
+
+						// Set the verb to NULL so that unknown file types can be handled by the system.
+						HINSTANCE hInst = _ShellExecuteW( NULL, NULL, file_path, NULL, NULL, SW_SHOWNORMAL );
+						if ( hInst == ( HINSTANCE )ERROR_FILE_NOT_FOUND )
+						{
+							if ( _MessageBoxW( hWnd, ST_V_PROMPT_The_specified_file_was_not_found, PROGRAM_CAPTION, MB_APPLMODAL | MB_ICONWARNING | MB_YESNO ) == IDYES )
+							{
+								CloseHandle( ( HANDLE )_CreateThread( NULL, 0, handle_download_list, ( void * )3, 0, NULL ) );	// Restart download (from the beginning).
+							}
+						}
+					}
+					else if ( LOWORD( wParam ) == MENU_OPEN_DIRECTORY )
+					{
+						_wmemcpy_s( file_path, MAX_PATH, di->file_path, MAX_PATH );
+						if ( di->filename_offset > 0 )
+						{
+							file_path[ di->filename_offset - 1 ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
+						}
+
+						HINSTANCE hInst = ( HINSTANCE )ERROR_FILE_NOT_FOUND;
+
+						LPITEMIDLIST iidl = _ILCreateFromPathW( file_path );
+
+						if ( iidl != NULL && _SHOpenFolderAndSelectItems( iidl, 0, NULL, 0 ) == S_OK )
+						{
+							hInst = ( HINSTANCE )ERROR_SUCCESS;
+						}
+						else
+						{
+							// Try opening the folder without selecting any file.
+							hInst = _ShellExecuteW( NULL, L"open", di->file_path, NULL, NULL, SW_SHOWNORMAL );
+						}
+
+						// Use this instead of ILFree on Windows 2000 or later.
+						if ( iidl != NULL )
+						{
+							_CoTaskMemFree( iidl );
+						}
+
+						if ( hInst == ( HINSTANCE )ERROR_FILE_NOT_FOUND )	// We're opening a folder, but it uses the same error code as a file if it's not found.
+						{
+							_MessageBoxW( hWnd, ST_V_The_specified_path_was_not_found, PROGRAM_CAPTION, MB_APPLMODAL | MB_ICONWARNING );
+						}
+					}
+
+					if ( destroy )
+					{
+						_CoUninitialize();
+					}
+				}
+			}
+		}
+		break;
+
+		case MENU_SAVE_DOWNLOAD_HISTORY:
+		{
+			wchar_t *file_path = ( wchar_t * )GlobalAlloc( GPTR, sizeof( wchar_t ) * MAX_PATH );
+
+			OPENFILENAME ofn;
+			_memzero( &ofn, sizeof( OPENFILENAME ) );
+			ofn.lStructSize = sizeof( OPENFILENAME );
+			ofn.hwndOwner = hWnd;
+			ofn.lpstrFilter = L"CSV (Comma delimited) (*.csv)\0*.csv\0";
+			ofn.lpstrDefExt = L"csv";
+			ofn.lpstrTitle = ST_V_Save_Download_History;
+			ofn.lpstrFile = file_path;
+			ofn.nMaxFile = MAX_PATH;
+			ofn.Flags = OFN_PATHMUSTEXIST | OFN_OVERWRITEPROMPT | OFN_READONLY;
+
+			if ( _GetSaveFileNameW( &ofn ) )
+			{
+				// file_path will be freed in the create_download_history_csv_file thread.
+				HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, create_download_history_csv_file, ( void * )file_path, 0, NULL );
+				if ( thread != NULL )
+				{
+					CloseHandle( thread );
+				}
+				else
+				{
+					GlobalFree( file_path );
+				}
+			}
+			else
+			{
+				GlobalFree( file_path );
+			}
+		}
+		break;
+
+		case MENU_IMPORT_DOWNLOAD_HISTORY:
+		{
+			wchar_t *file_name = ( wchar_t * )GlobalAlloc( GPTR, sizeof( wchar_t ) * ( MAX_PATH * MAX_PATH ) );
+
+			OPENFILENAME ofn;
+			_memzero( &ofn, sizeof( OPENFILENAME ) );
+			ofn.lStructSize = sizeof( OPENFILENAME );
+			ofn.hwndOwner = hWnd;
+			ofn.lpstrFilter = L"Download History\0*.*\0";
+			ofn.lpstrTitle = ST_V_Import_Download_History;
+			ofn.lpstrFile = file_name;
+			ofn.nMaxFile = MAX_PATH * MAX_PATH;
+			ofn.Flags = OFN_ALLOWMULTISELECT | OFN_EXPLORER | OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_READONLY;
+
+			if ( _GetOpenFileNameW( &ofn ) )
+			{
+				importexportinfo *iei = ( importexportinfo * )GlobalAlloc( GMEM_FIXED, sizeof( importexportinfo ) );
+				iei->type = 1;	// Import from menu.
+				iei->file_paths = file_name;
+				iei->file_offset = ofn.nFileOffset;
+
+				// iei will be freed in the import_list thread.
+				HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, import_list, ( void * )iei, 0, NULL );
+				if ( thread != NULL )
+				{
+					CloseHandle( thread );
+				}
+				else
+				{
+					GlobalFree( iei->file_paths );
+					GlobalFree( iei );
+				}
+			}
+			else
+			{
+				GlobalFree( file_name );
+			}
+		}
+		break;
+
+		case MENU_EXPORT_DOWNLOAD_HISTORY:
+		{
+			wchar_t *file_name = ( wchar_t * )GlobalAlloc( GPTR, sizeof( wchar_t ) * MAX_PATH );
+
+			OPENFILENAME ofn;
+			_memzero( &ofn, sizeof( OPENFILENAME ) );
+			ofn.lStructSize = sizeof( OPENFILENAME );
+			ofn.hwndOwner = hWnd;
+			ofn.lpstrFilter = L"Download History\0*.*\0";
+			//ofn.lpstrDefExt = L"txt";
+			ofn.lpstrTitle = ST_V_Export_Download_History;
+			ofn.lpstrFile = file_name;
+			ofn.nMaxFile = MAX_PATH;
+			ofn.Flags = OFN_PATHMUSTEXIST | OFN_OVERWRITEPROMPT | OFN_READONLY;
+
+			if ( _GetSaveFileNameW( &ofn ) )
+			{
+				importexportinfo *iei = ( importexportinfo * )GlobalAlloc( GMEM_FIXED, sizeof( importexportinfo ) );
+				iei->file_paths = file_name;
+
+				// iei will be freed in the export_list thread.
+				HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, export_list, ( void * )iei, 0, NULL );
+				if ( thread != NULL )
+				{
+					CloseHandle( thread );
+				}
+				else
+				{
+					GlobalFree( iei->file_paths );
+					GlobalFree( iei );
+				}
+			}
+			else
+			{
+				GlobalFree( file_name );
+			}
+		}
+		break;
+
+		case MENU_START:
+		{
+			CloseHandle( ( HANDLE )_CreateThread( NULL, 0, handle_connection, ( void * )STATUS_DOWNLOADING, 0, NULL ) );
+		}
+		break;
+
+		case MENU_PAUSE:
+		{
+			CloseHandle( ( HANDLE )_CreateThread( NULL, 0, handle_connection, ( void * )STATUS_PAUSED, 0, NULL ) );
+		}
+		break;
+
+		case MENU_STOP:
+		{
+			CloseHandle( ( HANDLE )_CreateThread( NULL, 0, handle_connection, ( void * )STATUS_STOPPED, 0, NULL ) );
+		}
+		break;
+
+		case MENU_RESTART:
+		{
+			if ( _MessageBoxW( hWnd, ST_V_PROMPT_restart_selected_entries, PROGRAM_CAPTION, MB_APPLMODAL | MB_ICONWARNING | MB_YESNO ) == IDYES )
+			{
+				CloseHandle( ( HANDLE )_CreateThread( NULL, 0, handle_connection, ( void * )STATUS_RESTART, 0, NULL ) );
+			}
+		}
+		break;
+
+		case MENU_PAUSE_ACTIVE:
+		{
+			CloseHandle( ( HANDLE )_CreateThread( NULL, 0, handle_download_list, ( void * )0, 0, NULL ) );
+		}
+		break;
+
+		case MENU_STOP_ALL:
+		{
+			CloseHandle( ( HANDLE )_CreateThread( NULL, 0, handle_download_list, ( void * )1, 0, NULL ) );
+		}
+		break;
+
+		case MENU_UPDATE_DOWNLOAD:
+		{
+			LVITEM lvi;
+			_memzero( &lvi, sizeof( LVITEM ) );
+			lvi.mask = LVIF_PARAM;
+			lvi.iItem = ( int )_SendMessageW( g_hWnd_files, LVM_GETNEXTITEM, -1, LVNI_FOCUSED | LVNI_SELECTED );
+
+			if ( lvi.iItem != -1 )
+			{
+				_SendMessageW( g_hWnd_files, LVM_GETITEM, 0, ( LPARAM )&lvi );
+
+				if ( lvi.lParam != NULL )
+				{
+					if ( g_hWnd_update_download == NULL )
+					{
+						g_hWnd_update_download = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"update_download", ST_V_Update_Download, WS_OVERLAPPEDWINDOW, ( ( _GetSystemMetrics( SM_CXSCREEN ) - 525 ) / 2 ), ( ( _GetSystemMetrics( SM_CYSCREEN ) - 405 ) / 2 ), 525, 405, NULL, NULL, NULL, NULL );
+					}
+					else if ( _IsIconic( g_hWnd_update_download ) )	// If minimized, then restore the window.
+					{
+						_ShowWindow( g_hWnd_update_download, SW_RESTORE );
+					}
+
+					_SendMessageW( g_hWnd_update_download, WM_PROPAGATE, 0, lvi.lParam );
+				}
+			}
+		}
+		break;
+
+		case MENU_QUEUE_TOP:
+		case MENU_QUEUE_UP:
+		case MENU_QUEUE_DOWN:
+		case MENU_QUEUE_BOTTOM:
+		{
+			unsigned char handle_type = 0;
+
+			switch ( LOWORD( wParam ) )
+			{
+				case MENU_QUEUE_TOP: { handle_type = 0; } break;
+				case MENU_QUEUE_UP: { handle_type = 1; } break;
+				case MENU_QUEUE_DOWN: { handle_type = 2; } break;
+				case MENU_QUEUE_BOTTOM: { handle_type = 3; } break;
+			}
+
+			CloseHandle( ( HANDLE )_CreateThread( NULL, 0, handle_download_queue, ( void * )handle_type, 0, NULL ) );
+		}
+		break;
+
+		case MENU_REMOVE:
+		{
+			if ( _MessageBoxW( hWnd, ST_V_PROMPT_remove_selected_entries, PROGRAM_CAPTION, MB_APPLMODAL | MB_ICONWARNING | MB_YESNO ) == IDYES )
+			{
+				CloseHandle( ( HANDLE )_CreateThread( NULL, 0, remove_items, ( void * )0, 0, NULL ) );
+			}
+		}
+		break;
+
+		case MENU_REMOVE_COMPLETED:
+		{
+			if ( _MessageBoxW( hWnd, ST_V_PROMPT_remove_completed_entries, PROGRAM_CAPTION, MB_APPLMODAL | MB_ICONWARNING | MB_YESNO ) == IDYES )
+			{
+				CloseHandle( ( HANDLE )_CreateThread( NULL, 0, handle_download_list, ( void * )2, 0, NULL ) );
+			}
+		}
+		break;
+
+		case MENU_REMOVE_AND_DELETE:
+		{
+			if ( _MessageBoxW( hWnd, ST_V_PROMPT_remove_and_delete_selected_entries, PROGRAM_CAPTION, MB_APPLMODAL | MB_ICONWARNING | MB_YESNO ) == IDYES )
+			{
+				CloseHandle( ( HANDLE )_CreateThread( NULL, 0, remove_items, ( void * )1, 0, NULL ) );
+			}
+		}
+		break;
+
+		case MENU_COPY_URLS:
+		{
+			CloseHandle( ( HANDLE )_CreateThread( NULL, 0, copy_urls, ( void * )NULL, 0, NULL ) );
+		}
+		break;
+
+		case MENU_DELETE:
+		{
+			if ( _MessageBoxW( hWnd, ST_V_PROMPT_delete_selected_files, PROGRAM_CAPTION, MB_APPLMODAL | MB_ICONWARNING | MB_YESNO ) == IDYES )
+			{
+				CloseHandle( ( HANDLE )_CreateThread( NULL, 0, delete_files, ( void * )NULL, 0, NULL ) );
+			}
+		}
+		break;
+
+		case MENU_RENAME:
+		{
+			LVITEM lvi;
+			_memzero( &lvi, sizeof( LVITEM ) );
+			lvi.mask = LVIF_PARAM;
+			lvi.iItem = ( int )_SendMessageW( g_hWnd_files, LVM_GETNEXTITEM, -1, LVNI_FOCUSED | LVNI_SELECTED );
+
+			if ( lvi.iItem != -1 )
+			{
+				edit_from_menu = true;
+
+				_SendMessageW( g_hWnd_files, LVM_EDITLABEL, lvi.iItem, 0 );
+			}
+		}
+		break;
+
+		case MENU_SELECT_ALL:
+		{
+			// Set the state of all items to selected.
+			LVITEM lvi;
+			_memzero( &lvi, sizeof( LVITEM ) );
+			lvi.mask = LVIF_STATE;
+			lvi.state = LVIS_SELECTED;
+			lvi.stateMask = LVIS_SELECTED;
+			_SendMessageW( g_hWnd_files, LVM_SETITEMSTATE, -1, ( LPARAM )&lvi );
+
+			//UpdateMenus( true );
+		}
+		break;
+
+		case MENU_NUM:
+		case MENU_ACTIVE_PARTS:
+		case MENU_DATE_AND_TIME_ADDED:
+		case MENU_DOWNLOAD_DIRECTORY:
+		case MENU_DOWNLOAD_SPEED:
+		case MENU_DOWNLOADED:
+		case MENU_FILE_SIZE:
+		case MENU_FILE_TYPE:
+		case MENU_FILENAME:
+		case MENU_PROGRESS:
+		case MENU_SSL_TLS_VERSION:
+		case MENU_TIME_ELAPSED:
+		case MENU_TIME_REMAINING:
+		case MENU_URL:
+		{
+			UpdateColumns( LOWORD( wParam ) );
+		}
+		break;
+
+		case MENU_ADD_URLS:
+		{
+			if ( g_hWnd_add_urls == NULL )
+			{
+				g_hWnd_add_urls = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"add_urls", ST_V_Add_URL_s_, WS_OVERLAPPEDWINDOW, ( ( _GetSystemMetrics( SM_CXSCREEN ) - 525 ) / 2 ), ( ( _GetSystemMetrics( SM_CYSCREEN ) - 240 ) / 2 ), 525, 240, NULL, NULL, NULL, NULL );
+			}
+
+			_SendMessageW( g_hWnd_add_urls, WM_PROPAGATE, 0, 0 );
+		}
+		break;
+
+		case MENU_SHOW_TOOLBAR:
+		{
+			cfg_show_toolbar = !cfg_show_toolbar;
+
+			LONG_PTR style = _GetWindowLongPtrW( g_hWnd_files, GWL_STYLE );
+
+			if ( cfg_show_toolbar )
+			{
+				style |= WS_BORDER;
+
+				_CheckMenuItem( g_hMenuSub_view, MENU_SHOW_TOOLBAR, MF_CHECKED );
+				_ShowWindow( g_hWnd_toolbar, SW_SHOW );
+			}
+			else
+			{
+				style &= ~( WS_BORDER );
+
+				_CheckMenuItem( g_hMenuSub_view, MENU_SHOW_TOOLBAR, MF_UNCHECKED );
+				_ShowWindow( g_hWnd_toolbar, SW_HIDE );
+			}
+
+			UpdateMenus( true );
+
+			// Show/hide the files border if the toolbar is/isn't visible.
+			_SetWindowLongPtrW( g_hWnd_files, GWL_STYLE, style );
+
+			_SendMessageW( hWnd, WM_SIZE, 0, 0 );
+		}
+		break;
+
+		case MENU_SHOW_STATUS_BAR:
+		{
+			cfg_show_status_bar = !cfg_show_status_bar;
+
+			if ( cfg_show_status_bar )
+			{
+				_CheckMenuItem( g_hMenuSub_view, MENU_SHOW_STATUS_BAR, MF_CHECKED );
+				_ShowWindow( g_hWnd_status, SW_SHOW );
+			}
+			else
+			{
+				_CheckMenuItem( g_hMenuSub_view, MENU_SHOW_STATUS_BAR, MF_UNCHECKED );
+				_ShowWindow( g_hWnd_status, SW_HIDE );
+			}
+
+			_SendMessageW( hWnd, WM_SIZE, 0, 0 );
+		}
+		break;
+
+		case MENU_SEARCH:
+		{
+			if ( g_hWnd_search == NULL )
+			{
+				g_hWnd_search = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"search", ST_V_Search, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU, ( ( _GetSystemMetrics( SM_CXSCREEN ) - 320 ) / 2 ), ( ( _GetSystemMetrics( SM_CYSCREEN ) - 210 ) / 2 ), 320, 210, NULL, NULL, NULL, NULL );
+			}
+
+			_SendMessageW( g_hWnd_search, WM_PROPAGATE, 0, 0 );
+		}
+		break;
+
+		case MENU_OPTIONS:
+		{
+			if ( g_hWnd_options == NULL )
+			{
+				g_hWnd_options = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"options", ST_V_Options, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU, ( ( _GetSystemMetrics( SM_CXSCREEN ) - 480 ) / 2 ), ( ( _GetSystemMetrics( SM_CYSCREEN ) - 490 ) / 2 ), 480, 490, NULL, NULL, NULL, NULL );
+				_ShowWindow( g_hWnd_options, SW_SHOWNORMAL );
+			}
+			_SetForegroundWindow( g_hWnd_options );
+		}
+		break;
+
+		case MENU_HOME_PAGE:
+		{
+			bool destroy = true;
+			#ifndef OLE32_USE_STATIC_LIB
+				if ( ole32_state == OLE32_STATE_SHUTDOWN )
+				{
+					destroy = InitializeOle32();
+				}
+			#endif
+
+			if ( destroy )
+			{
+				_CoInitializeEx( NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE );
+			}
+
+			_ShellExecuteW( NULL, L"open", HOME_PAGE, NULL, NULL, SW_SHOWNORMAL );
+
+			if ( destroy )
+			{
+				_CoUninitialize();
+			}
+		}
+		break;
+
+		case MENU_ABOUT:
+		{
+			wchar_t msg[ 512 ];
+			__snwprintf( msg, 512, L"HTTP Downloader is made free under the GPLv3 license.\r\n\r\n" \
+								   L"Version 1.0.1.6 (%u-bit)\r\n\r\n" \
+								   L"Built on %s, %s %d, %04d %d:%02d:%02d %s (UTC)\r\n\r\n" \
+								   L"Copyright \xA9 2015-2019 Eric Kutcher",
+#ifdef _WIN64
+								   64,
+#else
+								   32,
+#endif
+								   ( g_compile_time.wDayOfWeek > 6 ? L"" : day_string_table[ g_compile_time.wDayOfWeek ].value ),
+								   ( ( g_compile_time.wMonth > 12 || g_compile_time.wMonth < 1 ) ? L"" : month_string_table[ g_compile_time.wMonth - 1 ].value ),
+								   g_compile_time.wDay,
+								   g_compile_time.wYear,
+								   ( g_compile_time.wHour > 12 ? g_compile_time.wHour - 12 : ( g_compile_time.wHour != 0 ? g_compile_time.wHour : 12 ) ),
+								   g_compile_time.wMinute,
+								   g_compile_time.wSecond,
+								   ( g_compile_time.wHour >= 12 ? L"PM" : L"AM" ) );
+
+			_MessageBoxW( hWnd, msg, PROGRAM_CAPTION, MB_APPLMODAL | MB_ICONINFORMATION );
+		}
+		break;
+
+		case MENU_RESTORE:
+		{
+			if ( _IsIconic( hWnd ) )	// If minimized, then restore the window.
+			{
+				_ShowWindow( hWnd, SW_RESTORE );
+			}
+			else if ( _IsWindowVisible( hWnd ) == TRUE )	// If already visible, then flash the window.
+			{
+				_FlashWindow( hWnd, TRUE );
+			}
+			else	// If hidden, then show the window.
+			{
+				_ShowWindow( hWnd, SW_SHOW );
+			}
+		}
+		break;
+
+		case MENU_EXIT:
+		{
+			_SendMessageW( hWnd, WM_EXIT, 0, 0 );
+		}
+		break;
+	}
 }
 
 LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
@@ -1075,7 +1631,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 			// Allows us to use the iString value for tooltips.
 			_SendMessageW( g_hWnd_toolbar, TB_SETMAXTEXTROWS, 0, 0 );
 
-			TBBUTTON tbb[ 12 ] = 
+			TBBUTTON tbb[ 13 ] = 
 			{
 				{ MAKELONG( 0, 0 ),			MENU_ADD_URLS,	TBSTATE_ENABLED, BTNS_AUTOSIZE,	{ 0 }, 0,		( INT_PTR )ST_V_Add_URL_s_ },
 				{ MAKELONG( 1, 0 ),			  MENU_REMOVE,	TBSTATE_ENABLED, BTNS_AUTOSIZE,	{ 0 }, 0,			( INT_PTR )ST_V_Remove },
@@ -1088,10 +1644,11 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 				{ MAKELONG( 6, 0 ),		MENU_PAUSE_ACTIVE,	TBSTATE_ENABLED, BTNS_AUTOSIZE,	{ 0 }, 0,	  ( INT_PTR )ST_V_Pause_Active },
 				{ MAKELONG( 7, 0 ),			MENU_STOP_ALL,	TBSTATE_ENABLED, BTNS_AUTOSIZE,	{ 0 }, 0,		  ( INT_PTR )ST_V_Stop_All },
 				{				 0,					   -1,				  0,	  BTNS_SEP,	{ 0 }, 0,							  NULL },
-				{ MAKELONG( 8, 0 ),			 MENU_OPTIONS,	TBSTATE_ENABLED, BTNS_AUTOSIZE,	{ 0 }, 0,		   ( INT_PTR )ST_V_Options }
+				{ MAKELONG( 8, 0 ),			  MENU_SEARCH,	TBSTATE_ENABLED, BTNS_AUTOSIZE,	{ 0 }, 0,		    ( INT_PTR )ST_V_Search },
+				{ MAKELONG( 9, 0 ),			 MENU_OPTIONS,	TBSTATE_ENABLED, BTNS_AUTOSIZE,	{ 0 }, 0,		   ( INT_PTR )ST_V_Options }
 			};
 
-			_SendMessageW( g_hWnd_toolbar, TB_ADDBUTTONS, 12, ( LPARAM )&tbb );
+			_SendMessageW( g_hWnd_toolbar, TB_ADDBUTTONS, 13, ( LPARAM )&tbb );
 
 			g_hWnd_files = _CreateWindowW( WC_LISTVIEW, NULL, LVS_REPORT | LVS_EDITLABELS | LVS_OWNERDRAWFIXED | WS_CHILDWINDOW | WS_VISIBLE | ( cfg_show_toolbar ? WS_BORDER : 0 ), 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 			_SendMessageW( g_hWnd_files, LVM_SETEXTENDEDLISTVIEWSTYLE, 0, LVS_EX_DOUBLEBUFFER | LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES | LVS_EX_HEADERDRAGDROP );
@@ -1118,8 +1675,8 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 			_SendMessageW( g_hWnd_files, WM_SETFONT, ( WPARAM )hFont, 0 );
 			_SendMessageW( g_hWnd_status, WM_SETFONT, ( WPARAM )hFont, 0 );
 
-			ListViewProc = ( WNDPROC )_GetWindowLongW( g_hWnd_files, GWL_WNDPROC );
-			_SetWindowLongW( g_hWnd_files, GWL_WNDPROC, ( LONG )ListViewSubProc );
+			ListViewProc = ( WNDPROC )_GetWindowLongPtrW( g_hWnd_files, GWLP_WNDPROC );
+			_SetWindowLongPtrW( g_hWnd_files, GWLP_WNDPROC, ( LONG_PTR )ListViewSubProc );
 
 			#ifndef OLE32_USE_STATIC_LIB
 				if ( ole32_state == OLE32_STATE_SHUTDOWN )
@@ -1195,7 +1752,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 				g_nid.uID = 1000;
 				g_nid.hIcon = ( HICON )_LoadImageW( GetModuleHandle( NULL ), MAKEINTRESOURCE( IDI_ICON ), IMAGE_ICON, 16, 16, LR_SHARED );
 				g_nid.dwInfoFlags = NIIF_INFO;
-				unsigned char info_size = ( ST_L_Downloads_Have_Finished > ( ( sizeof( g_nid.szInfoTitle ) / sizeof( g_nid.szInfoTitle[ 0 ] ) ) - 1 ) ? ( ( sizeof( g_nid.szInfoTitle ) / sizeof( g_nid.szInfoTitle[ 0 ] ) ) - 1 ) : ST_L_Downloads_Have_Finished );
+				unsigned char info_size = ( unsigned char )( ST_L_Downloads_Have_Finished > ( ( sizeof( g_nid.szInfoTitle ) / sizeof( g_nid.szInfoTitle[ 0 ] ) ) - 1 ) ? ( ( sizeof( g_nid.szInfoTitle ) / sizeof( g_nid.szInfoTitle[ 0 ] ) ) - 1 ) : ST_L_Downloads_Have_Finished );
 				_wmemcpy_s( g_nid.szInfoTitle, sizeof( g_nid.szInfoTitle ) / sizeof( g_nid.szInfoTitle[ 0 ] ), ST_V_Downloads_Have_Finished, info_size );
 				g_nid.szInfoTitle[ info_size ] = 0;	// Sanity.
 				_wmemcpy_s( g_nid.szTip, sizeof( g_nid.szTip ) / sizeof( g_nid.szTip[ 0 ] ), PROGRAM_CAPTION, 16 );
@@ -1278,543 +1835,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 
 		case WM_COMMAND:
 		{
-			switch( LOWORD( wParam ) )
-			{
-				case MENU_OPEN_FILE:
-				case MENU_OPEN_DIRECTORY:
-				{
-					LVITEM lvi;
-					_memzero( &lvi, sizeof( LVITEM ) );
-					lvi.mask = LVIF_PARAM;
-					lvi.iItem = _SendMessageW( g_hWnd_files, LVM_GETNEXTITEM, -1, LVNI_FOCUSED | LVNI_SELECTED );
-
-					if ( lvi.iItem != -1 )
-					{
-						_SendMessageW( g_hWnd_files, LVM_GETITEM, 0, ( LPARAM )&lvi );
-
-						DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )lvi.lParam;
-						if ( di != NULL && !( di->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
-						{
-							bool destroy = true;
-							#ifndef OLE32_USE_STATIC_LIB
-								if ( ole32_state == OLE32_STATE_SHUTDOWN )
-								{
-									destroy = InitializeOle32();
-								}
-							#endif
-
-							if ( destroy )
-							{
-								_CoInitializeEx( NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE );
-							}
-
-							wchar_t file_path[ MAX_PATH ];
-
-							if ( LOWORD( wParam ) == MENU_OPEN_FILE )
-							{
-								_wmemcpy_s( file_path, MAX_PATH, di->file_path, MAX_PATH );
-								if ( di->filename_offset > 0 )
-								{
-									file_path[ di->filename_offset - 1 ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
-								}
-
-								// Set the verb to NULL so that unknown file types can be handled by the system.
-								HINSTANCE hInst = _ShellExecuteW( NULL, NULL, file_path, NULL, NULL, SW_SHOWNORMAL );
-								if ( hInst == ( HINSTANCE )ERROR_FILE_NOT_FOUND )
-								{
-									if ( _MessageBoxW( hWnd, ST_V_PROMPT_The_specified_file_was_not_found, PROGRAM_CAPTION, MB_APPLMODAL | MB_ICONWARNING | MB_YESNO ) == IDYES )
-									{
-										CloseHandle( ( HANDLE )_CreateThread( NULL, 0, handle_download_list, ( void * )3, 0, NULL ) );	// Restart download (from the beginning).
-									}
-								}
-							}
-							else if ( LOWORD( wParam ) == MENU_OPEN_DIRECTORY )
-							{
-								_wmemcpy_s( file_path, MAX_PATH, di->file_path, MAX_PATH );
-								if ( di->filename_offset > 0 )
-								{
-									file_path[ di->filename_offset - 1 ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
-								}
-
-								HINSTANCE hInst = ( HINSTANCE )ERROR_FILE_NOT_FOUND;
-
-								ITEMIDLIST  *iidl = _ILCreateFromPathW( file_path );
-
-								if ( iidl != NULL && _SHOpenFolderAndSelectItems( iidl, 0, NULL, 0 ) == S_OK )
-								{
-									hInst = ( HINSTANCE )ERROR_SUCCESS;
-								}
-								else
-								{
-									// Try opening the folder without selecting any file.
-									hInst = _ShellExecuteW( NULL, L"open", di->file_path, NULL, NULL, SW_SHOWNORMAL );
-								}
-
-								// Use this instead of ILFree on Windows 2000 or later.
-								if ( iidl != NULL )
-								{
-									_CoTaskMemFree( iidl );
-								}
-
-								if ( hInst == ( HINSTANCE )ERROR_FILE_NOT_FOUND )	// We're opening a folder, but it uses the same error code as a file if it's not found.
-								{
-									_MessageBoxW( hWnd, ST_V_The_specified_path_was_not_found, PROGRAM_CAPTION, MB_APPLMODAL | MB_ICONWARNING );
-								}
-							}
-
-							if ( destroy )
-							{
-								_CoUninitialize();
-							}
-						}
-					}
-				}
-				break;
-
-				case MENU_SAVE_DOWNLOAD_HISTORY:
-				{
-					wchar_t *file_path = ( wchar_t * )GlobalAlloc( GPTR, sizeof( wchar_t ) * MAX_PATH );
-
-					OPENFILENAME ofn;
-					_memzero( &ofn, sizeof( OPENFILENAME ) );
-					ofn.lStructSize = sizeof( OPENFILENAME );
-					ofn.hwndOwner = hWnd;
-					ofn.lpstrFilter = L"CSV (Comma delimited) (*.csv)\0*.csv\0";
-					ofn.lpstrDefExt = L"csv";
-					ofn.lpstrTitle = ST_V_Save_Download_History;
-					ofn.lpstrFile = file_path;
-					ofn.nMaxFile = MAX_PATH;
-					ofn.Flags = OFN_PATHMUSTEXIST | OFN_OVERWRITEPROMPT | OFN_READONLY;
-
-					if ( _GetSaveFileNameW( &ofn ) )
-					{
-						// file_path will be freed in the create_download_history_csv_file thread.
-						HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, create_download_history_csv_file, ( void * )file_path, 0, NULL );
-						if ( thread != NULL )
-						{
-							CloseHandle( thread );
-						}
-						else
-						{
-							GlobalFree( file_path );
-						}
-					}
-					else
-					{
-						GlobalFree( file_path );
-					}
-				}
-				break;
-
-				case MENU_IMPORT_DOWNLOAD_HISTORY:
-				{
-					wchar_t *file_name = ( wchar_t * )GlobalAlloc( GPTR, sizeof( wchar_t ) * ( MAX_PATH * MAX_PATH ) );
-
-					OPENFILENAME ofn;
-					_memzero( &ofn, sizeof( OPENFILENAME ) );
-					ofn.lStructSize = sizeof( OPENFILENAME );
-					ofn.hwndOwner = hWnd;
-					ofn.lpstrFilter = L"Download History\0*.*\0";
-					ofn.lpstrTitle = ST_V_Import_Download_History;
-					ofn.lpstrFile = file_name;
-					ofn.nMaxFile = MAX_PATH * MAX_PATH;
-					ofn.Flags = OFN_ALLOWMULTISELECT | OFN_EXPLORER | OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_READONLY;
-
-					if ( _GetOpenFileNameW( &ofn ) )
-					{
-						importexportinfo *iei = ( importexportinfo * )GlobalAlloc( GMEM_FIXED, sizeof( importexportinfo ) );
-						iei->type = 1;	// Import from menu.
-						iei->file_paths = file_name;
-						iei->file_offset = ofn.nFileOffset;
-
-						// iei will be freed in the import_list thread.
-						HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, import_list, ( void * )iei, 0, NULL );
-						if ( thread != NULL )
-						{
-							CloseHandle( thread );
-						}
-						else
-						{
-							GlobalFree( iei->file_paths );
-							GlobalFree( iei );
-						}
-					}
-					else
-					{
-						GlobalFree( file_name );
-					}
-				}
-				break;
-
-				case MENU_EXPORT_DOWNLOAD_HISTORY:
-				{
-					wchar_t *file_name = ( wchar_t * )GlobalAlloc( GPTR, sizeof( wchar_t ) * MAX_PATH );
-
-					OPENFILENAME ofn;
-					_memzero( &ofn, sizeof( OPENFILENAME ) );
-					ofn.lStructSize = sizeof( OPENFILENAME );
-					ofn.hwndOwner = hWnd;
-					ofn.lpstrFilter = L"Download History\0*.*\0";
-					//ofn.lpstrDefExt = L"txt";
-					ofn.lpstrTitle = ST_V_Export_Download_History;
-					ofn.lpstrFile = file_name;
-					ofn.nMaxFile = MAX_PATH;
-					ofn.Flags = OFN_PATHMUSTEXIST | OFN_OVERWRITEPROMPT | OFN_READONLY;
-
-					if ( _GetSaveFileNameW( &ofn ) )
-					{
-						importexportinfo *iei = ( importexportinfo * )GlobalAlloc( GMEM_FIXED, sizeof( importexportinfo ) );
-						iei->file_paths = file_name;
-
-						// iei will be freed in the export_list thread.
-						HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, export_list, ( void * )iei, 0, NULL );
-						if ( thread != NULL )
-						{
-							CloseHandle( thread );
-						}
-						else
-						{
-							GlobalFree( iei->file_paths );
-							GlobalFree( iei );
-						}
-					}
-					else
-					{
-						GlobalFree( file_name );
-					}
-				}
-				break;
-
-				case MENU_START:
-				{
-					CloseHandle( ( HANDLE )_CreateThread( NULL, 0, handle_connection, ( void * )STATUS_DOWNLOADING, 0, NULL ) );
-				}
-				break;
-
-				case MENU_PAUSE:
-				{
-					CloseHandle( ( HANDLE )_CreateThread( NULL, 0, handle_connection, ( void * )STATUS_PAUSED, 0, NULL ) );
-				}
-				break;
-
-				case MENU_STOP:
-				{
-					CloseHandle( ( HANDLE )_CreateThread( NULL, 0, handle_connection, ( void * )STATUS_STOPPED, 0, NULL ) );
-				}
-				break;
-
-				case MENU_RESTART:
-				{
-					if ( _MessageBoxW( hWnd, ST_V_PROMPT_restart_selected_entries, PROGRAM_CAPTION, MB_APPLMODAL | MB_ICONWARNING | MB_YESNO ) == IDYES )
-					{
-						CloseHandle( ( HANDLE )_CreateThread( NULL, 0, handle_connection, ( void * )STATUS_RESTART, 0, NULL ) );
-					}
-				}
-				break;
-
-				case MENU_PAUSE_ACTIVE:
-				{
-					CloseHandle( ( HANDLE )_CreateThread( NULL, 0, handle_download_list, ( void * )0, 0, NULL ) );
-				}
-				break;
-
-				case MENU_STOP_ALL:
-				{
-					CloseHandle( ( HANDLE )_CreateThread( NULL, 0, handle_download_list, ( void * )1, 0, NULL ) );
-				}
-				break;
-
-				case MENU_UPDATE_DOWNLOAD:
-				{
-					LVITEM lvi;
-					_memzero( &lvi, sizeof( LVITEM ) );
-					lvi.mask = LVIF_PARAM;
-					lvi.iItem = _SendMessageW( g_hWnd_files, LVM_GETNEXTITEM, -1, LVNI_FOCUSED | LVNI_SELECTED );
-
-					if ( lvi.iItem != -1 )
-					{
-						_SendMessageW( g_hWnd_files, LVM_GETITEM, 0, ( LPARAM )&lvi );
-
-						if ( lvi.lParam != NULL )
-						{
-							if ( g_hWnd_update_download == NULL )
-							{
-								g_hWnd_update_download = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"update_download", ST_V_Update_Download, WS_OVERLAPPEDWINDOW, ( ( _GetSystemMetrics( SM_CXSCREEN ) - 525 ) / 2 ), ( ( _GetSystemMetrics( SM_CYSCREEN ) - 405 ) / 2 ), 525, 405, NULL, NULL, NULL, NULL );
-							}
-							else if ( _IsIconic( g_hWnd_update_download ) )	// If minimized, then restore the window.
-							{
-								_ShowWindow( g_hWnd_update_download, SW_RESTORE );
-							}
-
-							_SendMessageW( g_hWnd_update_download, WM_PROPAGATE, 0, lvi.lParam );
-						}
-					}
-				}
-				break;
-
-				case MENU_QUEUE_TOP:
-				case MENU_QUEUE_UP:
-				case MENU_QUEUE_DOWN:
-				case MENU_QUEUE_BOTTOM:
-				{
-					unsigned char handle_type = 0;
-
-					switch ( LOWORD( wParam ) )
-					{
-						case MENU_QUEUE_TOP: { handle_type = 0; } break;
-						case MENU_QUEUE_UP: { handle_type = 1; } break;
-						case MENU_QUEUE_DOWN: { handle_type = 2; } break;
-						case MENU_QUEUE_BOTTOM: { handle_type = 3; } break;
-					}
-
-					CloseHandle( ( HANDLE )_CreateThread( NULL, 0, handle_download_queue, ( void * )handle_type, 0, NULL ) );
-				}
-				break;
-
-				case MENU_REMOVE:
-				{
-					if ( _MessageBoxW( hWnd, ST_V_PROMPT_remove_selected_entries, PROGRAM_CAPTION, MB_APPLMODAL | MB_ICONWARNING | MB_YESNO ) == IDYES )
-					{
-						CloseHandle( ( HANDLE )_CreateThread( NULL, 0, remove_items, ( void * )0, 0, NULL ) );
-					}
-				}
-				break;
-
-				case MENU_REMOVE_COMPLETED:
-				{
-					if ( _MessageBoxW( hWnd, ST_V_PROMPT_remove_completed_entries, PROGRAM_CAPTION, MB_APPLMODAL | MB_ICONWARNING | MB_YESNO ) == IDYES )
-					{
-						CloseHandle( ( HANDLE )_CreateThread( NULL, 0, handle_download_list, ( void * )2, 0, NULL ) );
-					}
-				}
-				break;
-
-				case MENU_REMOVE_AND_DELETE:
-				{
-					if ( _MessageBoxW( hWnd, ST_V_PROMPT_remove_and_delete_selected_entries, PROGRAM_CAPTION, MB_APPLMODAL | MB_ICONWARNING | MB_YESNO ) == IDYES )
-					{
-						CloseHandle( ( HANDLE )_CreateThread( NULL, 0, remove_items, ( void * )1, 0, NULL ) );
-					}
-				}
-				break;
-
-				case MENU_COPY_URLS:
-				{
-					CloseHandle( ( HANDLE )_CreateThread( NULL, 0, copy_urls, ( void * )NULL, 0, NULL ) );
-				}
-				break;
-
-				case MENU_DELETE:
-				{
-					if ( _MessageBoxW( hWnd, ST_V_PROMPT_delete_selected_files, PROGRAM_CAPTION, MB_APPLMODAL | MB_ICONWARNING | MB_YESNO ) == IDYES )
-					{
-						CloseHandle( ( HANDLE )_CreateThread( NULL, 0, delete_files, ( void * )NULL, 0, NULL ) );
-					}
-				}
-				break;
-
-				case MENU_RENAME:
-				{
-					LVITEM lvi;
-					_memzero( &lvi, sizeof( LVITEM ) );
-					lvi.mask = LVIF_PARAM;
-					lvi.iItem = _SendMessageW( g_hWnd_files, LVM_GETNEXTITEM, -1, LVNI_FOCUSED | LVNI_SELECTED );
-
-					if ( lvi.iItem != -1 )
-					{
-						edit_from_menu = true;
-
-						_SendMessageW( g_hWnd_files, LVM_EDITLABEL, lvi.iItem, 0 );
-					}
-				}
-				break;
-
-				case MENU_SELECT_ALL:
-				{
-					// Set the state of all items to selected.
-					LVITEM lvi;
-					_memzero( &lvi, sizeof( LVITEM ) );
-					lvi.mask = LVIF_STATE;
-					lvi.state = LVIS_SELECTED;
-					lvi.stateMask = LVIS_SELECTED;
-					_SendMessageW( g_hWnd_files, LVM_SETITEMSTATE, -1, ( LPARAM )&lvi );
-
-					//UpdateMenus( true );
-				}
-				break;
-
-				case MENU_NUM:
-				case MENU_ACTIVE_PARTS:
-				case MENU_DATE_AND_TIME_ADDED:
-				case MENU_DOWNLOAD_DIRECTORY:
-				case MENU_DOWNLOAD_SPEED:
-				case MENU_DOWNLOADED:
-				case MENU_FILE_SIZE:
-				case MENU_FILE_TYPE:
-				case MENU_FILENAME:
-				case MENU_PROGRESS:
-				case MENU_SSL_TLS_VERSION:
-				case MENU_TIME_ELAPSED:
-				case MENU_TIME_REMAINING:
-				case MENU_URL:
-				{
-					UpdateColumns( LOWORD( wParam ) );
-				}
-				break;
-
-				case MENU_ADD_URLS:
-				{
-					if ( g_hWnd_add_urls == NULL )
-					{
-						g_hWnd_add_urls = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"add_urls", ST_V_Add_URL_s_, WS_OVERLAPPEDWINDOW, ( ( _GetSystemMetrics( SM_CXSCREEN ) - 525 ) / 2 ), ( ( _GetSystemMetrics( SM_CYSCREEN ) - 240 ) / 2 ), 525, 240, NULL, NULL, NULL, NULL );
-						_ShowWindow( g_hWnd_add_urls, SW_SHOWNORMAL );
-					}
-					else if ( _IsIconic( g_hWnd_add_urls ) )	// If minimized, then restore the window.
-					{
-						_ShowWindow( g_hWnd_add_urls, SW_RESTORE );
-					}
-					_SetForegroundWindow( g_hWnd_add_urls );
-				}
-				break;
-
-				case MENU_SHOW_TOOLBAR:
-				{
-					cfg_show_toolbar = !cfg_show_toolbar;
-
-					LONG style = _GetWindowLongW( g_hWnd_files, GWL_STYLE );
-
-					if ( cfg_show_toolbar )
-					{
-						style |= WS_BORDER;
-
-						_CheckMenuItem( g_hMenuSub_view, MENU_SHOW_TOOLBAR, MF_CHECKED );
-						_ShowWindow( g_hWnd_toolbar, SW_SHOW );
-					}
-					else
-					{
-						style &= ~( WS_BORDER );
-
-						_CheckMenuItem( g_hMenuSub_view, MENU_SHOW_TOOLBAR, MF_UNCHECKED );
-						_ShowWindow( g_hWnd_toolbar, SW_HIDE );
-					}
-
-					UpdateMenus( true );
-
-					// Show/hide the files border if the toolbar is/isn't visible.
-					_SetWindowLongW( g_hWnd_files, GWL_STYLE, style );
-
-					_SendMessageW( hWnd, WM_SIZE, 0, 0 );
-				}
-				break;
-
-				case MENU_SHOW_STATUS_BAR:
-				{
-					cfg_show_status_bar = !cfg_show_status_bar;
-
-					if ( cfg_show_status_bar )
-					{
-						_CheckMenuItem( g_hMenuSub_view, MENU_SHOW_STATUS_BAR, MF_CHECKED );
-						_ShowWindow( g_hWnd_status, SW_SHOW );
-					}
-					else
-					{
-						_CheckMenuItem( g_hMenuSub_view, MENU_SHOW_STATUS_BAR, MF_UNCHECKED );
-						_ShowWindow( g_hWnd_status, SW_HIDE );
-					}
-
-					_SendMessageW( hWnd, WM_SIZE, 0, 0 );
-				}
-				break;
-
-				case MENU_SEARCH:
-				{
-					if ( g_hWnd_search == NULL )
-					{
-						g_hWnd_search = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"search", ST_V_Search, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU, ( ( _GetSystemMetrics( SM_CXSCREEN ) - 320 ) / 2 ), ( ( _GetSystemMetrics( SM_CYSCREEN ) - 210 ) / 2 ), 320, 210, NULL, NULL, NULL, NULL );
-						_ShowWindow( g_hWnd_search, SW_SHOWNORMAL );
-					}
-					_SetForegroundWindow( g_hWnd_search );
-				}
-				break;
-
-				case MENU_OPTIONS:
-				{
-					if ( g_hWnd_options == NULL )
-					{
-						g_hWnd_options = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"options", ST_V_Options, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU, ( ( _GetSystemMetrics( SM_CXSCREEN ) - 480 ) / 2 ), ( ( _GetSystemMetrics( SM_CYSCREEN ) - 490 ) / 2 ), 480, 490, NULL, NULL, NULL, NULL );
-						_ShowWindow( g_hWnd_options, SW_SHOWNORMAL );
-					}
-					_SetForegroundWindow( g_hWnd_options );
-				}
-				break;
-
-				case MENU_HOME_PAGE:
-				{
-					bool destroy = true;
-					#ifndef OLE32_USE_STATIC_LIB
-						if ( ole32_state == OLE32_STATE_SHUTDOWN )
-						{
-							destroy = InitializeOle32();
-						}
-					#endif
-
-					if ( destroy )
-					{
-						_CoInitializeEx( NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE );
-					}
-
-					_ShellExecuteW( NULL, L"open", HOME_PAGE, NULL, NULL, SW_SHOWNORMAL );
-
-					if ( destroy )
-					{
-						_CoUninitialize();
-					}
-				}
-				break;
-
-				case MENU_ABOUT:
-				{
-					wchar_t msg[ 512 ];
-					__snwprintf( msg, 512, L"HTTP Downloader is made free under the GPLv3 license.\r\n\r\n" \
-										   L"Version 1.0.1.5\r\n\r\n" \
-										   L"Built on %s, %s %d, %04d %d:%02d:%02d %s (UTC)\r\n\r\n" \
-										   L"Copyright \xA9 2015-2018 Eric Kutcher",
-										   ( g_compile_time.wDayOfWeek > 6 ? L"" : day_string_table[ g_compile_time.wDayOfWeek ].value ),
-										   ( ( g_compile_time.wMonth > 12 || g_compile_time.wMonth < 1 ) ? L"" : month_string_table[ g_compile_time.wMonth - 1 ].value ),
-										   g_compile_time.wDay,
-										   g_compile_time.wYear,
-										   ( g_compile_time.wHour > 12 ? g_compile_time.wHour - 12 : ( g_compile_time.wHour != 0 ? g_compile_time.wHour : 12 ) ),
-										   g_compile_time.wMinute,
-										   g_compile_time.wSecond,
-										   ( g_compile_time.wHour >= 12 ? L"PM" : L"AM" ) );
-
-					_MessageBoxW( hWnd, msg, PROGRAM_CAPTION, MB_APPLMODAL | MB_ICONINFORMATION );
-				}
-				break;
-
-				case MENU_RESTORE:
-				{
-					if ( _IsIconic( hWnd ) )	// If minimized, then restore the window.
-					{
-						_ShowWindow( hWnd, SW_RESTORE );
-					}
-					else if ( _IsWindowVisible( hWnd ) == TRUE )	// If already visible, then flash the window.
-					{
-						_FlashWindow( hWnd, TRUE );
-					}
-					else	// If hidden, then show the window.
-					{
-						_ShowWindow( hWnd, SW_SHOW );
-					}
-				}
-				break;
-
-				case MENU_EXIT:
-				{
-					_SendMessageW( hWnd, WM_EXIT, 0, 0 );
-				}
-				break;
-			}
+			HandleCommand( hWnd, wParam, lParam );
 
 			return 0;
 		}
@@ -2314,8 +2335,8 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 						g_hWnd_lv_edit = ( HWND )_SendMessageW( pdi->hdr.hwndFrom, LVM_GETEDITCONTROL, 0, 0 );
 
 						// Subclass our edit window to modify its position.
-						EditProc = ( WNDPROC )_GetWindowLongW( g_hWnd_lv_edit, GWLP_WNDPROC );
-						_SetWindowLongW( g_hWnd_lv_edit, GWLP_WNDPROC, ( LONG )EditSubProc );
+						EditProc = ( WNDPROC )_GetWindowLongPtrW( g_hWnd_lv_edit, GWLP_WNDPROC );
+						_SetWindowLongPtrW( g_hWnd_lv_edit, GWLP_WNDPROC, ( LONG_PTR )EditSubProc );
 
 						// Set our edit control's text to the list item's text.
 						_SendMessageW( g_hWnd_lv_edit, WM_SETTEXT, NULL, ( LPARAM )( di->file_path + di->filename_offset ) );
@@ -2762,15 +2783,18 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 						{
 							if ( di->file_size > 0 )
 							{
+#ifdef _WIN64
+								int i_percentage = ( int )( ( float )width * ( ( float )di->last_downloaded / ( float )di->file_size ) );
+#else
 								// Multiply the floating point division by 100%.
 								float f_percentage = ( float )width * ( ( float )di->last_downloaded / ( float )di->file_size );
 								int i_percentage = 0;
-								_asm
+								__asm
 								{
 									fld f_percentage;	//; Load the floating point value onto the FPU stack.
 									fistp i_percentage;	//; Convert the floating point value into an integer, store it in an integer, and then pop it off the stack.
 								}
-
+#endif
 								rc_clip.right = i_percentage;
 							}
 							else
@@ -3031,10 +3055,6 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 				{
 					g_hWnd_add_urls = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"add_urls", ST_V_Add_URL_s_, WS_OVERLAPPEDWINDOW, ( ( _GetSystemMetrics( SM_CXSCREEN ) - 525 ) / 2 ), ( ( _GetSystemMetrics( SM_CYSCREEN ) - 240 ) / 2 ), 525, 240, NULL, NULL, NULL, NULL );
 				}
-				else if ( _IsIconic( g_hWnd_add_urls ) )	// If minimized, then restore the window.
-				{
-					_ShowWindow( g_hWnd_add_urls, SW_RESTORE );
-				}
 
 				_SendMessageW( g_hWnd_add_urls, WM_PROPAGATE, wParam, lParam );
 			}
@@ -3175,7 +3195,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 			}
 
 			// Get the number of items in the listview.
-			int num_items = _SendMessageW( g_hWnd_files, LVM_GETITEMCOUNT, 0, 0 );
+			int num_items = ( int )_SendMessageW( g_hWnd_files, LVM_GETITEMCOUNT, 0, 0 );
 
 			LVITEM lvi;
 			_memzero( &lvi, sizeof( LVITEM ) );

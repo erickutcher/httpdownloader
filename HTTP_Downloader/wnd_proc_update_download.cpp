@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP and HTTPS connections.
-	Copyright (C) 2015-2018 Eric Kutcher
+	Copyright (C) 2015-2019 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -171,10 +171,10 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 			_SendMessageW( g_hWnd_chk_update_send_data, WM_SETFONT, ( WPARAM )hFont, 0 );
 			_SendMessageW( g_hWnd_edit_update_data, WM_SETFONT, ( WPARAM )hFont, 0 );
 
-			UpdateProc = ( WNDPROC )_GetWindowLongW( g_hWnd_edit_update_cookies, GWL_WNDPROC );
-			_SetWindowLongW( g_hWnd_edit_update_cookies, GWL_WNDPROC, ( LONG )UpdateSubProc );
-			_SetWindowLongW( g_hWnd_edit_update_headers, GWL_WNDPROC, ( LONG )UpdateSubProc );
-			_SetWindowLongW( g_hWnd_edit_update_data, GWL_WNDPROC, ( LONG )UpdateSubProc );
+			UpdateProc = ( WNDPROC )_GetWindowLongPtrW( g_hWnd_edit_update_cookies, GWLP_WNDPROC );
+			_SetWindowLongPtrW( g_hWnd_edit_update_cookies, GWLP_WNDPROC, ( LONG_PTR )UpdateSubProc );
+			_SetWindowLongPtrW( g_hWnd_edit_update_headers, GWLP_WNDPROC, ( LONG_PTR )UpdateSubProc );
+			_SetWindowLongPtrW( g_hWnd_edit_update_data, GWLP_WNDPROC, ( LONG_PTR )UpdateSubProc );
 
 			return 0;
 		}
@@ -314,7 +314,7 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 					wchar_t *edit = NULL;
 
 					// Username
-					unsigned int edit_length = _SendMessageW( g_hWnd_edit_update_username, WM_GETTEXTLENGTH, 0, 0 );
+					unsigned int edit_length = ( unsigned int )_SendMessageW( g_hWnd_edit_update_username, WM_GETTEXTLENGTH, 0, 0 );
 					if ( edit_length > 0 )
 					{
 						edit = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( edit_length + 1 ) );
@@ -332,7 +332,7 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 					}
 
 					// Password
-					edit_length = _SendMessageW( g_hWnd_edit_update_password, WM_GETTEXTLENGTH, 0, 0 );
+					edit_length = ( unsigned int )_SendMessageW( g_hWnd_edit_update_password, WM_GETTEXTLENGTH, 0, 0 );
 					if ( edit_length > 0 )
 					{
 						edit = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( edit_length + 1 ) );
@@ -349,7 +349,7 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 						ai->auth_info.password = NULL;
 					}
 
-					edit_length = _SendMessageW( g_hWnd_edit_update_cookies, WM_GETTEXTLENGTH, 0, 0 );
+					edit_length = ( unsigned int )_SendMessageW( g_hWnd_edit_update_cookies, WM_GETTEXTLENGTH, 0, 0 );
 					if ( edit_length > 0 )
 					{
 						edit = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( edit_length + 1 ) );
@@ -367,7 +367,7 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 					}
 
 					// Must be at least 2 characters long. "a:" is a valid header name and value.
-					edit_length = _SendMessageW( g_hWnd_edit_update_headers, WM_GETTEXTLENGTH, 0, 0 );
+					edit_length = ( unsigned int )_SendMessageW( g_hWnd_edit_update_headers, WM_GETTEXTLENGTH, 0, 0 );
 					if ( edit_length >= 2 )
 					{
 						edit = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( edit_length + 1 + 2 ) );	// Add 2 for \r\n
@@ -405,7 +405,7 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 						ai->utf8_headers = NULL;
 					}
 
-					edit_length = _SendMessageW( g_hWnd_edit_update_data, WM_GETTEXTLENGTH, 0, 0 );
+					edit_length = ( unsigned int )_SendMessageW( g_hWnd_edit_update_data, WM_GETTEXTLENGTH, 0, 0 );
 					if ( edit_length > 0 )
 					{
 						edit = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( edit_length + 1 ) );

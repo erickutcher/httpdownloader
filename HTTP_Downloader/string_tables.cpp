@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP and HTTPS connections.
-	Copyright (C) 2015-2018 Eric Kutcher
+	Copyright (C) 2015-2019 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -366,7 +366,7 @@ void InitializeLocaleValues()
 					if ( *ptr == NULL )
 					{
 						g_locale_table[ string_count ].value = last_ptr;
-						g_locale_table[ string_count ].length = ptr - last_ptr;
+						g_locale_table[ string_count ].length = ( unsigned short )( ptr - last_ptr );
 
 						++ptr;
 						last_ptr = ptr;

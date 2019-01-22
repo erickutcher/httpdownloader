@@ -1,3 +1,11 @@
+Version:	1.0.1.6
+Released:	2019-01-21
+
+Fixed connection creation when starting downloads that were skipped for being too large.
+Add URL(s) and Search window size and position are retained while the program runs.
+Added search button to toolbar.
+Made program 64-bit compatible.
+
 Version:	1.0.1.5
 Released:	2018-12-01
 

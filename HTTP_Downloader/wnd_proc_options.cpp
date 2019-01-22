@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP and HTTPS connections.
-	Copyright (C) 2015-2018 Eric Kutcher
+	Copyright (C) 2015-2019 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -453,7 +453,7 @@ void SetServerSettings()
 		server_info_changed = true;
 	}
 
-	unsigned int server_hostname_length = _SendMessageW( g_hWnd_server_hostname, WM_GETTEXTLENGTH, 0, 0 );
+	unsigned int server_hostname_length = ( unsigned int )_SendMessageW( g_hWnd_server_hostname, WM_GETTEXTLENGTH, 0, 0 );
 	wchar_t *server_hostname = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( server_hostname_length + 1 ) );
 	_SendMessageW( g_hWnd_server_hostname, WM_GETTEXT, server_hostname_length + 1, ( LPARAM )server_hostname );
 
@@ -526,7 +526,7 @@ void SetServerSettings()
 		auth_info_changed = true;
 	}
 
-	unsigned int authentication_username_length = _SendMessageW( g_hWnd_authentication_username, WM_GETTEXTLENGTH, 0, 0 );
+	unsigned int authentication_username_length = ( unsigned int )_SendMessageW( g_hWnd_authentication_username, WM_GETTEXTLENGTH, 0, 0 );
 	wchar_t *authentication_username = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( authentication_username_length + 1 ) );
 	_SendMessageW( g_hWnd_authentication_username, WM_GETTEXT, authentication_username_length + 1, ( LPARAM )authentication_username );
 
@@ -554,7 +554,7 @@ void SetServerSettings()
 		auth_info_changed = true;
 	}
 
-	unsigned int authentication_password_length = _SendMessageW( g_hWnd_authentication_password, WM_GETTEXTLENGTH, 0, 0 );
+	unsigned int authentication_password_length = ( unsigned int )_SendMessageW( g_hWnd_authentication_password, WM_GETTEXTLENGTH, 0, 0 );
 	wchar_t *authentication_password = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( authentication_password_length + 1 ) );
 	_SendMessageW( g_hWnd_authentication_password, WM_GETTEXT, authentication_password_length + 1, ( LPARAM )authentication_password );
 
@@ -630,7 +630,7 @@ void SetServerSettings()
 		ssl_info_changed = true;
 	}
 
-	unsigned int certificate_pkcs_password_length = _SendMessageW( g_hWnd_certificate_pkcs_password, WM_GETTEXTLENGTH, 0, 0 );
+	unsigned int certificate_pkcs_password_length = ( unsigned int )_SendMessageW( g_hWnd_certificate_pkcs_password, WM_GETTEXTLENGTH, 0, 0 );
 	wchar_t *certificate_pkcs_password = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( certificate_pkcs_password_length + 1 ) );
 	_SendMessageW( g_hWnd_certificate_pkcs_password, WM_GETTEXT, certificate_pkcs_password_length + 1, ( LPARAM )certificate_pkcs_password );
 
@@ -2658,7 +2658,7 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 					TCITEM tie;
 					_memzero( &tie, sizeof( TCITEM ) );
 					tie.mask = TCIF_PARAM; // Get the lparam value
-					int index = _SendMessageW( nmhdr->hwndFrom, TCM_GETCURSEL, 0, 0 );		// Get the selected tab
+					int index = ( int )_SendMessageW( nmhdr->hwndFrom, TCM_GETCURSEL, 0, 0 );		// Get the selected tab
 					if ( index != -1 )
 					{
 						_SendMessageW( nmhdr->hwndFrom, TCM_GETITEM, index, ( LPARAM )&tie );	// Get the selected tab's information
@@ -2682,7 +2682,7 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 					TCITEM tie;
 					_memzero( &tie, sizeof( TCITEM ) );
 					tie.mask = TCIF_PARAM; // Get the lparam value
-					int index = _SendMessageW( nmhdr->hwndFrom, TCM_GETCURSEL, 0, 0 );		// Get the selected tab
+					int index = ( int )_SendMessageW( nmhdr->hwndFrom, TCM_GETCURSEL, 0, 0 );		// Get the selected tab
 					if ( index != -1 )
 					{
 						_SendMessageW( nmhdr->hwndFrom, TCM_GETITEM, index, ( LPARAM )&tie );	// Get the selected tab's information
@@ -2749,7 +2749,7 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 						g_nid.uID = 1000;
 						g_nid.hIcon = ( HICON )_LoadImageW( GetModuleHandle( NULL ), MAKEINTRESOURCE( IDI_ICON ), IMAGE_ICON, 16, 16, LR_SHARED );
 						g_nid.dwInfoFlags = NIIF_INFO;
-						unsigned char info_size = ( ST_L_Downloads_Have_Finished > ( ( sizeof( g_nid.szInfoTitle ) / sizeof( g_nid.szInfoTitle[ 0 ] ) ) - 1 ) ? ( ( sizeof( g_nid.szInfoTitle ) / sizeof( g_nid.szInfoTitle[ 0 ] ) ) - 1 ) : ST_L_Downloads_Have_Finished );
+						unsigned char info_size = ( unsigned char )( ST_L_Downloads_Have_Finished > ( ( sizeof( g_nid.szInfoTitle ) / sizeof( g_nid.szInfoTitle[ 0 ] ) ) - 1 ) ? ( ( sizeof( g_nid.szInfoTitle ) / sizeof( g_nid.szInfoTitle[ 0 ] ) ) - 1 ) : ST_L_Downloads_Have_Finished );
 						_wmemcpy_s( g_nid.szInfoTitle, sizeof( g_nid.szInfoTitle ) / sizeof( g_nid.szInfoTitle[ 0 ] ), ST_V_Downloads_Have_Finished, info_size );
 						g_nid.szInfoTitle[ info_size ] = 0;	// Sanity.
 						_wmemcpy_s( g_nid.szTip, sizeof( g_nid.szTip ) / sizeof( g_nid.szTip[ 0 ] ), PROGRAM_CAPTION, 16 );
@@ -2806,7 +2806,7 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 						if ( g_hWnd_url_drop_window == NULL )
 						{
 							g_hWnd_url_drop_window = _CreateWindowExW( WS_EX_NOPARENTNOTIFY | WS_EX_NOACTIVATE | WS_EX_TOPMOST, L"url_drop_window", NULL, WS_CLIPCHILDREN | WS_POPUP, 0, 0, 0, 0, NULL, NULL, NULL, NULL );
-							_SetWindowLongW( g_hWnd_url_drop_window, GWL_EXSTYLE, _GetWindowLongW( g_hWnd_url_drop_window, GWL_EXSTYLE ) | WS_EX_LAYERED );
+							_SetWindowLongPtrW( g_hWnd_url_drop_window, GWL_EXSTYLE, _GetWindowLongPtrW( g_hWnd_url_drop_window, GWL_EXSTYLE ) | WS_EX_LAYERED );
 							_SetLayeredWindowAttributes( g_hWnd_url_drop_window, 0, 0x80, LWA_ALPHA );
 
 							// Prevents it from stealing focus.
@@ -2893,7 +2893,7 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 					cfg_address_type = ( _SendMessageW( g_hWnd_chk_type_ip_address, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? 1 : 0 );
 
-					unsigned int hostname_length = _SendMessageW( g_hWnd_hostname, WM_GETTEXTLENGTH, 0, 0 ) + 1;	// Include the NULL terminator.
+					unsigned int hostname_length = ( unsigned int )_SendMessageW( g_hWnd_hostname, WM_GETTEXTLENGTH, 0, 0 ) + 1;	// Include the NULL terminator.
 					if ( cfg_hostname != NULL )
 					{
 						GlobalFree( cfg_hostname );
@@ -2906,7 +2906,7 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 					_SendMessageA( g_hWnd_port, WM_GETTEXT, 6, ( LPARAM )value );
 					cfg_port = ( unsigned short )_strtoul( value, NULL, 10 );
 
-					unsigned int auth_length = _SendMessageW( g_hWnd_auth_username, WM_GETTEXTLENGTH, 0, 0 ) + 1;	// Include the NULL terminator.
+					unsigned int auth_length = ( unsigned int )_SendMessageW( g_hWnd_auth_username, WM_GETTEXTLENGTH, 0, 0 ) + 1;	// Include the NULL terminator.
 					if ( cfg_proxy_auth_username != NULL )
 					{
 						GlobalFree( cfg_proxy_auth_username );
@@ -2914,7 +2914,7 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 					cfg_proxy_auth_username = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * auth_length );
 					_SendMessageW( g_hWnd_auth_username, WM_GETTEXT, auth_length, ( LPARAM )cfg_proxy_auth_username );
 
-					auth_length = _SendMessageW( g_hWnd_auth_password, WM_GETTEXTLENGTH, 0, 0 ) + 1;	// Include the NULL terminator.
+					auth_length = ( unsigned int )_SendMessageW( g_hWnd_auth_password, WM_GETTEXTLENGTH, 0, 0 ) + 1;	// Include the NULL terminator.
 					if ( cfg_proxy_auth_password != NULL )
 					{
 						GlobalFree( cfg_proxy_auth_password );
@@ -2949,7 +2949,7 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 					cfg_address_type_s = ( _SendMessageW( g_hWnd_chk_type_ip_address_s, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? 1 : 0 );
 
-					hostname_length = _SendMessageW( g_hWnd_hostname_s, WM_GETTEXTLENGTH, 0, 0 ) + 1;	// Include the NULL terminator.
+					hostname_length = ( unsigned int )_SendMessageW( g_hWnd_hostname_s, WM_GETTEXTLENGTH, 0, 0 ) + 1;	// Include the NULL terminator.
 					if ( cfg_hostname_s != NULL )
 					{
 						GlobalFree( cfg_hostname_s );
@@ -2962,7 +2962,7 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 					_SendMessageA( g_hWnd_port_s, WM_GETTEXT, 6, ( LPARAM )value );
 					cfg_port_s = ( unsigned short )_strtoul( value, NULL, 10 );
 
-					auth_length = _SendMessageW( g_hWnd_auth_username_s, WM_GETTEXTLENGTH, 0, 0 ) + 1;	// Include the NULL terminator.
+					auth_length = ( unsigned int )_SendMessageW( g_hWnd_auth_username_s, WM_GETTEXTLENGTH, 0, 0 ) + 1;	// Include the NULL terminator.
 					if ( cfg_proxy_auth_username_s != NULL )
 					{
 						GlobalFree( cfg_proxy_auth_username_s );
@@ -2970,7 +2970,7 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 					cfg_proxy_auth_username_s = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * auth_length );
 					_SendMessageW( g_hWnd_auth_username_s, WM_GETTEXT, auth_length, ( LPARAM )cfg_proxy_auth_username_s );
 
-					auth_length = _SendMessageW( g_hWnd_auth_password_s, WM_GETTEXTLENGTH, 0, 0 ) + 1;	// Include the NULL terminator.
+					auth_length = ( unsigned int )_SendMessageW( g_hWnd_auth_password_s, WM_GETTEXTLENGTH, 0, 0 ) + 1;	// Include the NULL terminator.
 					if ( cfg_proxy_auth_password_s != NULL )
 					{
 						GlobalFree( cfg_proxy_auth_password_s );

@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP and HTTPS connections.
-	Copyright (C) 2015-2018 Eric Kutcher
+	Copyright (C) 2015-2019 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -54,8 +54,8 @@ void UpdateMenus( bool enable )
 
 	if ( enable )
 	{
-		int item_count = _SendMessageW( g_hWnd_files, LVM_GETITEMCOUNT, 0, 0 );
-		int sel_count = _SendMessageW( g_hWnd_files, LVM_GETSELECTEDCOUNT, 0, 0 );
+		int item_count = ( int )_SendMessageW( g_hWnd_files, LVM_GETITEMCOUNT, 0, 0 );
+		int sel_count = ( int )_SendMessageW( g_hWnd_files, LVM_GETSELECTEDCOUNT, 0, 0 );
 
 		DOWNLOAD_INFO *di = NULL;
 
@@ -63,12 +63,12 @@ void UpdateMenus( bool enable )
 		LVITEM lvi;
 		_memzero( &lvi, sizeof( LVITEM ) );
 		lvi.mask = LVIF_PARAM;
-		lvi.iItem = _SendMessageW( g_hWnd_files, LVM_GETNEXTITEM, -1, LVNI_FOCUSED | LVNI_SELECTED );
+		lvi.iItem = ( int )_SendMessageW( g_hWnd_files, LVM_GETNEXTITEM, -1, LVNI_FOCUSED | LVNI_SELECTED );
 
 		// See if something is at least highlighted.
 		if ( lvi.iItem == -1 )
 		{
-			lvi.iItem = _SendMessageW( g_hWnd_files, LVM_GETNEXTITEM, -1, LVNI_SELECTED );
+			lvi.iItem = ( int )_SendMessageW( g_hWnd_files, LVM_GETNEXTITEM, -1, LVNI_SELECTED );
 		}
 
 		if ( lvi.iItem != -1 )

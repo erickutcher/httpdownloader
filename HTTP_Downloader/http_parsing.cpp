@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP and HTTPS connections.
-	Copyright (C) 2015-2018 Eric Kutcher
+	Copyright (C) 2015-2019 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -453,14 +453,14 @@ bool ParseCookieValues( char *cookie_list, dllrbt_tree **cookie_tree, char **coo
 
 			COOKIE_CONTAINER *cc = ( COOKIE_CONTAINER * )GlobalAlloc( GMEM_FIXED, sizeof( COOKIE_CONTAINER ) );
 
-			cc->name_length = ( cookie_name_end - cookie_search );
+			cc->name_length = ( int )( cookie_name_end - cookie_search );
 			cc->cookie_name = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( cc->name_length + 1 ) );
 
 			_memcpy_s( cc->cookie_name, cc->name_length + 1, cookie_search, cc->name_length );
 			cc->cookie_name[ cc->name_length ] = 0;	// Sanity.
 
 			// See if the cookie has attributes after it.
-			char *cookie_attributes = strnchr( cookie_name_end, ';', ( cookie_value_end - cookie_name_end ) );
+			char *cookie_attributes = strnchr( cookie_name_end, ';', ( int )( cookie_value_end - cookie_name_end ) );
 			if ( cookie_attributes != NULL && cookie_attributes < cookie_value_end )
 			{
 				cookie_search = cookie_attributes;
@@ -470,7 +470,7 @@ bool ParseCookieValues( char *cookie_list, dllrbt_tree **cookie_tree, char **coo
 				cookie_search = cookie_value_end;
 			}
 
-			cc->value_length = ( cookie_search - cookie_name_end );
+			cc->value_length = ( int )( cookie_search - cookie_name_end );
 			cc->cookie_value = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( cc->value_length + 1 ) );
 
 			_memcpy_s( cc->cookie_value, cc->value_length + 1, cookie_name_end, cc->value_length );
@@ -554,14 +554,14 @@ bool ParseCookies( char *header, dllrbt_tree **cookie_tree, char **cookies, char
 
 			COOKIE_CONTAINER *cc = ( COOKIE_CONTAINER * )GlobalAlloc( GMEM_FIXED, sizeof( COOKIE_CONTAINER ) );
 
-			cc->name_length = ( cookie_name_end - set_cookie_header );
+			cc->name_length = ( int )( cookie_name_end - set_cookie_header );
 			cc->cookie_name = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( cc->name_length + 1 ) );
 
 			_memcpy_s( cc->cookie_name, cc->name_length + 1, set_cookie_header, cc->name_length );
 			cc->cookie_name[ cc->name_length ] = 0;	// Sanity.
 
 			// See if the cookie has attributes after it.
-			char *cookie_attributes = strnchr( cookie_name_end, ';', ( set_cookie_header_end - cookie_name_end ) );
+			char *cookie_attributes = strnchr( cookie_name_end, ';', ( int )( set_cookie_header_end - cookie_name_end ) );
 			if ( cookie_attributes != NULL && cookie_attributes < set_cookie_header_end )
 			{
 				set_cookie_header = cookie_attributes;
@@ -571,7 +571,7 @@ bool ParseCookies( char *header, dllrbt_tree **cookie_tree, char **cookies, char
 				set_cookie_header = set_cookie_header_end;
 			}
 
-			cc->value_length = ( set_cookie_header - cookie_name_end );
+			cc->value_length = ( int )( set_cookie_header - cookie_name_end );
 			cc->cookie_value = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( cc->value_length + 1 ) );
 
 			_memcpy_s( cc->cookie_value, cc->value_length + 1, cookie_name_end, cc->value_length );
@@ -715,7 +715,7 @@ bool ParseURL_A( char *url, PROTOCOL &protocol, char **host, unsigned int &host_
 			--str_port_start;
 		}
 
-		host_length = str_pos_end - str_pos_start;
+		host_length = ( unsigned int )( str_pos_end - str_pos_start );
 
 		// Save the host.
 		*host = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( host_length + 1 ) );
@@ -837,7 +837,7 @@ bool ParseURL_W( wchar_t *url, PROTOCOL &protocol, wchar_t **host, unsigned int 
 			--str_port_start;
 		}
 
-		host_length = str_pos_end - str_pos_start;
+		host_length = ( unsigned int )( str_pos_end - str_pos_start );
 
 		// Save the host.
 		*host = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( host_length + 1 ) );
@@ -1057,7 +1057,7 @@ unsigned long long GetContentLength( char *header )
 
 	if ( GetHeaderValue( header, "Content-Length", 14, &content_length_header, &content_length_header_end ) != NULL )
 	{
-		int content_length_length = ( content_length_header_end - content_length_header );
+		int content_length_length = ( int )( content_length_header_end - content_length_header );
 		if ( content_length_length > 20 )
 		{
 			content_length_length = 20;
@@ -1215,7 +1215,7 @@ void GetLocation( char *header, URL_LOCATION *url_location )
 			if ( *a_resource == '#' )
 			{
 				*a_resource = 0;
-				resource_length = a_resource - url_location->resource;
+				resource_length = ( unsigned int )( a_resource - url_location->resource );
 
 				break;
 			}
@@ -1310,7 +1310,7 @@ void GetAuthorization( char *header, AUTH_INFO *auth_info )
 
 			auth_info->auth_type = AUTH_TYPE_BASIC;
 
-			int basic_value_length = authorization_header_end - authorization_header;
+			int basic_value_length = ( int )( authorization_header_end - authorization_header );
 
 			// We'll just use the digest's nonce value to store the key. No need to introduce any extra memory.
 			auth_info->nonce = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( basic_value_length + 1 ) );
@@ -1340,7 +1340,7 @@ void GetAuthorization( char *header, AUTH_INFO *auth_info )
 					}
 				}
 
-				int digest_value_length = digest_value_end - digest_value;
+				int digest_value_length = ( int )( digest_value_end - digest_value );
 
 				auth_info->username = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( digest_value_length + 1 ) );
 				_memcpy_s( auth_info->username, digest_value_length + 1, digest_value, digest_value_length );
@@ -1360,7 +1360,7 @@ void GetAuthorization( char *header, AUTH_INFO *auth_info )
 					}
 				}
 
-				int digest_value_length = digest_value_end - digest_value;
+				int digest_value_length = ( int )( digest_value_end - digest_value );
 
 				auth_info->realm = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( digest_value_length + 1 ) );
 				_memcpy_s( auth_info->realm, digest_value_length + 1, digest_value, digest_value_length );
@@ -1380,7 +1380,7 @@ void GetAuthorization( char *header, AUTH_INFO *auth_info )
 					}
 				}
 
-				int digest_value_length = digest_value_end - digest_value;
+				int digest_value_length = ( int )( digest_value_end - digest_value );
 
 				auth_info->nonce = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( digest_value_length + 1 ) );
 				_memcpy_s( auth_info->nonce, digest_value_length + 1, digest_value, digest_value_length );
@@ -1400,7 +1400,7 @@ void GetAuthorization( char *header, AUTH_INFO *auth_info )
 					}
 				}
 
-				int digest_value_length = digest_value_end - digest_value;
+				int digest_value_length = ( int )( digest_value_end - digest_value );
 
 				auth_info->uri = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( digest_value_length + 1 ) );
 				_memcpy_s( auth_info->uri, digest_value_length + 1, digest_value, digest_value_length );
@@ -1447,7 +1447,7 @@ void GetAuthorization( char *header, AUTH_INFO *auth_info )
 					}
 				}
 
-				int digest_value_length = digest_value_end - digest_value;
+				int digest_value_length = ( int )( digest_value_end - digest_value );
 
 				auth_info->response = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( digest_value_length + 1 ) );
 				_memcpy_s( auth_info->response, digest_value_length + 1, digest_value, digest_value_length );
@@ -1467,7 +1467,7 @@ void GetAuthorization( char *header, AUTH_INFO *auth_info )
 					}
 				}
 
-				int digest_value_length = digest_value_end - digest_value;
+				int digest_value_length = ( int )( digest_value_end - digest_value );
 
 				auth_info->domain = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( digest_value_length + 1 ) );
 				_memcpy_s( auth_info->domain, digest_value_length + 1, digest_value, digest_value_length );
@@ -1487,7 +1487,7 @@ void GetAuthorization( char *header, AUTH_INFO *auth_info )
 					}
 				}
 
-				int digest_value_length = digest_value_end - digest_value;
+				int digest_value_length = ( int )( digest_value_end - digest_value );
 
 				auth_info->opaque = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( digest_value_length + 1 ) );
 				_memcpy_s( auth_info->opaque, digest_value_length + 1, digest_value, digest_value_length );
@@ -1507,7 +1507,7 @@ void GetAuthorization( char *header, AUTH_INFO *auth_info )
 					}
 				}
 
-				int digest_value_length = digest_value_end - digest_value;
+				int digest_value_length = ( int )( digest_value_end - digest_value );
 
 				auth_info->qop = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( digest_value_length + 1 ) );
 				_memcpy_s( auth_info->qop, digest_value_length + 1, digest_value, digest_value_length );
@@ -1584,7 +1584,7 @@ void GetAuthorization( char *header, AUTH_INFO *auth_info )
 					}
 				}
 
-				int digest_value_length = digest_value_end - digest_value;
+				int digest_value_length = ( int )( digest_value_end - digest_value );
 
 				auth_info->cnonce = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( digest_value_length + 1 ) );
 				_memcpy_s( auth_info->cnonce, digest_value_length + 1, digest_value, digest_value_length );
@@ -1643,7 +1643,7 @@ void GetAuthenticate( char *header, unsigned char auth_header_type, AUTH_INFO *a
 					}
 				}
 
-				int digest_value_length = digest_value_end - digest_value;
+				int digest_value_length = ( int )( digest_value_end - digest_value );
 
 				auth_info->realm = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( digest_value_length + 1 ) );
 				_memcpy_s( auth_info->realm, digest_value_length + 1, digest_value, digest_value_length );
@@ -1663,7 +1663,7 @@ void GetAuthenticate( char *header, unsigned char auth_header_type, AUTH_INFO *a
 					}
 				}
 
-				int digest_value_length = digest_value_end - digest_value;
+				int digest_value_length = ( int )( digest_value_end - digest_value );
 
 				auth_info->nonce = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( digest_value_length + 1 ) );
 				_memcpy_s( auth_info->nonce, digest_value_length + 1, digest_value, digest_value_length );
@@ -1710,7 +1710,7 @@ void GetAuthenticate( char *header, unsigned char auth_header_type, AUTH_INFO *a
 					}
 				}
 
-				int digest_value_length = digest_value_end - digest_value;
+				int digest_value_length = ( int )( digest_value_end - digest_value );
 
 				auth_info->domain = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( digest_value_length + 1 ) );
 				_memcpy_s( auth_info->domain, digest_value_length + 1, digest_value, digest_value_length );
@@ -1730,7 +1730,7 @@ void GetAuthenticate( char *header, unsigned char auth_header_type, AUTH_INFO *a
 					}
 				}
 
-				int digest_value_length = digest_value_end - digest_value;
+				int digest_value_length = ( int )( digest_value_end - digest_value );
 
 				auth_info->opaque = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( digest_value_length + 1 ) );
 				_memcpy_s( auth_info->opaque, digest_value_length + 1, digest_value, digest_value_length );
@@ -1750,7 +1750,7 @@ void GetAuthenticate( char *header, unsigned char auth_header_type, AUTH_INFO *a
 					}
 				}
 
-				int digest_value_length = digest_value_end - digest_value;
+				int digest_value_length = ( int )( digest_value_end - digest_value );
 
 				auth_info->qop = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( digest_value_length + 1 ) );
 				_memcpy_s( auth_info->qop, digest_value_length + 1, digest_value, digest_value_length );
@@ -1888,7 +1888,7 @@ char *GetContentDisposition( char *header, unsigned int &filename_length )
 					++tmp_content_disposition_header_end;
 				}
 
-				return url_decode_a( content_disposition_header, content_disposition_header_end - content_disposition_header, &filename_length );
+				return url_decode_a( content_disposition_header, ( unsigned int )( content_disposition_header_end - content_disposition_header ), &filename_length );
 			}
 		}
 	}
@@ -2187,7 +2187,7 @@ char ParseHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int
 			end_of_header = last_field;
 
 			// We'll end up moving the remaining bytes (after this offset) to the beginning of the buffer.
-			buffer_offset = ( last_field - header_buffer );
+			buffer_offset = ( unsigned int )( last_field - header_buffer );
 
 			// The only remaining field is the terminating "\r\n".
 			if ( buffer_offset == 2 && header_buffer[ 0 ] == '\r' && header_buffer[ 1 ] == '\n' )
@@ -2751,7 +2751,7 @@ char GetHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int h
 				// then we can reuse the connection and not have to flush any remnant data from the buffer.
 				if ( context->header_info.connection == CONNECTION_KEEP_ALIVE )
 				{
-					header_buffer_length -= ( context->header_info.end_of_header - header_buffer );
+					header_buffer_length -= ( unsigned int )( context->header_info.end_of_header - header_buffer );
 					header_buffer = context->header_info.end_of_header;
 
 					// Look for a chunk terminator.
@@ -2788,6 +2788,15 @@ char GetHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int h
 		}
 		else
 		{
+			// Check the file size threshold (4GB).
+			if ( context->header_info.range_info->content_length > MAX_FILE_SIZE )
+			{
+				if ( !context->processed_header )
+				{
+					context->show_file_size_prompt = true;
+				}
+			}
+
 			if ( context->header_info.http_status == 206 )
 			{
 				// If our range connections have been made. Start retrieving their content.
@@ -2865,12 +2874,6 @@ char GetHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int h
 			{
 				context->header_info.range_info->range_start = 0;
 				context->header_info.range_info->range_end = context->header_info.range_info->content_length - 1;
-			}
-
-			// Check the file size threshold (4GB).
-			if ( context->header_info.range_info->content_length > MAX_FILE_SIZE )
-			{
-				context->show_file_size_prompt = true;
 			}
 
 			EnterCriticalSection( &context->download_info->shared_cs );
@@ -3709,7 +3712,7 @@ char GetHTTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, uns
 					{
 						context->content_status = CONTENT_STATUS_RENAME_FILE_PROMPT;
 
-						// Add item to prompt queue and continue;
+						// Add item to prompt queue and continue.
 						EnterCriticalSection( &rename_file_prompt_list_cs );
 
 						DoublyLinkedList *di_node = DLL_CreateNode( ( void * )context->download_info );
@@ -3758,6 +3761,12 @@ char GetHTTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, uns
 					// If we select No to all, or it's a remotely initiated download, then close the connection.
 					if ( g_file_size_cmb_ret == CMBIDNOALL || context->download_info->download_operations & DOWNLOAD_OPERATION_OVERRIDE_PROMPTS )
 					{
+						context->header_info.range_info->content_length = 0;
+						context->header_info.range_info->range_start = 0;
+						context->header_info.range_info->range_end = 0;
+						context->header_info.range_info->content_offset = 0;
+						context->header_info.range_info->file_write_offset = 0;
+
 						context->status = STATUS_SKIPPED;
 
 						return CONTENT_STATUS_FAILED;	// Stop downloading the file.
@@ -3766,7 +3775,7 @@ char GetHTTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, uns
 					{
 						context->content_status = CONTENT_STATUS_FILE_SIZE_PROMPT;
 
-						// Add item to prompt queue and continue;
+						// Add item to prompt queue and continue.
 						EnterCriticalSection( &file_size_prompt_list_cs );
 
 						DoublyLinkedList *di_node = DLL_CreateNode( ( void * )context->download_info );
@@ -3829,7 +3838,7 @@ char GetHTTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, uns
 		if ( context->header_info.end_of_header != NULL )
 		{
 			// Offset our buffer to the content and adjust the new length.
-			response_buffer_length -= ( context->header_info.end_of_header - response_buffer );
+			response_buffer_length -= ( unsigned int )( context->header_info.end_of_header - response_buffer );
 			response_buffer = context->header_info.end_of_header;
 
 			context->content_status = CONTENT_STATUS_GET_CONTENT;
@@ -3935,7 +3944,7 @@ char GetHTTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, uns
 					}
 				}
 
-				response_buffer_length -= ( end_chunk - response_buffer );
+				response_buffer_length -= ( unsigned int )( end_chunk - response_buffer );
 				response_buffer = end_chunk;
 
 				context->header_info.got_chunk_start = true;
@@ -4266,7 +4275,7 @@ char GetPOSTValue( char *post_data, unsigned int post_data_length, unsigned int 
 	char *data_end = _StrChrA( post_data, '\x1f' );
 	if ( data_end != NULL )
 	{
-		int data_length = data_end - post_data;
+		int data_length = ( int )( data_end - post_data );
 
 		if ( data_length > 0 )
 		{
@@ -4520,7 +4529,7 @@ char GetHTTPRequestContent( SOCKET_CONTEXT *context, char *request_buffer, unsig
 			if ( context->header_info.http_method == METHOD_POST )
 			{
 				// Offset our buffer to the content and adjust the new length.
-				request_buffer_length -= ( context->header_info.end_of_header - request_buffer );
+				request_buffer_length -= ( unsigned int )( context->header_info.end_of_header - request_buffer );
 				request_buffer = context->header_info.end_of_header;
 
 				context->content_status = CONTENT_STATUS_GET_CONTENT;

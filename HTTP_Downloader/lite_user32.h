@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP and HTTPS connections.
-	Copyright (C) 2015-2018 Eric Kutcher
+	Copyright (C) 2015-2019 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -77,7 +77,8 @@
 	#define _GetSysColor			GetSysColor
 	#define _GetSysColorBrush		GetSysColorBrush
 	#define _GetSystemMetrics		GetSystemMetrics
-	#define _GetWindowLongW			GetWindowLongW
+	//#define _GetWindowLongW			GetWindowLongW
+	#define _GetWindowLongPtrW		GetWindowLongPtrW
 	#define _GetWindowRect			GetWindowRect
 	#define _InsertMenuItemW		InsertMenuItemW
 	#define _InvalidateRect			InvalidateRect
@@ -120,7 +121,8 @@
 	#define _SetScrollInfo			SetScrollInfo
 	#define _SetScrollPos			SetScrollPos
 	#define _SetTimer				SetTimer
-	#define _SetWindowLongW			SetWindowLongW
+	//#define _SetWindowLongW			SetWindowLongW
+	#define _SetWindowLongPtrW		SetWindowLongPtrW
 	#define _SetWindowPos			SetWindowPos
 	//#define _SetWindowTextW			SetWindowTextW
 	#define _ShowWindow				ShowWindow
@@ -183,7 +185,8 @@
 	typedef DWORD ( WINAPI *pGetSysColor )( int nIndex );
 	typedef HBRUSH ( WINAPI *pGetSysColorBrush )( int nIndex );
 	typedef int ( WINAPI *pGetSystemMetrics )( int nIndex );
-	typedef LONG ( WINAPI *pGetWindowLongW )( HWND hWnd, int nIndex );
+	//typedef LONG ( WINAPI *pGetWindowLongW )( HWND hWnd, int nIndex );
+	typedef LONG_PTR ( WINAPI *pGetWindowLongPtrW )( HWND hWnd, int nIndex );
 	typedef BOOL ( WINAPI *pGetWindowRect )( HWND hWnd, LPRECT lpRect );
 	typedef BOOL ( WINAPI *pInsertMenuItemW )( HMENU hMenu, UINT uItem, BOOL fByPosition, LPCMENUITEMINFO lpmii );
 	typedef BOOL ( WINAPI *pInvalidateRect )( HWND hWnd, const RECT *lpRect, BOOL bErase );
@@ -226,7 +229,8 @@
 	typedef int ( WINAPI *pSetScrollInfo )( HWND hwnd, int fnBar, LPCSCROLLINFO lpsi, BOOL fRedraw );
 	typedef int ( WINAPI *pSetScrollPos )( HWND hWnd, int nBar, int nPos, BOOL bRedraw );
 	typedef UINT_PTR ( WINAPI *pSetTimer )( HWND hWnd, UINT_PTR nIDEvent, UINT uElapse, TIMERPROC lpTimerFunc );
-	typedef LONG ( WINAPI *pSetWindowLongW )( HWND hWnd, int nIndex, LONG dwNewLong );
+	//typedef LONG ( WINAPI *pSetWindowLongW )( HWND hWnd, int nIndex, LONG dwNewLong );
+	typedef LONG_PTR ( WINAPI *pSetWindowLongPtrW )( HWND hWnd, int nIndex, LONG_PTR dwNewLong );
 	typedef BOOL ( WINAPI *pSetWindowPos )( HWND hWnd, HWND hWndInsertAfter, int X, int Y, int cx, int cy, UINT uFlags );
 	//typedef BOOL ( WINAPI *pSetWindowTextW )( HWND hWnd, LPCTSTR lpString );
 	typedef BOOL ( WINAPI *pShowWindow )( HWND hWnd, int nCmdShow );
@@ -282,7 +286,8 @@
 	extern pGetSysColor				_GetSysColor;
 	extern pGetSysColorBrush		_GetSysColorBrush;
 	extern pGetSystemMetrics		_GetSystemMetrics;
-	extern pGetWindowLongW			_GetWindowLongW;
+	//extern pGetWindowLongW			_GetWindowLongW;
+	extern pGetWindowLongPtrW		_GetWindowLongPtrW;
 	extern pGetWindowRect			_GetWindowRect;
 	extern pInsertMenuItemW			_InsertMenuItemW;
 	extern pInvalidateRect			_InvalidateRect;
@@ -325,7 +330,8 @@
 	extern pSetScrollInfo			_SetScrollInfo;
 	extern pSetScrollPos			_SetScrollPos;
 	extern pSetTimer				_SetTimer;
-	extern pSetWindowLongW			_SetWindowLongW;
+	//extern pSetWindowLongW			_SetWindowLongW;
+	extern pSetWindowLongPtrW		_SetWindowLongPtrW;
 	extern pSetWindowPos			_SetWindowPos;
 	//extern pSetWindowTextW			_SetWindowTextW;
 	extern pShowWindow				_ShowWindow;

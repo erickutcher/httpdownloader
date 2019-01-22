@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP and HTTPS connections.
-	Copyright (C) 2015-2018 Eric Kutcher
+	Copyright (C) 2015-2019 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -69,7 +69,8 @@
 	pGetSysColor			_GetSysColor;
 	pGetSysColorBrush		_GetSysColorBrush;
 	pGetSystemMetrics		_GetSystemMetrics;
-	pGetWindowLongW			_GetWindowLongW;
+	//pGetWindowLongW			_GetWindowLongW;
+	pGetWindowLongPtrW		_GetWindowLongPtrW;
 	pGetWindowRect			_GetWindowRect;
 	pInsertMenuItemW		_InsertMenuItemW;
 	pInvalidateRect			_InvalidateRect;
@@ -112,7 +113,8 @@
 	pSetScrollInfo			_SetScrollInfo;
 	pSetScrollPos			_SetScrollPos;
 	pSetTimer				_SetTimer;
-	pSetWindowLongW			_SetWindowLongW;
+	//pSetWindowLongW			_SetWindowLongW;
+	pSetWindowLongPtrW		_SetWindowLongPtrW;
 	pSetWindowPos			_SetWindowPos;
 	//pSetWindowTextW			_SetWindowTextW;
 	pShowWindow				_ShowWindow;
@@ -186,7 +188,8 @@
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_GetSysColor, "GetSysColor" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_GetSysColorBrush, "GetSysColorBrush" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_GetSystemMetrics, "GetSystemMetrics" ) )
-		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_GetWindowLongW, "GetWindowLongW" ) )
+		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_GetWindowLongW, "GetWindowLongW" ) )
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_GetWindowLongPtrW, "GetWindowLongPtrW" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_GetWindowRect, "GetWindowRect" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_InsertMenuItemW, "InsertMenuItemW" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_InvalidateRect, "InvalidateRect" ) )
@@ -229,7 +232,8 @@
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_SetScrollInfo, "SetScrollInfo" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_SetScrollPos, "SetScrollPos" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_SetTimer, "SetTimer" ) )
-		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_SetWindowLongW, "SetWindowLongW" ) )
+		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_SetWindowLongW, "SetWindowLongW" ) )
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_SetWindowLongPtrW, "SetWindowLongPtrW" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_SetWindowPos, "SetWindowPos" ) )
 		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_SetWindowTextW, "SetWindowTextW" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_ShowWindow, "ShowWindow" ) )

@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP and HTTPS connections.
-	Copyright (C) 2015-2018 Eric Kutcher
+	Copyright (C) 2015-2019 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -1629,7 +1629,7 @@ char read_download_history( wchar_t *file_path )
 					LVITEM lvi;
 					_memzero( &lvi, sizeof( LVITEM ) );
 					lvi.mask = LVIF_PARAM | LVIF_TEXT;
-					lvi.iItem = _SendMessageW( g_hWnd_files, LVM_GETITEMCOUNT, 0, 0 );
+					lvi.iItem = ( int )_SendMessageW( g_hWnd_files, LVM_GETITEMCOUNT, 0, 0 );
 					lvi.lParam = ( LPARAM )di;
 					lvi.pszText = di->file_path + di->filename_offset;
 					_SendMessageW( g_hWnd_files, LVM_INSERTITEM, 0, ( LPARAM )&lvi );
@@ -1720,7 +1720,7 @@ char save_download_history( wchar_t *file_path )
 		_memcpy_s( write_buf + pos, size - pos, MAGIC_ID_DOWNLOADS, sizeof( char ) * 4 );	// Magic identifier for the call log history.
 		pos += ( sizeof( char ) * 4 );
 
-		int item_count = _SendMessageW( g_hWnd_files, LVM_GETITEMCOUNT, 0, 0 );
+		int item_count = ( int )_SendMessageW( g_hWnd_files, LVM_GETITEMCOUNT, 0, 0 );
 
 		LVITEM lvi;
 		_memzero( &lvi, sizeof( LVITEM ) );
@@ -1918,7 +1918,7 @@ char save_download_history_csv_file( wchar_t *file_path )
 		// Write the UTF-8 BOM and CSV column titles.
 		WriteFile( hFile_download_history, "\xEF\xBB\xBF\"Filename\",\"Download Directory\",\"Date and Time Added\",\"Unix Timestamp\",\"Downloaded (bytes)\",\"File Size (bytes)\",\"URL\"", 120, &write, NULL );
 
-		int item_count = _SendMessageW( g_hWnd_files, LVM_GETITEMCOUNT, 0, 0 );
+		int item_count = ( int )_SendMessageW( g_hWnd_files, LVM_GETITEMCOUNT, 0, 0 );
 
 		LVITEM lvi;
 		_memzero( &lvi, sizeof( LVITEM ) );
@@ -1961,7 +1961,9 @@ char save_download_history_csv_file( wchar_t *file_path )
 			date.LowPart = di->add_time.LowPart;
 
 			date.QuadPart -= ( 11644473600000 * 10000 );
-
+#ifdef _WIN64
+			date.QuadPart /= FILETIME_TICKS_PER_SECOND;
+#else
 			// Divide the 64bit value.
 			__asm
 			{
@@ -1975,7 +1977,7 @@ char save_download_history_csv_file( wchar_t *file_path )
 				mov date.LowPart, eax;		//; Store the low order quotient.
 				//; Any remainder will be stored in edx. We're not interested in it though.
 			}
-
+#endif
 			int timestamp_length = __snprintf( unix_timestamp, 21, "%llu", date.QuadPart );
 
 			int downloaded_length = __snprintf( downloaded, 21, "%llu", di->downloaded );

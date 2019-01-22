@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP and HTTPS connections.
-	Copyright (C) 2015-2018 Eric Kutcher
+	Copyright (C) 2015-2019 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -160,7 +160,7 @@ LRESULT CALLBACK SearchWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 
 					si->type = ( _SendMessageW( g_hWnd_chk_type_url, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? 1 : 0 );
 
-					unsigned int text_length = _SendMessageW( g_hWnd_search_for, WM_GETTEXTLENGTH, 0, 0 ) + 1;	// Include the NULL terminator.
+					unsigned int text_length = ( unsigned int )_SendMessageW( g_hWnd_search_for, WM_GETTEXTLENGTH, 0, 0 ) + 1;	// Include the NULL terminator.
 					si->text = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * text_length );
 					_SendMessageW( g_hWnd_search_for, WM_GETTEXT, text_length, ( LPARAM )si->text );
 
@@ -215,8 +215,18 @@ LRESULT CALLBACK SearchWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 
 		case WM_PROPAGATE:
 		{
-			_EnableWindow( g_hWnd_btn_search_all, TRUE );
-			_EnableWindow( g_hWnd_btn_search, TRUE );
+			if ( wParam == 1 )
+			{
+				_EnableWindow( g_hWnd_btn_search_all, TRUE );
+				_EnableWindow( g_hWnd_btn_search, TRUE );
+			}
+			else
+			{
+				_ShowWindow( hWnd, SW_SHOWNORMAL );
+				_SetForegroundWindow( hWnd );
+
+				_SetFocus( g_hWnd_search_for );
+			}
 		}
 		break;
 
@@ -231,7 +241,7 @@ LRESULT CALLBACK SearchWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 
 		case WM_CLOSE:
 		{
-			_DestroyWindow( hWnd );
+			_ShowWindow( hWnd, SW_HIDE );
 
 			return 0;
 		}

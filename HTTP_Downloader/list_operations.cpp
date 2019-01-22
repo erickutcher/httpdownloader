@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP and HTTPS connections.
-	Copyright (C) 2015-2018 Eric Kutcher
+	Copyright (C) 2015-2019 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -169,8 +169,8 @@ THREAD_RETURN remove_items( void *pArguments )
 	_memzero( &lvi, sizeof( LVITEM ) );
 	lvi.mask = LVIF_PARAM;
 
-	int item_count = _SendMessageW( g_hWnd_files, LVM_GETITEMCOUNT, 0, 0 );
-	int sel_count = _SendMessageW( g_hWnd_files, LVM_GETSELECTEDCOUNT, 0, 0 );
+	int item_count = ( int )_SendMessageW( g_hWnd_files, LVM_GETITEMCOUNT, 0, 0 );
+	int sel_count = ( int )_SendMessageW( g_hWnd_files, LVM_GETSELECTEDCOUNT, 0, 0 );
 
 	int *index_array = NULL;
 
@@ -192,7 +192,7 @@ THREAD_RETURN remove_items( void *pArguments )
 		// Create an index list of selected items (in reverse order).
 		for ( int i = 0; i < sel_count; ++i )
 		{
-			lvi.iItem = index_array[ sel_count - 1 - i ] = _SendMessageW( g_hWnd_files, LVM_GETNEXTITEM, lvi.iItem, LVNI_SELECTED );
+			lvi.iItem = index_array[ sel_count - 1 - i ] = ( int )_SendMessageW( g_hWnd_files, LVM_GETNEXTITEM, lvi.iItem, LVNI_SELECTED );
 		}
 
 		_EnableWindow( g_hWnd_files, TRUE );	// Allow the listview to be interactive.
@@ -585,7 +585,7 @@ THREAD_RETURN handle_download_list( void *pArguments )
 	else if ( handle_type == 2 )	// Remove completed downloads.
 	{
 		// Get the number of items in the listview.
-		int num_items = _SendMessageW( g_hWnd_files, LVM_GETITEMCOUNT, 0, 0 );
+		int num_items = ( int )_SendMessageW( g_hWnd_files, LVM_GETITEMCOUNT, 0, 0 );
 
 		LVITEM lvi;
 		_memzero( &lvi, sizeof( LVITEM ) );
@@ -693,7 +693,7 @@ THREAD_RETURN handle_download_list( void *pArguments )
 		LVITEM lvi;
 		_memzero( &lvi, sizeof( LVITEM ) );
 		lvi.mask = LVIF_PARAM;
-		lvi.iItem = _SendMessageW( g_hWnd_files, LVM_GETNEXTITEM, -1, LVNI_FOCUSED | LVNI_SELECTED );
+		lvi.iItem = ( int )_SendMessageW( g_hWnd_files, LVM_GETNEXTITEM, -1, LVNI_FOCUSED | LVNI_SELECTED );
 
 		if ( lvi.iItem != -1 )
 		{
@@ -751,7 +751,7 @@ THREAD_RETURN handle_connection( void *pArguments )
 	lvi.mask = LVIF_PARAM;
 	lvi.iItem = -1;
 
-	int sel_count = _SendMessageW( g_hWnd_files, LVM_GETSELECTEDCOUNT, 0, 0 );
+	int sel_count = ( int )_SendMessageW( g_hWnd_files, LVM_GETSELECTEDCOUNT, 0, 0 );
 
 	int *index_array = ( int * )GlobalAlloc( GMEM_FIXED, sizeof( int ) * sel_count );
 
@@ -761,7 +761,7 @@ THREAD_RETURN handle_connection( void *pArguments )
 
 	for ( int i = 0; i < sel_count; ++i )
 	{
-		lvi.iItem = index_array[ i ] = _SendMessageW( g_hWnd_files, LVM_GETNEXTITEM, lvi.iItem, LVNI_SELECTED );
+		lvi.iItem = index_array[ i ] = ( int )_SendMessageW( g_hWnd_files, LVM_GETNEXTITEM, lvi.iItem, LVNI_SELECTED );
 	}
 
 	_EnableWindow( g_hWnd_files, TRUE );	// Allow the listview to be interactive.
@@ -1097,7 +1097,7 @@ THREAD_RETURN handle_download_queue( void *pArguments )
 	LVITEM lvi;
 	_memzero( &lvi, sizeof( LVITEM ) );
 	lvi.mask = LVIF_PARAM;
-	lvi.iItem = _SendMessageW( g_hWnd_files, LVM_GETNEXTITEM, -1, LVNI_FOCUSED | LVNI_SELECTED );
+	lvi.iItem = ( int )_SendMessageW( g_hWnd_files, LVM_GETNEXTITEM, -1, LVNI_FOCUSED | LVNI_SELECTED );
 
 	if ( lvi.iItem != -1 )
 	{
@@ -1313,8 +1313,8 @@ THREAD_RETURN copy_urls( void *pArguments )
 	_memzero( &lvi, sizeof( LVITEM ) );
 	lvi.mask = LVIF_PARAM;
 
-	int item_count = _SendMessageW( g_hWnd_files, LVM_GETITEMCOUNT, 0, 0 );
-	int sel_count = _SendMessageW( g_hWnd_files, LVM_GETSELECTEDCOUNT, 0, 0 );
+	int item_count = ( int )_SendMessageW( g_hWnd_files, LVM_GETITEMCOUNT, 0, 0 );
+	int sel_count = ( int )_SendMessageW( g_hWnd_files, LVM_GETSELECTEDCOUNT, 0, 0 );
 
 	bool copy_all = false;
 	if ( item_count == sel_count )
@@ -1341,7 +1341,7 @@ THREAD_RETURN copy_urls( void *pArguments )
 		}
 		else
 		{
-			lvi.iItem = _SendMessageW( g_hWnd_files, LVM_GETNEXTITEM, lvi.iItem, LVNI_SELECTED );
+			lvi.iItem = ( int )_SendMessageW( g_hWnd_files, LVM_GETNEXTITEM, lvi.iItem, LVNI_SELECTED );
 		}
 
 		_SendMessageW( g_hWnd_files, LVM_GETITEM, 0, ( LPARAM )&lvi );
@@ -1801,8 +1801,8 @@ THREAD_RETURN delete_files( void *pArguments )
 	_memzero( &lvi, sizeof( LVITEM ) );
 	lvi.mask = LVIF_PARAM;
 
-	int item_count = _SendMessageW( g_hWnd_files, LVM_GETITEMCOUNT, 0, 0 );
-	int sel_count = _SendMessageW( g_hWnd_files, LVM_GETSELECTEDCOUNT, 0, 0 );
+	int item_count = ( int )_SendMessageW( g_hWnd_files, LVM_GETITEMCOUNT, 0, 0 );
+	int sel_count = ( int )_SendMessageW( g_hWnd_files, LVM_GETSELECTEDCOUNT, 0, 0 );
 
 	bool delete_all = false;
 	if ( item_count == sel_count )
@@ -1829,7 +1829,7 @@ THREAD_RETURN delete_files( void *pArguments )
 		}
 		else
 		{
-			lvi.iItem = _SendMessageW( g_hWnd_files, LVM_GETNEXTITEM, lvi.iItem, LVNI_SELECTED );
+			lvi.iItem = ( int )_SendMessageW( g_hWnd_files, LVM_GETNEXTITEM, lvi.iItem, LVNI_SELECTED );
 		}
 
 		_SendMessageW( g_hWnd_files, LVM_GETITEM, 0, ( LPARAM )&lvi );
@@ -1932,7 +1932,7 @@ THREAD_RETURN search_list( void *pArguments )
 			new_lvi.state = LVIS_FOCUSED | LVIS_SELECTED;
 			new_lvi.stateMask = LVIS_FOCUSED | LVIS_SELECTED;
 
-			int item_count = _SendMessageW( g_hWnd_files, LVM_GETITEMCOUNT, 0, 0 );
+			int item_count = ( int )_SendMessageW( g_hWnd_files, LVM_GETITEMCOUNT, 0, 0 );
 
 			int current_item_index;
 
@@ -1942,7 +1942,7 @@ THREAD_RETURN search_list( void *pArguments )
 			}
 			else
 			{
-				current_item_index = _SendMessageW( g_hWnd_files, LVM_GETNEXTITEM, -1, LVNI_FOCUSED | LVNI_SELECTED ) + 1;
+				current_item_index = ( int )_SendMessageW( g_hWnd_files, LVM_GETNEXTITEM, -1, LVNI_FOCUSED | LVNI_SELECTED ) + 1;
 			}
 
 			// Go through each item, and delete the file.
@@ -2034,7 +2034,7 @@ THREAD_RETURN search_list( void *pArguments )
 		GlobalFree( si );
 	}
 
-	_SendMessageW( g_hWnd_search, WM_PROPAGATE, 0, 0 );
+	_SendMessageW( g_hWnd_search, WM_PROPAGATE, 1, 0 );
 
 	ProcessingList( false );
 

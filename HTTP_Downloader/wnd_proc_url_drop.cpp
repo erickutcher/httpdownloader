@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP and HTTPS connections.
-	Copyright (C) 2015-2018 Eric Kutcher
+	Copyright (C) 2015-2019 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -90,7 +90,7 @@ LRESULT CALLBACK URLDropWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			{
 				HWND pos;
 
-				if ( _GetWindowLongW( hWnd, GWL_EXSTYLE ) & WS_EX_TOPMOST )
+				if ( _GetWindowLongPtrW( hWnd, GWL_EXSTYLE ) & WS_EX_TOPMOST )
 				{
 					_CheckMenuItem( g_hMenuSub_drag_drop, MENU_ALWAYS_ON_TOP, MF_UNCHECKED );
 

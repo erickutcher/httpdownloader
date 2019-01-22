@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP and HTTPS connections.
-	Copyright (C) 2015-2018 Eric Kutcher
+	Copyright (C) 2015-2019 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -402,7 +402,7 @@ wchar_t *ParseHTMLClipboard( char *data )
 						if ( ( ( href_end - href ) > 7 && _StrCmpNIA( href, "http://", 7 ) == 0 ) ||
 							 ( ( href_end - href ) > 8 && _StrCmpNIA( href, "https://", 8 ) == 0 ) )
 						{
-							url_length = ( href_end - href );
+							url_length = ( int )( href_end - href );
 						}
 						else	// A relative url or unsupported protocol.
 						{
@@ -411,7 +411,7 @@ wchar_t *ParseHTMLClipboard( char *data )
 							{
 								if ( source_url_start != NULL && source_url_root_end != NULL )
 								{
-									url_length = ( source_url_root_end - source_url_start ) + ( href_end - href );
+									url_length = ( int )( ( source_url_root_end - source_url_start ) + ( href_end - href ) );
 
 									url_end = source_url_root_end;
 								}
@@ -455,7 +455,7 @@ wchar_t *ParseHTMLClipboard( char *data )
 									// The relative url should be appended to the last directory.
 									if ( source_url_start != NULL && source_url_end != NULL )
 									{
-										url_length = ( source_url_end - source_url_start ) + ( href_end - href ) + 1;
+										url_length = ( int )( ( source_url_end - source_url_start ) + ( href_end - href ) ) + 1;
 
 										append_directory = true;
 
@@ -499,7 +499,7 @@ wchar_t *ParseHTMLClipboard( char *data )
 								if ( url_end != NULL )
 								{
 									_memcpy_s( url_buffer + url_buffer_length, url_buffer_size - url_buffer_length, source_url_start, url_end - source_url_start );
-									url_buffer_length += ( url_end - source_url_start );
+									url_buffer_length += ( unsigned int )( url_end - source_url_start );
 
 									if ( append_directory )
 									{
@@ -508,7 +508,7 @@ wchar_t *ParseHTMLClipboard( char *data )
 								}
 
 								unsigned int decoded_url_length = 0;
-								char *decoded_url = html_entity_decode_a( href, href_end - href, &decoded_url_length );
+								char *decoded_url = html_entity_decode_a( href, ( unsigned int )( href_end - href ), &decoded_url_length );
 
 								_memcpy_s( url_buffer + url_buffer_length, url_buffer_size - url_buffer_length, decoded_url, decoded_url_length );
 								url_buffer_length += decoded_url_length;

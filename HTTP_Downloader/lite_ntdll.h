@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP and HTTPS connections.
-	Copyright (C) 2015-2018 Eric Kutcher
+	Copyright (C) 2015-2019 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -170,7 +170,7 @@
 #endif
 
 //wchar_t * WINAPIV _wcsncpy_s( wchar_t *strDest, size_t size, const wchar_t *strSource, size_t count );
-wchar_t * WINAPI _wcsncpy_s( wchar_t *strDest, size_t size, const wchar_t *strSource, size_t count );
+wchar_t * WINAPI _wcsncpy_s( wchar_t *strDest, int size, const wchar_t *strSource, int count );
 
 #define _memzero( dest, count ) _memset( dest, 0, count )
 
