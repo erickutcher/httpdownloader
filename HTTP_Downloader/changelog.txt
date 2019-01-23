@@ -1,3 +1,8 @@
+Version:	1.0.1.7
+Released:	2019-01-22
+
+Fixed Add URL(s) download directory not resetting when window is closed.
+
 Version:	1.0.1.6
 Released:	2019-01-21
 
