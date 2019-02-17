@@ -101,7 +101,7 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 		case WM_CREATE:
 		{
 			HWND hWnd_static_update_url = _CreateWindowW( WC_STATIC, ST_V_URL_, WS_CHILD | WS_VISIBLE, 20, 20, 100, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_edit_update_url = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, L"", ES_AUTOHSCROLL | ES_READONLY | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+			g_hWnd_edit_update_url = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, L"", ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 
 			g_hWnd_static_update_download_parts = _CreateWindowW( WC_STATIC, ST_V_Download_parts_, WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 			g_hWnd_update_download_parts = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, ( HMENU )EDIT_UPDATE_DOWNLOAD_PARTS, NULL, NULL );
@@ -148,7 +148,7 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 			g_hWnd_btn_update_download = _CreateWindowW( WC_BUTTON, ST_V_Update, WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, ( HMENU )BTN_UPDATE_DOWNLOAD, NULL, NULL );
 			g_hWnd_update_cancel = _CreateWindowW( WC_BUTTON, ST_V_Cancel, WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, ( HMENU )BTN_UPDATE_CANCEL, NULL, NULL );
 
-			_SetFocus( g_hWnd_edit_update_url );
+			//_SetFocus( g_hWnd_edit_update_url );
 
 			_SendMessageW( g_hWnd_btn_update_download, WM_SETFONT, ( WPARAM )hFont, 0 );
 			_SendMessageW( g_hWnd_update_cancel, WM_SETFONT, ( WPARAM )hFont, 0 );
@@ -182,7 +182,7 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 
 		case WM_CTLCOLORSTATIC:
 		{
-			if ( ( ( HWND )lParam != g_hWnd_edit_update_url ) && ( ( HWND )lParam != g_hWnd_static_paused_download ) )
+			if ( /*( ( HWND )lParam != g_hWnd_edit_update_url ) &&*/ ( ( HWND )lParam != g_hWnd_static_paused_download ) )
 			{
 				return ( LRESULT )( _GetSysColorBrush( COLOR_WINDOW ) );
 			}
@@ -296,7 +296,34 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 			{
 				case BTN_UPDATE_DOWNLOAD:
 				{
+					int utf8_length = 0;
+					wchar_t *edit = NULL;
+
 					ADD_INFO *ai = ( ADD_INFO * )GlobalAlloc( GPTR, sizeof( ADD_INFO ) );
+
+					// URL
+					unsigned int edit_length = ( unsigned int )_SendMessageW( g_hWnd_edit_update_url, WM_GETTEXTLENGTH, 0, 0 );
+
+					// http://a.b
+					if ( edit_length >= 10 )
+					{
+						edit = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( edit_length + 1 ) );
+						_SendMessageW( g_hWnd_edit_update_url, WM_GETTEXT, edit_length + 1, ( LPARAM )edit );
+
+						if ( _memcmp( g_update_download_info->url, edit, sizeof( wchar_t ) * ( edit_length + 1 ) ) == 0 )
+						{
+							GlobalFree( edit );
+							ai->urls = NULL;
+						}
+						else
+						{
+							ai->urls = edit;
+						}
+					}
+					else
+					{
+						ai->urls = NULL;
+					}
 
 					ai->ssl_version = ( char )_SendMessageW( g_hWnd_update_ssl_version, CB_GETCURSEL, 0, 0 );
 
@@ -310,11 +337,8 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 						ai->parts = parts_limit;
 					}
 
-					int utf8_length = 0;
-					wchar_t *edit = NULL;
-
 					// Username
-					unsigned int edit_length = ( unsigned int )_SendMessageW( g_hWnd_edit_update_username, WM_GETTEXTLENGTH, 0, 0 );
+					edit_length = ( unsigned int )_SendMessageW( g_hWnd_edit_update_username, WM_GETTEXTLENGTH, 0, 0 );
 					if ( edit_length > 0 )
 					{
 						edit = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( edit_length + 1 ) );
@@ -436,6 +460,7 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 						GlobalFree( ai->utf8_cookies );
 						GlobalFree( ai->auth_info.username );
 						GlobalFree( ai->auth_info.password );
+						GlobalFree( ai->urls );
 						GlobalFree( ai );
 
 						// We couldn't update this.

@@ -1,3 +1,17 @@
+Version:	1.0.1.9
+Released:	2019-02-17
+
+Restructured list operations code to prevent deadlocks.
+Added progress bar in the taskbar for supported systems (Windows 7 and above).
+Ensured download list remains in focus when switching away from main window.
+Fixed active downloads not stopping when deleted.
+Fixed drag and drop double free crash.
+Allowed downloads with File IO Error to start and restart.
+Fixed handling relative Location paths.
+Decoded resource path to get Unicode filename.
+Fixed POST data not updating from Update Download window.
+Allowed URL to be updated in Update Download window.
+
 Version:	1.0.1.8
 Released:	2019-01-25
 

@@ -93,11 +93,11 @@ unsigned long g_proxy_auth_key_length_s = 0;
 unsigned long total_downloading = 0;
 DoublyLinkedList *download_queue = NULL;
 
-DoublyLinkedList *active_download_list = NULL;	// List of active DOWNLOAD_INFO objects.
+DoublyLinkedList *active_download_list = NULL;		// List of active DOWNLOAD_INFO objects.
 
-DoublyLinkedList *file_size_prompt_list = NULL;	// List of downloads that need to be prompted to continue.
-
+DoublyLinkedList *file_size_prompt_list = NULL;		// List of downloads that need to be prompted to continue.
 DoublyLinkedList *rename_file_prompt_list = NULL;	// List of downloads that need to be prompted to continue.
+DoublyLinkedList *last_modified_prompt_list = NULL;	// List of downloads that need to be prompted to continue.
 
 HANDLE g_timeout_semaphore = NULL;
 
@@ -106,6 +106,7 @@ CRITICAL_SECTION active_download_list_cs;		// Guard access to the global active 
 CRITICAL_SECTION download_queue_cs;				// Guard access to the download queue.
 CRITICAL_SECTION file_size_prompt_list_cs;		// Guard access to the file size prompt list.
 CRITICAL_SECTION rename_file_prompt_list_cs;	// Guard access to the rename file prompt list.
+CRITICAL_SECTION last_modified_prompt_list_cs;	// Guard access to the last modified prompt list.
 CRITICAL_SECTION cleanup_cs;
 
 LPFN_ACCEPTEX _AcceptEx = NULL;
@@ -117,6 +118,9 @@ int g_file_size_cmb_ret = 0;	// Message box prompt for large files sizes.
 bool rename_file_prompt_active = false;
 int g_rename_file_cmb_ret = 0;	// Message box prompt to rename files.
 int g_rename_file_cmb_ret2 = 0;	// Message box prompt to rename files.
+
+bool last_modified_prompt_active = false;
+int g_last_modified_cmb_ret = 0;	// Message box prompt for modified files.
 
 unsigned int g_session_status_count[ 8 ] = { 0 };	// 8 states that can be considered finished (Completed, Stopped, Failed, etc.)
 
@@ -915,105 +919,6 @@ SECURITY_STATUS DecryptRecv( SOCKET_CONTEXT *context, DWORD &io_size )
 	return scRet;
 }
 
-THREAD_RETURN FileSizePrompt( void *pArguments )
-{
-	DOWNLOAD_INFO *di = NULL;
-
-	bool skip_processing = false;
-
-	do
-	{
-		EnterCriticalSection( &file_size_prompt_list_cs );
-
-		DoublyLinkedList *di_node = file_size_prompt_list;
-
-		DLL_RemoveNode( &file_size_prompt_list, di_node );
-
-		if ( di_node != NULL )
-		{
-			di = ( DOWNLOAD_INFO * )di_node->data;
-
-			GlobalFree( di_node );
-		}
-
-		LeaveCriticalSection( &file_size_prompt_list_cs );
-
-		if ( di != NULL )
-		{
-			EnterCriticalSection( &di->shared_cs );
-
-			// If we don't want to prevent all large downloads, then prompt the user.
-			if ( g_file_size_cmb_ret != CMBIDNOALL && g_file_size_cmb_ret != CMBIDYESALL )
-			{
-				wchar_t file_path[ MAX_PATH ];
-				_wmemcpy_s( file_path, MAX_PATH, di->file_path, MAX_PATH );
-				if ( di->filename_offset > 0 )
-				{
-					file_path[ di->filename_offset - 1 ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
-				}
-
-				wchar_t prompt_message[ MAX_PATH + 100 ];
-				__snwprintf( prompt_message, MAX_PATH + 100, L"%s will be %llu bytes in size.\r\n\r\nDo you want to continue downloading this file?", file_path, di->file_size );
-				g_file_size_cmb_ret = CMessageBoxW( g_hWnd_main, prompt_message, PROGRAM_CAPTION, CMB_ICONWARNING | CMB_YESNOALL );
-			}
-
-			SOCKET_CONTEXT *context = ( SOCKET_CONTEXT * )di->parts_list->data;
-
-			// Close all large downloads.
-			if ( g_file_size_cmb_ret == CMBIDNO || g_file_size_cmb_ret == CMBIDNOALL )
-			{
-				EnterCriticalSection( &context->context_cs );
-
-				context->header_info.range_info->content_length = 0;
-				context->header_info.range_info->range_start = 0;
-				context->header_info.range_info->range_end = 0;
-				context->header_info.range_info->content_offset = 0;
-				context->header_info.range_info->file_write_offset = 0;
-
-				context->status = STATUS_SKIPPED;
-
-				if ( context->cleanup == 0 )
-				{
-					context->cleanup = 1;	// Auto cleanup.
-
-					InterlockedIncrement( &context->pending_operations );
-
-					context->overlapped_close.current_operation = ( context->ssl != NULL ? IO_Shutdown : IO_Close );
-
-					PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped_close );
-				}
-
-				LeaveCriticalSection( &context->context_cs );
-			}
-			else	// Continue where we left off when getting the content.
-			{
-				InterlockedIncrement( &context->pending_operations );
-
-				context->overlapped.current_operation = IO_ResumeGetContent;
-
-				PostQueuedCompletionStatus( g_hIOCP, context->current_bytes_read, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped );
-			}
-
-			LeaveCriticalSection( &di->shared_cs );
-		}
-
-		EnterCriticalSection( &file_size_prompt_list_cs );
-
-		if ( file_size_prompt_list == NULL )
-		{
-			skip_processing = true;
-
-			file_size_prompt_active = false;
-		}
-
-		LeaveCriticalSection( &file_size_prompt_list_cs );
-	}
-	while ( !skip_processing );
-
-	_ExitThread( 0 );
-	return 0;
-}
-
 THREAD_RETURN RenameFilePrompt( void *pArguments )
 {
 	DOWNLOAD_INFO *di = NULL;
@@ -1039,9 +944,11 @@ THREAD_RETURN RenameFilePrompt( void *pArguments )
 
 		if ( di != NULL )
 		{
+			SOCKET_CONTEXT *context;
+
 			EnterCriticalSection( &di->shared_cs );
 
-			SOCKET_CONTEXT *context = ( SOCKET_CONTEXT * )di->parts_list->data;
+			context = ( SOCKET_CONTEXT * )di->parts_list->data;
 
 			wchar_t prompt_message[ MAX_PATH + 100 ];
 
@@ -1051,6 +958,8 @@ THREAD_RETURN RenameFilePrompt( void *pArguments )
 			{
 				file_path[ di->filename_offset - 1 ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
 			}
+
+			LeaveCriticalSection( &di->shared_cs );
 
 			// If the last return value was not set to remember our choice, then prompt again.
 			if ( g_rename_file_cmb_ret != CMBIDRENAMEALL && g_rename_file_cmb_ret != CMBIDOVERWRITEALL && g_rename_file_cmb_ret != CMBIDSKIPALL )
@@ -1066,7 +975,13 @@ THREAD_RETURN RenameFilePrompt( void *pArguments )
 				// Creates a tree of active and queued downloads.
 				dllrbt_tree *add_files_tree = CreateFilenameTree();
 
-				bool rename_succeeded = RenameFile( di, add_files_tree );
+				bool rename_succeeded;
+
+				EnterCriticalSection( &di->shared_cs );
+
+				rename_succeeded = RenameFile( di, add_files_tree );
+
+				LeaveCriticalSection( &di->shared_cs );
 
 				// The tree is only used to determine duplicate filenames.
 				DestroyFilenameTree( add_files_tree );
@@ -1099,11 +1014,15 @@ THREAD_RETURN RenameFilePrompt( void *pArguments )
 				}
 				else	// Continue where we left off when getting the content.
 				{
+					EnterCriticalSection( &context->context_cs );
+
 					InterlockedIncrement( &context->pending_operations );
 
 					context->overlapped.current_operation = IO_ResumeGetContent;
 
 					PostQueuedCompletionStatus( g_hIOCP, context->current_bytes_read, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped );
+
+					LeaveCriticalSection( &context->context_cs );
 				}
 			}
 			else if ( g_rename_file_cmb_ret == CMBIDFAIL || g_rename_file_cmb_ret == CMBIDSKIP || g_rename_file_cmb_ret == CMBIDSKIPALL ) // Skip the rename or overwrite if the return value fails, or the user selected skip.
@@ -1127,14 +1046,16 @@ THREAD_RETURN RenameFilePrompt( void *pArguments )
 			}
 			else	// Continue where we left off when getting the content.
 			{
+				EnterCriticalSection( &context->context_cs );
+
 				InterlockedIncrement( &context->pending_operations );
 
 				context->overlapped.current_operation = IO_ResumeGetContent;
 
 				PostQueuedCompletionStatus( g_hIOCP, context->current_bytes_read, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped );
-			}
 
-			LeaveCriticalSection( &di->shared_cs );
+				LeaveCriticalSection( &context->context_cs );
+			}
 		}
 
 		EnterCriticalSection( &rename_file_prompt_list_cs );
@@ -1147,6 +1068,240 @@ THREAD_RETURN RenameFilePrompt( void *pArguments )
 		}
 
 		LeaveCriticalSection( &rename_file_prompt_list_cs );
+	}
+	while ( !skip_processing );
+
+	_ExitThread( 0 );
+	return 0;
+}
+
+THREAD_RETURN FileSizePrompt( void *pArguments )
+{
+	DOWNLOAD_INFO *di = NULL;
+
+	bool skip_processing = false;
+
+	do
+	{
+		EnterCriticalSection( &file_size_prompt_list_cs );
+
+		DoublyLinkedList *di_node = file_size_prompt_list;
+
+		DLL_RemoveNode( &file_size_prompt_list, di_node );
+
+		if ( di_node != NULL )
+		{
+			di = ( DOWNLOAD_INFO * )di_node->data;
+
+			GlobalFree( di_node );
+		}
+
+		LeaveCriticalSection( &file_size_prompt_list_cs );
+
+		if ( di != NULL )
+		{
+			SOCKET_CONTEXT *context;
+
+			EnterCriticalSection( &di->shared_cs );
+
+			// If we don't want to prevent all large downloads, then prompt the user.
+			if ( g_file_size_cmb_ret != CMBIDNOALL && g_file_size_cmb_ret != CMBIDYESALL )
+			{
+				wchar_t file_path[ MAX_PATH ];
+				_wmemcpy_s( file_path, MAX_PATH, di->file_path, MAX_PATH );
+				if ( di->filename_offset > 0 )
+				{
+					file_path[ di->filename_offset - 1 ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
+				}
+
+				wchar_t prompt_message[ MAX_PATH + 100 ];
+				__snwprintf( prompt_message, MAX_PATH + 100, L"%s will be %llu bytes in size.\r\n\r\nDo you want to continue downloading this file?", file_path, di->file_size );
+				g_file_size_cmb_ret = CMessageBoxW( g_hWnd_main, prompt_message, PROGRAM_CAPTION, CMB_ICONWARNING | CMB_YESNOALL );
+			}
+
+			context = ( SOCKET_CONTEXT * )di->parts_list->data;
+
+			LeaveCriticalSection( &di->shared_cs );
+
+			EnterCriticalSection( &context->context_cs );
+
+			// Close all large downloads.
+			if ( g_file_size_cmb_ret == CMBIDNO || g_file_size_cmb_ret == CMBIDNOALL )
+			{
+				context->header_info.range_info->content_length = 0;
+				context->header_info.range_info->range_start = 0;
+				context->header_info.range_info->range_end = 0;
+				context->header_info.range_info->content_offset = 0;
+				context->header_info.range_info->file_write_offset = 0;
+
+				context->status = STATUS_SKIPPED;
+
+				if ( context->cleanup == 0 )
+				{
+					context->cleanup = 1;	// Auto cleanup.
+
+					InterlockedIncrement( &context->pending_operations );
+
+					context->overlapped_close.current_operation = ( context->ssl != NULL ? IO_Shutdown : IO_Close );
+
+					PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped_close );
+				}
+			}
+			else	// Continue where we left off when getting the content.
+			{
+				InterlockedIncrement( &context->pending_operations );
+
+				context->overlapped.current_operation = IO_ResumeGetContent;
+
+				PostQueuedCompletionStatus( g_hIOCP, context->current_bytes_read, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped );
+			}
+
+			LeaveCriticalSection( &context->context_cs );
+		}
+
+		EnterCriticalSection( &file_size_prompt_list_cs );
+
+		if ( file_size_prompt_list == NULL )
+		{
+			skip_processing = true;
+
+			file_size_prompt_active = false;
+		}
+
+		LeaveCriticalSection( &file_size_prompt_list_cs );
+	}
+	while ( !skip_processing );
+
+	_ExitThread( 0 );
+	return 0;
+}
+
+THREAD_RETURN LastModifiedPrompt( void *pArguments )
+{
+	DOWNLOAD_INFO *di = NULL;
+
+	bool skip_processing = false;
+
+	do
+	{
+		EnterCriticalSection( &last_modified_prompt_list_cs );
+
+		DoublyLinkedList *di_node = last_modified_prompt_list;
+
+		DLL_RemoveNode( &last_modified_prompt_list, di_node );
+
+		if ( di_node != NULL )
+		{
+			di = ( DOWNLOAD_INFO * )di_node->data;
+
+			GlobalFree( di_node );
+		}
+
+		LeaveCriticalSection( &last_modified_prompt_list_cs );
+
+		if ( di != NULL )
+		{
+			SOCKET_CONTEXT *context;
+
+			EnterCriticalSection( &di->shared_cs );
+
+			context = ( SOCKET_CONTEXT * )di->parts_list->data;
+
+			wchar_t prompt_message[ MAX_PATH + 100 ];
+
+			wchar_t file_path[ MAX_PATH ];
+			_wmemcpy_s( file_path, MAX_PATH, di->file_path, MAX_PATH );
+			if ( di->filename_offset > 0 )
+			{
+				file_path[ di->filename_offset - 1 ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
+			}
+
+			LeaveCriticalSection( &di->shared_cs );
+
+			// If the last return value was not set to remember our choice, then prompt again.
+			if ( g_last_modified_cmb_ret != CMBIDCONTINUEALL && g_last_modified_cmb_ret != CMBIDRESTARTALL && g_last_modified_cmb_ret != CMBIDSKIPALL )
+			{
+				__snwprintf( prompt_message, MAX_PATH + 100, L"%s has been modified.\r\n\r\nWhat operation would you like to perform?", file_path );
+
+				g_last_modified_cmb_ret = CMessageBoxW( g_hWnd_main, prompt_message, PROGRAM_CAPTION, CMB_ICONWARNING | CMB_CONTINUERESTARTSKIPALL );
+			}
+
+			// Restart the download.
+			if ( g_last_modified_cmb_ret == CMBIDRESTART || g_last_modified_cmb_ret == CMBIDRESTARTALL )
+			{
+				EnterCriticalSection( &di->shared_cs );
+
+				di->status = STATUS_STOPPED | STATUS_RESTART;
+
+				LeaveCriticalSection( &di->shared_cs );
+
+				EnterCriticalSection( &context->context_cs );
+
+				context->status = STATUS_STOPPED | STATUS_RESTART;
+
+				if ( context->cleanup == 0 )
+				{
+					context->cleanup = 1;	// Auto cleanup.
+
+					InterlockedIncrement( &context->pending_operations );
+
+					context->overlapped_close.current_operation = ( context->ssl != NULL ? IO_Shutdown : IO_Close );
+
+					PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped_close );
+				}
+
+				LeaveCriticalSection( &context->context_cs );
+			}
+			else if ( g_last_modified_cmb_ret == CMBIDFAIL || g_last_modified_cmb_ret == CMBIDSKIP || g_last_modified_cmb_ret == CMBIDSKIPALL ) // Skip the download if the return value fails, or the user selected skip.
+			{
+				EnterCriticalSection( &context->context_cs );
+
+				context->status = STATUS_SKIPPED;
+
+				if ( context->cleanup == 0 )
+				{
+					context->cleanup = 1;	// Auto cleanup.
+
+					InterlockedIncrement( &context->pending_operations );
+
+					context->overlapped_close.current_operation = ( context->ssl != NULL ? IO_Shutdown : IO_Close );
+
+					PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped_close );
+				}
+
+				LeaveCriticalSection( &context->context_cs );
+			}
+			else	// Continue where we left off when getting the content.
+			{
+				EnterCriticalSection( &di->shared_cs );
+
+				di->last_modified.HighPart = context->header_info.last_modified.dwHighDateTime;
+				di->last_modified.LowPart = context->header_info.last_modified.dwLowDateTime;
+
+				LeaveCriticalSection( &di->shared_cs );
+
+				EnterCriticalSection( &context->context_cs );
+
+				InterlockedIncrement( &context->pending_operations );
+
+				context->overlapped.current_operation = IO_ResumeGetContent;
+
+				PostQueuedCompletionStatus( g_hIOCP, context->current_bytes_read, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped );
+
+				LeaveCriticalSection( &context->context_cs );
+			}
+		}
+
+		EnterCriticalSection( &last_modified_prompt_list_cs );
+
+		if ( last_modified_prompt_list == NULL )
+		{
+			skip_processing = true;
+
+			last_modified_prompt_active = false;
+		}
+
+		LeaveCriticalSection( &last_modified_prompt_list_cs );
 	}
 	while ( !skip_processing );
 
@@ -2887,7 +3042,7 @@ void StartDownload( DOWNLOAD_INFO *di, bool check_if_file_exists )
 	unsigned int host_length = 0;
 	unsigned int resource_length = 0;
 
-	ParseURL_W( di->url, protocol, &host, host_length, port, &resource, resource_length );
+	ParseURL_W( di->url, NULL, protocol, &host, host_length, port, &resource, resource_length );
 
 	wchar_t *w_resource = resource;
 	unsigned int w_resource_length = 0;
@@ -3057,11 +3212,10 @@ void StartDownload( DOWNLOAD_INFO *di, bool check_if_file_exists )
 				context->part = part;
 				context->parts = di->parts;
 
-				// If we've processed the header, then we would have already gotten a content disposition filename and the last modified date/time.
+				// If we've processed the header, then we would have already gotten a content disposition filename.
 				if ( di->processed_header )
 				{
 					context->got_filename = 1;
-					context->got_last_modified = 1;
 				}
 
 				context->request_info.port = port;
@@ -3434,31 +3588,93 @@ DWORD WINAPI AddURL( void *add_info )
 		wchar_t *current_url = url_list;
 
 		// Remove anything before our URL (spaces, tabs, newlines, etc.)
-		while ( *current_url != 0 && *current_url != L'h' )
+		while ( *current_url != 0 && ( *current_url != L'h' && *current_url != L'H' ) )
 		{
 			++current_url;
 		}
 
-		url_list = _StrStrW( current_url, L"\r\n" );
-		if ( url_list != NULL )
-		{
-			*url_list = 0;	// Sanity.
+		int current_url_length = 0;
 
-			url_list += 2;
+		bool decode_converted_resource = false;
+		unsigned int white_space_count = 0;
+
+		while ( *url_list != NULL )
+		{
+			if ( *url_list == L'%' )
+			{
+				decode_converted_resource = true;
+			}
+			else if ( *url_list == L' ' )
+			{
+				++white_space_count;
+			}
+			else if ( *url_list == L'\r' && *( url_list + 1 ) == L'\n' )
+			{
+				*url_list = 0;	// Sanity.
+
+				current_url_length = ( int )( url_list - current_url );
+
+				url_list += 2;
+
+				break;
+			}
+
+			++url_list;
+		}
+
+		if ( *url_list == NULL )
+		{
+			current_url_length = ( int )( url_list - current_url );
+
+			url_list = NULL;
 		}
 
 		// Remove whitespace at the end of our URL.
-		int current_url_length = lstrlenW( current_url );
-		while ( current_url_length-- > 0 )
+		while ( current_url_length > 0 )
 		{
-			if ( current_url[ current_url_length ] != L' ' && current_url[ current_url_length ] != L'\t' && current_url[ current_url_length ] != L'\f' )
+			if ( current_url[ current_url_length - 1 ] != L' ' && current_url[ current_url_length - 1 ] != L'\t' && current_url[ current_url_length - 1 ] != L'\f' )
 			{
 				break;
 			}
 			else
 			{
-				current_url[ current_url_length ] = 0;	// Sanity.
+				if ( current_url[ current_url_length - 1 ] == L' ' )
+				{
+					--white_space_count;
+				}
+
+				current_url[ current_url_length - 1 ] = 0;	// Sanity.
 			}
+
+			--current_url_length;
+		}
+
+		wchar_t *current_url_encoded = NULL;
+		if ( white_space_count > 0 )
+		{
+			wchar_t *pstr = current_url;
+			current_url_encoded = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( current_url_length + ( white_space_count * 2 ) + 1 ) );
+			wchar_t *pbuf = current_url_encoded;
+
+			while ( pstr < ( current_url + current_url_length ) )
+			{
+				if ( *pstr == L' ' )
+				{
+					pbuf[ 0 ] = L'%';
+					pbuf[ 1 ] = L'2';
+					pbuf[ 2 ] = L'0';
+
+					pbuf = pbuf + 3;
+				}
+				else
+				{
+					*pbuf++ = *pstr;
+				}
+
+				++pstr;
+			}
+
+			*pbuf = L'\0';
 		}
 
 		// Reset.
@@ -3470,7 +3686,7 @@ DWORD WINAPI AddURL( void *add_info )
 		host_length = 0;
 		resource_length = 0;
 
-		ParseURL_W( current_url, protocol, &host, host_length, port, &resource, resource_length );
+		ParseURL_W( ( current_url_encoded != NULL ? current_url_encoded : current_url ), NULL, protocol, &host, host_length, port, &resource, resource_length );
 
 		if ( ( protocol == PROTOCOL_HTTP || protocol == PROTOCOL_HTTPS ) && host != NULL && resource != NULL && port != 0 )
 		{
@@ -3489,8 +3705,28 @@ DWORD WINAPI AddURL( void *add_info )
 				di->filename_offset = 1;
 			}
 
-			unsigned int directory_length = 0;
-			wchar_t *directory = url_decode_w( resource, resource_length, &directory_length );
+			wchar_t *directory = NULL;
+
+			if ( decode_converted_resource )
+			{
+				int val_length = WideCharToMultiByte( CP_UTF8, 0, resource, resource_length + 1, NULL, 0, NULL, NULL );
+				char *utf8_val = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * val_length ); // Size includes the null character.
+				WideCharToMultiByte( CP_UTF8, 0, resource, resource_length + 1, utf8_val, val_length, NULL, NULL );
+
+				unsigned int directory_length = 0;
+				char *c_directory = url_decode_a( utf8_val, val_length - 1, &directory_length );
+				GlobalFree( utf8_val );
+
+				val_length = MultiByteToWideChar( CP_UTF8, 0, c_directory, directory_length + 1, NULL, 0 );	// Include the NULL terminator.
+				directory = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * val_length );
+				MultiByteToWideChar( CP_UTF8, 0, c_directory, directory_length + 1, directory, val_length );
+
+				GlobalFree( c_directory );	
+			}
+			else
+			{
+				directory = url_decode_w( resource, resource_length, NULL );
+			}
 
 			unsigned int w_filename_length = 0;
 
@@ -3559,7 +3795,18 @@ DWORD WINAPI AddURL( void *add_info )
 
 			InitializeCriticalSection( &di->shared_cs );
 
-			di->url = GlobalStrDupW( current_url );
+			if ( current_url_encoded != NULL )
+			{
+				di->url = current_url_encoded;
+				current_url_encoded = NULL;
+			}
+			else
+			{
+				//di->url = GlobalStrDupW( current_url );
+				di->url = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( current_url_length + 1 ) );
+				_wmemcpy_s( di->url, current_url_length + 1, current_url, current_url_length );
+				di->url[ current_url_length ] = 0;	// Sanity.
+			}
 
 			// Cache our file's icon.
 			ICON_INFO *ii = CacheIcon( di, sfi );
@@ -3656,6 +3903,7 @@ DWORD WINAPI AddURL( void *add_info )
 			LeaveCriticalSection( &cleanup_cs );
 		}
 
+		GlobalFree( current_url_encoded );
 		GlobalFree( host );
 		GlobalFree( resource );
 	}
@@ -4205,7 +4453,8 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 								}
 
 								// Do we want to delete the file as well?
-								if ( IS_STATUS( context->status, STATUS_DELETE ) )
+								if ( !( context->download_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) &&
+									IS_STATUS( context->status, STATUS_DELETE ) )
 								{
 									// We're freeing this anyway so it's safe to modify.
 									context->download_info->file_path[ context->download_info->filename_offset - 1 ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
@@ -4241,6 +4490,8 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 								context->download_info->processed_header = false;
 
 								context->download_info->downloaded = 0;
+
+								context->download_info->last_modified.QuadPart = 0;
 
 								// If we restart a download, then set the incomplete retry attempts back to 0.
 								context->download_info->retries = 0;

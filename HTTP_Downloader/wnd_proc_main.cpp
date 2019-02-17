@@ -37,6 +37,8 @@
 
 #include "string_tables.h"
 
+#include "taskbar.h"
+
 HWND g_hWnd_toolbar = NULL;
 HWND g_hWnd_files_columns = NULL;		// The header control window for the listview.
 HWND g_hWnd_files = NULL;
@@ -76,6 +78,20 @@ HANDLE g_timer_semaphore = NULL;
 
 bool use_drag_and_drop_main = true;		// Assumes OLE32_STATE_RUNNING is true.
 IDropTarget *List_DropTarget;
+
+bool use_taskbar_progress_main = true;	// Assumes OLE32_STATE_RUNNING is true.
+_ITaskbarList3 *g_taskbar = NULL;
+
+struct TASKBAR_INFO
+{
+	unsigned long long current_total_downloaded;
+	unsigned long long current_total_file_size;
+	unsigned char download_state;
+};
+
+TASKBAR_INFO g_taskbar_info;
+
+UINT WM_TASKBARBUTTONCREATED = 0;
 
 void FormatTooltipStatus()
 {
@@ -359,6 +375,8 @@ DWORD WINAPI UpdateWindow( LPVOID WorkThreadContext )
 	bool run_timer = g_timers_running;
 	unsigned char standby_counter = 0;
 
+	unsigned char all_paused = 0;	// 0 = No state, 1 = all downloads are paused, 2 = a download is not paused
+
 	last_update.ull = 0;
 
 	unsigned char speed_buf_length = ( ST_L_Download_speed_ > 38 ? 38 : ST_L_Download_speed_ ); // Let's not overflow. 64 - ( ' ' + 22 +  '/' + 's' + NULL ) = 38 remaining bytes for our string.
@@ -395,6 +413,15 @@ DWORD WINAPI UpdateWindow( LPVOID WorkThreadContext )
 				DoublyLinkedList *active_download_node = active_download_list;
 
 				unsigned long long time_difference = 0;
+
+				if ( g_taskbar != NULL )
+				{
+					g_taskbar->lpVtbl->SetProgressState( ( _ITaskbarList3 * )g_taskbar, g_hWnd_main, TBPF_NORMAL );
+
+					g_taskbar_info.current_total_downloaded = g_taskbar_info.current_total_file_size = 0;
+
+					all_paused = 0;
+				}
 
 				GetSystemTimeAsFileTime( &current_time.ft );
 
@@ -451,11 +478,24 @@ DWORD WINAPI UpdateWindow( LPVOID WorkThreadContext )
 
 									di->last_downloaded = di->downloaded;
 								}
+
+								if ( g_taskbar != NULL )
+								{
+									g_taskbar_info.current_total_downloaded += di->downloaded;
+									g_taskbar_info.current_total_file_size += di->file_size;
+
+									all_paused = 2;
+								}
 							}
 							else if ( IS_STATUS( di->status, STATUS_PAUSED | STATUS_QUEUED ) )
 							{
 								di->time_remaining = 0;
 								di->speed = 0;
+
+								if ( g_taskbar != NULL && all_paused == 0 )
+								{
+									all_paused = 1;
+								}
 							}
 
 							LeaveCriticalSection( &di->shared_cs );
@@ -554,10 +594,38 @@ DWORD WINAPI UpdateWindow( LPVOID WorkThreadContext )
 					_Shell_NotifyIconW( NIM_MODIFY, &g_nid );
 				}
 			}
+
+			if ( g_taskbar != NULL )
+			{
+				g_taskbar_info.download_state = 0;	// Downloading.
+
+				if ( all_paused == 1 )
+				{
+					g_taskbar->lpVtbl->SetProgressState( ( _ITaskbarList3 * )g_taskbar, g_hWnd_main, TBPF_PAUSED );
+				}
+
+				if ( g_taskbar_info.current_total_file_size > 0 )
+				{
+					g_taskbar->lpVtbl->SetProgressValue( ( _ITaskbarList3 * )g_taskbar, g_hWnd_main, g_taskbar_info.current_total_downloaded, g_taskbar_info.current_total_file_size );
+				}
+			}
 		}
 		else
 		{
 			_SendMessageW( g_hWnd_main, WM_SETTEXT, NULL, ( LPARAM )PROGRAM_CAPTION );
+
+			if ( g_taskbar != NULL )
+			{
+				g_taskbar_info.download_state = 1;	// Completed.
+
+				// If Timed Out, Failed, or File IO Error
+				if ( g_session_status_count[ 2 ] > 0 || g_session_status_count[ 3 ] > 0 || g_session_status_count[ 4 ] > 0 )
+				{
+					g_taskbar->lpVtbl->SetProgressState( ( _ITaskbarList3 * )g_taskbar, g_hWnd_main, TBPF_ERROR );
+				}
+
+				g_taskbar->lpVtbl->SetProgressValue( ( _ITaskbarList3 * )g_taskbar, g_hWnd_main, g_taskbar_info.current_total_downloaded, g_taskbar_info.current_total_file_size );
+			}
 
 			if ( cfg_tray_icon )
 			{
@@ -1566,7 +1634,7 @@ void HandleCommand( HWND hWnd, WPARAM wParam, LPARAM lParam )
 		{
 			wchar_t msg[ 512 ];
 			__snwprintf( msg, 512, L"HTTP Downloader is made free under the GPLv3 license.\r\n\r\n" \
-								   L"Version 1.0.1.8 (%u-bit)\r\n\r\n" \
+								   L"Version 1.0.1.9 (%u-bit)\r\n\r\n" \
 								   L"Built on %s, %s %d, %04d %d:%02d:%02d %s (UTC)\r\n\r\n" \
 								   L"Copyright \xA9 2015-2019 Eric Kutcher",
 #ifdef _WIN64
@@ -1803,6 +1871,8 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 			}
 
 			tooltip_buffer = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * 512 );
+
+			WM_TASKBARBUTTONCREATED = _RegisterWindowMessageW( L"TaskbarButtonCreated" );
 
 			return 0;
 		}
@@ -2122,6 +2192,13 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 						_GetCursorPos( &p );
 
 						_TrackPopupMenu( g_hMenuSub_column, 0, p.x, p.y, 0, hWnd, NULL );
+					}
+					else if ( nmitem->hdr.hwndFrom == g_hWnd_toolbar || nmitem->hdr.hwndFrom == g_hWnd_status )
+					{
+						POINT p;
+						_GetCursorPos( &p );
+
+						_TrackPopupMenu( g_hMenuSub_view, 0, p.x, p.y, 0, hWnd, NULL );
 					}
 				}
 				break;
@@ -3077,6 +3154,21 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 		}
 		break;
 
+		case WM_ACTIVATE:
+		{
+			if ( g_taskbar != NULL && g_taskbar_info.download_state == 1 )
+			{
+				g_taskbar_info.download_state = 0;
+
+				g_taskbar->lpVtbl->SetProgressState( ( _ITaskbarList3 * )g_taskbar, g_hWnd_main, TBPF_NOPROGRESS );
+			}
+
+			_SetFocus( g_hWnd_files );
+
+			return 0;
+		}
+		break;
+
 		case WM_CLOSE:
 		{
 			if ( cfg_tray_icon && cfg_close_to_tray )
@@ -3270,6 +3362,16 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 				_OleUninitialize();
 			}
 
+			if ( use_taskbar_progress_main )
+			{
+				if ( g_taskbar != NULL )
+				{
+					g_taskbar->lpVtbl->Release( ( _ITaskbarList3 * )g_taskbar );
+				}
+
+				_CoUninitialize();
+			}
+
 			if ( tooltip_buffer != NULL )
 			{
 				GlobalFree( tooltip_buffer );
@@ -3307,6 +3409,29 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 
 		default:
 		{
+			if ( msg == WM_TASKBARBUTTONCREATED )
+			{
+				#ifndef OLE32_USE_STATIC_LIB
+				if ( ole32_state == OLE32_STATE_SHUTDOWN )
+				{
+					use_taskbar_progress_main = InitializeOle32();
+				}
+				#endif
+
+				if ( use_taskbar_progress_main )
+				{
+					_CoInitializeEx( NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE );
+
+					_CoCreateInstance( _CLSID_TaskbarList, NULL, CLSCTX_INPROC_SERVER, _IID_ITaskbarList3, ( void ** )&g_taskbar );
+
+					if ( g_taskbar != NULL )
+					{
+						g_taskbar_info.current_total_downloaded = g_taskbar_info.current_total_file_size = 0;
+						g_taskbar_info.download_state = 0;
+					}
+				}
+			}
+
 			return _DefWindowProcW( hWnd, msg, wParam, lParam );
 		}
 		break;

@@ -92,6 +92,7 @@
 	pPostQuitMessage		_PostQuitMessage;
 	pRegisterClassExW		_RegisterClassExW;
 	pRegisterClipboardFormatW	_RegisterClipboardFormatW;
+	pRegisterWindowMessageW	_RegisterWindowMessageW;
 	pReleaseCapture			_ReleaseCapture;
 	pReleaseDC				_ReleaseDC;
 	//pRemoveMenu				_RemoveMenu;
@@ -211,6 +212,7 @@
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_PostQuitMessage, "PostQuitMessage" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_RegisterClassExW, "RegisterClassExW" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_RegisterClipboardFormatW, "RegisterClipboardFormatW" ) )
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_RegisterWindowMessageW, "RegisterWindowMessageW" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_ReleaseCapture, "ReleaseCapture" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_ReleaseDC, "ReleaseDC" ) )
 		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_RemoveMenu, "RemoveMenu" ) )

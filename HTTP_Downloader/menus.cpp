@@ -162,7 +162,7 @@ void UpdateMenus( bool enable )
 
 		if ( sel_count > 0 )
 		{
-			// Allow start if paused, queued, stopped, timed out, failed, skipped, or proxy authorization required.
+			// Allow start if paused, queued, stopped, timed out, failed, file IO error, skipped, or proxy authorization required.
 			if ( di != NULL &&
 			   ( di->file_size == 0 || ( di->downloaded < di->file_size ) ) &&
 			   ( IS_STATUS( di->status, STATUS_PAUSED ) ||
@@ -172,6 +172,7 @@ void UpdateMenus( bool enable )
 					STATUS_STOPPED |
 					STATUS_TIMED_OUT |
 					STATUS_FAILED |
+					STATUS_FILE_IO_ERROR |
 					STATUS_SKIPPED |
 					STATUS_AUTH_REQUIRED |
 					STATUS_PROXY_AUTH_REQUIRED ) ) ) )
@@ -244,6 +245,7 @@ void UpdateMenus( bool enable )
 					STATUS_STOPPED |
 					STATUS_TIMED_OUT |
 					STATUS_FAILED |
+					STATUS_FILE_IO_ERROR |
 					STATUS_SKIPPED |
 					STATUS_AUTH_REQUIRED |
 					STATUS_PROXY_AUTH_REQUIRED ) )
@@ -275,6 +277,14 @@ void UpdateMenus( bool enable )
 
 				_EnableMenuItem( g_hMenuSub_download, MENU_DELETE, MF_ENABLED );
 				_EnableMenuItem( g_hMenuSub_edit, MENU_DELETE, MF_ENABLED );
+			}
+			else
+			{
+				_EnableMenuItem( g_hMenuSub_download, MENU_REMOVE_AND_DELETE, MF_DISABLED );
+				_EnableMenuItem( g_hMenuSub_edit, MENU_REMOVE_AND_DELETE, MF_DISABLED );
+
+				_EnableMenuItem( g_hMenuSub_download, MENU_DELETE, MF_DISABLED );
+				_EnableMenuItem( g_hMenuSub_edit, MENU_DELETE, MF_DISABLED );
 			}
 
 			// Allow the URL copy.

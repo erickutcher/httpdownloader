@@ -34,6 +34,8 @@
 	pRevokeDragDrop _RevokeDragDrop;
 	pReleaseStgMedium _ReleaseStgMedium;
 
+	pCoCreateInstance _CoCreateInstance;
+
 	HMODULE hModule_ole32 = NULL;
 
 	unsigned char ole32_state = OLE32_STATE_SHUTDOWN;
@@ -64,6 +66,8 @@
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_ole32, ( void ** )&_RegisterDragDrop, "RegisterDragDrop" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_ole32, ( void ** )&_RevokeDragDrop, "RevokeDragDrop" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_ole32, ( void ** )&_ReleaseStgMedium, "ReleaseStgMedium" ) )
+
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_ole32, ( void ** )&_CoCreateInstance, "CoCreateInstance" ) )
 
 		ole32_state = OLE32_STATE_RUNNING;
 

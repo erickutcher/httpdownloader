@@ -31,7 +31,9 @@
 #define BTN_OK			1003
 #define BTN_RENAME		1004
 #define BTN_OVERWRITE	1005
-#define BTN_SKIP		1006
+#define BTN_CONTINUE	1006
+#define BTN_RESTART		1007
+#define BTN_SKIP		1008
 
 CRITICAL_SECTION cmessagebox_prompt_cs;	// Guard access to the tray menu when creating a cmessagebox.
 unsigned int cmessagebox_prompt_count = 0;
@@ -41,6 +43,8 @@ HWND g_hWnd_btn_no = NULL;
 HWND g_hWnd_btn_ok = NULL;
 HWND g_hWnd_btn_rename = NULL;
 HWND g_hWnd_btn_overwrite = NULL;
+HWND g_hWnd_btn_continue = NULL;
+HWND g_hWnd_btn_restart = NULL;
 HWND g_hWnd_btn_skip = NULL;
 
 bool InitializeCMessageBox( HINSTANCE hInstance )
@@ -88,7 +92,11 @@ int CMessageBoxW( HWND hWnd, LPCWSTR lpText, LPCWSTR lpCaption, UINT uType )
 	cmb_info->type = uType;
 	cmb_info->hWnd_checkbox = NULL;
 
-	HWND hWnd_cmsgbox = _CreateWindowExW( WS_EX_DLGMODALFRAME, ( ( ( uType & 0x0F ) == CMB_YESNO || ( uType & 0x0F ) == CMB_YESNOALL || ( uType & 0x0F ) == CMB_RENAMEOVERWRITESKIPALL || ( uType & 0x0F ) == CMB_OKALL ) ? L"cmessageboxdc" : L"cmessagebox" ), lpCaption, WS_POPUP | WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_CLIPCHILDREN, 0, 0, 0, 0, hWnd, NULL, NULL, ( LPVOID )cmb_info );
+	HWND hWnd_cmsgbox = _CreateWindowExW( WS_EX_DLGMODALFRAME, ( ( ( uType & 0x0F ) == CMB_YESNO ||
+																   ( uType & 0x0F ) == CMB_YESNOALL ||
+																   ( uType & 0x0F ) == CMB_RENAMEOVERWRITESKIPALL ||
+																   ( uType & 0x0F ) == CMB_CONTINUERESTARTSKIPALL ||
+																   ( uType & 0x0F ) == CMB_OKALL ) ? L"cmessageboxdc" : L"cmessagebox" ), lpCaption, WS_POPUP | WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_CLIPCHILDREN, 0, 0, 0, 0, hWnd, NULL, NULL, ( LPVOID )cmb_info );
 	if ( hWnd_cmsgbox != NULL )
 	{
 		EnterCriticalSection( &cmessagebox_prompt_cs );
@@ -270,7 +278,8 @@ void AdjustWindowDimensions( HWND hWnd, HWND static_msg, CMSGBOX_INFO *cmb_info 
 			width = 206;
 		}
 	}
-	else if ( ( cmb_info->type & 0x0F ) == CMB_RENAMEOVERWRITESKIPALL )
+	else if ( ( cmb_info->type & 0x0F ) == CMB_RENAMEOVERWRITESKIPALL ||
+			  ( cmb_info->type & 0x0F ) == CMB_CONTINUERESTARTSKIPALL )
 	{
 		if ( width < 390 )
 		{
@@ -375,7 +384,10 @@ LRESULT CALLBACK CustomMessageBoxWndProc( HWND hWnd, UINT msg, WPARAM wParam, LP
 				RECT rc;
 				_GetClientRect( hWnd, &rc );
 
-				if ( ( cmb_info->type & 0x0F ) == CMB_OKALL || ( cmb_info->type & 0x0F ) == CMB_YESNOALL || ( cmb_info->type & 0x0F ) == CMB_RENAMEOVERWRITESKIPALL )
+				if ( ( cmb_info->type & 0x0F ) == CMB_OKALL ||
+					 ( cmb_info->type & 0x0F ) == CMB_YESNOALL ||
+					 ( cmb_info->type & 0x0F ) == CMB_RENAMEOVERWRITESKIPALL ||
+					 ( cmb_info->type & 0x0F ) == CMB_CONTINUERESTARTSKIPALL )
 				{
 					if ( ( cmb_info->type & 0x0F ) == CMB_OKALL )
 					{
@@ -405,6 +417,16 @@ LRESULT CALLBACK CustomMessageBoxWndProc( HWND hWnd, UINT msg, WPARAM wParam, LP
 
 					_SendMessageW( g_hWnd_btn_rename, WM_SETFONT, ( WPARAM )hFont, 0 );
 					_SendMessageW( g_hWnd_btn_overwrite, WM_SETFONT, ( WPARAM )hFont, 0 );
+					_SendMessageW( g_hWnd_btn_skip, WM_SETFONT, ( WPARAM )hFont, 0 );
+				}
+				else if ( ( cmb_info->type & 0x0F ) == CMB_CONTINUERESTARTSKIPALL )
+				{
+					g_hWnd_btn_continue = _CreateWindowW( WC_BUTTON, L"Continue", BS_DEFPUSHBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 247, rc.bottom - 32, 75, 23, hWnd, ( HMENU )BTN_CONTINUE, NULL, NULL );
+					g_hWnd_btn_restart = _CreateWindowW( WC_BUTTON, L"Restart", WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 165, rc.bottom - 32, 75, 23, hWnd, ( HMENU )BTN_RESTART, NULL, NULL );
+					g_hWnd_btn_skip = _CreateWindowW( WC_BUTTON, L"Skip", WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 83, rc.bottom - 32, 75, 23, hWnd, ( HMENU )BTN_SKIP, NULL, NULL );
+
+					_SendMessageW( g_hWnd_btn_continue, WM_SETFONT, ( WPARAM )hFont, 0 );
+					_SendMessageW( g_hWnd_btn_restart, WM_SETFONT, ( WPARAM )hFont, 0 );
 					_SendMessageW( g_hWnd_btn_skip, WM_SETFONT, ( WPARAM )hFont, 0 );
 				}
 				else	// CMB_OK/ALL or anything that's unsupported.
@@ -482,6 +504,7 @@ LRESULT CALLBACK CustomMessageBoxWndProc( HWND hWnd, UINT msg, WPARAM wParam, LP
 				case BTN_YES:
 				case BTN_OK:
 				case BTN_RENAME:
+				case BTN_CONTINUE:
 				{
 					CMSGBOX_INFO *cmb_info = ( CMSGBOX_INFO * )_GetWindowLongPtrW( hWnd, 0 );
 					if ( cmb_info != NULL )
@@ -497,6 +520,10 @@ LRESULT CALLBACK CustomMessageBoxWndProc( HWND hWnd, UINT msg, WPARAM wParam, LP
 						else if ( ( cmb_info->type & 0x0F ) == CMB_RENAMEOVERWRITESKIPALL )
 						{
 							_SendMessageW( hWnd, WM_CLOSE, ( _SendMessageW( cmb_info->hWnd_checkbox, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? CMBIDRENAMEALL : CMBIDRENAME ), 0 );
+						}
+						else if ( ( cmb_info->type & 0x0F ) == CMB_CONTINUERESTARTSKIPALL )
+						{
+							_SendMessageW( hWnd, WM_CLOSE, ( _SendMessageW( cmb_info->hWnd_checkbox, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? CMBIDCONTINUEALL : CMBIDCONTINUE ), 0 );
 						}
 						else if ( ( cmb_info->type & 0x0F ) == CMB_OKALL )
 						{
@@ -528,7 +555,8 @@ LRESULT CALLBACK CustomMessageBoxWndProc( HWND hWnd, UINT msg, WPARAM wParam, LP
 						{
 							_SendMessageW( hWnd, WM_CLOSE, CMBIDNO, 0 );
 						}
-						else if ( ( cmb_info->type & 0x0F ) == CMB_RENAMEOVERWRITESKIPALL )
+						else if ( ( cmb_info->type & 0x0F ) == CMB_RENAMEOVERWRITESKIPALL ||
+								  ( cmb_info->type & 0x0F ) == CMB_CONTINUERESTARTSKIPALL )
 						{
 							_SendMessageW( hWnd, WM_CLOSE, ( _SendMessageW( cmb_info->hWnd_checkbox, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? CMBIDSKIPALL : CMBIDSKIP ), 0 );
 						}
@@ -545,6 +573,7 @@ LRESULT CALLBACK CustomMessageBoxWndProc( HWND hWnd, UINT msg, WPARAM wParam, LP
 				break;
 
 				case BTN_OVERWRITE:
+				case BTN_RESTART:
 				{
 					CMSGBOX_INFO *cmb_info = ( CMSGBOX_INFO * )_GetWindowLongPtrW( hWnd, 0 );
 					if ( cmb_info != NULL )
@@ -552,6 +581,10 @@ LRESULT CALLBACK CustomMessageBoxWndProc( HWND hWnd, UINT msg, WPARAM wParam, LP
 						if ( ( cmb_info->type & 0x0F ) == CMB_RENAMEOVERWRITESKIPALL )
 						{
 							_SendMessageW( hWnd, WM_CLOSE, ( _SendMessageW( cmb_info->hWnd_checkbox, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? CMBIDOVERWRITEALL : CMBIDOVERWRITE ), 0 );
+						}
+						else if ( ( cmb_info->type & 0x0F ) == CMB_CONTINUERESTARTSKIPALL )
+						{
+							_SendMessageW( hWnd, WM_CLOSE, ( _SendMessageW( cmb_info->hWnd_checkbox, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? CMBIDRESTARTALL : CMBIDRESTART ), 0 );
 						}
 						else
 						{

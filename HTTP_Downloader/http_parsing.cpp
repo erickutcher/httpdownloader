@@ -622,7 +622,7 @@ bool ParseCookies( char *header, dllrbt_tree **cookie_tree, char **cookies, char
 	return true;
 }
 
-bool ParseURL_A( char *url, PROTOCOL &protocol, char **host, unsigned int &host_length, unsigned short &port, char **resource, unsigned int &resource_length )
+bool ParseURL_A( char *url, char *original_resource, PROTOCOL &protocol, char **host, unsigned int &host_length, unsigned short &port, char **resource, unsigned int &resource_length )
 {
 	if ( url == NULL )
 	{
@@ -638,12 +638,12 @@ bool ParseURL_A( char *url, PROTOCOL &protocol, char **host, unsigned int &host_
 	{
 		protocol = PROTOCOL_RELATIVE;
 
-		if ( ( str_pos_end - str_pos_start ) == 5 && _StrCmpNA( str_pos_start, "http:", 5 ) == 0 )
+		if ( ( str_pos_end - str_pos_start ) == 5 && _StrCmpNIA( str_pos_start, "http:", 5 ) == 0 )
 		{
 			protocol = PROTOCOL_HTTP;
 			port = 80;
 		}
-		else if ( ( str_pos_end - str_pos_start ) == 6 && _StrCmpNA( str_pos_start, "https:", 6 ) == 0 )
+		else if ( ( str_pos_end - str_pos_start ) == 6 && _StrCmpNIA( str_pos_start, "https:", 6 ) == 0 )
 		{
 			protocol = PROTOCOL_HTTPS;
 			port = 443;
@@ -722,7 +722,7 @@ bool ParseURL_A( char *url, PROTOCOL &protocol, char **host, unsigned int &host_
 		_memcpy_s( *host, host_length + 1, str_pos_start, host_length );
 		*( *host + host_length ) = 0;	// Sanity
 	}
-	else if ( url[ 0 ] == '/' )	// Resource is a relative URI that starts with a L'/'
+	else if ( url[ 0 ] == '/' )	// Resource is a relative URI that starts with a L'/' and is relative to the root (host).
 	{
 		// Save the resource.
 		resource_length = lstrlenA( url );
@@ -731,20 +731,57 @@ bool ParseURL_A( char *url, PROTOCOL &protocol, char **host, unsigned int &host_
 		_memcpy_s( *resource, resource_length + 1, url, resource_length );
 		*( *resource + resource_length ) = 0;	// Sanity.
 	}
-	else	// Resource is a relative URI that does not start with a L'/'
+	else	// Resource is a relative URI that does not start with a L'/' and is relative to the current directory.
 	{
-		resource_length = lstrlenA( url ) + 1;	// Include the L'/'
+		if ( original_resource != NULL )
+		{
+			char *directory_ptr = original_resource;
+			char *current_directory = original_resource;
+			char *last_directory = NULL;
 
-		*resource = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( resource_length + 1 ) );
-		*resource[ 0 ] = '/';
-		_memcpy_s( *resource + 1, resource_length, url, resource_length );
-		*( *resource + resource_length ) = 0;	// Sanity.
+			// Iterate forward because '/' can be found after '#'.
+			while ( *directory_ptr != NULL )
+			{
+				if ( *directory_ptr == '?' || *directory_ptr == '#' )
+				{
+					*directory_ptr = 0;	// Sanity.
+
+					break;
+				}
+				else if ( *directory_ptr == '/' )
+				{
+					last_directory = current_directory;
+					current_directory = directory_ptr + 1; 
+				}
+
+				++directory_ptr;
+			}
+
+			unsigned int o_resource_length = ( unsigned int )( current_directory - original_resource );
+
+			resource_length = lstrlenA( url );
+
+			*resource = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( o_resource_length + resource_length + 1 ) );
+			_memcpy_s( *resource, o_resource_length + resource_length + 1, original_resource, o_resource_length );
+			_memcpy_s( *resource + o_resource_length, resource_length + 1, url, resource_length );
+			resource_length += o_resource_length;
+			*( *resource + resource_length ) = 0;	// Sanity.
+		}
+		else
+		{
+			resource_length = lstrlenA( url ) + 1;	// Include the L'/'
+
+			*resource = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( resource_length + 1 ) );
+			*resource[ 0 ] = '/';
+			_memcpy_s( *resource + 1, resource_length, url, resource_length );
+			*( *resource + resource_length ) = 0;	// Sanity.
+		}
 	}
 
 	return true;
 }
 
-bool ParseURL_W( wchar_t *url, PROTOCOL &protocol, wchar_t **host, unsigned int &host_length, unsigned short &port, wchar_t **resource, unsigned int &resource_length )
+bool ParseURL_W( wchar_t *url, wchar_t *original_resource, PROTOCOL &protocol, wchar_t **host, unsigned int &host_length, unsigned short &port, wchar_t **resource, unsigned int &resource_length )
 {
 	if ( url == NULL )
 	{
@@ -760,12 +797,12 @@ bool ParseURL_W( wchar_t *url, PROTOCOL &protocol, wchar_t **host, unsigned int 
 	{
 		protocol = PROTOCOL_RELATIVE;
 
-		if ( ( str_pos_end - str_pos_start ) == 5 && _StrCmpNW( str_pos_start, L"http:", 5 ) == 0 )
+		if ( ( str_pos_end - str_pos_start ) == 5 && _StrCmpNIW( str_pos_start, L"http:", 5 ) == 0 )
 		{
 			protocol = PROTOCOL_HTTP;
 			port = 80;
 		}
-		else if ( ( str_pos_end - str_pos_start ) == 6 && _StrCmpNW( str_pos_start, L"https:", 6 ) == 0 )
+		else if ( ( str_pos_end - str_pos_start ) == 6 && _StrCmpNIW( str_pos_start, L"https:", 6 ) == 0 )
 		{
 			protocol = PROTOCOL_HTTPS;
 			port = 443;
@@ -844,7 +881,7 @@ bool ParseURL_W( wchar_t *url, PROTOCOL &protocol, wchar_t **host, unsigned int 
 		_wmemcpy_s( *host, host_length + 1, str_pos_start, host_length );
 		*( *host + host_length ) = 0;	// Sanity
 	}
-	else if ( url[ 0 ] == L'/' )	// Resource is a relative URI that starts with a L'/'
+	else if ( url[ 0 ] == L'/' )	// Resource is a relative URI that starts with a L'/' and is relative to the root (host).
 	{
 		// Save the resource.
 		resource_length = lstrlenW( url );
@@ -853,14 +890,51 @@ bool ParseURL_W( wchar_t *url, PROTOCOL &protocol, wchar_t **host, unsigned int 
 		_wmemcpy_s( *resource, resource_length + 1, url, resource_length );
 		*( *resource + resource_length ) = 0;	// Sanity.
 	}
-	else	// Resource is a relative URI that does not start with a L'/'
+	else	// Resource is a relative URI that does not start with a L'/' and is relative to the current directory.
 	{
-		resource_length = lstrlenW( url ) + 1;	// Include the L'/'
+		if ( original_resource != NULL )
+		{
+			wchar_t *directory_ptr = original_resource;
+			wchar_t *current_directory = original_resource;
+			wchar_t *last_directory = NULL;
 
-		*resource = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( resource_length + 1 ) );
-		*resource[ 0 ] = L'/';
-		_wmemcpy_s( *resource + 1, resource_length, url, resource_length );
-		*( *resource + resource_length ) = 0;	// Sanity.
+			// Iterate forward because '/' can be found after '#'.
+			while ( *directory_ptr != NULL )
+			{
+				if ( *directory_ptr == L'?' || *directory_ptr == L'#' )
+				{
+					*directory_ptr = 0;	// Sanity.
+
+					break;
+				}
+				else if ( *directory_ptr == L'/' )
+				{
+					last_directory = current_directory;
+					current_directory = directory_ptr + 1; 
+				}
+
+				++directory_ptr;
+			}
+
+			unsigned int o_resource_length = ( unsigned int )( current_directory - original_resource );
+
+			resource_length = lstrlenW( url );
+
+			*resource = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( o_resource_length + resource_length + 1 ) );
+			_wmemcpy_s( *resource, o_resource_length + resource_length + 1, original_resource, o_resource_length );
+			_wmemcpy_s( *resource + o_resource_length, resource_length + 1, url, resource_length );
+			resource_length += o_resource_length;
+			*( *resource + resource_length ) = 0;	// Sanity.
+		}
+		else
+		{
+			resource_length = lstrlenW( url ) + 1;	// Include the L'/'
+
+			*resource = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( resource_length + 1 ) );
+			*resource[ 0 ] = L'/';
+			_wmemcpy_s( *resource + 1, resource_length, url, resource_length );
+			*( *resource + resource_length ) = 0;	// Sanity.
+		}
 	}
 
 	return true;
@@ -1191,7 +1265,7 @@ void GetContentRange( char *header, RANGE_INFO *range_info )
 	}
 }
 
-void GetLocation( char *header, URL_LOCATION *url_location )
+void GetLocation( char *header, char *resource, URL_LOCATION *url_location )
 {
 	char *location_header = NULL;
 	char *location_header_end = NULL;
@@ -1205,17 +1279,17 @@ void GetLocation( char *header, URL_LOCATION *url_location )
 		unsigned int host_length = 0;
 		unsigned int resource_length = 0;
 
-		ParseURL_A( location_header, url_location->protocol, &url_location->host, host_length, url_location->port, &url_location->resource, resource_length );
+		ParseURL_A( location_header, resource, url_location->protocol, &url_location->host, host_length, url_location->port, &url_location->resource, resource_length );
 
 		char *a_resource = url_location->resource;
-		unsigned int a_resource_length = 0;
+		//unsigned int a_resource_length = 0;
 
 		while ( *a_resource != NULL )
 		{
 			if ( *a_resource == '#' )
 			{
 				*a_resource = 0;
-				resource_length = ( unsigned int )( a_resource - url_location->resource );
+				//resource_length = ( unsigned int )( a_resource - url_location->resource );
 
 				break;
 			}
@@ -1223,6 +1297,7 @@ void GetLocation( char *header, URL_LOCATION *url_location )
 			++a_resource;
 		}
 
+		// We can't decode this here because the redirect will need the resource request to be encoded.
 		/*a_resource = url_encode_a( url_location->resource, resource_length, &a_resource_length );
 
 		// Did we encode anything?
@@ -2309,7 +2384,7 @@ char ParseHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int
 
 		if ( context->header_info.url_location.host == NULL )
 		{
-			GetLocation( header_buffer, &context->header_info.url_location );
+			GetLocation( header_buffer, context->request_info.resource, &context->header_info.url_location );
 
 			// This is so stupid. Match the relative URI protocol/port with the request URI protocol/port.
 			if ( context->header_info.url_location.protocol == PROTOCOL_RELATIVE )
@@ -2488,7 +2563,24 @@ char ParseHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int
 					{
 						SystemTimeToFileTime( &date_time, &context->header_info.last_modified );
 
-						context->got_last_modified = 1;
+						EnterCriticalSection( &context->download_info->shared_cs );
+
+						// A new download will have a last_modified value of 0. If it's been set and the times don't match, prompt the user.
+						if ( context->download_info->last_modified.QuadPart > 0 &&
+						   ( context->download_info->last_modified.HighPart != context->header_info.last_modified.dwHighDateTime ||
+							 context->download_info->last_modified.LowPart != context->header_info.last_modified.dwLowDateTime ) )
+						{
+							context->got_last_modified = 2;	// Prompt.
+						}
+						else	// New downloads or matching times.
+						{
+							context->got_last_modified = 1;	// Continue.
+
+							context->download_info->last_modified.HighPart = context->header_info.last_modified.dwHighDateTime;
+							context->download_info->last_modified.LowPart = context->header_info.last_modified.dwLowDateTime;
+						}
+
+						LeaveCriticalSection( &context->download_info->shared_cs );
 					}
 				}
 				else	// Simulation doesn't need to keep looking for it.
@@ -2579,11 +2671,13 @@ char GetHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int h
 			{
 				unsigned int filename_length = lstrlenA( context->header_info.url_location.resource );
 
-				char *filename = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( filename_length + 1 ) );
+				char *filename = url_decode_a( context->header_info.url_location.resource, filename_length, &filename_length );
+
+				//char *filename = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( filename_length + 1 ) );
 				if ( filename != NULL )
 				{
-					_memcpy_s( filename, filename_length + 1, context->header_info.url_location.resource, filename_length );
-					filename[ filename_length ] = 0;	// Sanity.
+					//_memcpy_s( filename, filename_length + 1, context->header_info.url_location.resource, filename_length );
+					//filename[ filename_length ] = 0;	// Sanity.
 
 					char *directory_ptr = filename;
 					char *current_directory = filename;
@@ -3534,7 +3628,7 @@ char AllocateFile( SOCKET_CONTEXT *context )
 				if ( GetFileAttributes( file_path ) != INVALID_FILE_ATTRIBUTES && context->download_info->downloaded > 0 )
 				{
 					// If the file has downloaded data (we're resuming), then open it, otherwise truncate its size to 0.
-					context->download_info->hFile = CreateFile( file_path, GENERIC_WRITE | FILE_WRITE_ATTRIBUTES | DELETE, FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED, NULL );
+					context->download_info->hFile = CreateFile( file_path, GENERIC_WRITE | FILE_WRITE_ATTRIBUTES | DELETE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED, NULL );
 
 					if ( context->download_info->hFile != INVALID_HANDLE_VALUE )
 					{
@@ -3559,7 +3653,7 @@ char AllocateFile( SOCKET_CONTEXT *context )
 				}
 				else	// Pre-allocate our file on the disk if it does not exist, or if we're overwriting one that already exists.
 				{
-					context->download_info->hFile = CreateFile( file_path, GENERIC_WRITE | FILE_WRITE_ATTRIBUTES | DELETE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED, NULL );
+					context->download_info->hFile = CreateFile( file_path, GENERIC_WRITE | FILE_WRITE_ATTRIBUTES | DELETE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED, NULL );
 
 					if ( context->download_info->hFile != INVALID_HANDLE_VALUE )
 					{
@@ -3666,6 +3760,207 @@ char AllocateFile( SOCKET_CONTEXT *context )
 	return CONTENT_STATUS_NONE;
 }
 
+char HandleRenamePrompt( SOCKET_CONTEXT *context )
+{
+	if ( context == NULL )
+	{
+		return CONTENT_STATUS_FAILED;
+	}
+
+	char content_status = CONTENT_STATUS_NONE;
+
+	// Ignore the prompt of we selected Rename or Overwrite to all.
+	if ( g_rename_file_cmb_ret != CMBIDRENAMEALL && g_rename_file_cmb_ret != CMBIDOVERWRITEALL )
+	{
+		if ( context->got_filename == 2 )
+		{
+			context->got_filename = 1;
+
+			// If we selected Skip to all, or it's a remotely initiated download, then close the connection.
+			if ( g_rename_file_cmb_ret == CMBIDSKIPALL || context->download_info->download_operations & DOWNLOAD_OPERATION_OVERRIDE_PROMPTS )
+			{
+				context->status = STATUS_SKIPPED;
+
+				content_status = CONTENT_STATUS_FAILED;	// Stop downloading the file.
+			}
+			else	// Otherwise, ask for a prompt.
+			{
+				content_status = context->content_status = CONTENT_STATUS_RENAME_FILE_PROMPT;
+
+				// Add item to prompt queue and continue.
+				EnterCriticalSection( &rename_file_prompt_list_cs );
+
+				DoublyLinkedList *di_node = DLL_CreateNode( ( void * )context->download_info );
+				DLL_AddNode( &rename_file_prompt_list, di_node, -1 );
+
+				if ( !rename_file_prompt_active )
+				{
+					rename_file_prompt_active = true;
+
+					HANDLE handle_prompt = ( HANDLE )_CreateThread( NULL, 0, RenameFilePrompt, NULL, 0, NULL );
+
+					// Make sure our thread spawned.
+					if ( handle_prompt == NULL )
+					{
+						DLL_RemoveNode( &rename_file_prompt_list, di_node );
+						GlobalFree( di_node );
+
+						rename_file_prompt_active = false;
+
+						context->status = STATUS_FILE_IO_ERROR;
+
+						content_status = CONTENT_STATUS_FAILED;	// Stop downloading the file.
+					}
+					else
+					{
+						CloseHandle( handle_prompt );
+					}
+				}
+
+				LeaveCriticalSection( &rename_file_prompt_list_cs );
+			}
+		}
+	}
+
+	return content_status;
+}
+
+char HandleFileSizePrompt( SOCKET_CONTEXT *context )
+{
+	if ( context == NULL )
+	{
+		return CONTENT_STATUS_FAILED;
+	}
+
+	char content_status = CONTENT_STATUS_NONE;
+
+	// Ignore the prompt of we selected Yes to all.
+	if ( g_file_size_cmb_ret != CMBIDYESALL )
+	{
+		if ( context->show_file_size_prompt )
+		{
+			context->show_file_size_prompt = false;	// Ensure it stays false.
+
+			// If we selected No to all, or it's a remotely initiated download, then close the connection.
+			if ( g_file_size_cmb_ret == CMBIDNOALL || context->download_info->download_operations & DOWNLOAD_OPERATION_OVERRIDE_PROMPTS )
+			{
+				context->header_info.range_info->content_length = 0;
+				context->header_info.range_info->range_start = 0;
+				context->header_info.range_info->range_end = 0;
+				context->header_info.range_info->content_offset = 0;
+				context->header_info.range_info->file_write_offset = 0;
+
+				context->status = STATUS_SKIPPED;
+
+				content_status = CONTENT_STATUS_FAILED;	// Stop downloading the file.
+			}
+			else	// Otherwise, ask for a prompt.
+			{
+				content_status = context->content_status = CONTENT_STATUS_FILE_SIZE_PROMPT;
+
+				// Add item to prompt queue and continue.
+				EnterCriticalSection( &file_size_prompt_list_cs );
+
+				DoublyLinkedList *di_node = DLL_CreateNode( ( void * )context->download_info );
+				DLL_AddNode( &file_size_prompt_list, di_node, -1 );
+
+				if ( !file_size_prompt_active )
+				{
+					file_size_prompt_active = true;
+
+					HANDLE handle_prompt = ( HANDLE )_CreateThread( NULL, 0, FileSizePrompt, NULL, 0, NULL );
+
+					// Make sure our thread spawned.
+					if ( handle_prompt == NULL )
+					{
+						DLL_RemoveNode( &file_size_prompt_list, di_node );
+						GlobalFree( di_node );
+
+						file_size_prompt_active = false;
+
+						context->status = STATUS_FILE_IO_ERROR;
+
+						content_status = CONTENT_STATUS_FAILED;	// Stop downloading the file.
+					}
+					else
+					{
+						CloseHandle( handle_prompt );
+					}
+				}
+
+				LeaveCriticalSection( &file_size_prompt_list_cs );
+			}
+		}
+	}
+
+	return content_status;
+}
+
+char HandleLastModifiedPrompt( SOCKET_CONTEXT *context )
+{
+	if ( context == NULL )
+	{
+		return CONTENT_STATUS_FAILED;
+	}
+
+	char content_status = CONTENT_STATUS_NONE;
+
+	// Ignore the prompt of we selected Continue or Restart to all.
+	if ( g_last_modified_cmb_ret != CMBIDCONTINUEALL && g_last_modified_cmb_ret != CMBIDRESTARTALL )
+	{
+		if ( context->got_last_modified == 2 )
+		{
+			context->got_last_modified = 1;
+
+			// If we selected Skip to all, or it's a remotely initiated download, then close the connection.
+			if ( g_last_modified_cmb_ret == CMBIDSKIPALL || context->download_info->download_operations & DOWNLOAD_OPERATION_OVERRIDE_PROMPTS )
+			{
+				context->status = STATUS_SKIPPED;
+
+				content_status = CONTENT_STATUS_FAILED;	// Stop downloading the file.
+			}
+			else	// Otherwise, ask for a prompt.
+			{
+				content_status = context->content_status = CONTENT_STATUS_LAST_MODIFIED_PROMPT;
+
+				// Add item to prompt queue and continue.
+				EnterCriticalSection( &last_modified_prompt_list_cs );
+
+				DoublyLinkedList *di_node = DLL_CreateNode( ( void * )context->download_info );
+				DLL_AddNode( &last_modified_prompt_list, di_node, -1 );
+
+				if ( !last_modified_prompt_active )
+				{
+					last_modified_prompt_active = true;
+
+					HANDLE handle_prompt = ( HANDLE )_CreateThread( NULL, 0, LastModifiedPrompt, NULL, 0, NULL );
+
+					// Make sure our thread spawned.
+					if ( handle_prompt == NULL )
+					{
+						DLL_RemoveNode( &last_modified_prompt_list, di_node );
+						GlobalFree( di_node );
+
+						last_modified_prompt_active = false;
+
+						context->status = STATUS_FILE_IO_ERROR;
+
+						content_status = CONTENT_STATUS_FAILED;	// Stop downloading the file.
+					}
+					else
+					{
+						CloseHandle( handle_prompt );
+					}
+				}
+
+				LeaveCriticalSection( &last_modified_prompt_list_cs );
+			}
+		}
+	}
+
+	return content_status;
+}
+
 char GetHTTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, unsigned int response_buffer_length )
 {
 	if ( context == NULL )
@@ -3694,124 +3989,25 @@ char GetHTTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, uns
 		// Once we have the file size, allocate our file.
 		if ( context->download_info != NULL && !( context->download_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
 		{
-			// Ignore the prompt of we selected Yes to all.
-			if ( g_rename_file_cmb_ret != CMBIDYESALL )
+			content_status = HandleLastModifiedPrompt( context );
+
+			if ( content_status != CONTENT_STATUS_NONE )
 			{
-				if ( context->got_filename == 2 )
-				{
-					context->got_filename = 1;
-
-					// If we select No to all, or it's a remotely initiated download, then close the connection.
-					if ( g_rename_file_cmb_ret == CMBIDNOALL || context->download_info->download_operations & DOWNLOAD_OPERATION_OVERRIDE_PROMPTS )
-					{
-						context->status = STATUS_SKIPPED;
-
-						return CONTENT_STATUS_FAILED;	// Stop downloading the file.
-					}
-					else	// Otherwise, ask for a prompt.
-					{
-						context->content_status = CONTENT_STATUS_RENAME_FILE_PROMPT;
-
-						// Add item to prompt queue and continue.
-						EnterCriticalSection( &rename_file_prompt_list_cs );
-
-						DoublyLinkedList *di_node = DLL_CreateNode( ( void * )context->download_info );
-						DLL_AddNode( &rename_file_prompt_list, di_node, -1 );
-
-						if ( !rename_file_prompt_active )
-						{
-							rename_file_prompt_active = true;
-
-							HANDLE handle_prompt = ( HANDLE )_CreateThread( NULL, 0, RenameFilePrompt, NULL, 0, NULL );
-
-							// Make sure our thread spawned.
-							if ( handle_prompt == NULL )
-							{
-								DLL_RemoveNode( &rename_file_prompt_list, di_node );
-								GlobalFree( di_node );
-
-								rename_file_prompt_active = false;
-
-								LeaveCriticalSection( &rename_file_prompt_list_cs );
-
-								context->status = STATUS_FILE_IO_ERROR;
-
-								return CONTENT_STATUS_FAILED;	// Stop downloading the file.
-							}
-							else
-							{
-								CloseHandle( handle_prompt );
-							}
-						}
-
-						LeaveCriticalSection( &rename_file_prompt_list_cs );
-
-						return CONTENT_STATUS_RENAME_FILE_PROMPT;
-					}
-				}
+				return content_status;
 			}
 
-			// Ignore the prompt of we selected Yes to all.
-			if ( g_file_size_cmb_ret != CMBIDYESALL )
+			content_status = HandleRenamePrompt( context );
+
+			if ( content_status != CONTENT_STATUS_NONE )
 			{
-				if ( context->show_file_size_prompt )
-				{
-					context->show_file_size_prompt = false;	// Ensure it stays false.
+				return content_status;
+			}
 
-					// If we select No to all, or it's a remotely initiated download, then close the connection.
-					if ( g_file_size_cmb_ret == CMBIDNOALL || context->download_info->download_operations & DOWNLOAD_OPERATION_OVERRIDE_PROMPTS )
-					{
-						context->header_info.range_info->content_length = 0;
-						context->header_info.range_info->range_start = 0;
-						context->header_info.range_info->range_end = 0;
-						context->header_info.range_info->content_offset = 0;
-						context->header_info.range_info->file_write_offset = 0;
+			content_status = HandleFileSizePrompt( context );
 
-						context->status = STATUS_SKIPPED;
-
-						return CONTENT_STATUS_FAILED;	// Stop downloading the file.
-					}
-					else	// Otherwise, ask for a prompt.
-					{
-						context->content_status = CONTENT_STATUS_FILE_SIZE_PROMPT;
-
-						// Add item to prompt queue and continue.
-						EnterCriticalSection( &file_size_prompt_list_cs );
-
-						DoublyLinkedList *di_node = DLL_CreateNode( ( void * )context->download_info );
-						DLL_AddNode( &file_size_prompt_list, di_node, -1 );
-
-						if ( !file_size_prompt_active )
-						{
-							file_size_prompt_active = true;
-
-							HANDLE handle_prompt = ( HANDLE )_CreateThread( NULL, 0, FileSizePrompt, NULL, 0, NULL );
-
-							// Make sure our thread spawned.
-							if ( handle_prompt == NULL )
-							{
-								DLL_RemoveNode( &file_size_prompt_list, di_node );
-								GlobalFree( di_node );
-
-								file_size_prompt_active = false;
-
-								LeaveCriticalSection( &file_size_prompt_list_cs );
-
-								context->status = STATUS_FILE_IO_ERROR;
-
-								return CONTENT_STATUS_FAILED;	// Stop downloading the file.
-							}
-							else
-							{
-								CloseHandle( handle_prompt );
-							}
-						}
-
-						LeaveCriticalSection( &file_size_prompt_list_cs );
-
-						return CONTENT_STATUS_FILE_SIZE_PROMPT;
-					}
-				}
+			if ( content_status != CONTENT_STATUS_NONE )
+			{
+				return content_status;
 			}
 
 			if ( !context->is_allocated )
@@ -4563,7 +4759,14 @@ char GetHTTPRequestContent( SOCKET_CONTEXT *context, char *request_buffer, unsig
 
 		if ( context->post_info != NULL )
 		{
-			int urls_length = MultiByteToWideChar( CP_UTF8, 0, context->post_info->urls, -1, NULL, 0 );	// Include the NULL terminator.
+			unsigned int dec_len = lstrlenA( context->post_info->urls );
+			char *decoded_urls = url_decode_a( context->post_info->urls, dec_len, &dec_len );
+			if ( decoded_urls != NULL )
+			{
+				GlobalFree( context->post_info->urls );
+				context->post_info->urls = decoded_urls;
+			}
+			int urls_length = MultiByteToWideChar( CP_UTF8, 0, context->post_info->urls, dec_len + 1, NULL, 0 );	// Include the NULL terminator.
 
 			// http://a.b + NULL
 			if ( urls_length >= 11 )

@@ -20,7 +20,7 @@
 #define _FILE_OPERATIONS_H
 
 #define MAGIC_ID_SETTINGS		"HDM\x00"
-#define MAGIC_ID_DOWNLOADS		"HDM\x12"	// Version 3
+#define MAGIC_ID_DOWNLOADS		"HDM\x13"	// Version 4
 
 char read_config();
 char save_config();

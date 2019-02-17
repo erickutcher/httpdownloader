@@ -25,6 +25,8 @@
 
 #include <objbase.h>
 
+const IID _IID_IUnknown =		{ 0x00000000, 0x0000, 0x0000, { 0xC0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46 } };
+
 //#define OLE32_USE_STATIC_LIB
 
 #ifdef OLE32_USE_STATIC_LIB
@@ -44,6 +46,8 @@
 	#define _RevokeDragDrop RevokeDragDrop
 	#define _ReleaseStgMedium ReleaseStgMedium
 
+	#define _CoCreateInstance CoCreateInstance
+
 #else
 
 	#define OLE32_STATE_SHUTDOWN	0
@@ -62,6 +66,8 @@
 	typedef HRESULT ( WINAPI *pRevokeDragDrop )( HWND hwnd );
 	typedef void ( WINAPI *pReleaseStgMedium )( LPSTGMEDIUM pMedium );
 
+	typedef HRESULT ( WINAPI *pCoCreateInstance )( REFCLSID rclsid, LPUNKNOWN pUnkOuter, DWORD dwClsContext, REFIID riid, LPVOID *ppv );
+
 	extern pCoTaskMemFree	_CoTaskMemFree;
 
 	extern pOleInitialize	_OleInitialize;
@@ -74,6 +80,8 @@
 	extern pRegisterDragDrop _RegisterDragDrop;
 	extern pRevokeDragDrop _RevokeDragDrop;
 	extern pReleaseStgMedium _ReleaseStgMedium;
+
+	extern pCoCreateInstance _CoCreateInstance;
 
 	extern unsigned char ole32_state;
 

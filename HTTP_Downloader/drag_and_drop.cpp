@@ -68,7 +68,8 @@ void HandleFileList( HDROP hdrop )
 		}
 	}
 
-	_DragFinish( hdrop );
+	// Can't do this because ReleaseStgMedium will release the memory again (double free). Should only be called in WM_DROPFILES.
+	//_DragFinish( hdrop );
 
 	if ( iei->file_paths != NULL )
 	{

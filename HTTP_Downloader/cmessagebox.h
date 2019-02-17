@@ -33,18 +33,21 @@
 #define CMBIDCLOSE				8		// Not supported.
 #define CMBIDHELP				9		// Not supported.
 #define CMBIDTRYAGAIN			10		// Not supported.
-#define CMBIDCONTINUE			11		// Not supported.
+#define CMBIDCONTINUE			11
 #define CMBIDTIMEOUT			32000	// Not supported.
 
 #define CMBIDOKALL				1000
 #define CMBIDYESALL				60
 #define CMBIDNOALL				70
+#define CMBIDCONTINUEALL		110
 #define CMBIDRENAME				12
 #define CMBIDRENAMEALL			120
 #define CMBIDOVERWRITE			13
 #define CMBIDOVERWRITEALL		130
 #define CMBIDSKIP				14
 #define CMBIDSKIPALL			140
+#define CMBIDRESTART			15
+#define CMBIDRESTARTALL			150
 
 // CMessageBox styles.
 #define CMB_OK					0x00000000L
@@ -57,6 +60,7 @@
 #define CMB_OKALL				0x00000007L
 #define CMB_YESNOALL			0x00000008L
 #define CMB_RENAMEOVERWRITESKIPALL	0x00000009L
+#define CMB_CONTINUERESTARTSKIPALL	0x0000000AL
 
 // CMessageBox icon styles.
 #define CMB_ICONHAND			0x00000010L

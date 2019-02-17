@@ -87,9 +87,10 @@
 #define CONTENT_STATUS_GET_CONTENT			4
 #define CONTENT_STATUS_RENAME_FILE_PROMPT	5
 #define CONTENT_STATUS_FILE_SIZE_PROMPT		6
-#define CONTENT_STATUS_ALLOCATE_FILE		7
-#define CONTENT_STATUS_HANDLE_RESPONSE		8	// Deals with HTTP status 206 and 401 responses.
-#define CONTENT_STATUS_HANDLE_REQUEST		9
+#define CONTENT_STATUS_LAST_MODIFIED_PROMPT	7
+#define CONTENT_STATUS_ALLOCATE_FILE		8
+#define CONTENT_STATUS_HANDLE_RESPONSE		9	// Deals with HTTP status 206 and 401 responses.
+#define CONTENT_STATUS_HANDLE_REQUEST		10
 
 #define TIME_OUT_FALSE		0
 #define TIME_OUT_TRUE		1
@@ -321,6 +322,7 @@ struct DOWNLOAD_INFO
 	DoublyLinkedList	queue_node;			// Self reference to the download_queue.
 	ULARGE_INTEGER		add_time;
 	ULARGE_INTEGER		start_time;
+	ULARGE_INTEGER		last_modified;
 	unsigned long long	last_downloaded;
 	unsigned long long	downloaded;
 	unsigned long long	file_size;
@@ -395,6 +397,7 @@ bool RenameFile( DOWNLOAD_INFO *di, dllrbt_tree *filename_tree );
 
 THREAD_RETURN RenameFilePrompt( void *pArguments );
 THREAD_RETURN FileSizePrompt( void *pArguments );
+THREAD_RETURN LastModifiedPrompt( void *pArguments );
 
 ICON_INFO *CacheIcon( DOWNLOAD_INFO *di, SHFILEINFO *sfi );
 
@@ -413,11 +416,12 @@ extern bool g_end_program;
 
 extern WSAEVENT g_cleanup_event[ 1 ];
 
-extern CRITICAL_SECTION context_list_cs;			// Guard access to the global context list.
-extern CRITICAL_SECTION active_download_list_cs;	// Guard access to the global active download list.
-extern CRITICAL_SECTION download_queue_cs;			// Guard access to the download queue.
-extern CRITICAL_SECTION file_size_prompt_list_cs;	// Guard access to the file size prompt list.
-extern CRITICAL_SECTION rename_file_prompt_list_cs;	// Guard access to the rename file prompt list.
+extern CRITICAL_SECTION context_list_cs;				// Guard access to the global context list.
+extern CRITICAL_SECTION active_download_list_cs;		// Guard access to the global active download list.
+extern CRITICAL_SECTION download_queue_cs;				// Guard access to the download queue.
+extern CRITICAL_SECTION file_size_prompt_list_cs;		// Guard access to the file size prompt list.
+extern CRITICAL_SECTION rename_file_prompt_list_cs;		// Guard access to the rename file prompt list.
+extern CRITICAL_SECTION last_modified_prompt_list_cs;	// Guard access to the last modified prompt list.
 extern CRITICAL_SECTION cleanup_cs;
 
 extern DoublyLinkedList *g_context_list;
@@ -428,8 +432,8 @@ extern DoublyLinkedList *download_queue;
 extern DoublyLinkedList *active_download_list;
 
 extern DoublyLinkedList *file_size_prompt_list;		// List of downloads that need to be prompted to continue.
-
 extern DoublyLinkedList *rename_file_prompt_list;	// List of downloads that need to be prompted to continue.
+extern DoublyLinkedList *last_modified_prompt_list;	// List of downloads that need to be prompted to continue.
 
 extern bool file_size_prompt_active;
 extern int g_file_size_cmb_ret;		// Message box prompt for large files sizes.
@@ -437,6 +441,9 @@ extern int g_file_size_cmb_ret;		// Message box prompt for large files sizes.
 extern bool rename_file_prompt_active;
 extern int g_rename_file_cmb_ret;	// Message box prompt to rename files.
 extern int g_rename_file_cmb_ret2;	// Message box prompt to rename files.
+
+extern bool last_modified_prompt_active;
+extern int g_last_modified_cmb_ret;	// Message box prompt for modified files.
 
 extern DOWNLOAD_INFO *g_update_download_info;		// The current item that we want to update.
 

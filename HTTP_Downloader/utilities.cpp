@@ -80,11 +80,11 @@ bool cfg_show_notification = false;
 bool cfg_always_on_top = false;
 bool cfg_enable_download_history = true;
 bool cfg_enable_quick_allocation = false;
-bool cfg_set_filetime = false;
+bool cfg_set_filetime = true;
 bool cfg_use_one_instance = false;
 bool cfg_enable_drop_window = false;
 bool cfg_download_immediately = false;
-bool cfg_prevent_standby = false;
+bool cfg_prevent_standby = true;
 
 bool cfg_play_sound = false;
 wchar_t *cfg_sound_file_path = NULL;
@@ -827,7 +827,7 @@ char *url_encode_a( char *str, unsigned int str_len, unsigned int *enc_len )
 			*pbuf++ = *pstr;
 		}
 
-		pstr++;
+		++pstr;
 	}
 
 	*pbuf = '\0';
@@ -891,7 +891,7 @@ wchar_t *url_encode_w( wchar_t *str, unsigned int str_len, unsigned int *enc_len
 			*pbuf++ = *pstr;
 		}
 
-		pstr++;
+		++pstr;
 	}
 
 	*pbuf = L'\0';
@@ -943,7 +943,7 @@ char *url_decode_a( char *str, unsigned int str_len, unsigned int *dec_len )
 			*pbuf++ = *pstr;
 		}
 
-		pstr++;
+		++pstr;
 	}
 
 	*pbuf = '\0';
@@ -995,7 +995,7 @@ wchar_t *url_decode_w( wchar_t *str, unsigned int str_len, unsigned int *dec_len
 			*pbuf++ = *pstr;
 		}
 
-		pstr++;
+		++pstr;
 	}
 
 	*pbuf = L'\0';
@@ -1049,7 +1049,7 @@ char *html_entity_decode_a( char *str, unsigned int str_len, unsigned int *dec_l
 			*pbuf++ = *pstr;
 		}
 
-		pstr++;
+		++pstr;
 	}
 
 	*pbuf = '\0';

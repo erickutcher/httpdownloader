@@ -30,8 +30,8 @@ struct COOKIE_CONTAINER
 };
 
 char *GetHeaderValue( char *header, char *field_name, unsigned long field_name_length, char **value_start, char **value_end );
-bool ParseURL_A( char *url, PROTOCOL &protocol, char **host, unsigned int &host_length, unsigned short &port, char **resource, unsigned int &resource_length );
-bool ParseURL_W( wchar_t *url, PROTOCOL &protocol, wchar_t **host, unsigned int &host_length, unsigned short &port, wchar_t **resource, unsigned int &resource_length );
+bool ParseURL_A( char *url, char *original_resource, PROTOCOL &protocol, char **host, unsigned int &host_length, unsigned short &port, char **resource, unsigned int &resource_length );
+bool ParseURL_W( wchar_t *url, wchar_t *original_resource, PROTOCOL &protocol, wchar_t **host, unsigned int &host_length, unsigned short &port, wchar_t **resource, unsigned int &resource_length );
 bool ParseCookieValues( char *cookie_list, dllrbt_tree **cookie_tree, char **cookies );
 
 unsigned short GetHTTPStatus( char *header );

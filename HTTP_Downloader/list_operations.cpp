@@ -55,7 +55,7 @@ void ResetDownload( DOWNLOAD_INFO *di, bool from_beginning, bool check_if_file_e
 {
 	if ( di != NULL )
 	{
-		DoublyLinkedList *range_node = NULL;
+		DoublyLinkedList *range_node;
 
 		if ( from_beginning )
 		{
@@ -80,6 +80,8 @@ void ResetDownload( DOWNLOAD_INFO *di, bool from_beginning, bool check_if_file_e
 			di->processed_header = false;
 
 			di->downloaded = 0;
+
+			di->last_modified.QuadPart = 0;
 		}
 
 		// If we manually start a download, then set the incomplete retry attempts back to 0.
@@ -247,23 +249,22 @@ THREAD_RETURN remove_items( void *pArguments )
 			EnterCriticalSection( &di->shared_cs );
 
 			DoublyLinkedList *context_node = di->parts_list;
-			SOCKET_CONTEXT *context = NULL;
 
 			// If there are still active connections.
 			if ( di->download_node.data != NULL )
 			{
 				di->status = STATUS_STOPPED | STATUS_REMOVE | status;
 
+				LeaveCriticalSection( &di->shared_cs );
+
 				while ( context_node != NULL )
 				{
-					context = ( SOCKET_CONTEXT * )context_node->data;
+					SOCKET_CONTEXT *context = ( SOCKET_CONTEXT * )context_node->data;
 
 					context_node = context_node->next;
 
 					SetContextStatus( context, STATUS_STOPPED | STATUS_REMOVE | status );
 				}
-
-				LeaveCriticalSection( &di->shared_cs );
 			}
 			else	// No active parts.
 			{
@@ -340,21 +341,24 @@ THREAD_RETURN remove_items( void *pArguments )
 
 				if ( handle_type == 1 )
 				{
-					// We're freeing this anyway so it's safe to modify.
-					di->file_path[ di->filename_offset - 1 ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
-
-					if ( DeleteFileW( di->file_path ) == FALSE )
+					if ( !( di->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
 					{
-						delete_success = false;
+						// We're freeing this anyway so it's safe to modify.
+						di->file_path[ di->filename_offset - 1 ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
 
-						int error = GetLastError();
-						if ( error == ERROR_ACCESS_DENIED )
+						if ( DeleteFileW( di->file_path ) == FALSE )
 						{
-							error_type |= 1;
-						}
-						else if ( error == ERROR_FILE_NOT_FOUND )
-						{
-							error_type |= 2;
+							delete_success = false;
+
+							int error = GetLastError();
+							if ( error == ERROR_ACCESS_DENIED )
+							{
+								error_type |= 1;
+							}
+							else if ( error == ERROR_FILE_NOT_FOUND )
+							{
+								error_type |= 2;
+							}
 						}
 					}
 				}
@@ -451,6 +455,9 @@ THREAD_RETURN handle_download_list( void *pArguments )
 			DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )active_download_node->data;
 			if ( di != NULL )
 			{
+				DoublyLinkedList *context_node;
+				unsigned int status;
+
 				EnterCriticalSection( &di->shared_cs );
 
 				// Make sure the status is exclusively connecting or downloading.
@@ -458,13 +465,15 @@ THREAD_RETURN handle_download_list( void *pArguments )
 					 di->status == STATUS_DOWNLOADING )
 				{
 					di->status |= STATUS_PAUSED;
-				
-					DoublyLinkedList *context_node = di->parts_list;
-					SOCKET_CONTEXT *context = NULL;
+
+					context_node = di->parts_list;
+					status = di->status;
+
+					LeaveCriticalSection( &di->shared_cs );
 
 					while ( context_node != NULL )
 					{
-						context = ( SOCKET_CONTEXT * )context_node->data;
+						SOCKET_CONTEXT *context = ( SOCKET_CONTEXT * )context_node->data;
 
 						context_node = context_node->next;
 
@@ -474,14 +483,16 @@ THREAD_RETURN handle_download_list( void *pArguments )
 
 							context->is_paused = false;	// Set to true when last IO operation has completed.
 
-							context->status = di->status;
+							context->status = status;
 
 							LeaveCriticalSection( &context->context_cs );
 						}
 					}
 				}
-
-				LeaveCriticalSection( &di->shared_cs );
+				else
+				{
+					LeaveCriticalSection( &di->shared_cs );
+				}
 			}
 
 			active_download_node = active_download_node->next;
@@ -536,10 +547,9 @@ THREAD_RETURN handle_download_list( void *pArguments )
 			DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )active_download_node->data;
 			if ( di != NULL )
 			{
-				EnterCriticalSection( &di->shared_cs );
+				DoublyLinkedList *context_node;
 
-				DoublyLinkedList *context_node = di->parts_list;
-				SOCKET_CONTEXT *context = NULL;
+				EnterCriticalSection( &di->shared_cs );
 
 				// Connecting, Downloading, Paused, Queued.
 				if ( IS_STATUS( di->status,
@@ -550,31 +560,42 @@ THREAD_RETURN handle_download_list( void *pArguments )
 					// Download is active, close the connection.
 					if ( di->download_node.data != NULL )
 					{
+						context_node = di->parts_list;
+
+						LeaveCriticalSection( &di->shared_cs );
+
 						// di->status will be set to STATUS_STOPPED in CleanupConnection().
 						while ( context_node != NULL )
 						{
-							context = ( SOCKET_CONTEXT * )context_node->data;
+							SOCKET_CONTEXT *context = ( SOCKET_CONTEXT * )context_node->data;
 
 							context_node = context_node->next;
 
 							SetContextStatus( context, STATUS_STOPPED );
 						}
 					}
-					else if ( di->queue_node.data != NULL )	// Download is queued.
+					else
 					{
-						di->status = STATUS_STOPPED;
+						if ( di->queue_node.data != NULL )	// Download is queued.
+						{
+							di->status = STATUS_STOPPED;
 
-						EnterCriticalSection( &download_queue_cs );
+							EnterCriticalSection( &download_queue_cs );
 
-						// Remove the item from the download queue.
-						DLL_RemoveNode( &download_queue, &di->queue_node );
-						di->queue_node.data = NULL;
+							// Remove the item from the download queue.
+							DLL_RemoveNode( &download_queue, &di->queue_node );
+							di->queue_node.data = NULL;
 
-						LeaveCriticalSection( &download_queue_cs );
+							LeaveCriticalSection( &download_queue_cs );
+						}
+
+						LeaveCriticalSection( &di->shared_cs );
 					}
 				}
-
-				LeaveCriticalSection( &di->shared_cs );
+				else
+				{
+					LeaveCriticalSection( &di->shared_cs );
+				}
 			}
 
 			active_download_node = active_download_node->next;
@@ -783,6 +804,8 @@ THREAD_RETURN handle_connection( void *pArguments )
 		DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )lvi.lParam;
 		if ( di != NULL )
 		{
+			unsigned int tmp_status;
+
 			EnterCriticalSection( &di->shared_cs );
 
 			// Make sure we're not already in the process of shutting down or closing the connection.
@@ -791,7 +814,7 @@ THREAD_RETURN handle_connection( void *pArguments )
 				if ( di->status != STATUS_COMPLETED )
 				{
 					DoublyLinkedList *context_node = di->parts_list;
-					SOCKET_CONTEXT *context = NULL;
+					SOCKET_CONTEXT *context;
 
 					// Make sure the status is exclusively connecting or downloading.
 					if ( di->status == STATUS_CONNECTING ||
@@ -799,6 +822,8 @@ THREAD_RETURN handle_connection( void *pArguments )
 					{
 						if ( status == STATUS_STOPPED )	// Stop (close) the active connection.
 						{
+							LeaveCriticalSection( &di->shared_cs );
+
 							// di->status will be set to STATUS_STOPPED in CleanupConnection().
 							while ( context_node != NULL )
 							{
@@ -839,6 +864,10 @@ THREAD_RETURN handle_connection( void *pArguments )
 								di->status |= STATUS_PAUSED;
 							}
 
+							tmp_status = di->status;
+
+							LeaveCriticalSection( &di->shared_cs );
+
 							while ( context_node != NULL )
 							{
 								context = ( SOCKET_CONTEXT * )context_node->data;
@@ -851,15 +880,21 @@ THREAD_RETURN handle_connection( void *pArguments )
 
 									context->is_paused = false;	// Set to true when last IO operation has completed.
 
-									context->status = di->status;
+									context->status = tmp_status;
 
 									LeaveCriticalSection( &context->context_cs );
 								}
 							}
 						}
+						else
+						{
+							LeaveCriticalSection( &di->shared_cs );
+						}
 						/*else
 						{
 							di->status = status;
+
+							LeaveCriticalSection( &di->shared_cs );
 
 							while ( context_node != NULL )
 							{
@@ -897,6 +932,10 @@ THREAD_RETURN handle_connection( void *pArguments )
 									di->status &= ~STATUS_PAUSED;
 								}
 
+								tmp_status = di->status;
+
+								LeaveCriticalSection( &di->shared_cs );
+
 								// Run through our parts list and connect to each context.
 								while ( context_node != NULL )
 								{
@@ -908,7 +947,7 @@ THREAD_RETURN handle_connection( void *pArguments )
 									{
 										EnterCriticalSection( &context->context_cs );
 
-										context->status = di->status;
+										context->status = tmp_status;
 
 										// The paused operation has not completed or it has and is_paused is waiting to be set (when the completion fails).
 										// We'll fall through in IOCPConnection.
@@ -927,26 +966,31 @@ THREAD_RETURN handle_connection( void *pArguments )
 									}
 								}
 							}
-							else if ( di->queue_node.data != NULL )	// Download is not active, attempt to resume or queue.
+							else
 							{
-								if ( total_downloading < cfg_max_downloads )
+								if ( di->queue_node.data != NULL )	// Download is not active, attempt to resume or queue.
 								{
-									EnterCriticalSection( &download_queue_cs );
-
-									if ( download_queue != NULL )
+									if ( total_downloading < cfg_max_downloads )
 									{
-										DLL_RemoveNode( &download_queue, &di->queue_node );
-										di->queue_node.data = NULL;
+										EnterCriticalSection( &download_queue_cs );
 
-										ResetDownload( di, ( status == STATUS_RESTART ? true : false ), false );
+										if ( download_queue != NULL )
+										{
+											DLL_RemoveNode( &download_queue, &di->queue_node );
+											di->queue_node.data = NULL;
+
+											ResetDownload( di, ( status == STATUS_RESTART ? true : false ), false );
+										}
+
+										LeaveCriticalSection( &download_queue_cs );
 									}
-
-									LeaveCriticalSection( &download_queue_cs );
+									/*else
+									{
+										di->status = STATUS_QUEUED;	// Queued.
+									}*/
 								}
-								/*else
-								{
-									di->status = STATUS_QUEUED;	// Queued.
-								}*/
+
+								LeaveCriticalSection( &di->shared_cs );
 							}
 						}
 						else if ( status == STATUS_STOPPED )	// Stop (close) the active connection.
@@ -954,6 +998,8 @@ THREAD_RETURN handle_connection( void *pArguments )
 							// Download is active, close the connection.
 							if ( di->download_node.data != NULL )
 							{
+								LeaveCriticalSection( &di->shared_cs );
+
 								// di->status will be set to STATUS_STOPPED in CleanupConnection().
 								while ( context_node != NULL )
 								{
@@ -964,22 +1010,33 @@ THREAD_RETURN handle_connection( void *pArguments )
 									SetContextStatus( context, STATUS_STOPPED );
 								}
 							}
-							else if ( di->queue_node.data != NULL )	// Download is queued.
+							else
 							{
-								di->status = STATUS_STOPPED;
+								if ( di->queue_node.data != NULL )	// Download is queued.
+								{
+									di->status = STATUS_STOPPED;
 
-								EnterCriticalSection( &download_queue_cs );
+									EnterCriticalSection( &download_queue_cs );
 
-								// Remove the item from the download queue.
-								DLL_RemoveNode( &download_queue, &di->queue_node );
-								di->queue_node.data = NULL;
+									// Remove the item from the download queue.
+									DLL_RemoveNode( &download_queue, &di->queue_node );
+									di->queue_node.data = NULL;
 
-								LeaveCriticalSection( &download_queue_cs );
+									LeaveCriticalSection( &download_queue_cs );
+								}
+
+								LeaveCriticalSection( &di->shared_cs );
 							}
+						}
+						else
+						{
+							LeaveCriticalSection( &di->shared_cs );
 						}
 						/*else
 						{
 							di->status = status;
+
+							LeaveCriticalSection( &di->shared_cs );
 
 							while ( context_node != NULL )
 							{
@@ -1007,17 +1064,28 @@ THREAD_RETURN handle_connection( void *pArguments )
 								 STATUS_AUTH_REQUIRED |
 								 STATUS_PROXY_AUTH_REQUIRED ) )	// The download is currently stopped.
 					{
-						// Ensure that the download is actually stopped and that there are no active parts downloading.
-						if ( di->active_parts == 0 )
+						if ( IS_STATUS_NOT( status, STATUS_PAUSED | STATUS_STOPPED ) )
 						{
-							download_history_changed = true;
+							// Ensure that the download is actually stopped and that there are no active parts downloading.
+							if ( di->active_parts == 0 )
+							{
+								download_history_changed = true;
 
-							ResetDownload( di, ( status == STATUS_RESTART ? true : false ), ( di->status == STATUS_SKIPPED ? true : false ) );
+								ResetDownload( di, ( status == STATUS_RESTART ? true : false ), ( di->status == STATUS_SKIPPED ? true : false ) );
+							}
 						}
+
+						LeaveCriticalSection( &di->shared_cs );
+					}
+					else
+					{
+						LeaveCriticalSection( &di->shared_cs );
 					}
 					/*else
 					{
 						di->status = status;
+
+						LeaveCriticalSection( &di->shared_cs );
 
 						while ( context_node != NULL )
 						{
@@ -1048,10 +1116,14 @@ THREAD_RETURN handle_connection( void *pArguments )
 							ResetDownload( di, true, false );
 						}
 					}
+
+					LeaveCriticalSection( &di->shared_cs );
 				}
 			}
-
-			LeaveCriticalSection( &di->shared_cs );
+			else
+			{
+				LeaveCriticalSection( &di->shared_cs );
+			}
 		}
 
 		LeaveCriticalSection( &cleanup_cs );
@@ -1091,8 +1163,6 @@ THREAD_RETURN handle_download_queue( void *pArguments )
 
 	EnterCriticalSection( &cleanup_cs );
 
-	DOWNLOAD_INFO *di = NULL;
-
 	// Retrieve the lParam value from the selected listview item.
 	LVITEM lvi;
 	_memzero( &lvi, sizeof( LVITEM ) );
@@ -1102,7 +1172,7 @@ THREAD_RETURN handle_download_queue( void *pArguments )
 	if ( lvi.iItem != -1 )
 	{
 		_SendMessageW( g_hWnd_files, LVM_GETITEM, 0, ( LPARAM )&lvi );
-		di = ( DOWNLOAD_INFO * )lvi.lParam;
+		DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )lvi.lParam;
 
 		// Make sure the item is queued.
 		if ( di != NULL && di->status == STATUS_QUEUED )
@@ -1232,6 +1302,10 @@ THREAD_RETURN handle_download_update( void *pArguments )
 			di->cookies = ai->utf8_cookies;
 			ai->utf8_cookies = tmp_ptr;
 
+			tmp_ptr = di->data;
+			di->data = ai->utf8_data;
+			ai->utf8_data = tmp_ptr;
+
 			tmp_ptr = di->auth_info.username;
 			di->auth_info.username = ai->auth_info.username;
 			ai->auth_info.username = tmp_ptr;
@@ -1242,32 +1316,45 @@ THREAD_RETURN handle_download_update( void *pArguments )
 
 			di->ssl_version = ai->ssl_version;
 			di->parts_limit = ai->parts;
+			di->method = ai->method;
+
+			if ( ai->urls != NULL )
+			{
+				wchar_t *tmp_ptr_w = di->url;
+				di->url = ai->urls;
+				ai->urls = tmp_ptr_w;
+			}
 
 			DoublyLinkedList *context_node = di->parts_list;
-			SOCKET_CONTEXT *context = NULL;
 
 			// Download is active, close the connection.
 			if ( di->download_node.data != NULL )
 			{
+				LeaveCriticalSection( &di->shared_cs );
+
 				// di->status will be set to STATUS_UPDATING in CleanupConnection().
 				while ( context_node != NULL )
 				{
-					context = ( SOCKET_CONTEXT * )context_node->data;
+					SOCKET_CONTEXT *context = ( SOCKET_CONTEXT * )context_node->data;
 
 					context_node = context_node->next;
 
 					SetContextStatus( context, STATUS_UPDATING );
 				}
 			}
-
-			LeaveCriticalSection( &di->shared_cs );
+			else
+			{
+				LeaveCriticalSection( &di->shared_cs );
+			}
 		}
 
 		// This is all that should be set for this function.
+		GlobalFree( ai->utf8_data );
 		GlobalFree( ai->utf8_headers );
 		GlobalFree( ai->utf8_cookies );
 		GlobalFree( ai->auth_info.username );
 		GlobalFree( ai->auth_info.password );
+		GlobalFree( ai->urls );
 		GlobalFree( ai );
 
 		download_history_changed = true;
@@ -1450,6 +1537,8 @@ THREAD_RETURN rename_file( void *pArguments )
 
 	ProcessingList( true );
 
+	EnterCriticalSection( &cleanup_cs );
+
 	if ( ri != NULL )
 	{
 		if ( ri->filename != NULL  )
@@ -1523,10 +1612,14 @@ THREAD_RETURN rename_file( void *pArguments )
 						// Get the new file extension offset.
 						di->file_extension_offset = di->filename_offset + get_file_extension_offset( di->file_path + di->filename_offset, lstrlenW( di->file_path + di->filename_offset ) );
 
+						DoublyLinkedList *context_node;
+
 						// If we manually renamed our download, then prevent it from being set elsewhere.
 						EnterCriticalSection( &di->shared_cs );
 
-						DoublyLinkedList *context_node = di->parts_list;
+						context_node = di->parts_list;
+
+						LeaveCriticalSection( &di->shared_cs );
 
 						while ( context_node != NULL )
 						{
@@ -1543,8 +1636,6 @@ THREAD_RETURN rename_file( void *pArguments )
 								LeaveCriticalSection( &context->context_cs );
 							}
 						}
-
-						LeaveCriticalSection( &di->shared_cs );
 
 						EnterCriticalSection( &icon_cache_cs );
 						// Find the icon info
@@ -1612,6 +1703,8 @@ THREAD_RETURN rename_file( void *pArguments )
 
 		GlobalFree( ri );
 	}
+
+	LeaveCriticalSection( &cleanup_cs );
 
 	ProcessingList( false );
 
@@ -1836,27 +1929,66 @@ THREAD_RETURN delete_files( void *pArguments )
 
 		DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )lvi.lParam;
 
-		if ( di != NULL &&
-			!( di->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
+		if ( di != NULL )
 		{
-			_wmemcpy_s( file_path, MAX_PATH, di->file_path, MAX_PATH );
-			if ( di->filename_offset > 0 )
+			// Stop all active downloads before we delete anything.
+			DoublyLinkedList *context_node;
+
+			EnterCriticalSection( &di->shared_cs );
+
+			// Connecting, Downloading, Paused.
+			if ( IS_STATUS( di->status,
+					STATUS_CONNECTING |
+					STATUS_DOWNLOADING ) )
 			{
-				file_path[ di->filename_offset - 1 ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
+				// Download is active, close the connection.
+				if ( di->download_node.data != NULL )
+				{
+					context_node = di->parts_list;
+
+					LeaveCriticalSection( &di->shared_cs );
+
+					// di->status will be set to STATUS_STOPPED in CleanupConnection().
+					while ( context_node != NULL )
+					{
+						SOCKET_CONTEXT *context = ( SOCKET_CONTEXT * )context_node->data;
+
+						context_node = context_node->next;
+
+						SetContextStatus( context, STATUS_STOPPED );
+					}
+				}
+				else
+				{
+					LeaveCriticalSection( &di->shared_cs );
+				}
+			}
+			else
+			{
+				LeaveCriticalSection( &di->shared_cs );
 			}
 
-			if ( DeleteFileW( file_path ) == FALSE )
+			if ( !( di->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
 			{
-				delete_success = false;
-
-				int error = GetLastError();
-				if ( error == ERROR_ACCESS_DENIED )
+				_wmemcpy_s( file_path, MAX_PATH, di->file_path, MAX_PATH );
+				if ( di->filename_offset > 0 )
 				{
-					error_type |= 1;
+					file_path[ di->filename_offset - 1 ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
 				}
-				else if ( error == ERROR_FILE_NOT_FOUND )
+
+				if ( DeleteFileW( file_path ) == FALSE )
 				{
-					error_type |= 2;
+					delete_success = false;
+
+					int error = GetLastError();
+					if ( error == ERROR_ACCESS_DENIED )
+					{
+						error_type |= 1;
+					}
+					else if ( error == ERROR_FILE_NOT_FOUND )
+					{
+						error_type |= 2;
+					}
 				}
 			}
 		}

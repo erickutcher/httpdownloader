@@ -1282,6 +1282,8 @@ char read_download_history( wchar_t *file_path )
 		unsigned char		download_operations;
 		unsigned char		method;
 
+		ULARGE_INTEGER		last_modified;
+
 		unsigned char range_count;
 
 		char magic_identifier[ 4 ];
@@ -1304,10 +1306,10 @@ char read_download_history( wchar_t *file_path )
 				// Include 3 wide NULL strings and 3 char NULL strings.
 				// Include 2 ints for username and password lengths.
 				// Include 1 unsigned char for range info.
-				if ( read < ( ( sizeof( ULONGLONG ) + ( sizeof( unsigned long long ) * 2 ) + ( sizeof( unsigned char ) * 5 ) + sizeof( unsigned int ) + sizeof( bool ) ) +
-							( ( sizeof( wchar_t ) * 3 ) + ( sizeof( char ) * 3 ) ) +
-							  ( sizeof( int ) * 2 ) + 
-								sizeof( unsigned char ) ) )
+				if ( read < ( ( ( sizeof( ULONGLONG ) * 2 ) + ( sizeof( unsigned long long ) * 2 ) + ( sizeof( unsigned char ) * 5 ) + sizeof( unsigned int ) + sizeof( bool ) ) +
+							  ( ( sizeof( wchar_t ) * 3 ) + ( sizeof( char ) * 3 ) ) +
+								( sizeof( int ) * 2 ) + 
+								  sizeof( unsigned char ) ) )
 				{
 					break;
 				}
@@ -1399,6 +1401,12 @@ char read_download_history( wchar_t *file_path )
 					if ( offset >= read ) { goto CLEANUP; }
 					_memcpy_s( &method, sizeof( unsigned char ), p, sizeof( unsigned char ) );
 					p += sizeof( unsigned char );
+
+					// Last Modified
+					offset += sizeof( ULONGLONG );
+					if ( offset >= read ) { goto CLEANUP; }
+					_memcpy_s( &last_modified.QuadPart, sizeof( ULONGLONG ), p, sizeof( ULONGLONG ) );
+					p += sizeof( ULONGLONG );
 
 					// Download Directory
 					int string_length = lstrlenW( ( wchar_t * )p ) + 1;
@@ -1577,6 +1585,7 @@ char read_download_history( wchar_t *file_path )
 					di->processed_header = processed_header;
 					di->download_operations = download_operations;
 					di->method = method;
+					di->last_modified = last_modified;
 					di->url = url;
 					di->cookies = cookies;
 					di->headers = headers;
@@ -1746,7 +1755,7 @@ char save_download_history( wchar_t *file_path )
 
 			// See if the next entry can fit in the buffer. If it can't, then we dump the buffer.
 			if ( ( signed )( pos + filename_length + download_directory_length + url_length + cookies_length + headers_length + data_length + username_length + password_length +
-						   ( sizeof( int ) * 2 ) + sizeof( ULONGLONG ) + ( sizeof( unsigned long long ) * 2 ) + ( sizeof( unsigned char ) * 5 ) + sizeof( unsigned int ) + sizeof( bool ) ) > size )
+						   ( sizeof( int ) * 2 ) + ( sizeof( ULONGLONG ) * 2 ) + ( sizeof( unsigned long long ) * 2 ) + ( sizeof( unsigned char ) * 5 ) + sizeof( unsigned int ) + sizeof( bool ) ) > size )
 			{
 				// Dump the buffer.
 				WriteFile( hFile_downloads, write_buf, pos, &write, NULL );
@@ -1782,6 +1791,9 @@ char save_download_history( wchar_t *file_path )
 
 			_memcpy_s( write_buf + pos, size - pos, &di->method, sizeof( unsigned char ) );
 			pos += sizeof( unsigned char );
+
+			_memcpy_s( write_buf + pos, size - pos, &di->last_modified.QuadPart, sizeof( ULONGLONG ) );
+			pos += sizeof( ULONGLONG );
 
 			_memcpy_s( write_buf + pos, size - pos, di->file_path, download_directory_length );
 			pos += download_directory_length;

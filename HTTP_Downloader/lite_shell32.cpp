@@ -51,7 +51,7 @@
 
 	//pDragAcceptFiles		_DragAcceptFiles;
 	pDragQueryFileW			_DragQueryFileW;
-	pDragFinish				_DragFinish;
+	//pDragFinish				_DragFinish;
 
 	HMODULE hModule_shell32 = NULL;
 
@@ -101,7 +101,7 @@
 
 		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_shell32, ( void ** )&_DragAcceptFiles, "DragAcceptFiles" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_shell32, ( void ** )&_DragQueryFileW, "DragQueryFileW" ) )
-		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_shell32, ( void ** )&_DragFinish, "DragFinish" ) )
+		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_shell32, ( void ** )&_DragFinish, "DragFinish" ) )
 
 		shell32_state = SHELL32_STATE_RUNNING;
 

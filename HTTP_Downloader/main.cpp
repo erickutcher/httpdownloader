@@ -446,6 +446,7 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 	InitializeCriticalSection( &cmessagebox_prompt_cs );
 	InitializeCriticalSection( &file_size_prompt_list_cs );
 	InitializeCriticalSection( &rename_file_prompt_list_cs );
+	InitializeCriticalSection( &last_modified_prompt_list_cs );
 	InitializeCriticalSection( &cleanup_cs );
 
 	// Get the default message system font.
@@ -1081,6 +1082,7 @@ CLEANUP:
 	DeleteCriticalSection( &cmessagebox_prompt_cs );
 	DeleteCriticalSection( &file_size_prompt_list_cs );
 	DeleteCriticalSection( &rename_file_prompt_list_cs );
+	DeleteCriticalSection( &last_modified_prompt_list_cs );
 	DeleteCriticalSection( &cleanup_cs );
 
 	DeleteCriticalSection( &icon_cache_cs );

@@ -100,6 +100,7 @@
 	#define _PostQuitMessage		PostQuitMessage
 	#define _RegisterClassExW		RegisterClassExW
 	#define _RegisterClipboardFormatW	RegisterClipboardFormatW
+	#define _RegisterWindowMessageW	RegisterWindowMessageW
 	#define _ReleaseCapture			ReleaseCapture
 	#define _ReleaseDC				ReleaseDC
 	//#define _RemoveMenu				RemoveMenu
@@ -208,6 +209,7 @@
 	typedef VOID ( WINAPI *pPostQuitMessage )( int nExitCode );
 	typedef ATOM ( WINAPI *pRegisterClassExW )( const WNDCLASSEX *lpwcx );
 	typedef UINT ( WINAPI *pRegisterClipboardFormatW )( LPCTSTR lpszFormat );
+	typedef UINT ( WINAPI *pRegisterWindowMessageW )( LPCWSTR lpString );
 	typedef BOOL ( WINAPI *pReleaseCapture )( void );
 	typedef int ( WINAPI *pReleaseDC )( HWND hWnd, HDC hDC );
 	//typedef BOOL ( WINAPI *pRemoveMenu )( HMENU hMenu, UINT uPosition, UINT uFlags );
@@ -309,6 +311,7 @@
 	extern pPostQuitMessage			_PostQuitMessage;
 	extern pRegisterClassExW		_RegisterClassExW;
 	extern pRegisterClipboardFormatW	_RegisterClipboardFormatW;
+	extern pRegisterWindowMessageW	_RegisterWindowMessageW;
 	extern pReleaseCapture			_ReleaseCapture;
 	extern pReleaseDC				_ReleaseDC;
 	//extern pRemoveMenu				_RemoveMenu;
