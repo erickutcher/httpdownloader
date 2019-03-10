@@ -49,6 +49,7 @@
 #define STATUS_PROXY_AUTH_REQUIRED		0x00004000
 #define STATUS_UPDATING					0x00008000
 #define STATUS_ALLOCATING_FILE			0x00010000
+#define STATUS_MOVING_FILE				0x00020000
 
 #define IS_STATUS( a, b )			( ( a ) & ( b ) )
 #define IS_STATUS_NOT( a, b )		!( ( a ) & ( b ) )
@@ -350,6 +351,7 @@ struct DOWNLOAD_INFO
 	unsigned char		retries;			// The number of times a download has been retried.
 	unsigned char		download_operations;
 	unsigned char		method;				// 1 = GET, 2 = POST
+	unsigned char		moving_state;		// 0 = None, 1 = Moving, 2 = Cancelling
 	char				ssl_version;
 	bool				processed_header;
 };
@@ -393,7 +395,7 @@ void StartDownload( DOWNLOAD_INFO *di, bool check_if_file_exits );
 
 dllrbt_tree *CreateFilenameTree();
 void DestroyFilenameTree( dllrbt_tree *filename_tree );
-bool RenameFile( DOWNLOAD_INFO *di, dllrbt_tree *filename_tree );
+bool RenameFile( DOWNLOAD_INFO *di, dllrbt_tree *filename_tree, wchar_t *file_path, unsigned int filename_offset, unsigned int file_extension_offset );
 
 THREAD_RETURN RenameFilePrompt( void *pArguments );
 THREAD_RETURN FileSizePrompt( void *pArguments );
@@ -422,6 +424,7 @@ extern CRITICAL_SECTION download_queue_cs;				// Guard access to the download qu
 extern CRITICAL_SECTION file_size_prompt_list_cs;		// Guard access to the file size prompt list.
 extern CRITICAL_SECTION rename_file_prompt_list_cs;		// Guard access to the rename file prompt list.
 extern CRITICAL_SECTION last_modified_prompt_list_cs;	// Guard access to the last modified prompt list.
+extern CRITICAL_SECTION move_file_queue_cs;				// Guard access to the move file queue.
 extern CRITICAL_SECTION cleanup_cs;
 
 extern DoublyLinkedList *g_context_list;
@@ -434,6 +437,8 @@ extern DoublyLinkedList *active_download_list;
 extern DoublyLinkedList *file_size_prompt_list;		// List of downloads that need to be prompted to continue.
 extern DoublyLinkedList *rename_file_prompt_list;	// List of downloads that need to be prompted to continue.
 extern DoublyLinkedList *last_modified_prompt_list;	// List of downloads that need to be prompted to continue.
+
+extern DoublyLinkedList *move_file_queue;			// List of downloads that need to be moved to a new folder.
 
 extern bool file_size_prompt_active;
 extern int g_file_size_cmb_ret;		// Message box prompt for large files sizes.

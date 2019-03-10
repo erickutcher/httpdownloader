@@ -79,6 +79,7 @@ STRING_TABLE_DATA menu_string_table[] =
 	{ L"&Add URL(s)...\tCtrl+N", 21 },
 	{ L"Add URL(s)...", 13 },
 	{ L"Always on Top", 13 },
+	{ L"&Column Headers", 15 },
 	{ L"&Copy URL(s)\tCtrl+C", 19 },
 	{ L"Copy URL(s)", 11 },
 	{ L"Date and Time Added", 19 },
@@ -142,56 +143,119 @@ STRING_TABLE_DATA menu_string_table[] =
 
 STRING_TABLE_DATA options_string_table[] =
 {
+	{ L"Advanced", 8 },
+	{ L"Appearance", 10 },
+	{ L"Apply", 5 },
+	{ L"Connection", 10 },
+	{ L"General", 7 },
+	{ L"OK", 2 },
+	{ L"Proxy", 5 }
+};
+
+STRING_TABLE_DATA options_advanced_string_table[] =
+{
+	{ L"Allow only one instance of the program to run", 45 },
+	{ L"Continue Download", 17 },
+	{ L"Default download directory:", 27 },
+	{ L"Display Prompt", 14 },
+	{ L"Download drag and drop URL(s) immediately", 41 },
+	{ L"Enable download history", 23 },
+	{ L"Enable quick file allocation (administrator access required)", 60 },
+	{ L"Overwrite File", 14 },
+	{ L"Prevent system standby while downloads are active", 49 },
+	{ L"Rename File", 11 },
+	{ L"Restart Download", 16 },
+	{ L"Resume previously downloading files upon startup", 48 },
+	{ L"Set date and time of file from server response", 46 },
+	{ L"Skip Download", 13 },
+	{ L"Thread pool count:", 18 },
+	{ L"Use temporary download directory:", 33 },
+	{ L"When a file already exists:", 27 },
+	{ L"When a file has been modified:", 30 },
+	{ L"When a file is greater than or equal to (bytes):", 48 }
+};
+
+STRING_TABLE_DATA options_appearance_string_table[] =
+{
+	{ L"Background Color", 16 },
+	{ L"Background Font Color", 21 },
+	{ L"Border Color", 12 },
+	{ L"Download list:", 14 },
+	{ L"Even Row Background Color", 25 },
+	{ L"Even Row Font", 13 },
+	{ L"Even Row Font Color", 19 },
+	{ L"Even Row Highlight Color", 24 },
+	{ L"Even Row Highlight Font Color", 29 },
+	{ L"Odd Row Background Color", 24 },
+	{ L"Odd Row Font", 12 },
+	{ L"Odd Row Font Color", 18 },
+	{ L"Odd Row Highlight Color", 23 },
+	{ L"Odd Row Highlight Font Color", 28 },
+	{ L"Progress Color", 14 },
+	{ L"Progress bar:", 13 },
+	{ L"Progress Font Color", 19 },
+	{ L"Show gridlines in download list", 31 }
+};
+
+STRING_TABLE_DATA options_connection_string_table[] =
+{
 	{ L":", 1 },
 	{ L"Active download limit:", 22 },
-	{ L"Allow only one instance of the program to run", 45 },
-	{ L"Always on top", 13 },
-	{ L"Apply", 5 },
 	{ L"Basic Authentication", 20 },
 	{ L"Certificate file:", 17 },
-	{ L"Close to System Tray", 20 },
-	{ L"Configure Proxies", 17 },
-	{ L"Connection", 10 },
-	{ L"Default download directory:", 27 },
 	{ L"Default download parts:", 23 },
 	{ L"Default SSL / TLS version:", 26 },
 	{ L"Digest Authentication", 21 },
-	{ L"Download drag and drop URL(s) immediately", 41 },
-	{ L"Enable download history", 23 },
-	{ L"Enable HTTP proxy", 17 },
-	{ L"Enable HTTPS proxy", 18 },
-	{ L"Enable quick file allocation (administrator access required)", 60 },
 	{ L"Enable server:", 14 },
 	{ L"Enable SSL / TLS:", 17 },
-	{ L"Enable System Tray icon:", 24 },
-	{ L"Enable URL drop window", 22 },
-	{ L"General", 7 },
 	{ L"Hostname / IPv6 address:", 24 },
 	{ L"IPv4 address:", 13 },
 	{ L"Key file:", 9 },
-	{ L"Load Download Finish Sound File", 31 },
 	{ L"Load PKCS #12 File", 18 },
 	{ L"Load Private Key File", 21 },
 	{ L"Load X.509 Certificate File", 27 },
 	{ L"Maximum redirects:", 18 },
-	{ L"Minimize to System Tray", 23 },
-	{ L"OK", 2 },
 	{ L"PKCS #12:", 9 },
 	{ L"PKCS #12 file:", 14 },
 	{ L"PKCS #12 password:", 18 },
-	{ L"Play sound when all downloads finish:", 37 },
 	{ L"Port:", 5 },
-	{ L"Prevent system standby while downloads are active", 49 },
-	{ L"Proxy", 5 },
 	{ L"Public / Private key pair:", 26 },
 	{ L"Require authentication:", 23 },
 	{ L"Retry incomplete downloads:", 27 },
 	{ L"Retry incomplete parts:", 23 },
 	{ L"Server SSL / TLS version:", 25 },
-	{ L"Set date and time of file from server response", 46 },
-	{ L"Show notification when all downloads finish", 43 },
-	{ L"Thread pool count:", 18 },
 	{ L"Timeout (seconds):", 18 }
+};
+
+STRING_TABLE_DATA options_general_string_table[] =
+{
+	{ L"Always on top", 13 },
+	{ L"Close to System Tray", 20 },
+	{ L"Enable System Tray icon:", 24 },
+	{ L"Enable URL drop window:", 23 },
+	{ L"Load Download Finish Sound File", 31 },
+	{ L"Minimize to System Tray", 23 },
+	{ L"Play sound when all downloads finish:", 37 },
+	{ L"Show notification when all downloads finish", 43 },
+	{ L"Show progress bar", 17 },
+	{ L"Transparency:", 13 }
+};
+
+STRING_TABLE_DATA options_proxy_string_table[] =
+{
+	{ L"Enable HTTP proxy", 17 },
+	{ L"Enable HTTPS proxy", 18 }
+};
+
+STRING_TABLE_DATA cmessagebox_string_table[] =
+{
+	{ L"Continue", 8 },
+	{ L"No", 2 },
+	{ L"Overwrite", 9 },
+	{ L"Remember choice", 15 },
+	{ L"Skip", 4 },
+	{ L"Skip remaining messages", 23 },
+	{ L"Yes", 3 }
 };
 
 STRING_TABLE_DATA add_urls_string_table[] =
@@ -199,12 +263,15 @@ STRING_TABLE_DATA add_urls_string_table[] =
 	{ L"Advanced \xAB", 10 },
 	{ L"Advanced \xBB", 10 },
 	{ L"Authentication", 14 },
+	{ L"Cookies", 7 },
 	{ L"Cookies:", 8 },
 	{ L"Download", 8 },
 	{ L"Download directory:", 19 },
 	{ L"Download parts:", 15 },
+	{ L"Headers", 7 },
 	{ L"Headers:", 8 },
 	{ L"Password:", 9 },
+	{ L"POST Data", 9 },
 	{ L"Send POST Data:", 15 },
 	{ L"Simulate download", 17 },
 	{ L"SSL / TLS version:", 18 },
@@ -239,11 +306,13 @@ STRING_TABLE_DATA common_string_table[] =
 	{ L"Download speed: 0.00 GB/s", 25 },
 	{ L"Download speed: 0.00 KB/s", 25 },
 	{ L"Download speed: 0.00 MB/s", 25 },
+	{ L"Downloading", 11 },
 	{ L"Downloads Have Finished", 23 },
 	{ L"Export Download History", 23 },
 	{ L"Failed", 6 },
 	{ L"File IO Error", 13 },
 	{ L"Import Download History", 23 },
+	{ L"Moving File", 11 },
 	{ L"Options", 7 },
 	{ L"Paused", 6 },
 	{ L"Proxy Authentication Required", 29 },
@@ -282,6 +351,7 @@ STRING_TABLE_DATA common_message_string_table[] =
 	{ L"One or more files were not found.", 33 },
 	{ L"Select the default download directory.", 38 },
 	{ L"Select the download directory.", 30 },
+	{ L"Select the temporary download directory.", 40 },
 	{ L"The download will be resumed after it's updated.", 48 },
 	{ L"The file is currently in use and cannot be deleted.", 51 },
 	{ L"The file is currently in use and cannot be renamed.", 51 },
@@ -294,7 +364,7 @@ STRING_TABLE_DATA common_message_string_table[] =
 
 void InitializeLocaleValues()
 {
-	unsigned char string_count = 0;
+	unsigned short string_count = 0;
 
 	bool use_locale_file = true;
 
@@ -394,50 +464,21 @@ void InitializeLocaleValues()
 	{
 		unsigned char i;
 
-		for ( i = 0; i < MONTH_STRING_TABLE_SIZE; ++i )
-		{
-			g_locale_table[ string_count++ ] = month_string_table[ i ];
-		}
-
-		for ( i = 0; i < DAY_STRING_TABLE_SIZE; ++i )
-		{
-			g_locale_table[ string_count++ ] = day_string_table[ i ];
-		}
-
-		for ( i = 0; i < DOWNLOAD_STRING_TABLE_SIZE; ++i )
-		{
-			g_locale_table[ string_count++ ] = download_string_table[ i ];
-		}
-
-		for ( i = 0; i < MENU_STRING_TABLE_SIZE; ++i )
-		{
-			g_locale_table[ string_count++ ] = menu_string_table[ i ];
-		}
-
-		for ( i = 0; i < OPTIONS_STRING_TABLE_SIZE; ++i )
-		{
-			g_locale_table[ string_count++ ] = options_string_table[ i ];
-		}
-
-		for ( i = 0; i < ADD_URLS_STRING_TABLE_SIZE; ++i )
-		{
-			g_locale_table[ string_count++ ] = add_urls_string_table[ i ];
-		}
-
-		for ( i = 0; i < SEARCH_STRING_TABLE_SIZE; ++i )
-		{
-			g_locale_table[ string_count++ ] = search_string_table[ i ];
-		}
-
-		for ( i = 0; i < COMMON_STRING_TABLE_SIZE; ++i )
-		{
-			g_locale_table[ string_count++ ] = common_string_table[ i ];
-		}
-
-		for ( i = 0; i < COMMON_MESSAGE_STRING_TABLE_SIZE; ++i )
-		{
-			g_locale_table[ string_count++ ] = common_message_string_table[ i ];
-		}
+		for ( i = 0; i < MONTH_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = month_string_table[ i ]; }
+		for ( i = 0; i < DAY_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = day_string_table[ i ]; }
+		for ( i = 0; i < DOWNLOAD_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = download_string_table[ i ]; }
+		for ( i = 0; i < MENU_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = menu_string_table[ i ]; }
+		for ( i = 0; i < OPTIONS_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = options_string_table[ i ]; }
+		for ( i = 0; i < OPTIONS_ADVANCED_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = options_advanced_string_table[ i ]; }
+		for ( i = 0; i < OPTIONS_APPEARANCE_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = options_appearance_string_table[ i ]; }
+		for ( i = 0; i < OPTIONS_CONNECTION_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = options_connection_string_table[ i ]; }
+		for ( i = 0; i < OPTIONS_GENERAL_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = options_general_string_table[ i ]; }
+		for ( i = 0; i < OPTIONS_PROXY_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = options_proxy_string_table[ i ]; }
+		for ( i = 0; i < CMESSAGEBOX_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = cmessagebox_string_table[ i ]; }
+		for ( i = 0; i < ADD_URLS_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = add_urls_string_table[ i ]; }
+		for ( i = 0; i < SEARCH_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = search_string_table[ i ]; }
+		for ( i = 0; i < COMMON_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = common_string_table[ i ]; }
+		for ( i = 0; i < COMMON_MESSAGE_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = common_message_string_table[ i ]; }
 
 		/*
 		// Quick locale generation.

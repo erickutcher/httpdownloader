@@ -31,8 +31,8 @@
 
 	//__pragma( comment( lib, "comdlg32.lib" ) )
 
-	//#define _ChooseColorW			ChooseColorW
-	//#define _ChooseFontW			ChooseFontW
+	#define _ChooseColorW			ChooseColorW
+	#define _ChooseFontW			ChooseFontW
 
 	#define _GetOpenFileNameW		GetOpenFileNameW
 	#define _GetSaveFileNameW		GetSaveFileNameW
@@ -42,14 +42,14 @@
 	#define COMDLG32_STATE_SHUTDOWN		0
 	#define COMDLG32_STATE_RUNNING		1
 
-	//typedef BOOL ( WINAPI *pChooseColorW )( LPCHOOSECOLOR lpcc );
-	//typedef BOOL ( WINAPI *pChooseFontW )( LPCHOOSEFONT lpcf );
+	typedef BOOL ( WINAPI *pChooseColorW )( LPCHOOSECOLOR lpcc );
+	typedef BOOL ( WINAPI *pChooseFontW )( LPCHOOSEFONT lpcf );
 
 	typedef BOOL ( WINAPI *pGetOpenFileNameW )( LPOPENFILENAME lpofn );
 	typedef BOOL ( WINAPI *pGetSaveFileNameW )( LPOPENFILENAME lpofn );
 
-	//extern pChooseColorW			_ChooseColorW;
-	//extern pChooseFontW				_ChooseFontW;
+	extern pChooseColorW			_ChooseColorW;
+	extern pChooseFontW				_ChooseFontW;
 
 	extern pGetOpenFileNameW		_GetOpenFileNameW;
 	extern pGetSaveFileNameW		_GetSaveFileNameW;

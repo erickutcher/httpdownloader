@@ -37,6 +37,7 @@ Active Parts
 &Add URL(s)...\tCtrl+N
 Add URL(s)...
 Always on Top
+&Column Headers
 &Copy URL(s)\tCtrl+C
 Copy URL(s)
 Date and Time Added
@@ -96,65 +97,107 @@ Time Remaining
 Update Download...
 URL
 &View
+Advanced
+Appearance
+Apply
+Connection
+General
+OK
+Proxy
+Allow only one instance of the program to run
+Continue Download
+Default download directory:
+Display Prompt
+Download drag and drop URL(s) immediately
+Enable download history
+Enable quick file allocation (administrator access required)
+Overwrite File
+Prevent system standby while downloads are active
+Rename File
+Restart Download
+Resume previously downloading files upon startup
+Set date and time of file from server response
+Skip Download
+Thread pool count:
+Use temporary download directory:
+When a file already exists:
+When a file has been modified:
+When a file is greater than or equal to (bytes):
+Background Color
+Background Font Color
+Border Color
+Download list:
+Even Row Background Color
+Even Row Font
+Even Row Font Color
+Even Row Highlight Color
+Even Row Highlight Font Color
+Odd Row Background Color
+Odd Row Font
+Odd Row Font Color
+Odd Row Highlight Color
+Odd Row Highlight Font Color
+Progress Color
+Progress bar:
+Progress Font Color
+Show gridlines in download list
 :
 Active download limit:
-Allow only one instance of the program to run
-Always on top
-Apply
 Basic Authentication
 Certificate file:
-Close to System Tray
-Configure Proxies
-Connection
-Default download directory:
 Default download parts:
 Default SSL / TLS version:
 Digest Authentication
-Download drag and drop URL(s) immediately
-Enable download history
-Enable HTTP proxy
-Enable HTTPS proxy
-Enable quick file allocation (administrator access required)
 Enable server:
 Enable SSL / TLS:
-Enable System Tray icon:
-Enable URL drop window
-General
 Hostname / IPv6 address:
 IPv4 address:
 Key file:
-Load Download Finish Sound File
 Load PKCS #12 File
 Load Private Key File
 Load X.509 Certificate File
 Maximum redirects:
-Minimize to System Tray
-OK
 PKCS #12:
 PKCS #12 file:
 PKCS #12 password:
-Play sound when all downloads finish:
 Port:
-Prevent system standby while downloads are active
-Proxy
 Public / Private key pair:
 Require authentication:
 Retry incomplete downloads:
 Retry incomplete parts:
 Server SSL / TLS version:
-Set date and time of file from server response
-Show notification when all downloads finish
-Thread pool count:
 Timeout (seconds):
+Always on top
+Close to System Tray
+Enable System Tray icon:
+Enable URL drop window:
+Load Download Finish Sound File
+Minimize to System Tray
+Play sound when all downloads finish:
+Show notification when all downloads finish
+Show progress bar
+Transparency:
+Enable HTTP proxy
+Enable HTTPS proxy
+Continue
+No
+Overwrite
+Remember choice
+Skip
+Skip remaining messages
+Yes
 Advanced \xAB
 Advanced \xBB
 Authentication
+Cookies
 Cookies:
 Download
 Download directory:
 Download parts:
+Headers
 Headers:
 Password:
+POST Data
 Send POST Data:
 Simulate download
 SSL / TLS version:
@@ -181,11 +224,13 @@ Download speed: 0 B/s
 Download speed: 0.00 GB/s
 Download speed: 0.00 KB/s
 Download speed: 0.00 MB/s
+Downloading
 Downloads Have Finished
 Export Download History
 Failed
 File IO Error
 Import Download History
+Moving File
 Options
 Paused
 Proxy Authentication Required
@@ -220,6 +265,7 @@ One or more files are in use and cannot be deleted.
 One or more files were not found.
 Select the default download directory.
 Select the download directory.
+Select the temporary download directory.
 The download will be resumed after it's updated.
 The file is currently in use and cannot be deleted.
 The file is currently in use and cannot be renamed.

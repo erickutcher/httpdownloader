@@ -16,20 +16,9 @@
 	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef _FILE_OPERATIONS_H
-#define _FILE_OPERATIONS_H
+#ifndef _DROP_WINDOW
+#define _DROP_WINDOW
 
-#define MAGIC_ID_SETTINGS		"HDM\x01"	// Version 2
-#define MAGIC_ID_DOWNLOADS		"HDM\x13"	// Version 4
-
-char read_config();
-char save_config();
-
-char read_download_history( wchar_t *file_path );
-char save_download_history( wchar_t *file_path );
-
-char save_download_history_csv_file( wchar_t *file_path );
-
-wchar_t *read_url_list_file( wchar_t *file_path, unsigned int &url_list_length );
+void UpdateDropWindow( unsigned long long start, unsigned long long end, COLORREF border_color, COLORREF progress_color, bool show_progress = true );
 
 #endif

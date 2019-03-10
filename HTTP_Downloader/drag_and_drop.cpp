@@ -700,7 +700,7 @@ HRESULT STDMETHODCALLTYPE DragLeave( IDropTarget *This )
 
 	if ( _This->m_hWnd == g_hWnd_url_drop_window )
 	{
-		_SetLayeredWindowAttributes( g_hWnd_url_drop_window, 0, 0x80, LWA_ALPHA );
+		_SetLayeredWindowAttributes( g_hWnd_url_drop_window, 0, cfg_drop_window_transparency, LWA_ALPHA );
 	}
 
 	return S_OK;

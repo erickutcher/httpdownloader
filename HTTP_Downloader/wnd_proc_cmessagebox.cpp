@@ -23,7 +23,7 @@
 #include "lite_winmm.h"
 
 #include "menus.h"
-
+#include "string_tables.h"
 #include "cmessagebox.h"
 
 #define BTN_YES			1001
@@ -178,7 +178,7 @@ void AdjustWindowDimensions( HWND hWnd, HWND static_msg, CMSGBOX_INFO *cmb_info 
 	TEXTMETRIC tm;
 
 	HDC hDC = _GetDC( hWnd );
-	HFONT ohf = ( HFONT )_SelectObject( hDC, hFont );
+	HFONT ohf = ( HFONT )_SelectObject( hDC, g_hFont );
 	_GetTextMetricsW( hDC, &tm );
 	_DeleteObject( ohf );
 
@@ -213,7 +213,7 @@ void AdjustWindowDimensions( HWND hWnd, HWND static_msg, CMSGBOX_INFO *cmb_info 
 		text_rc.bottom = height;
 
 		hDC = _GetDC( hWnd );
-		ohf = ( HFONT )_SelectObject( hDC, hFont );
+		ohf = ( HFONT )_SelectObject( hDC, g_hFont );
 		_DeleteObject( ohf );
 
 		// Calculate the height and width of the message.
@@ -376,7 +376,7 @@ LRESULT CALLBACK CustomMessageBoxWndProc( HWND hWnd, UINT msg, WPARAM wParam, LP
 
 				HWND hWnd_static_message = _CreateWindowW( WC_STATIC, cmb_info->cmsgbox_message, SS_EDITCONTROL | SS_LEFT | WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 
-				_SendMessageW( hWnd_static_message, WM_SETFONT, ( WPARAM )hFont, 0 );
+				_SendMessageW( hWnd_static_message, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 
 				// This will resize the window and static control based on the text dimensions and cmessagebox type.
 				AdjustWindowDimensions( hWnd, hWnd_static_message, cmb_info );
@@ -391,49 +391,49 @@ LRESULT CALLBACK CustomMessageBoxWndProc( HWND hWnd, UINT msg, WPARAM wParam, LP
 				{
 					if ( ( cmb_info->type & 0x0F ) == CMB_OKALL )
 					{
-						cmb_info->hWnd_checkbox = _CreateWindowW( WC_BUTTON, L"Skip remaining messages", BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 10, rc.bottom - 32, 150, 23, hWnd, NULL, NULL, NULL );
+						cmb_info->hWnd_checkbox = _CreateWindowW( WC_BUTTON, ST_V_Skip_remaining_messages, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 10, rc.bottom - 32, 150, 23, hWnd, NULL, NULL, NULL );
 					}
 					else
 					{
-						cmb_info->hWnd_checkbox = _CreateWindowW( WC_BUTTON, L"Remember choice", BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 10, rc.bottom - 32, 120, 23, hWnd, NULL, NULL, NULL );
+						cmb_info->hWnd_checkbox = _CreateWindowW( WC_BUTTON, ST_V_Remember_choice, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 10, rc.bottom - 32, 120, 23, hWnd, NULL, NULL, NULL );
 					}
 
-					_SendMessageW( cmb_info->hWnd_checkbox, WM_SETFONT, ( WPARAM )hFont, 0 );
+					_SendMessageW( cmb_info->hWnd_checkbox, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 				}
 
 				if ( ( cmb_info->type & 0x0F ) == CMB_YESNO || ( cmb_info->type & 0x0F ) == CMB_YESNOALL )
 				{
-					g_hWnd_btn_yes = _CreateWindowW( WC_BUTTON, L"Yes", BS_DEFPUSHBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 165, rc.bottom - 32, 75, 23, hWnd, ( HMENU )BTN_YES, NULL, NULL );
-					g_hWnd_btn_no = _CreateWindowW( WC_BUTTON, L"No", WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 83, rc.bottom - 32, 75, 23, hWnd, ( HMENU )BTN_NO, NULL, NULL );
+					g_hWnd_btn_yes = _CreateWindowW( WC_BUTTON, ST_V_Yes, BS_DEFPUSHBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 165, rc.bottom - 32, 75, 23, hWnd, ( HMENU )BTN_YES, NULL, NULL );
+					g_hWnd_btn_no = _CreateWindowW( WC_BUTTON, ST_V_No, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 83, rc.bottom - 32, 75, 23, hWnd, ( HMENU )BTN_NO, NULL, NULL );
 
-					_SendMessageW( g_hWnd_btn_yes, WM_SETFONT, ( WPARAM )hFont, 0 );
-					_SendMessageW( g_hWnd_btn_no, WM_SETFONT, ( WPARAM )hFont, 0 );
+					_SendMessageW( g_hWnd_btn_yes, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+					_SendMessageW( g_hWnd_btn_no, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 				}
 				else if ( ( cmb_info->type & 0x0F ) == CMB_RENAMEOVERWRITESKIPALL )
 				{
-					g_hWnd_btn_rename = _CreateWindowW( WC_BUTTON, L"Rename", BS_DEFPUSHBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 247, rc.bottom - 32, 75, 23, hWnd, ( HMENU )BTN_RENAME, NULL, NULL );
-					g_hWnd_btn_overwrite = _CreateWindowW( WC_BUTTON, L"Overwrite", WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 165, rc.bottom - 32, 75, 23, hWnd, ( HMENU )BTN_OVERWRITE, NULL, NULL );
-					g_hWnd_btn_skip = _CreateWindowW( WC_BUTTON, L"Skip", WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 83, rc.bottom - 32, 75, 23, hWnd, ( HMENU )BTN_SKIP, NULL, NULL );
+					g_hWnd_btn_rename = _CreateWindowW( WC_BUTTON, ST_V_Rename, BS_DEFPUSHBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 247, rc.bottom - 32, 75, 23, hWnd, ( HMENU )BTN_RENAME, NULL, NULL );
+					g_hWnd_btn_overwrite = _CreateWindowW( WC_BUTTON, ST_V_Overwrite, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 165, rc.bottom - 32, 75, 23, hWnd, ( HMENU )BTN_OVERWRITE, NULL, NULL );
+					g_hWnd_btn_skip = _CreateWindowW( WC_BUTTON, ST_V_Skip, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 83, rc.bottom - 32, 75, 23, hWnd, ( HMENU )BTN_SKIP, NULL, NULL );
 
-					_SendMessageW( g_hWnd_btn_rename, WM_SETFONT, ( WPARAM )hFont, 0 );
-					_SendMessageW( g_hWnd_btn_overwrite, WM_SETFONT, ( WPARAM )hFont, 0 );
-					_SendMessageW( g_hWnd_btn_skip, WM_SETFONT, ( WPARAM )hFont, 0 );
+					_SendMessageW( g_hWnd_btn_rename, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+					_SendMessageW( g_hWnd_btn_overwrite, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+					_SendMessageW( g_hWnd_btn_skip, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 				}
 				else if ( ( cmb_info->type & 0x0F ) == CMB_CONTINUERESTARTSKIPALL )
 				{
-					g_hWnd_btn_continue = _CreateWindowW( WC_BUTTON, L"Continue", BS_DEFPUSHBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 247, rc.bottom - 32, 75, 23, hWnd, ( HMENU )BTN_CONTINUE, NULL, NULL );
-					g_hWnd_btn_restart = _CreateWindowW( WC_BUTTON, L"Restart", WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 165, rc.bottom - 32, 75, 23, hWnd, ( HMENU )BTN_RESTART, NULL, NULL );
-					g_hWnd_btn_skip = _CreateWindowW( WC_BUTTON, L"Skip", WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 83, rc.bottom - 32, 75, 23, hWnd, ( HMENU )BTN_SKIP, NULL, NULL );
+					g_hWnd_btn_continue = _CreateWindowW( WC_BUTTON, ST_V_Continue, BS_DEFPUSHBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 247, rc.bottom - 32, 75, 23, hWnd, ( HMENU )BTN_CONTINUE, NULL, NULL );
+					g_hWnd_btn_restart = _CreateWindowW( WC_BUTTON, ST_V_Restart, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 165, rc.bottom - 32, 75, 23, hWnd, ( HMENU )BTN_RESTART, NULL, NULL );
+					g_hWnd_btn_skip = _CreateWindowW( WC_BUTTON, ST_V_Skip, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 83, rc.bottom - 32, 75, 23, hWnd, ( HMENU )BTN_SKIP, NULL, NULL );
 
-					_SendMessageW( g_hWnd_btn_continue, WM_SETFONT, ( WPARAM )hFont, 0 );
-					_SendMessageW( g_hWnd_btn_restart, WM_SETFONT, ( WPARAM )hFont, 0 );
-					_SendMessageW( g_hWnd_btn_skip, WM_SETFONT, ( WPARAM )hFont, 0 );
+					_SendMessageW( g_hWnd_btn_continue, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+					_SendMessageW( g_hWnd_btn_restart, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+					_SendMessageW( g_hWnd_btn_skip, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 				}
 				else	// CMB_OK/ALL or anything that's unsupported.
 				{
-					g_hWnd_btn_ok = _CreateWindowW( WC_BUTTON, L"OK", BS_DEFPUSHBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 83, rc.bottom - 32, 75, 23, hWnd, ( HMENU )BTN_OK, NULL, NULL );
+					g_hWnd_btn_ok = _CreateWindowW( WC_BUTTON, ST_V_OK, BS_DEFPUSHBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 83, rc.bottom - 32, 75, 23, hWnd, ( HMENU )BTN_OK, NULL, NULL );
 
-					_SendMessageW( g_hWnd_btn_ok, WM_SETFONT, ( WPARAM )hFont, 0 );
+					_SendMessageW( g_hWnd_btn_ok, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 				}
 
 				// Disable the parent window.
@@ -498,7 +498,7 @@ LRESULT CALLBACK CustomMessageBoxWndProc( HWND hWnd, UINT msg, WPARAM wParam, LP
 
 		case WM_COMMAND:
 		{
-			switch( LOWORD( wParam ) )
+			switch ( LOWORD( wParam ) )
 			{
 				case IDOK:
 				case BTN_YES:

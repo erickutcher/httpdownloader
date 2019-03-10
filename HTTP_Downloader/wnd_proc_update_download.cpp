@@ -22,6 +22,8 @@
 #include "list_operations.h"
 #include "string_tables.h"
 
+#include "wnd_proc.h"
+
 #define EDIT_UPDATE_DOWNLOAD_PARTS	1000
 #define CHK_UPDATE_SEND_DATA		1001
 #define BTN_UPDATE_DOWNLOAD			1002
@@ -45,6 +47,8 @@ HWND g_hWnd_static_update_username = NULL;
 HWND g_hWnd_edit_update_username = NULL;
 HWND g_hWnd_static_update_password = NULL;
 HWND g_hWnd_edit_update_password = NULL;
+
+HWND g_hWnd_update_tab = NULL;
 
 HWND g_hWnd_static_update_cookies = NULL;
 HWND g_hWnd_edit_update_cookies = NULL;
@@ -94,6 +98,37 @@ LRESULT CALLBACK UpdateSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 	return _CallWindowProcW( UpdateProc, hWnd, msg, wParam, lParam );
 }
 
+void ShowHideUpdateTabs( int sw_type )
+{
+	int index = ( int )_SendMessageW( g_hWnd_update_tab, TCM_GETCURSEL, 0, 0 );		// Get the selected tab
+	if ( index != -1 )
+	{
+		switch ( index )
+		{
+			case 0:
+			{
+				_ShowWindow( g_hWnd_static_update_cookies, sw_type );
+				_ShowWindow( g_hWnd_edit_update_cookies, sw_type );
+			}
+			break;
+
+			case 1:
+			{
+				_ShowWindow( g_hWnd_static_update_headers, sw_type );
+				_ShowWindow( g_hWnd_edit_update_headers, sw_type );
+			}
+			break;
+
+			case 2:
+			{
+				_ShowWindow( g_hWnd_chk_update_send_data, sw_type );
+				_ShowWindow( g_hWnd_edit_update_data, sw_type );
+			}
+			break;
+		}
+	}
+}
+
 LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
 {
     switch ( msg )
@@ -103,11 +138,12 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 			HWND hWnd_static_update_url = _CreateWindowW( WC_STATIC, ST_V_URL_, WS_CHILD | WS_VISIBLE, 20, 20, 100, 15, hWnd, NULL, NULL, NULL );
 			g_hWnd_edit_update_url = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, L"", ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 
-			g_hWnd_static_update_download_parts = _CreateWindowW( WC_STATIC, ST_V_Download_parts_, WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
-			g_hWnd_update_download_parts = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, ( HMENU )EDIT_UPDATE_DOWNLOAD_PARTS, NULL, NULL );
+			// Owner draw the static control. It causes the entire window to flicker when it's disabled.
+			g_hWnd_static_update_download_parts = _CreateWindowW( WC_STATIC, ST_V_Download_parts_, SS_OWNERDRAW | WS_CHILD | WS_VISIBLE, 20, 65, 115, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_update_download_parts = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 20, 80, 85, 20, hWnd, ( HMENU )EDIT_UPDATE_DOWNLOAD_PARTS, NULL, NULL );
 
 			// Keep this unattached. Looks ugly inside the text box.
-			g_hWnd_ud_update_download_parts = _CreateWindowW( UPDOWN_CLASS, NULL, /*UDS_ALIGNRIGHT |*/ UDS_ARROWKEYS | UDS_NOTHOUSANDS | UDS_SETBUDDYINT | WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+			g_hWnd_ud_update_download_parts = _CreateWindowW( UPDOWN_CLASS, NULL, /*UDS_ALIGNRIGHT |*/ UDS_ARROWKEYS | UDS_NOTHOUSANDS | UDS_SETBUDDYINT | WS_CHILD | WS_VISIBLE, 105, 79, _GetSystemMetrics( SM_CXVSCROLL ), 22, hWnd, NULL, NULL, NULL );
 
 			_SendMessageW( g_hWnd_update_download_parts, EM_LIMITTEXT, 3, 0 );
 			_SendMessageW( g_hWnd_ud_update_download_parts, UDM_SETBUDDY, ( WPARAM )g_hWnd_update_download_parts, 0 );
@@ -115,9 +151,8 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 			_SendMessageW( g_hWnd_ud_update_download_parts, UDM_SETRANGE32, 1, 100 );
 			_SendMessageW( g_hWnd_ud_update_download_parts, UDM_SETPOS, 0, 1 );
 
-
-			g_hWnd_static_update_ssl_version = _CreateWindowW( WC_STATIC, ST_V_SSL___TLS_version_, WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
-			g_hWnd_update_ssl_version = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_COMBOBOX, NULL, CBS_AUTOHSCROLL | CBS_DROPDOWNLIST | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+			g_hWnd_static_update_ssl_version = _CreateWindowW( WC_STATIC, ST_V_SSL___TLS_version_, WS_CHILD | WS_VISIBLE, 140, 65, 115, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_update_ssl_version = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_COMBOBOX, NULL, CBS_AUTOHSCROLL | CBS_DROPDOWNLIST | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE, 140, 80, 100, 20, hWnd, NULL, NULL, NULL );
 			_SendMessageW( g_hWnd_update_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_V_SSL_2_0 );
 			_SendMessageW( g_hWnd_update_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_V_SSL_3_0 );
 			_SendMessageW( g_hWnd_update_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_V_TLS_1_0 );
@@ -126,22 +161,37 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 
 			_SendMessageW( g_hWnd_update_ssl_version, CB_SETCURSEL, cfg_default_ssl_version, 0 );
 
-			g_hWnd_btn_update_authentication = _CreateWindowW( WC_BUTTON, ST_V_Authentication, BS_GROUPBOX | WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+			g_hWnd_btn_update_authentication = _CreateWindowW( WC_BUTTON, ST_V_Authentication, BS_GROUPBOX | WS_CHILD | WS_VISIBLE, 260, 65, 230, 65, hWnd, NULL, NULL, NULL );
 
-			g_hWnd_static_update_username = _CreateWindowW( WC_STATIC, ST_V_Username_, WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
-			g_hWnd_edit_update_username = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+			g_hWnd_static_update_username = _CreateWindowW( WC_STATIC, ST_V_Username_, WS_CHILD | WS_VISIBLE, 270, 80, 100, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_edit_update_username = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 270, 95, 100, 20, hWnd, NULL, NULL, NULL );
 
-			g_hWnd_static_update_password = _CreateWindowW( WC_STATIC, ST_V_Password_, WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
-			g_hWnd_edit_update_password = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_PASSWORD | ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+			g_hWnd_static_update_password = _CreateWindowW( WC_STATIC, ST_V_Password_, WS_CHILD | WS_VISIBLE, 380, 80, 100, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_edit_update_password = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_PASSWORD | ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 380, 95, 100, 20, hWnd, NULL, NULL, NULL );
+
+			g_hWnd_update_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, WC_TABCONTROL, NULL, WS_CHILD | /*WS_CLIPCHILDREN |*/ WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+
+			TCITEM ti;
+			_memzero( &ti, sizeof( TCITEM ) );
+			ti.mask = TCIF_TEXT;	// The tab will have text and an lParam value.
+
+			ti.pszText = ( LPWSTR )ST_V_Cookies;
+			_SendMessageW( g_hWnd_update_tab, TCM_INSERTITEM, 0, ( LPARAM )&ti );	// Insert a new tab at the end.
+
+			ti.pszText = ( LPWSTR )ST_V_Headers;
+			_SendMessageW( g_hWnd_update_tab, TCM_INSERTITEM, 1, ( LPARAM )&ti );	// Insert a new tab at the end.
+
+			ti.pszText = ( LPWSTR )ST_V_POST_Data;
+			_SendMessageW( g_hWnd_update_tab, TCM_INSERTITEM, 2, ( LPARAM )&ti );	// Insert a new tab at the end.
 
 			g_hWnd_static_update_cookies = _CreateWindowW( WC_STATIC, ST_V_Cookies_, WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 			g_hWnd_edit_update_cookies = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, L"", WS_CHILD | WS_TABSTOP | ES_AUTOHSCROLL | ES_MULTILINE | WS_HSCROLL | WS_VSCROLL | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 
-			g_hWnd_static_update_headers = _CreateWindowW( WC_STATIC, ST_V_Headers_, WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
-			g_hWnd_edit_update_headers = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, L"", WS_CHILD | WS_TABSTOP | ES_AUTOHSCROLL | ES_MULTILINE | WS_HSCROLL | WS_VSCROLL | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+			g_hWnd_static_update_headers = _CreateWindowW( WC_STATIC, ST_V_Headers_, WS_CHILD, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+			g_hWnd_edit_update_headers = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, L"", WS_CHILD | WS_TABSTOP | ES_AUTOHSCROLL | ES_MULTILINE | WS_HSCROLL | WS_VSCROLL, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 
-			g_hWnd_chk_update_send_data = _CreateWindowW( WC_BUTTON, ST_V_Send_POST_Data_, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, ( HMENU )CHK_UPDATE_SEND_DATA, NULL, NULL );
-			g_hWnd_edit_update_data = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, L"", WS_CHILD | WS_TABSTOP | ES_AUTOHSCROLL | ES_MULTILINE | WS_HSCROLL | WS_VSCROLL | WS_VISIBLE | WS_DISABLED, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+			g_hWnd_chk_update_send_data = _CreateWindowW( WC_BUTTON, ST_V_Send_POST_Data_, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP, 0, 0, 0, 0, hWnd, ( HMENU )CHK_UPDATE_SEND_DATA, NULL, NULL );
+			g_hWnd_edit_update_data = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, L"", WS_CHILD | WS_TABSTOP | ES_AUTOHSCROLL | ES_MULTILINE | WS_HSCROLL | WS_VSCROLL | WS_DISABLED, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 
 			g_hWnd_static_paused_download = _CreateWindowW( WC_STATIC, ST_V_The_download_will_be_resumed, WS_CHILD, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 
@@ -150,31 +200,39 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 
 			//_SetFocus( g_hWnd_edit_update_url );
 
-			_SendMessageW( g_hWnd_btn_update_download, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_update_cancel, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_static_paused_download, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_static_update_ssl_version, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_update_ssl_version, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_static_update_download_parts, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_update_download_parts, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( hWnd_static_update_url, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_edit_update_url, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_btn_update_authentication, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_static_update_username, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_edit_update_username, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_static_update_password, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_edit_update_password, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_static_update_cookies, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_edit_update_cookies, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_static_update_headers, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_edit_update_headers, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_chk_update_send_data, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_edit_update_data, WM_SETFONT, ( WPARAM )hFont, 0 );
+			_SendMessageW( g_hWnd_btn_update_download, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_update_cancel, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_static_paused_download, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_static_update_ssl_version, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_update_ssl_version, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_static_update_download_parts, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_update_download_parts, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( hWnd_static_update_url, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_edit_update_url, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_btn_update_authentication, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_static_update_username, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_edit_update_username, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_static_update_password, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_edit_update_password, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_update_tab, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_static_update_cookies, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_edit_update_cookies, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_static_update_headers, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_edit_update_headers, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_chk_update_send_data, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_edit_update_data, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 
 			UpdateProc = ( WNDPROC )_GetWindowLongPtrW( g_hWnd_edit_update_cookies, GWLP_WNDPROC );
 			_SetWindowLongPtrW( g_hWnd_edit_update_cookies, GWLP_WNDPROC, ( LONG_PTR )UpdateSubProc );
 			_SetWindowLongPtrW( g_hWnd_edit_update_headers, GWLP_WNDPROC, ( LONG_PTR )UpdateSubProc );
 			_SetWindowLongPtrW( g_hWnd_edit_update_data, GWLP_WNDPROC, ( LONG_PTR )UpdateSubProc );
+
+			TabProc = ( WNDPROC )_GetWindowLongPtrW( g_hWnd_update_tab, GWLP_WNDPROC );
+			_SetWindowLongPtrW( g_hWnd_update_tab, GWLP_WNDPROC, ( LONG_PTR )TabSubProc );
+
+			// Open theme data. Must be done after we subclass the control.
+			// Theme object will be closed when all tab controls are destroyed.
+			_SendMessageW( g_hWnd_update_tab, WM_PROPAGATE, 0, 0 );
 
 			return 0;
 		}
@@ -182,7 +240,7 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 
 		case WM_CTLCOLORSTATIC:
 		{
-			if ( /*( ( HWND )lParam != g_hWnd_edit_update_url ) &&*/ ( ( HWND )lParam != g_hWnd_static_paused_download ) )
+			if ( ( HWND )lParam != g_hWnd_static_paused_download )
 			{
 				return ( LRESULT )( _GetSysColorBrush( COLOR_WINDOW ) );
 			}
@@ -190,6 +248,27 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 			{
 				return _DefWindowProcW( hWnd, msg, wParam, lParam );
 			}
+		}
+		break;
+
+		case WM_DRAWITEM:
+		{
+			DRAWITEMSTRUCT *dis = ( DRAWITEMSTRUCT * )lParam;
+
+			// The disabled static control causes flickering. The only way around it is to draw it ourselves.
+			if ( dis->CtlType == ODT_STATIC )
+			{
+				_FillRect( dis->hDC, &dis->rcItem, _GetSysColorBrush( COLOR_WINDOW ) );
+
+				COLORREF font_color = _GetSysColor( COLOR_WINDOWTEXT );
+				if ( _IsWindowEnabled( dis->hwndItem ) == FALSE )
+				{
+					_SetTextColor( dis->hDC, _GetSysColor( COLOR_GRAYTEXT ) );
+				}
+				_DrawTextW( dis->hDC, ST_V_Download_parts_, ST_L_Download_parts_, &dis->rcItem, DT_NOPREFIX | DT_SINGLELINE | DT_END_ELLIPSIS );
+			}
+
+			return TRUE;
 		}
 		break;
 
@@ -210,7 +289,7 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 			_DeleteObject( hbm );
 
 			// Fill the background.
-			HBRUSH color = _CreateSolidBrush( ( COLORREF )_GetSysColor( COLOR_MENU ) );
+			HBRUSH color = _CreateSolidBrush( ( COLORREF )_GetSysColor( COLOR_3DFACE ) );
 			_FillRect( hdcMem, &client_rc, color );
 			_DeleteObject( color );
 
@@ -244,31 +323,27 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 			_GetClientRect( hWnd, &rc );
 
 			// Allow our controls to move in relation to the parent window.
-			HDWP hdwp = _BeginDeferWindowPos( 20 );
+			HDWP hdwp = _BeginDeferWindowPos( 11 );
 
 			_DeferWindowPos( hdwp, g_hWnd_edit_update_url, HWND_TOP, 20, 35, rc.right - 40, 20, SWP_NOZORDER );
 
-			_DeferWindowPos( hdwp, g_hWnd_static_update_download_parts, HWND_TOP, 20, 65, 115, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_update_download_parts, HWND_TOP, 20, 80, 85, 20, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_ud_update_download_parts, HWND_TOP, 105, 79, _GetSystemMetrics( SM_CXVSCROLL ), 22, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_update_tab, HWND_TOP, 20, 130, rc.right - 40, rc.bottom - 180, SWP_NOZORDER );
 
-			_DeferWindowPos( hdwp, g_hWnd_static_update_ssl_version, HWND_TOP, 140, 65, 115, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_update_ssl_version, HWND_TOP, 140, 80, 100, 20, SWP_NOZORDER );
+			//
 
-			_DeferWindowPos( hdwp, g_hWnd_btn_update_authentication, HWND_TOP, 260, 65, 230, 65, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_static_update_username, HWND_TOP, 270, 80, 100, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_edit_update_username, HWND_TOP, 270, 95, 100, 20, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_static_update_password, HWND_TOP, 380, 80, 100, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_edit_update_password, HWND_TOP, 380, 95, 100, 20, SWP_NOZORDER );
+			RECT rc_tab;
+			_SendMessageW( g_hWnd_update_tab, TCM_GETITEMRECT, 0, ( LPARAM )&rc_tab );
 
-			_DeferWindowPos( hdwp, g_hWnd_static_update_cookies, HWND_TOP, 20, 130, rc.right - 40, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_edit_update_cookies, HWND_TOP, 20, 145, rc.right - 40, 50, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_static_update_cookies, HWND_TOP, 30, 140 + rc_tab.bottom, rc.right - 60, 15, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_edit_update_cookies, HWND_TOP, 30, 155 + rc_tab.bottom, rc.right - 60, rc.bottom - 235, SWP_NOZORDER );
 
-			_DeferWindowPos( hdwp, g_hWnd_static_update_headers, HWND_TOP, 20, 205, rc.right - 40, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_edit_update_headers, HWND_TOP, 20, 220, rc.right - 40, 50, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_static_update_headers, HWND_TOP, 30, 140 + rc_tab.bottom, rc.right - 60, 15, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_edit_update_headers, HWND_TOP, 30, 155 + rc_tab.bottom, rc.right - 60, rc.bottom - 235, SWP_NOZORDER );
 
-			_DeferWindowPos( hdwp, g_hWnd_chk_update_send_data, HWND_TOP, 20, 275, rc.right - 40, 20, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_edit_update_data, HWND_TOP, 20, 295, rc.right - 40, 50, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_chk_update_send_data, HWND_TOP, 30, 140 + rc_tab.bottom, rc.right - 60, 20, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_edit_update_data, HWND_TOP, 30, 160 + rc_tab.bottom, rc.right - 60, rc.bottom - 240, SWP_NOZORDER );
+
+			//
 
 			_DeferWindowPos( hdwp, g_hWnd_static_paused_download, HWND_TOP, 10, rc.bottom - 27, rc.right - 195, 23, SWP_NOZORDER );
 
@@ -284,7 +359,7 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 		{
 			// Set the minimum dimensions that the window can be sized to.
 			( ( MINMAXINFO * )lParam )->ptMinTrackSize.x = 525;
-			( ( MINMAXINFO * )lParam )->ptMinTrackSize.y = ( ( MINMAXINFO * )lParam )->ptMaxTrackSize.y = 430;
+			( ( MINMAXINFO * )lParam )->ptMinTrackSize.y = 400;
 
 			return 0;
 		}
@@ -292,7 +367,7 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 
 		case WM_COMMAND:
 		{
-			switch( LOWORD( wParam ) )
+			switch ( LOWORD( wParam ) )
 			{
 				case BTN_UPDATE_DOWNLOAD:
 				{
@@ -519,6 +594,38 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 
 			return 0;
 		}
+
+		case WM_NOTIFY:
+		{
+			// Get our listview codes.
+			switch ( ( ( LPNMHDR )lParam )->code )
+			{
+				case TCN_SELCHANGING:		// The tab that's about to lose focus
+				{
+					//NMHDR *nmhdr = ( NMHDR * )lParam;
+
+					ShowHideUpdateTabs( SW_HIDE );
+				}
+				break;
+
+				case TCN_SELCHANGE:			// The tab that gains focus
+				{
+					NMHDR *nmhdr = ( NMHDR * )lParam;
+
+					HWND hWnd_focused = GetFocus();
+					if ( hWnd_focused != hWnd && hWnd_focused != nmhdr->hwndFrom )
+					{
+						SetFocus( GetWindow( nmhdr->hwndFrom, GW_CHILD ) );
+					}
+
+					ShowHideUpdateTabs( SW_SHOW );
+				}
+				break;
+			}
+
+			return FALSE;
+		}
+		break;
 
 		case WM_PROPAGATE:
 		{

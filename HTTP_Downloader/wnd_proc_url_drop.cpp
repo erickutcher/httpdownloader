@@ -22,6 +22,7 @@
 #include "drag_and_drop.h"
 #include "menus.h"
 #include "resource.h"
+#include "drop_window.h"
 
 HWND g_hWnd_url_drop_window = NULL;
 
@@ -42,6 +43,48 @@ bool window_on_top = true;
 
 bool use_drag_and_drop_url = true;	// Assumes OLE32_STATE_RUNNING is true.
 IDropTarget *URL_DropTarget;
+
+int last_drop_percent = 0;
+COLORREF last_drop_border_color = 0;
+COLORREF last_drop_progress_color = 0;
+
+bool show_drop_progress = false;
+
+void UpdateDropWindow( unsigned long long start, unsigned long long end, COLORREF border_color, COLORREF progress_color, bool show_progress )
+{
+	int i_percentage = 0;
+
+	show_drop_progress = show_progress;
+
+	if ( end > 0 )
+	{
+	#ifdef _WIN64
+		i_percentage = ( int )( 44.0f * ( ( float )start / ( float )end ) );
+	#else
+		float f_percentage = 44.0f * ( ( float )start / ( float )end );
+		i_percentage = 0;
+		__asm
+		{
+			fld f_percentage;	//; Load the floating point value onto the FPU stack.
+			fistp i_percentage;	//; Convert the floating point value into an integer, store it in an integer, and then pop it off the stack.
+		}
+	#endif
+
+		if ( i_percentage == last_drop_percent &&
+			 border_color == last_drop_border_color &&
+			 progress_color == last_drop_progress_color )
+		{
+			return;
+		}
+
+		last_drop_percent = i_percentage;
+	}
+
+	last_drop_border_color = border_color;
+	last_drop_progress_color = progress_color;
+
+	_InvalidateRect( g_hWnd_url_drop_window, NULL, TRUE );
+}
 
 LRESULT CALLBACK URLDropWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
 {
@@ -132,6 +175,28 @@ LRESULT CALLBACK URLDropWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 			// Draw our memory buffer to the main device context.
 			_BitBlt( hDC, 0, 0, 48, 48, hdcMem, 0, 0, SRCCOPY );
+
+			if ( show_drop_progress )
+			{
+				RECT icon_rc;
+				icon_rc.top = 42;
+				icon_rc.left = 1;
+				icon_rc.right = 47;
+				icon_rc.bottom = 47;
+
+				HBRUSH color = _CreateSolidBrush( last_drop_border_color );
+				_FillRect( hDC, &icon_rc, color );
+				_DeleteObject( color );
+
+				icon_rc.top = 43;
+				icon_rc.left = 2;
+				icon_rc.right = 2 + last_drop_percent;
+				icon_rc.bottom = 46;
+
+				color = _CreateSolidBrush( last_drop_progress_color );
+				_FillRect( hDC, &icon_rc, color );
+				_DeleteObject( color );
+			}
 
 			RECT frame_rc;
 			frame_rc.top = 0;
@@ -234,7 +299,7 @@ LRESULT CALLBACK URLDropWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 				TrackMouseEvent( &window_settings.tme );
 
-				_SetLayeredWindowAttributes( g_hWnd_url_drop_window, 0, 0xFF, LWA_ALPHA );
+				_SetLayeredWindowAttributes( hWnd, 0, 0xFF, LWA_ALPHA );
 			}
 
 			return 0;
@@ -263,7 +328,7 @@ LRESULT CALLBACK URLDropWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			{
 				window_settings.is_tracking = false;
 
-				_SetLayeredWindowAttributes( hWnd, 0, 0x80, LWA_ALPHA );
+				_SetLayeredWindowAttributes( hWnd, 0, cfg_drop_window_transparency, LWA_ALPHA );
 			}
 
 			return 0;
@@ -281,7 +346,7 @@ LRESULT CALLBACK URLDropWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 		{
 			// Show our drag and drop context menu as a popup.
 			POINT p;
-			_GetCursorPos( &p ) ;
+			_GetCursorPos( &p );
 			_TrackPopupMenu( g_hMenuSub_drag_drop, 0, p.x, p.y, 0, hWnd, NULL );
 
 			return 0;

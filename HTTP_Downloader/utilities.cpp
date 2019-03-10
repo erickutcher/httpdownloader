@@ -20,6 +20,8 @@
 #include "utilities.h"
 #include "string_tables.h"
 
+#include "lite_gdi32.h"
+
 int cfg_pos_x = 0;
 int cfg_pos_y = 0;
 int cfg_width = MIN_WIDTH;
@@ -60,6 +62,7 @@ char cfg_column_order13 = 10;	// 12 Time Remaining
 char cfg_column_order14 = 13;	// 13 URL
 
 bool cfg_show_toolbar = false;
+bool cfg_show_column_headers = true;
 bool cfg_show_status_bar = true;
 
 unsigned char cfg_t_downloaded = SIZE_FORMAT_AUTO;	// 0 = Bytes, 1 = KB, 2 = MB, 3 = GB, 4 = auto
@@ -105,6 +108,7 @@ unsigned char cfg_max_redirects = 10;
 wchar_t *cfg_default_download_directory = NULL;
 
 unsigned int g_default_download_directory_length = 0;
+unsigned int g_temp_download_directory_length = 0;
 
 // Server
 
@@ -155,8 +159,103 @@ wchar_t *cfg_proxy_auth_password_s = NULL;
 
 unsigned short cfg_timeout = 60;
 
-char *download_columns[ NUM_COLUMNS ] = { &cfg_column_order1, &cfg_column_order2, &cfg_column_order3, &cfg_column_order4, &cfg_column_order5, &cfg_column_order6, &cfg_column_order7, &cfg_column_order8, &cfg_column_order9, &cfg_column_order10, &cfg_column_order11, &cfg_column_order12, &cfg_column_order13, &cfg_column_order14 };
-int *download_columns_width[ NUM_COLUMNS ] = { &cfg_column_width1, &cfg_column_width2, &cfg_column_width3, &cfg_column_width4, &cfg_column_width5, &cfg_column_width6, &cfg_column_width7, &cfg_column_width8, &cfg_column_width9, &cfg_column_width10, &cfg_column_width11, &cfg_column_width12, &cfg_column_width13, &cfg_column_width14 };
+//
+
+bool cfg_resume_downloads = false;
+
+unsigned long long cfg_max_file_size = MAX_FILE_SIZE;
+unsigned char cfg_prompt_last_modified = 0;
+unsigned char cfg_prompt_rename = 0;
+unsigned char cfg_prompt_file_size = 0;
+
+bool cfg_use_temp_download_directory = false;
+wchar_t *cfg_temp_download_directory = NULL;
+
+//
+
+bool cfg_show_tray_progress = false;
+unsigned char cfg_drop_window_transparency = 0x80;
+bool cfg_show_drop_window_progress = false;
+
+//
+
+bool cfg_show_gridlines = true;
+
+FONT_SETTINGS cfg_even_row_font_settings = { NULL };					// COLOR_WINDOWTEXT (set in SetDefaultAppearance)
+FONT_SETTINGS cfg_odd_row_font_settings = { NULL };						// COLOR_WINDOWTEXT (set in SetDefaultAppearance)
+
+COLORREF cfg_even_row_background_color = RGB( 0xF7, 0xF7, 0xF7 );
+COLORREF cfg_odd_row_background_color = RGB( 0xFF, 0xFF, 0xFF );		// COLOR_WINDOW (set in SetDefaultAppearance)
+
+COLORREF cfg_even_row_highlight_color = RGB( 0x33, 0x99, 0xFF );		// COLOR_HIGHLIGHT (set in SetDefaultAppearance)
+COLORREF cfg_odd_row_highlight_color = RGB( 0x33, 0x99, 0xFF );			// COLOR_HIGHLIGHT (set in SetDefaultAppearance)
+
+COLORREF cfg_even_row_highlight_font_color = RGB( 0xFF, 0xFF, 0xFF );	// COLOR_HIGHLIGHTTEXT (set in SetDefaultAppearance)
+COLORREF cfg_odd_row_highlight_font_color = RGB( 0xFF, 0xFF, 0xFF );	// COLOR_HIGHLIGHTTEXT (set in SetDefaultAppearance)
+
+// a = Progress Color, b = Background Color, c = Progress Font Color, d = Background Font Color, e = Border Color
+// b = COLOR_WINDOW (set in SetDefaultAppearance)
+COLORREF cfg_color_1a = RGB( 0x40, 0xC0, 0x40 ), cfg_color_1b = RGB( 0xFF, 0xFF, 0xFF ), cfg_color_1c = RGB( 0xFF, 0xFF, 0xFF ), cfg_color_1d = RGB( 0x00, 0x00, 0x00 ), cfg_color_1e = RGB( 0x00, 0x80, 0x00 );		//STATUS_ALLOCATING_FILE
+COLORREF cfg_color_2a = RGB( 0xFF, 0x80, 0xFF ), cfg_color_2b = RGB( 0xFF, 0xFF, 0xFF ), cfg_color_2c = RGB( 0xFF, 0xFF, 0xFF ), cfg_color_2d = RGB( 0x00, 0x00, 0x00 ), cfg_color_2e = RGB( 0xA0, 0x40, 0xA0 );		//STATUS_AUTH_REQUIRED
+COLORREF cfg_color_3a = RGB( 0xA0, 0xA0, 0xFF ), cfg_color_3b = RGB( 0xFF, 0xFF, 0xFF ), cfg_color_3c = RGB( 0xFF, 0xFF, 0xFF ), cfg_color_3d = RGB( 0x00, 0x00, 0x00 ), cfg_color_3e = RGB( 0x40, 0x40, 0xFF );		//STATUS_COMPLETED
+COLORREF cfg_color_4a = RGB( 0xA0, 0xA0, 0xFF ), cfg_color_4b = RGB( 0xFF, 0xFF, 0xFF ), cfg_color_4c = RGB( 0xFF, 0xFF, 0xFF ), cfg_color_4d = RGB( 0x00, 0x00, 0x00 ), cfg_color_4e = RGB( 0x40, 0x40, 0xFF );		//STATUS_CONNECTING
+COLORREF cfg_color_5a = RGB( 0xA0, 0xA0, 0xFF ), cfg_color_5b = RGB( 0xFF, 0xFF, 0xFF ), cfg_color_5c = RGB( 0xFF, 0xFF, 0xFF ), cfg_color_5d = RGB( 0x00, 0x00, 0x00 ), cfg_color_5e = RGB( 0x40, 0x40, 0xFF );		//STATUS_DOWNLOADING
+COLORREF cfg_color_6a = RGB( 0xFF, 0x80, 0x80 ), cfg_color_6b = RGB( 0xFF, 0xFF, 0xFF ), cfg_color_6c = RGB( 0xFF, 0xFF, 0xFF ), cfg_color_6d = RGB( 0x00, 0x00, 0x00 ), cfg_color_6e = RGB( 0xFF, 0x20, 0x20 );		//STATUS_FAILED
+COLORREF cfg_color_7a = RGB( 0xFF, 0x80, 0x80 ), cfg_color_7b = RGB( 0xFF, 0xFF, 0xFF ), cfg_color_7c = RGB( 0xFF, 0xFF, 0xFF ), cfg_color_7d = RGB( 0x00, 0x00, 0x00 ), cfg_color_7e = RGB( 0xFF, 0x20, 0x20 );		//STATUS_FILE_IO_ERROR
+COLORREF cfg_color_8a = RGB( 0x40, 0xC0, 0x40 ), cfg_color_8b = RGB( 0xFF, 0xFF, 0xFF ), cfg_color_8c = RGB( 0xFF, 0xFF, 0xFF ), cfg_color_8d = RGB( 0x00, 0x00, 0x00 ), cfg_color_8e = RGB( 0x00, 0x80, 0x00 );		//STATUS_MOVING_FILE
+COLORREF cfg_color_9a = RGB( 0xA0, 0xA0, 0xFF ), cfg_color_9b = RGB( 0xFF, 0xFF, 0xFF ), cfg_color_9c = RGB( 0xFF, 0xFF, 0xFF ), cfg_color_9d = RGB( 0x00, 0x00, 0x00 ), cfg_color_9e = RGB( 0x40, 0x40, 0xFF );		//STATUS_PAUSED
+COLORREF cfg_color_10a = RGB( 0xFF, 0x80, 0xFF ), cfg_color_10b = RGB( 0xFF, 0xFF, 0xFF ), cfg_color_10c = RGB( 0xFF, 0xFF, 0xFF ), cfg_color_10d = RGB( 0x00, 0x00, 0x00 ), cfg_color_10e = RGB( 0xA0, 0x40, 0xA0 );	//STATUS_PROXY_AUTH_REQUIRED
+COLORREF cfg_color_11a = RGB( 0xA0, 0xA0, 0xFF ), cfg_color_11b = RGB( 0xFF, 0xFF, 0xFF ), cfg_color_11c = RGB( 0xFF, 0xFF, 0xFF ), cfg_color_11d = RGB( 0x00, 0x00, 0x00 ), cfg_color_11e = RGB( 0x40, 0x40, 0xFF );	//STATUS_QUEUED
+COLORREF cfg_color_12a = RGB( 0xA0, 0xA0, 0xFF ), cfg_color_12b = RGB( 0xFF, 0xFF, 0xFF ), cfg_color_12c = RGB( 0xFF, 0xFF, 0xFF ), cfg_color_12d = RGB( 0x00, 0x00, 0x00 ), cfg_color_12e = RGB( 0x40, 0x40, 0xFF );	//STATUS_RESTART
+COLORREF cfg_color_13a = RGB( 0x80, 0x80, 0xA0 ), cfg_color_13b = RGB( 0xFF, 0xFF, 0xFF ), cfg_color_13c = RGB( 0xFF, 0xFF, 0xFF ), cfg_color_13d = RGB( 0x00, 0x00, 0x00 ), cfg_color_13e = RGB( 0x40, 0x40, 0x80 );	//STATUS_SKIPPED
+COLORREF cfg_color_14a = RGB( 0xA0, 0xA0, 0xFF ), cfg_color_14b = RGB( 0xFF, 0xFF, 0xFF ), cfg_color_14c = RGB( 0xFF, 0xFF, 0xFF ), cfg_color_14d = RGB( 0x00, 0x00, 0x00 ), cfg_color_14e = RGB( 0x40, 0x40, 0xFF );	//STATUS_STOPPED
+COLORREF cfg_color_15a = RGB( 0xFF, 0xB0, 0x00 ), cfg_color_15b = RGB( 0xFF, 0xFF, 0xFF ), cfg_color_15c = RGB( 0xFF, 0xFF, 0xFF ), cfg_color_15d = RGB( 0x00, 0x00, 0x00 ), cfg_color_15e = RGB( 0xFF, 0x50, 0x00 );	//STATUS_TIMED_OUT
+
+COLORREF *progress_colors[ NUM_COLORS ] = { &cfg_color_1a, &cfg_color_1b, &cfg_color_1c, &cfg_color_1d, &cfg_color_1e,
+											&cfg_color_2a, &cfg_color_2b, &cfg_color_2c, &cfg_color_2d, &cfg_color_2e,
+											&cfg_color_3a, &cfg_color_3b, &cfg_color_3c, &cfg_color_3d, &cfg_color_3e,
+											&cfg_color_4a, &cfg_color_4b, &cfg_color_4c, &cfg_color_4d, &cfg_color_4e,
+											&cfg_color_5a, &cfg_color_5b, &cfg_color_5c, &cfg_color_5d, &cfg_color_5e,
+											&cfg_color_6a, &cfg_color_6b, &cfg_color_6c, &cfg_color_6d, &cfg_color_6e,
+											&cfg_color_7a, &cfg_color_7b, &cfg_color_7c, &cfg_color_7d, &cfg_color_7e,
+											&cfg_color_8a, &cfg_color_8b, &cfg_color_8c, &cfg_color_8d, &cfg_color_8e,
+											&cfg_color_9a, &cfg_color_9b, &cfg_color_9c, &cfg_color_9d, &cfg_color_9e,
+											&cfg_color_10a, &cfg_color_10b, &cfg_color_10c, &cfg_color_10d, &cfg_color_10e,
+											&cfg_color_11a, &cfg_color_11b, &cfg_color_11c, &cfg_color_11d, &cfg_color_11e,
+											&cfg_color_12a, &cfg_color_12b, &cfg_color_12c, &cfg_color_12d, &cfg_color_12e,
+											&cfg_color_13a, &cfg_color_13b, &cfg_color_13c, &cfg_color_13d, &cfg_color_13e,
+											&cfg_color_14a, &cfg_color_14b, &cfg_color_14c, &cfg_color_14d, &cfg_color_14e,
+											&cfg_color_15a, &cfg_color_15b, &cfg_color_15c, &cfg_color_15d, &cfg_color_15e };
+
+char *download_columns[ NUM_COLUMNS ] = { &cfg_column_order1,
+										  &cfg_column_order2,
+										  &cfg_column_order3,
+										  &cfg_column_order4,
+										  &cfg_column_order5,
+										  &cfg_column_order6,
+										  &cfg_column_order7,
+										  &cfg_column_order8,
+										  &cfg_column_order9,
+										  &cfg_column_order10,
+										  &cfg_column_order11,
+										  &cfg_column_order12,
+										  &cfg_column_order13,
+										  &cfg_column_order14 };
+
+int *download_columns_width[ NUM_COLUMNS ] = { &cfg_column_width1,
+											   &cfg_column_width2,
+											   &cfg_column_width3,
+											   &cfg_column_width4,
+											   &cfg_column_width5,
+											   &cfg_column_width6,
+											   &cfg_column_width7,
+											   &cfg_column_width8,
+											   &cfg_column_width9,
+											   &cfg_column_width10,
+											   &cfg_column_width11,
+											   &cfg_column_width12,
+											   &cfg_column_width13,
+											   &cfg_column_width14 };
 
 HANDLE worker_semaphore = NULL;			// Blocks shutdown while a worker thread is active.
 bool in_worker_thread = false;
@@ -388,6 +487,59 @@ void CheckColumnWidths()
 	if ( cfg_column_width12 < 0 || cfg_column_width12 > 2560 ) { cfg_column_width12 = 90; }
 	if ( cfg_column_width13 < 0 || cfg_column_width13 > 2560 ) { cfg_column_width13 = 90; }
 	if ( cfg_column_width14 < 0 || cfg_column_width14 > 2560 ) { cfg_column_width14 = 1000; }
+}
+
+void SetDefaultAppearance()
+{
+	//_memzero( &cfg_even_row_font_settings.lf, sizeof( LOGFONT ) );
+	//_memzero( &cfg_odd_row_font_settings.lf, sizeof( LOGFONT ) );
+
+	cfg_odd_row_font_settings.font_color = cfg_even_row_font_settings.font_color = ( COLORREF )_GetSysColor( COLOR_WINDOWTEXT );
+	cfg_odd_row_highlight_font_color = cfg_even_row_highlight_font_color = ( COLORREF )_GetSysColor( COLOR_HIGHLIGHTTEXT );
+
+	cfg_even_row_highlight_color = cfg_odd_row_highlight_color = ( COLORREF )_GetSysColor( COLOR_HIGHLIGHT );
+
+	cfg_odd_row_background_color = ( COLORREF )_GetSysColor( COLOR_WINDOW );
+
+	cfg_color_1b = cfg_odd_row_background_color;
+	cfg_color_2b = cfg_odd_row_background_color;
+	cfg_color_3b = cfg_odd_row_background_color;
+	cfg_color_4b = cfg_odd_row_background_color;
+	cfg_color_5b = cfg_odd_row_background_color;
+	cfg_color_6b = cfg_odd_row_background_color;
+	cfg_color_7b = cfg_odd_row_background_color;
+	cfg_color_8b = cfg_odd_row_background_color;
+	cfg_color_9b = cfg_odd_row_background_color;
+	cfg_color_10b = cfg_odd_row_background_color;
+	cfg_color_11b = cfg_odd_row_background_color;
+	cfg_color_12b = cfg_odd_row_background_color;
+	cfg_color_13b = cfg_odd_row_background_color;
+	cfg_color_14b = cfg_odd_row_background_color;
+	cfg_color_15b = cfg_odd_row_background_color;
+}
+
+void AdjustRowHeight()
+{
+	int height1, height2;
+	TEXTMETRIC tm;
+	HDC hDC = _GetDC( NULL );
+	HFONT ohf = ( HFONT )_SelectObject( hDC, cfg_odd_row_font_settings.font );
+	_GetTextMetricsW( hDC, &tm );
+	height1 = tm.tmHeight + tm.tmExternalLeading + 5;
+	_SelectObject( hDC, ohf );	// Reset old font.
+	ohf = ( HFONT )_SelectObject( hDC, cfg_even_row_font_settings.font );
+	_GetTextMetricsW( hDC, &tm );
+	height2 = tm.tmHeight + tm.tmExternalLeading + 5;
+	_SelectObject( hDC, ohf );	// Reset old font.
+	_ReleaseDC( NULL, hDC );
+
+	g_row_height = ( height1 > height2 ? height1 : height2 );
+
+	int icon_height = _GetSystemMetrics( SM_CYSMICON ) + 2;
+	if ( g_row_height < icon_height )
+	{
+		g_row_height = icon_height;
+	}
 }
 
 // Must use GlobalFree on this.
@@ -642,6 +794,35 @@ unsigned long get_file_extension_offset( wchar_t *filename, unsigned long length
 
 	return filename + length;
 }*/
+
+void GetDownloadFilePath( DOWNLOAD_INFO *di, wchar_t file_path[] )
+{
+	if ( di != NULL )
+	{
+		_wmemcpy_s( file_path, MAX_PATH, di->file_path, MAX_PATH );
+		if ( di->filename_offset > 0 )
+		{
+			file_path[ di->filename_offset - 1 ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
+		}
+	}
+}
+
+int GetTemporaryFilePath( DOWNLOAD_INFO *di, wchar_t file_path[] )
+{
+	int filename_length = 0;
+
+	if ( di != NULL )
+	{
+		filename_length = lstrlenW( di->file_path + di->filename_offset );
+
+		_wmemcpy_s( file_path, MAX_PATH, cfg_temp_download_directory, g_temp_download_directory_length );
+		file_path[ g_temp_download_directory_length ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
+		_wmemcpy_s( file_path + ( g_temp_download_directory_length + 1 ), MAX_PATH - ( g_temp_download_directory_length - 1 ), di->file_path + di->filename_offset, filename_length );
+		file_path[ g_temp_download_directory_length + filename_length + 1 ] = 0;	// Sanity.
+	}
+
+	return filename_length;
+}
 
 char *GetUTF8Domain( wchar_t *domain )
 {

@@ -41,7 +41,7 @@
 	//#define _GdiAlphaBlend				GdiAlphaBlend
 	//#define _GdiGradientFill			GdiGradientFill
 	//#define _GetDeviceCaps				GetDeviceCaps
-	#define _GetObjectW					GetObjectW
+	//#define _GetObjectW					GetObjectW
 	#define _GetStockObject				GetStockObject
 	//#define _GetTextExtentPoint32W	GetTextExtentPoint32W
 	#define _GetTextMetricsW			GetTextMetricsW
@@ -69,7 +69,7 @@
 	//typedef BOOL ( WINAPI *pGdiAlphaBlend )( HDC hdcDest, int xoriginDest, int yoriginDest, int wDest, int hDest, HDC hdcSrc, int xoriginSrc, int yoriginSrc, int wSrc, int hSrc, BLENDFUNCTION ftn );
 	//typedef BOOL ( WINAPI *pGdiGradientFill )( HDC hdc, PTRIVERTEX pVertex, ULONG dwNumVertex, PVOID pMesh, ULONG dwNumMesh, ULONG dwMode );
 	//typedef int ( WINAPI *pGetDeviceCaps )( HDC hdc, int nIndex );
-	typedef int ( WINAPI *pGetObjectW )( HGDIOBJ hgdiobj, int cbBuffer, LPVOID lpvObject );
+	//typedef int ( WINAPI *pGetObjectW )( HGDIOBJ hgdiobj, int cbBuffer, LPVOID lpvObject );
 	typedef HGDIOBJ ( WINAPI *pGetStockObject )( int fnObject );
 	//typedef BOOL ( WINAPI *pGetTextExtentPoint32W )( HDC hdc, LPCTSTR lpString, int c, LPSIZE lpSize );
 	typedef BOOL ( WINAPI *pGetTextMetricsW )( HDC hdc, LPTEXTMETRIC lptm );
@@ -92,7 +92,7 @@
 	//extern pGdiAlphaBlend				_GdiAlphaBlend;
 	//extern pGdiGradientFill				_GdiGradientFill;
 	//extern pGetDeviceCaps				_GetDeviceCaps;
-	extern pGetObjectW					_GetObjectW;
+	//extern pGetObjectW					_GetObjectW;
 	extern pGetStockObject				_GetStockObject;
 	//extern pGetTextExtentPoint32W		_GetTextExtentPoint32W;
 	extern pGetTextMetricsW				_GetTextMetricsW;

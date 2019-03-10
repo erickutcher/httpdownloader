@@ -54,6 +54,8 @@
 
 #define NUM_COLUMNS			14
 
+#define NUM_COLORS			75
+
 #define _wcsicmp_s( a, b ) ( ( a == NULL && b == NULL ) ? 0 : ( a != NULL && b == NULL ) ? 1 : ( a == NULL && b != NULL ) ? -1 : lstrcmpiW( a, b ) )
 #define _stricmp_s( a, b ) ( ( a == NULL && b == NULL ) ? 0 : ( a != NULL && b == NULL ) ? 1 : ( a == NULL && b != NULL ) ? -1 : lstrcmpiA( a, b ) )
 
@@ -134,6 +136,13 @@ struct CL_ARGS
 	char ssl_version;
 };
 
+struct FONT_SETTINGS
+{
+	LOGFONT lf;
+	HFONT font;
+	COLORREF font_color;
+};
+
 // These are all variables that are shared among the separate .cpp files.
 
 // Object handles.
@@ -149,13 +158,14 @@ extern HWND g_hWnd_files;
 
 extern HWND g_hWnd_active;				// Handle to the active window. Used to handle tab stops.
 
-extern HFONT hFont;
+extern LOGFONT g_default_log_font;
+extern HFONT g_hFont;
 
 extern dllrbt_tree *icon_handles;
 
 extern bool	can_fast_allocate;			// Prevent the pre-allocation from zeroing the file.
 
-extern int row_height;
+extern int g_row_height;
 
 extern bool skip_list_draw;
 
@@ -179,8 +189,7 @@ extern wchar_t *base_directory;
 extern unsigned int base_directory_length;
 
 extern unsigned int g_default_download_directory_length;
-
-extern NOTIFYICONDATA g_nid;					// Tray icon information.
+extern unsigned int g_temp_download_directory_length;
 
 extern UINT CF_HTML;	// Clipboard format.
 
@@ -230,6 +239,7 @@ extern char cfg_column_order13;
 extern char cfg_column_order14;
 
 extern bool cfg_show_toolbar;
+extern bool cfg_show_column_headers;
 extern bool cfg_show_status_bar;
 
 extern unsigned char cfg_t_downloaded;	// 0 = Bytes, 1 = KB, 2 = MB, 3 = GB, 4 = auto
@@ -336,6 +346,62 @@ extern unsigned long g_proxy_auth_key_length_s;
 //
 
 extern unsigned short cfg_timeout;
+
+//
+
+extern bool cfg_resume_downloads;
+
+extern unsigned long long cfg_max_file_size;
+extern unsigned char cfg_prompt_last_modified;	// 0 = Display Prompt, 1 = Continue Download, 2 = Restart Download, 3 = Skip Download
+extern unsigned char cfg_prompt_rename;			// 0 = Display Prompt, 1 = Rename File, 2 = Overwrite File, 3 = Skip Download
+extern unsigned char cfg_prompt_file_size;		// 0 = Display Prompt, 1 = Continue Download, 2 = Skip Download
+
+extern bool cfg_use_temp_download_directory;
+extern wchar_t *cfg_temp_download_directory;
+
+//
+
+extern bool cfg_show_tray_progress;
+extern unsigned char cfg_drop_window_transparency;
+extern bool cfg_show_drop_window_progress;
+
+//
+
+// Appearance
+
+extern bool cfg_show_gridlines;
+
+extern FONT_SETTINGS cfg_even_row_font_settings;
+extern FONT_SETTINGS cfg_odd_row_font_settings;
+
+extern COLORREF cfg_even_row_background_color;
+extern COLORREF cfg_odd_row_background_color;
+
+extern COLORREF cfg_even_row_highlight_color;
+extern COLORREF cfg_odd_row_highlight_color;
+
+extern COLORREF cfg_even_row_highlight_font_color;
+extern COLORREF cfg_odd_row_highlight_font_color;
+
+extern COLORREF cfg_color_1a, cfg_color_1b, cfg_color_1c, cfg_color_1d, cfg_color_1e;
+extern COLORREF cfg_color_2a, cfg_color_2b, cfg_color_2c, cfg_color_2d, cfg_color_2e;
+extern COLORREF cfg_color_3a, cfg_color_3b, cfg_color_3c, cfg_color_3d, cfg_color_3e;
+extern COLORREF cfg_color_4a, cfg_color_4b, cfg_color_4c, cfg_color_4d, cfg_color_4e;
+extern COLORREF cfg_color_5a, cfg_color_5b, cfg_color_5c, cfg_color_5d, cfg_color_5e;
+extern COLORREF cfg_color_6a, cfg_color_6b, cfg_color_6c, cfg_color_6d, cfg_color_6e;
+extern COLORREF cfg_color_7a, cfg_color_7b, cfg_color_7c, cfg_color_7d, cfg_color_7e;
+extern COLORREF cfg_color_8a, cfg_color_8b, cfg_color_8c, cfg_color_8d, cfg_color_8e;
+extern COLORREF cfg_color_9a, cfg_color_9b, cfg_color_9c, cfg_color_9d, cfg_color_9e;
+extern COLORREF cfg_color_10a, cfg_color_10b, cfg_color_10c, cfg_color_10d, cfg_color_10e;
+extern COLORREF cfg_color_11a, cfg_color_11b, cfg_color_11c, cfg_color_11d, cfg_color_11e;
+extern COLORREF cfg_color_12a, cfg_color_12b, cfg_color_12c, cfg_color_12d, cfg_color_12e;
+extern COLORREF cfg_color_13a, cfg_color_13b, cfg_color_13c, cfg_color_13d, cfg_color_13e;
+extern COLORREF cfg_color_14a, cfg_color_14b, cfg_color_14c, cfg_color_14d, cfg_color_14e;
+extern COLORREF cfg_color_15a, cfg_color_15b, cfg_color_15c, cfg_color_15d, cfg_color_15e;
+
+//
+
+extern COLORREF *progress_colors[ NUM_COLORS ];
 
 extern char *download_columns[ NUM_COLUMNS ];
 extern int *download_columns_width[ NUM_COLUMNS ];

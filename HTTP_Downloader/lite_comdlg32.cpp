@@ -21,8 +21,8 @@
 
 #ifndef COMDLG32_USE_STATIC_LIB
 
-	//pChooseColorW			_ChooseColorW;
-	//pChooseFontW			_ChooseFontW;
+	pChooseColorW			_ChooseColorW;
+	pChooseFontW			_ChooseFontW;
 
 	pGetOpenFileNameW		_GetOpenFileNameW;
 	pGetSaveFileNameW		_GetSaveFileNameW;
@@ -45,8 +45,8 @@
 			return false;
 		}
 
-		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_comdlg32, ( void ** )&_ChooseColorW, "ChooseColorW" ) )
-		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_comdlg32, ( void ** )&_ChooseFontW, "ChooseFontW" ) )
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_comdlg32, ( void ** )&_ChooseColorW, "ChooseColorW" ) )
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_comdlg32, ( void ** )&_ChooseFontW, "ChooseFontW" ) )
 
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_comdlg32, ( void ** )&_GetOpenFileNameW, "GetOpenFileNameW" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_comdlg32, ( void ** )&_GetSaveFileNameW, "GetSaveFileNameW" ) )

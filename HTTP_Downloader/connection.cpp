@@ -99,6 +99,8 @@ DoublyLinkedList *file_size_prompt_list = NULL;		// List of downloads that need 
 DoublyLinkedList *rename_file_prompt_list = NULL;	// List of downloads that need to be prompted to continue.
 DoublyLinkedList *last_modified_prompt_list = NULL;	// List of downloads that need to be prompted to continue.
 
+DoublyLinkedList *move_file_queue = NULL;			// List of downloads that need to be moved to a new folder.
+
 HANDLE g_timeout_semaphore = NULL;
 
 CRITICAL_SECTION context_list_cs;				// Guard access to the global context list.
@@ -107,6 +109,7 @@ CRITICAL_SECTION download_queue_cs;				// Guard access to the download queue.
 CRITICAL_SECTION file_size_prompt_list_cs;		// Guard access to the file size prompt list.
 CRITICAL_SECTION rename_file_prompt_list_cs;	// Guard access to the rename file prompt list.
 CRITICAL_SECTION last_modified_prompt_list_cs;	// Guard access to the last modified prompt list.
+CRITICAL_SECTION move_file_queue_cs;			// Guard access to the move file queue.
 CRITICAL_SECTION cleanup_cs;
 
 LPFN_ACCEPTEX _AcceptEx = NULL;
@@ -121,6 +124,8 @@ int g_rename_file_cmb_ret2 = 0;	// Message box prompt to rename files.
 
 bool last_modified_prompt_active = false;
 int g_last_modified_cmb_ret = 0;	// Message box prompt for modified files.
+
+bool move_file_process_active = false;
 
 unsigned int g_session_status_count[ 8 ] = { 0 };	// 8 states that can be considered finished (Completed, Stopped, Failed, etc.)
 
@@ -923,6 +928,8 @@ THREAD_RETURN RenameFilePrompt( void *pArguments )
 {
 	DOWNLOAD_INFO *di = NULL;
 
+	unsigned char rename_only = ( unsigned char )pArguments;
+
 	bool skip_processing = false;
 
 	do
@@ -951,26 +958,41 @@ THREAD_RETURN RenameFilePrompt( void *pArguments )
 			context = ( SOCKET_CONTEXT * )di->parts_list->data;
 
 			wchar_t prompt_message[ MAX_PATH + 100 ];
-
 			wchar_t file_path[ MAX_PATH ];
-			_wmemcpy_s( file_path, MAX_PATH, di->file_path, MAX_PATH );
-			if ( di->filename_offset > 0 )
+
+			int filename_offset;
+			int file_extension_offset;
+
+			if ( cfg_use_temp_download_directory )
 			{
-				file_path[ di->filename_offset - 1 ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
+				int filename_length = GetTemporaryFilePath( di, file_path );
+
+				filename_offset = g_temp_download_directory_length + 1;
+				file_extension_offset = filename_offset + get_file_extension_offset( di->file_path + di->filename_offset, filename_length );
+			}
+			else
+			{
+				filename_offset = di->filename_offset;
+				file_extension_offset = di->file_extension_offset;
+
+				GetDownloadFilePath( di, file_path );
 			}
 
 			LeaveCriticalSection( &di->shared_cs );
 
-			// If the last return value was not set to remember our choice, then prompt again.
-			if ( g_rename_file_cmb_ret != CMBIDRENAMEALL && g_rename_file_cmb_ret != CMBIDOVERWRITEALL && g_rename_file_cmb_ret != CMBIDSKIPALL )
+			if ( rename_only == 0 )
 			{
-				__snwprintf( prompt_message, MAX_PATH + 100, L"%s already exists.\r\n\r\nWhat operation would you like to perform?", file_path );
+				// If the last return value was not set to remember our choice, then prompt again.
+				if ( g_rename_file_cmb_ret != CMBIDRENAMEALL && g_rename_file_cmb_ret != CMBIDOVERWRITEALL && g_rename_file_cmb_ret != CMBIDSKIPALL )
+				{
+					__snwprintf( prompt_message, MAX_PATH + 100, L"%s already exists.\r\n\r\nWhat operation would you like to perform?", file_path );
 
-				g_rename_file_cmb_ret = CMessageBoxW( g_hWnd_main, prompt_message, PROGRAM_CAPTION, CMB_ICONWARNING | CMB_RENAMEOVERWRITESKIPALL );
+					g_rename_file_cmb_ret = CMessageBoxW( g_hWnd_main, prompt_message, PROGRAM_CAPTION, CMB_ICONWARNING | CMB_RENAMEOVERWRITESKIPALL );
+				}
 			}
 
 			// Rename the file and try again.
-			if ( g_rename_file_cmb_ret == CMBIDRENAME || g_rename_file_cmb_ret == CMBIDRENAMEALL )
+			if ( rename_only == 1 || g_rename_file_cmb_ret == CMBIDRENAME || g_rename_file_cmb_ret == CMBIDRENAMEALL )
 			{
 				// Creates a tree of active and queued downloads.
 				dllrbt_tree *add_files_tree = CreateFilenameTree();
@@ -979,7 +1001,7 @@ THREAD_RETURN RenameFilePrompt( void *pArguments )
 
 				EnterCriticalSection( &di->shared_cs );
 
-				rename_succeeded = RenameFile( di, add_files_tree );
+				rename_succeeded = RenameFile( di, add_files_tree, file_path, filename_offset, file_extension_offset );
 
 				LeaveCriticalSection( &di->shared_cs );
 
@@ -988,7 +1010,7 @@ THREAD_RETURN RenameFilePrompt( void *pArguments )
 
 				if ( !rename_succeeded )
 				{
-					if ( g_rename_file_cmb_ret2 != CMBIDOKALL )
+					if ( g_rename_file_cmb_ret2 != CMBIDOKALL && !( di->download_operations & DOWNLOAD_OPERATION_OVERRIDE_PROMPTS ) )
 					{
 						__snwprintf( prompt_message, MAX_PATH + 100, L"%s could not be renamed.\r\n\r\nYou will need to choose a different save directory.", file_path );
 
@@ -1108,10 +1130,13 @@ THREAD_RETURN FileSizePrompt( void *pArguments )
 			if ( g_file_size_cmb_ret != CMBIDNOALL && g_file_size_cmb_ret != CMBIDYESALL )
 			{
 				wchar_t file_path[ MAX_PATH ];
-				_wmemcpy_s( file_path, MAX_PATH, di->file_path, MAX_PATH );
-				if ( di->filename_offset > 0 )
+				if ( cfg_use_temp_download_directory )
 				{
-					file_path[ di->filename_offset - 1 ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
+					GetTemporaryFilePath( di, file_path );
+				}
+				else
+				{
+					GetDownloadFilePath( di, file_path );
 				}
 
 				wchar_t prompt_message[ MAX_PATH + 100 ];
@@ -1180,6 +1205,8 @@ THREAD_RETURN LastModifiedPrompt( void *pArguments )
 {
 	DOWNLOAD_INFO *di = NULL;
 
+	unsigned char restart_only = ( unsigned char )pArguments;
+
 	bool skip_processing = false;
 
 	do
@@ -1210,24 +1237,30 @@ THREAD_RETURN LastModifiedPrompt( void *pArguments )
 			wchar_t prompt_message[ MAX_PATH + 100 ];
 
 			wchar_t file_path[ MAX_PATH ];
-			_wmemcpy_s( file_path, MAX_PATH, di->file_path, MAX_PATH );
-			if ( di->filename_offset > 0 )
+			if ( cfg_use_temp_download_directory )
 			{
-				file_path[ di->filename_offset - 1 ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
+				GetTemporaryFilePath( di, file_path );
+			}
+			else
+			{
+				GetDownloadFilePath( di, file_path );
 			}
 
 			LeaveCriticalSection( &di->shared_cs );
 
-			// If the last return value was not set to remember our choice, then prompt again.
-			if ( g_last_modified_cmb_ret != CMBIDCONTINUEALL && g_last_modified_cmb_ret != CMBIDRESTARTALL && g_last_modified_cmb_ret != CMBIDSKIPALL )
+			if ( restart_only == 0 )
 			{
-				__snwprintf( prompt_message, MAX_PATH + 100, L"%s has been modified.\r\n\r\nWhat operation would you like to perform?", file_path );
+				// If the last return value was not set to remember our choice, then prompt again.
+				if ( g_last_modified_cmb_ret != CMBIDCONTINUEALL && g_last_modified_cmb_ret != CMBIDRESTARTALL && g_last_modified_cmb_ret != CMBIDSKIPALL )
+				{
+					__snwprintf( prompt_message, MAX_PATH + 100, L"%s has been modified.\r\n\r\nWhat operation would you like to perform?", file_path );
 
-				g_last_modified_cmb_ret = CMessageBoxW( g_hWnd_main, prompt_message, PROGRAM_CAPTION, CMB_ICONWARNING | CMB_CONTINUERESTARTSKIPALL );
+					g_last_modified_cmb_ret = CMessageBoxW( g_hWnd_main, prompt_message, PROGRAM_CAPTION, CMB_ICONWARNING | CMB_CONTINUERESTARTSKIPALL );
+				}
 			}
 
 			// Restart the download.
-			if ( g_last_modified_cmb_ret == CMBIDRESTART || g_last_modified_cmb_ret == CMBIDRESTARTALL )
+			if ( restart_only == 1 || g_last_modified_cmb_ret == CMBIDRESTART || g_last_modified_cmb_ret == CMBIDRESTARTALL )
 			{
 				EnterCriticalSection( &di->shared_cs );
 
@@ -2970,18 +3003,30 @@ void StartDownload( DOWNLOAD_INFO *di, bool check_if_file_exists )
 		EnterCriticalSection( &di->shared_cs );
 
 		wchar_t prompt_message[ MAX_PATH + 100 ];
-
 		wchar_t file_path[ MAX_PATH ];
-		_wmemcpy_s( file_path, MAX_PATH, di->file_path, MAX_PATH );
-		if ( di->filename_offset > 0 )
+
+		int filename_offset;
+		int file_extension_offset;
+
+		if ( cfg_use_temp_download_directory )
 		{
-			file_path[ di->filename_offset - 1 ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
+			int filename_length = GetTemporaryFilePath( di, file_path );
+
+			filename_offset = g_temp_download_directory_length + 1;
+			file_extension_offset = filename_offset + get_file_extension_offset( di->file_path + di->filename_offset, filename_length );
+		}
+		else
+		{
+			GetDownloadFilePath( di, file_path );
+
+			filename_offset = di->filename_offset;
+			file_extension_offset = di->file_extension_offset;
 		}
 
 		// See if the file exits.
 		if ( GetFileAttributes( file_path ) != INVALID_FILE_ATTRIBUTES )
 		{
-			if ( di->download_operations & DOWNLOAD_OPERATION_OVERRIDE_PROMPTS )
+			if ( cfg_prompt_rename == 0 && di->download_operations & DOWNLOAD_OPERATION_OVERRIDE_PROMPTS )
 			{
 				di->status = STATUS_SKIPPED;
 
@@ -2990,7 +3035,10 @@ void StartDownload( DOWNLOAD_INFO *di, bool check_if_file_exists )
 			else
 			{
 				// If the last return value was not set to remember our choice, then prompt again.
-				if ( g_rename_file_cmb_ret != CMBIDRENAMEALL && g_rename_file_cmb_ret != CMBIDOVERWRITEALL && g_rename_file_cmb_ret != CMBIDSKIPALL )
+				if ( cfg_prompt_rename == 0 &&
+					 g_rename_file_cmb_ret != CMBIDRENAMEALL &&
+					 g_rename_file_cmb_ret != CMBIDOVERWRITEALL &&
+					 g_rename_file_cmb_ret != CMBIDSKIPALL )
 				{
 					__snwprintf( prompt_message, MAX_PATH + 100, L"%s already exists.\r\n\r\nWhat operation would you like to perform?", file_path );
 
@@ -2998,19 +3046,21 @@ void StartDownload( DOWNLOAD_INFO *di, bool check_if_file_exists )
 				}
 
 				// Rename the file and try again.
-				if ( g_rename_file_cmb_ret == CMBIDRENAME || g_rename_file_cmb_ret == CMBIDRENAMEALL )
+				if ( cfg_prompt_rename == 1 ||
+				   ( cfg_prompt_rename == 0 && ( g_rename_file_cmb_ret == CMBIDRENAME ||
+												 g_rename_file_cmb_ret == CMBIDRENAMEALL ) ) )
 				{
 					// Creates a tree of active and queued downloads.
 					dllrbt_tree *add_files_tree = CreateFilenameTree();
 
-					bool rename_succeeded = RenameFile( di, add_files_tree );
+					bool rename_succeeded = RenameFile( di, add_files_tree, file_path, filename_offset, file_extension_offset );
 
 					// The tree is only used to determine duplicate filenames.
 					DestroyFilenameTree( add_files_tree );
 
 					if ( !rename_succeeded )
 					{
-						if ( g_rename_file_cmb_ret2 != CMBIDOKALL )
+						if ( g_rename_file_cmb_ret2 != CMBIDOKALL && !( di->download_operations & DOWNLOAD_OPERATION_OVERRIDE_PROMPTS ) )
 						{
 							__snwprintf( prompt_message, MAX_PATH + 100, L"%s could not be renamed.\r\n\r\nYou will need to choose a different save directory.", file_path );
 
@@ -3022,7 +3072,10 @@ void StartDownload( DOWNLOAD_INFO *di, bool check_if_file_exists )
 						skip_start = true;
 					}
 				}
-				else if ( g_rename_file_cmb_ret == CMBIDFAIL || g_rename_file_cmb_ret == CMBIDSKIP || g_rename_file_cmb_ret == CMBIDSKIPALL ) // Skip the rename or overwrite if the return value fails, or the user selected skip.
+				else if ( cfg_prompt_rename == 3 ||
+						( cfg_prompt_rename == 0 && ( g_rename_file_cmb_ret == CMBIDFAIL ||
+													  g_rename_file_cmb_ret == CMBIDSKIP ||
+													  g_rename_file_cmb_ret == CMBIDSKIPALL ) ) ) // Skip the rename or overwrite if the return value fails, or the user selected skip.
 				{
 					di->status = STATUS_SKIPPED;
 
@@ -3188,7 +3241,7 @@ void StartDownload( DOWNLOAD_INFO *di, bool check_if_file_exists )
 				{
 					add_state = 2;	// Queue the download.
 
-					di->status = STATUS_QUEUED;	// Queued.
+					di->status = STATUS_CONNECTING | STATUS_QUEUED;	// Queued.
 
 					EnterCriticalSection( &download_queue_cs );
 					
@@ -3402,7 +3455,7 @@ void DestroyFilenameTree( dllrbt_tree *filename_tree )
 	dllrbt_delete_recursively( filename_tree );
 }
 
-bool RenameFile( DOWNLOAD_INFO *di, dllrbt_tree *filename_tree )
+bool RenameFile( DOWNLOAD_INFO *di, dllrbt_tree *filename_tree, wchar_t *file_path, unsigned int filename_offset, unsigned int file_extension_offset )
 {
 	unsigned int rename_count = 0;
 
@@ -3413,16 +3466,16 @@ bool RenameFile( DOWNLOAD_INFO *di, dllrbt_tree *filename_tree )
 
 	// We don't want to overwrite the download info until the very end.
 	wchar_t new_file_path[ MAX_PATH ];
-	_wmemcpy_s( new_file_path, MAX_PATH, di->file_path, MAX_PATH );
+	_wmemcpy_s( new_file_path, MAX_PATH, file_path, MAX_PATH );
 
-	new_file_path[ di->filename_offset - 1 ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
+	new_file_path[ filename_offset - 1 ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
 
 	do
 	{
-		while ( dllrbt_find( filename_tree, ( void * )( new_file_path + di->filename_offset ), false ) != NULL )
+		while ( dllrbt_find( filename_tree, ( void * )( new_file_path + filename_offset ), false ) != NULL )
 		{
 			// If there's a file extension, then put the counter before it.
-			int ret = __snwprintf( new_file_path + di->file_extension_offset, MAX_PATH - di->file_extension_offset - 1, L" (%lu)%s", ++rename_count, di->file_path + di->file_extension_offset );
+			int ret = __snwprintf( new_file_path + file_extension_offset, MAX_PATH - file_extension_offset - 1, L" (%lu)%s", ++rename_count, file_path + file_extension_offset );
 
 			// Can't rename.
 			if ( ret < 0 )
@@ -3432,7 +3485,7 @@ bool RenameFile( DOWNLOAD_INFO *di, dllrbt_tree *filename_tree )
 		}
 
 		// Add the new filename to the add files tree.
-		wchar_t *filename = GlobalStrDupW( new_file_path + di->filename_offset );
+		wchar_t *filename = GlobalStrDupW( new_file_path + filename_offset );
 
 		if ( dllrbt_insert( filename_tree, ( void * )filename, ( void * )filename ) != DLLRBT_STATUS_OK )
 		{
@@ -3442,7 +3495,7 @@ bool RenameFile( DOWNLOAD_INFO *di, dllrbt_tree *filename_tree )
 	while ( GetFileAttributes( new_file_path ) != INVALID_FILE_ATTRIBUTES );
 
 	// Set the new filename.
-	_wmemcpy_s( di->file_path + di->filename_offset, MAX_PATH - di->filename_offset, new_file_path + di->filename_offset, MAX_PATH - di->filename_offset );
+	_wmemcpy_s( di->file_path + di->filename_offset, MAX_PATH - di->filename_offset, new_file_path + filename_offset, MAX_PATH - di->filename_offset );
 	di->file_path[ MAX_PATH - 1 ] = 0;	// Sanity.
 
 	// Get the new file extension offset.
@@ -4045,6 +4098,223 @@ bool RetryTimedOut( SOCKET_CONTEXT *context )
 	return false;
 }
 
+DWORD CALLBACK MoveFileProgress( LARGE_INTEGER TotalFileSize, LARGE_INTEGER TotalBytesTransferred, LARGE_INTEGER StreamSize, LARGE_INTEGER StreamBytesTransferred, DWORD dwStreamNumber, DWORD dwCallbackReason, HANDLE hSourceFile, HANDLE hDestinationFile, LPVOID lpData )
+{
+	DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )lpData;
+
+	if ( di != NULL )
+	{
+		if ( di->moving_state == 0 )
+		{
+			di->moving_state = 1;	// Move file.
+		}
+
+		di->last_downloaded = TotalBytesTransferred.QuadPart;
+
+		if ( di->moving_state == 2 )
+		{
+			di->last_downloaded = TotalFileSize.QuadPart; // Reset.
+
+			return PROGRESS_CANCEL;
+		}
+		else
+		{
+			return PROGRESS_CONTINUE;
+		}
+	}
+	else
+	{
+		return PROGRESS_CANCEL;
+	}
+}
+
+THREAD_RETURN ProcessMoveQueue( void *pArguments )
+{
+	DOWNLOAD_INFO *di = NULL;
+
+	bool skip_processing = false;
+
+	wchar_t prompt_message[ MAX_PATH + 100 ];
+	wchar_t file_path[ MAX_PATH ];
+
+	do
+	{
+		EnterCriticalSection( &move_file_queue_cs );
+
+		DoublyLinkedList *move_file_queue_node = move_file_queue;
+
+		if ( move_file_queue_node != NULL )
+		{
+			di = ( DOWNLOAD_INFO * )move_file_queue_node->data;
+
+			DLL_RemoveNode( &move_file_queue, move_file_queue_node );
+		}
+
+		LeaveCriticalSection( &move_file_queue_cs );
+
+		if ( di != NULL )
+		{
+			di->queue_node.data = NULL;
+
+			GetTemporaryFilePath( di, file_path );
+
+			di->file_path[ di->filename_offset - 1 ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
+
+			di->status &= ~STATUS_QUEUED;
+
+			DWORD move_type = MOVEFILE_COPY_ALLOWED;
+
+			while ( true )
+			{
+				if ( MoveFileWithProgressW( file_path, di->file_path, MoveFileProgress, di, move_type ) == FALSE )
+				{
+					if ( GetLastError() == ERROR_FILE_EXISTS )
+					{
+						if ( cfg_prompt_rename == 0 && di->download_operations & DOWNLOAD_OPERATION_OVERRIDE_PROMPTS )
+						{
+							di->status = STATUS_SKIPPED;
+						}
+						else
+						{
+							// If the last return value was not set to remember our choice, then prompt again.
+							if ( cfg_prompt_rename == 0 &&
+								 g_rename_file_cmb_ret != CMBIDRENAMEALL &&
+								 g_rename_file_cmb_ret != CMBIDOVERWRITEALL &&
+								 g_rename_file_cmb_ret != CMBIDSKIPALL )
+							{
+								__snwprintf( prompt_message, MAX_PATH + 100, L"%s already exists.\r\n\r\nWhat operation would you like to perform?", di->file_path );
+
+								g_rename_file_cmb_ret = CMessageBoxW( g_hWnd_main, prompt_message, PROGRAM_CAPTION, CMB_ICONWARNING | CMB_RENAMEOVERWRITESKIPALL );
+							}
+
+							// Rename the file and try again.
+							if ( cfg_prompt_rename == 1 ||
+							   ( cfg_prompt_rename == 0 && ( g_rename_file_cmb_ret == CMBIDRENAME ||
+															 g_rename_file_cmb_ret == CMBIDRENAMEALL ) ) )
+							{
+								// Creates a tree of active and queued downloads.
+								dllrbt_tree *add_files_tree = CreateFilenameTree();
+
+								bool rename_succeeded = RenameFile( di, add_files_tree, di->file_path, di->filename_offset, di->file_extension_offset );
+
+								// The tree is only used to determine duplicate filenames.
+								DestroyFilenameTree( add_files_tree );
+
+								if ( !rename_succeeded )
+								{
+									if ( g_rename_file_cmb_ret2 != CMBIDOKALL && !( di->download_operations & DOWNLOAD_OPERATION_OVERRIDE_PROMPTS ) )
+									{
+										__snwprintf( prompt_message, MAX_PATH + 100, L"%s could not be renamed.\r\n\r\nYou will need to choose a different save directory.", file_path );
+
+										g_rename_file_cmb_ret2 = CMessageBoxW( g_hWnd_main, prompt_message, PROGRAM_CAPTION, CMB_ICONWARNING | CMB_OKALL );
+									}
+
+									di->status = STATUS_SKIPPED;
+								}
+								else
+								{
+									continue;	// Try the move with our new filename.
+								}
+							}
+							else if ( cfg_prompt_rename == 3 ||
+									( cfg_prompt_rename == 0 && ( g_rename_file_cmb_ret == CMBIDFAIL ||
+																  g_rename_file_cmb_ret == CMBIDSKIP ||
+																  g_rename_file_cmb_ret == CMBIDSKIPALL ) ) ) // Skip the rename or overwrite if the return value fails, or the user selected skip.
+							{
+								di->status = STATUS_SKIPPED;
+							}
+							else	// Overwrite.
+							{
+								move_type |= MOVEFILE_REPLACE_EXISTING;
+
+								continue;
+							}
+						}
+					}
+					else// if ( GetLastError() == ERROR_REQUEST_ABORTED )
+					{
+						di->status = STATUS_STOPPED;
+					}
+					/*else
+					{
+						di->status = STATUS_FILE_IO_ERROR;
+					}*/
+				}
+				else
+				{
+					di->status = STATUS_COMPLETED;
+				}
+
+				break;
+			}
+
+			di->file_path[ di->filename_offset - 1 ] = 0;	// Restore.
+		}
+
+		EnterCriticalSection( &move_file_queue_cs );
+
+		if ( move_file_queue == NULL )
+		{
+			skip_processing = true;
+
+			move_file_process_active = false;
+		}
+
+		LeaveCriticalSection( &move_file_queue_cs );
+	}
+	while ( !skip_processing );
+
+	EnterCriticalSection( &cleanup_cs );
+
+	if ( total_downloading == 0 )
+	{
+		EnableTimers( false );
+	}
+
+	LeaveCriticalSection( &cleanup_cs );
+
+	_ExitThread( 0 );
+	return 0;
+}
+
+void AddToMoveFileQueue( DOWNLOAD_INFO *di )
+{
+	if ( di != NULL )
+	{
+		// Add item to move file queue and continue.
+		EnterCriticalSection( &move_file_queue_cs );
+
+		di->queue_node.data = di;
+		DLL_AddNode( &move_file_queue, &di->queue_node, -1 );
+
+		di->status = STATUS_MOVING_FILE | STATUS_QUEUED;
+
+		if ( !move_file_process_active )
+		{
+			move_file_process_active = true;
+
+			HANDLE handle_prompt = ( HANDLE )_CreateThread( NULL, 0, ProcessMoveQueue, NULL, 0, NULL );
+
+			// Make sure our thread spawned.
+			if ( handle_prompt == NULL )
+			{
+				DLL_RemoveNode( &move_file_queue, &di->queue_node );
+				di->queue_node.data = NULL;
+
+				move_file_process_active = false;
+
+				di->status = STATUS_STOPPED;
+			}
+			else
+			{
+				CloseHandle( handle_prompt );
+			}
+		}
+
+		LeaveCriticalSection( &move_file_queue_cs );
+	}
+}
+
 void CleanupConnection( SOCKET_CONTEXT *context )
 {
 	if ( context != NULL )
@@ -4456,10 +4726,24 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 								if ( !( context->download_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) &&
 									IS_STATUS( context->status, STATUS_DELETE ) )
 								{
-									// We're freeing this anyway so it's safe to modify.
-									context->download_info->file_path[ context->download_info->filename_offset - 1 ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
+									wchar_t *file_path_delete;
 
-									DeleteFileW( context->download_info->file_path );
+									wchar_t file_path[ MAX_PATH ];
+									if ( cfg_use_temp_download_directory )
+									{
+										GetTemporaryFilePath( context->download_info, file_path );
+
+										file_path_delete = file_path;
+									}
+									else
+									{
+										// We're freeing this anyway so it's safe to modify.
+										context->download_info->file_path[ context->download_info->filename_offset - 1 ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
+
+										file_path_delete = context->download_info->file_path;
+									}
+
+									DeleteFileW( file_path_delete );
 								}
 
 								DeleteCriticalSection( &context->download_info->shared_cs );
@@ -4551,6 +4835,12 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 										GlobalFree( range_node->data );
 										GlobalFree( range_node );
 									}
+
+									if ( cfg_use_temp_download_directory &&
+									  !( context->download_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
+									{
+										AddToMoveFileQueue( context->download_info );
+									}
 								}
 
 								LeaveCriticalSection( &context->download_info->shared_cs );
@@ -4562,10 +4852,17 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 								StartQueuedItem();
 							}
 
-							// Turn off our timers if we're not currently downloading anything.
+							// Turn off our timers if we're not currently downloading, or moving anything.
 							if ( total_downloading == 0 )
 							{
-								EnableTimers( false );
+								EnterCriticalSection( &move_file_queue_cs );
+
+								if ( !move_file_process_active )
+								{
+									EnableTimers( false );
+								}
+
+								LeaveCriticalSection( &move_file_queue_cs );
 							}
 						}
 						else

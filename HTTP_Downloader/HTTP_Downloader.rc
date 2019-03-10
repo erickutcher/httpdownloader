@@ -55,6 +55,7 @@ END
 // Icon with lowest ID value placed first to ensure application icon
 // remains consistent on all systems.
 IDI_ICON                ICON                    "icon.ico"
+IDI_ICON_TRAY           ICON                    "icon_tray.ico"
 
 /////////////////////////////////////////////////////////////////////////////
 //
@@ -62,8 +63,8 @@ IDI_ICON                ICON                    "icon.ico"
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 1,0,1,9
- PRODUCTVERSION 1,0,1,9
+ FILEVERSION 1,0,2,0
+ PRODUCTVERSION 1,0,2,0
  FILEFLAGSMASK 0x17L
 #ifdef _DEBUG
  FILEFLAGS 0x1L
@@ -80,12 +81,12 @@ BEGIN
         BEGIN
             VALUE "Comments", "HTTP Downloader is made free under the GPLv3 license."
             VALUE "FileDescription", "HTTP Downloader can download files through HTTP and HTTPS connections."
-            VALUE "FileVersion", "1, 0, 1, 9"
+            VALUE "FileVersion", "1, 0, 2, 0"
             VALUE "InternalName", "HTTP Downloader"
             VALUE "LegalCopyright", "Copyright © 2015-2019 Eric Kutcher"
             VALUE "OriginalFilename", "HTTP_Downloader.exe"
             VALUE "ProductName", "HTTP Downloader"
-            VALUE "ProductVersion", "1, 0, 1, 9"
+            VALUE "ProductVersion", "1, 0, 2, 0"
         END
     END
     BLOCK "VarFileInfo"

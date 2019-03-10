@@ -44,6 +44,9 @@ void UpdateColumnOrders();
 void CheckColumnOrders( char *column_arr[], unsigned char num_columns );
 void CheckColumnWidths();
 
+void SetDefaultAppearance();
+void AdjustRowHeight();
+
 char *GlobalStrDupA( const char *_Str );
 wchar_t *GlobalStrDupW( const wchar_t *_Str );
 
@@ -52,6 +55,9 @@ char *strnchr( const char *s, int c, int n );
 void EscapeFilename( wchar_t *filename );
 unsigned long get_file_extension_offset( wchar_t *filename, unsigned long length );
 //wchar_t *get_extension_from_filename( wchar_t *filename, unsigned long length );
+
+void GetDownloadFilePath( DOWNLOAD_INFO *di, wchar_t file_path[] );
+int GetTemporaryFilePath( DOWNLOAD_INFO *di, wchar_t file_path[] );
 
 char *escape_csv( const char *string );
 

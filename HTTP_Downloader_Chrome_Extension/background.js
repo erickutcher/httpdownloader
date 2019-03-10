@@ -3,10 +3,10 @@ var last_request = null;
 var g_download_info = [];
 var g_options = null;
 
-const g_top = Math.round( ( screen.height - 295 ) / 2 );
+const g_top = Math.round( ( screen.height - 300 ) / 2 );
 const g_left = Math.round( ( screen.width - 640 ) / 2 );
 const g_width = 640;
-const g_height = 295;
+const g_height = 300;
 
 function GetDomain( url )
 {

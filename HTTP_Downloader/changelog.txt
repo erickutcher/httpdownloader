@@ -1,3 +1,19 @@
+Version:	1.0.2.0
+Released:	2019-03-10
+
+Added option to display progress bar in System Tray icon and/or URL drop window.
+Added Appearance and Advanced tabs to Options window.
+Reorganized various options in Options window.
+Added options to modify Last Modified, Rename, and File Size prompts behavior.
+Added option to allow unfinished downloads to resume when program starts up.
+Added option to download to a temporary directory before transferring the file to the selected download directory.
+Added options to modify the download list's fonts and colors.
+Added option to change URL drop window's transparency value.
+Added View menu option to show or hide column headers.
+Added tabs to Add URL(s) and Update Download windows.
+Prevented Update Download window from flickering on resize.
+Updated string list.
+
 Version:	1.0.1.9
 Released:	2019-02-17
 

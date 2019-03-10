@@ -44,6 +44,7 @@
 	#define _DefWindowProcW			DefWindowProcW
 	#define _DeferWindowPos			DeferWindowPos
 	//#define _DeleteMenu				DeleteMenu
+	#define _DestroyIcon			DestroyIcon
 	#define _DestroyMenu			DestroyMenu
 	#define _DestroyWindow			DestroyWindow
 	#define _DispatchMessageW		DispatchMessageW
@@ -67,6 +68,7 @@
 	#define _GetCursorPos			GetCursorPos
 	#define _GetDC					GetDC
 	//#define _GetDlgItem				GetDlgItem
+	#define _GetIconInfo			GetIconInfo
 	#define _GetKeyState			GetKeyState
 	//#define _GetMenuItemInfoW		GetMenuItemInfoW
 	//#define _GetMessagePos			GetMessagePos
@@ -85,6 +87,7 @@
 	//#define _IsCharAlphaNumericA	IsCharAlphaNumericA
 	#define _IsDialogMessageW		IsDialogMessageW
 	#define _IsIconic				IsIconic
+	#define _IsWindowEnabled		IsWindowEnabled
 	#define _IsWindowVisible		IsWindowVisible
 	#define _IsZoomed				IsZoomed
 	#define _KillTimer				KillTimer
@@ -153,6 +156,7 @@
 	typedef LRESULT ( WINAPI *pDefWindowProcW )( HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lParam );
 	typedef HMENU ( WINAPI *pDeferWindowPos )( HDWP hWinPosInfo, HWND hWnd, HWND hWndInsertAfter, int x, int y, int cx, int cy, UINT uFlags );
 	//typedef BOOL ( WINAPI *pDeleteMenu )( HMENU hMenu, UINT uPosition, UINT uFlags );
+	typedef BOOL ( WINAPI *pDestroyIcon )( HICON hIcon );
 	typedef BOOL ( WINAPI *pDestroyMenu )( HMENU hMenu );
 	typedef BOOL ( WINAPI *pDestroyWindow )( HWND hWnd );
 	typedef LRESULT ( WINAPI *pDispatchMessageW )( const MSG *lpmsg );
@@ -176,6 +180,7 @@
 	typedef BOOL ( WINAPI *pGetCursorPos )( LPPOINT lpPoint );
 	typedef HDC ( WINAPI *pGetDC )( HWND hWnd );
 	//typedef HWND ( WINAPI *pGetDlgItem )( HWND hDlg, int nIDDlgItem );
+	typedef BOOL ( WINAPI *pGetIconInfo )( HICON hIcon, PICONINFO piconinfo );
 	typedef SHORT ( WINAPI *pGetKeyState )( int nVirtKey );
 	//typedef BOOL ( WINAPI *pGetMenuItemInfoW )( HMENU hMenu, UINT uItem, BOOL fByPosition, LPMENUITEMINFO lpmii );
 	//typedef DWORD ( WINAPI *pGetMessagePos )( void );
@@ -194,6 +199,7 @@
 	//typedef BOOL ( WINAPI *pIsCharAlphaNumericA )( CHAR ch );
 	typedef BOOL ( WINAPI *pIsDialogMessageW )( HWND hDlg, LPMSG lpMsg );
 	typedef BOOL ( WINAPI *pIsIconic )( HWND hWnd );
+	typedef BOOL ( WINAPI *pIsWindowEnabled )( HWND hWnd );
 	typedef BOOL ( WINAPI *pIsWindowVisible )( HWND hWnd );
 	typedef BOOL ( WINAPI *pIsZoomed )( HWND hWnd );
 	typedef BOOL ( WINAPI *pKillTimer )( HWND hWnd, UINT_PTR uIDEvent );
@@ -255,6 +261,7 @@
 	extern pDefWindowProcW			_DefWindowProcW;
 	extern pDeferWindowPos			_DeferWindowPos;
 	//extern pDeleteMenu				_DeleteMenu;
+	extern pDestroyIcon				_DestroyIcon;
 	extern pDestroyMenu				_DestroyMenu;
 	extern pDestroyWindow			_DestroyWindow;
 	extern pDispatchMessageW		_DispatchMessageW;
@@ -278,6 +285,7 @@
 	extern pGetCursorPos			_GetCursorPos;
 	extern pGetDC					_GetDC;
 	//extern pGetDlgItem				_GetDlgItem;
+	extern pGetIconInfo				_GetIconInfo;
 	extern pGetKeyState				_GetKeyState;
 	//extern pGetMenuItemInfoW		_GetMenuItemInfoW;
 	//extern pGetMessagePos			_GetMessagePos;
@@ -296,6 +304,7 @@
 	//extern pIsCharAlphaNumericA		_IsCharAlphaNumericA;
 	extern pIsDialogMessageW		_IsDialogMessageW;
 	extern pIsIconic				_IsIconic;
+	extern pIsWindowEnabled			_IsWindowEnabled;
 	extern pIsWindowVisible			_IsWindowVisible;
 	extern pIsZoomed				_IsZoomed;
 	extern pKillTimer				_KillTimer;

@@ -34,6 +34,7 @@
 #include "lite_comdlg32.h"
 #include "lite_comctl32.h"
 #include "lite_gdi32.h"
+#include "lite_uxtheme.h"
 #include "lite_ole32.h"
 #include "lite_winmm.h"
 #include "lite_zlib1.h"
@@ -66,11 +67,12 @@ HWND g_hWnd_main = NULL;		// Handle to our main window.
 
 HWND g_hWnd_active = NULL;		// Handle to the active window. Used to handle tab stops.
 
-HFONT hFont = NULL;				// Handle to our font object.
+LOGFONT g_default_log_font;
+HFONT g_hFont = NULL;			// Handle to our font object.
 
 UINT CF_HTML = 0;
 
-int row_height = 0;
+int g_row_height = 0;
 
 wchar_t *base_directory = NULL;
 unsigned int base_directory_length = 0;
@@ -447,6 +449,7 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 	InitializeCriticalSection( &file_size_prompt_list_cs );
 	InitializeCriticalSection( &rename_file_prompt_list_cs );
 	InitializeCriticalSection( &last_modified_prompt_list_cs );
+	InitializeCriticalSection( &move_file_queue_cs );
 	InitializeCriticalSection( &cleanup_cs );
 
 	// Get the default message system font.
@@ -455,24 +458,29 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 	ncm.cbSize = sizeof( NONCLIENTMETRICS );
 	_SystemParametersInfoW( SPI_GETNONCLIENTMETRICS, sizeof( NONCLIENTMETRICS ), &ncm, 0 );
 
+	//g_default_log_font = ncm.lfMessageFont;
+	_memcpy_s( &g_default_log_font, sizeof( LOGFONT ), &ncm.lfMessageFont, sizeof( LOGFONT ) );
+
 	// Set our global font to the LOGFONT value obtained from the system.
-	hFont = _CreateFontIndirectW( &ncm.lfMessageFont );
+	g_hFont = _CreateFontIndirectW( &ncm.lfMessageFont );
 
 	// Get the row height for our listview control.
-	TEXTMETRIC tm;
+	/*TEXTMETRIC tm;
 	HDC hDC = _GetDC( NULL );
-	HFONT ohf = ( HFONT )_SelectObject( hDC, hFont );
+	HFONT ohf = ( HFONT )_SelectObject( hDC, g_hFont );
 	_GetTextMetricsW( hDC, &tm );
 	_SelectObject( hDC, ohf );	// Reset old font.
 	_ReleaseDC( NULL, hDC );
 
-	row_height = tm.tmHeight + tm.tmExternalLeading + 5;
+	g_row_height = tm.tmHeight + tm.tmExternalLeading + 5;
 
 	int icon_height = _GetSystemMetrics( SM_CYSMICON ) + 2;
-	if ( row_height < icon_height )
+	if ( g_row_height < icon_height )
 	{
-		row_height = icon_height;
-	}
+		g_row_height = icon_height;
+	}*/
+
+	SetDefaultAppearance();
 
 	// Default position if no settings were saved.
 	cfg_pos_x = ( ( _GetSystemMetrics( SM_CXSCREEN ) - MIN_WIDTH ) / 2 );
@@ -495,6 +503,9 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 	InitializeLocaleValues();
 
 	read_config();
+
+	// Once we read in our font settings, we can measure their heights to set the row height of our listview control.
+	AdjustRowHeight();
 
 	// See if there's an instance of the program running.
 	HANDLE app_instance_mutex = OpenMutexW( MUTEX_ALL_ACCESS, 0, PROGRAM_CAPTION );
@@ -839,7 +850,7 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 	wcex.hInstance      = hInstance;
 	wcex.hIcon          = _LoadIconW( hInstance, MAKEINTRESOURCE( IDI_ICON ) );
 	wcex.hCursor        = _LoadCursorW( NULL, IDC_ARROW );
-	wcex.hbrBackground  = ( HBRUSH )( COLOR_WINDOW );
+	wcex.hbrBackground  = ( HBRUSH )( COLOR_3DFACE + 1 );
 	wcex.lpszMenuName   = NULL;
 	wcex.hIconSm        = NULL;
 
@@ -894,6 +905,15 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 	wcex.hIcon			= NULL;
 	wcex.hbrBackground  = ( HBRUSH )( COLOR_WINDOWFRAME );
 
+	wcex.lpfnWndProc    = AdvancedTabWndProc;
+	wcex.lpszClassName  = L"advanced_tab";
+
+	if ( !_RegisterClassExW( &wcex ) )
+	{
+		fail_type = 1;
+		goto CLEANUP;
+	}
+
 	wcex.lpfnWndProc    = ProxyTabWndProc;
 	wcex.lpszClassName  = L"proxy_tab";
 
@@ -905,6 +925,15 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 
 	wcex.lpfnWndProc    = ConnectionTabWndProc;
 	wcex.lpszClassName  = L"connection_tab";
+
+	if ( !_RegisterClassExW( &wcex ) )
+	{
+		fail_type = 1;
+		goto CLEANUP;
+	}
+
+	wcex.lpfnWndProc    = AppearanceTabWndProc;
+	wcex.lpszClassName  = L"appearance_tab";
 
 	if ( !_RegisterClassExW( &wcex ) )
 	{
@@ -975,7 +1004,7 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 	{
 		g_hWnd_url_drop_window = _CreateWindowExW( WS_EX_NOPARENTNOTIFY | WS_EX_NOACTIVATE | WS_EX_TOPMOST, L"url_drop_window", NULL, WS_CLIPCHILDREN | WS_POPUP, 0, 0, 0, 0, NULL, NULL, NULL, NULL );
 		_SetWindowLongPtrW( g_hWnd_url_drop_window, GWL_EXSTYLE, _GetWindowLongPtrW( g_hWnd_url_drop_window, GWL_EXSTYLE ) | WS_EX_LAYERED );
-		_SetLayeredWindowAttributes( g_hWnd_url_drop_window, 0, 0x80, LWA_ALPHA );
+		_SetLayeredWindowAttributes( g_hWnd_url_drop_window, 0, cfg_drop_window_transparency, LWA_ALPHA );
 
 		// Prevents it from stealing focus.
 		_SetWindowPos( g_hWnd_url_drop_window, HWND_TOPMOST, cfg_drop_pos_x, cfg_drop_pos_y, 48, 48, SWP_SHOWWINDOW | SWP_NOACTIVATE | SWP_NOOWNERZORDER );
@@ -1010,6 +1039,7 @@ CLEANUP:
 
 	if ( base_directory != NULL ) { GlobalFree( base_directory ); }
 	if ( cfg_default_download_directory != NULL ) { GlobalFree( cfg_default_download_directory ); }
+	if ( cfg_temp_download_directory != NULL ) { GlobalFree( cfg_temp_download_directory ); }
 	if ( cfg_sound_file_path != NULL ) { GlobalFree( cfg_sound_file_path ); }
 
 	if ( cfg_hostname != NULL ) { GlobalFree( cfg_hostname ); }
@@ -1062,8 +1092,11 @@ CLEANUP:
 
 	dllrbt_delete_recursively( icon_handles );
 
+	if ( cfg_even_row_font_settings.font != NULL ){ _DeleteObject( cfg_even_row_font_settings.font ); }
+	if ( cfg_odd_row_font_settings.font != NULL ){ _DeleteObject( cfg_odd_row_font_settings.font ); }
+
 	// Delete our font.
-	_DeleteObject( hFont );
+	_DeleteObject( g_hFont );
 
 	if ( fail_type == 1 )
 	{
@@ -1083,6 +1116,7 @@ CLEANUP:
 	DeleteCriticalSection( &file_size_prompt_list_cs );
 	DeleteCriticalSection( &rename_file_prompt_list_cs );
 	DeleteCriticalSection( &last_modified_prompt_list_cs );
+	DeleteCriticalSection( &move_file_queue_cs );
 	DeleteCriticalSection( &cleanup_cs );
 
 	DeleteCriticalSection( &icon_cache_cs );
@@ -1107,6 +1141,9 @@ CLEANUP:
 	#endif
 	#ifndef WINMM_USE_STATIC_LIB
 		UnInitializeWinMM();
+	#endif
+	#ifndef UXTHEME_USE_STATIC_LIB
+		UnInitializeUXTheme();
 	#endif
 
 UNLOAD_DLLS:

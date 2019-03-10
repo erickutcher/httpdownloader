@@ -1,0 +1,206 @@
+/*
+	HTTP Downloader can download files through HTTP and HTTPS connections.
+	Copyright (C) 2015-2019 Eric Kutcher
+
+	This program is free software: you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation, either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
+#ifndef _OPTIONS_H
+#define _OPTIONS_H
+
+#include "globals.h"
+
+#include "string_tables.h"
+
+extern bool options_state_changed;
+
+extern wchar_t *t_default_download_directory;
+extern wchar_t *t_sound_file_path;
+extern wchar_t *t_temp_download_directory;
+
+extern FONT_SETTINGS t_odd_row_font_settings;
+extern FONT_SETTINGS t_even_row_font_settings;
+
+extern COLORREF t_odd_row_background_color;
+extern COLORREF t_even_row_background_color;
+
+extern COLORREF t_odd_row_highlight_color;
+extern COLORREF t_even_row_highlight_color;
+
+extern COLORREF t_odd_row_highlight_font_color;
+extern COLORREF t_even_row_highlight_font_color;
+
+extern COLORREF t_progress_colors[ NUM_COLORS ];
+
+// Free these when done.
+extern wchar_t *certificate_pkcs_file_name;
+extern wchar_t *certificate_cer_file_name;
+extern wchar_t *certificate_key_file_name;
+
+extern unsigned int certificate_pkcs_file_name_length;
+extern unsigned int certificate_cer_file_name_length;
+extern unsigned int certificate_key_file_name_length;
+
+extern HFONT hFont_copy_proxy;
+extern HFONT hFont_copy_connection;
+
+
+// Options Window
+extern HWND g_hWnd_options_tab;
+extern HWND g_hWnd_general_tab;
+extern HWND g_hWnd_appearance_tab;
+extern HWND g_hWnd_connection_tab;
+extern HWND g_hWnd_proxy_tab;
+extern HWND g_hWnd_advanced_tab;
+
+extern HWND g_hWnd_apply;
+
+
+// Connection Tab
+extern HWND g_hWnd_max_downloads;
+
+extern HWND g_hWnd_retry_downloads_count;
+extern HWND g_hWnd_retry_parts_count;
+
+extern HWND g_hWnd_timeout;
+
+extern HWND g_hWnd_max_redirects;
+
+extern HWND g_hWnd_default_ssl_version;
+extern HWND g_hWnd_default_download_parts;
+
+extern HWND g_hWnd_chk_enable_server;
+extern HWND g_hWnd_static_hoz1;
+extern HWND g_hWnd_chk_type_server_hostname;
+extern HWND g_hWnd_chk_type_server_ip_address;
+extern HWND g_hWnd_server_hostname;
+extern HWND g_hWnd_server_ip_address;
+extern HWND g_hWnd_static_server_colon;
+extern HWND g_hWnd_static_server_port;
+extern HWND g_hWnd_server_port;
+extern HWND g_hWnd_chk_use_authentication;
+extern HWND g_hWnd_static_authentication_username;
+extern HWND g_hWnd_authentication_username;
+extern HWND g_hWnd_static_authentication_password;
+extern HWND g_hWnd_authentication_password;
+extern HWND g_hWnd_chk_authentication_type_basic;
+extern HWND g_hWnd_chk_authentication_type_digest;
+
+extern HWND g_hWnd_chk_server_enable_ssl;
+extern HWND g_hWnd_static_hoz2;
+extern HWND g_hWnd_chk_type_pkcs;
+extern HWND g_hWnd_chk_type_pair;
+extern HWND g_hWnd_static_certificate_pkcs_location;
+extern HWND g_hWnd_certificate_pkcs_location;
+extern HWND g_hWnd_btn_certificate_pkcs_location;
+extern HWND g_hWnd_static_certificate_pkcs_password;
+extern HWND g_hWnd_certificate_pkcs_password;
+extern HWND g_hWnd_static_certificate_cer_location;
+extern HWND g_hWnd_certificate_cer_location;
+extern HWND g_hWnd_btn_certificate_cer_location;
+extern HWND g_hWnd_static_certificate_key_location;
+extern HWND g_hWnd_certificate_key_location;
+extern HWND g_hWnd_btn_certificate_key_location;
+extern HWND g_hWnd_static_server_ssl_version;
+extern HWND g_hWnd_server_ssl_version;
+
+// Proxy Tab
+// HTTP proxy
+extern HWND g_hWnd_chk_proxy;
+
+extern HWND g_hWnd_ip_address;
+extern HWND g_hWnd_hostname;
+extern HWND g_hWnd_port;
+
+extern HWND g_hWnd_static_port;
+extern HWND g_hWnd_static_colon;
+
+extern HWND g_hWnd_chk_type_hostname;
+extern HWND g_hWnd_chk_type_ip_address;
+
+extern HWND g_hWnd_static_auth_username;
+extern HWND g_hWnd_auth_username;
+extern HWND g_hWnd_static_auth_password;
+extern HWND g_hWnd_auth_password;
+
+// HTTPS proxy
+extern HWND g_hWnd_chk_proxy_s;
+
+extern HWND g_hWnd_ip_address_s;
+extern HWND g_hWnd_hostname_s;
+extern HWND g_hWnd_port_s;
+
+extern HWND g_hWnd_static_port_s;
+extern HWND g_hWnd_static_colon_s;
+
+extern HWND g_hWnd_chk_type_hostname_s;
+extern HWND g_hWnd_chk_type_ip_address_s;
+
+extern HWND g_hWnd_static_auth_username_s;
+extern HWND g_hWnd_auth_username_s;
+extern HWND g_hWnd_static_auth_password_s;
+extern HWND g_hWnd_auth_password_s;
+
+// General Tab
+extern HWND g_hWnd_chk_tray_icon;
+extern HWND g_hWnd_chk_minimize;
+extern HWND g_hWnd_chk_close;
+extern HWND g_hWnd_chk_show_notification;
+
+extern HWND g_hWnd_chk_always_on_top;
+extern HWND g_hWnd_chk_enable_drop_window;
+extern HWND g_hWnd_drop_window_transparency;
+
+extern HWND g_hWnd_chk_play_sound;
+extern HWND g_hWnd_sound_file;
+extern HWND g_hWnd_load_sound_file;
+
+extern HWND g_hWnd_chk_show_tray_progress;
+extern HWND g_hWnd_chk_show_drop_window_progress;
+
+// Advanced Tab
+extern HWND g_hWnd_chk_download_history;
+extern HWND g_hWnd_chk_quick_allocation;
+extern HWND g_hWnd_chk_set_filetime;
+extern HWND g_hWnd_chk_use_one_instance;
+extern HWND g_hWnd_chk_download_immediately;
+extern HWND g_hWnd_chk_prevent_standby;
+extern HWND g_hWnd_chk_resume_downloads;
+
+extern HWND g_hWnd_prompt_last_modified;
+extern HWND g_hWnd_prompt_rename;
+extern HWND g_hWnd_max_file_size;
+extern HWND g_hWnd_prompt_file_size;
+
+extern HWND g_hWnd_default_download_directory;
+extern HWND g_hWnd_btn_default_download_directory;
+
+extern HWND g_hWnd_chk_temp_download_directory;
+extern HWND g_hWnd_temp_download_directory;
+extern HWND g_hWnd_btn_temp_download_directory;
+
+extern HWND g_hWnd_thread_count;
+
+// Appearance Tab
+
+extern HWND g_hWnd_chk_show_gridlines;
+
+//
+
+void Enable_Disable_SSL_Windows( BOOL enable );
+void Enable_Disable_Authentication_Windows( BOOL enable );
+void Enable_Disable_Windows( BOOL enable );
+void Set_Window_Settings();
+
+#endif

@@ -39,6 +39,9 @@
 
 #include "taskbar.h"
 
+#include "system_tray.h"
+#include "drop_window.h"
+
 HWND g_hWnd_toolbar = NULL;
 HWND g_hWnd_files_columns = NULL;		// The header control window for the listview.
 HWND g_hWnd_files = NULL;
@@ -50,8 +53,6 @@ wchar_t *tooltip_buffer = NULL;
 int last_tooltip_item = -1;				// Prevent our hot tracking from calling the tooltip on the same item.
 
 HIMAGELIST g_toolbar_imagelist = NULL;
-
-NOTIFYICONDATA g_nid;					// Tray icon information.
 
 HCURSOR wait_cursor = NULL;				// Temporary cursor while processing entries.
 
@@ -86,12 +87,18 @@ struct TASKBAR_INFO
 {
 	unsigned long long current_total_downloaded;
 	unsigned long long current_total_file_size;
-	unsigned char download_state;
+	unsigned char download_state;	// 0 = Downloading, 1 = Completed
 };
 
 TASKBAR_INFO g_taskbar_info;
 
 UINT WM_TASKBARBUTTONCREATED = 0;
+
+void ResetSessionStatus()
+{
+	// Reset.
+	_memzero( g_session_status_count, sizeof( unsigned int ) * 8 );
+}
 
 void FormatTooltipStatus()
 {
@@ -117,9 +124,6 @@ void FormatTooltipStatus()
 			}
 		}
 	}
-
-	// Reset.
-	_memzero( g_session_status_count, sizeof( unsigned int ) * 8 );
 }
 
 // Sort function for columns.
@@ -375,6 +379,9 @@ DWORD WINAPI UpdateWindow( LPVOID WorkThreadContext )
 	bool run_timer = g_timers_running;
 	unsigned char standby_counter = 0;
 
+	COLORREF border_color;
+	COLORREF progress_color;
+
 	unsigned char all_paused = 0;	// 0 = No state, 1 = all downloads are paused, 2 = a download is not paused
 
 	last_update.ull = 0;
@@ -416,7 +423,7 @@ DWORD WINAPI UpdateWindow( LPVOID WorkThreadContext )
 
 				if ( g_taskbar != NULL )
 				{
-					g_taskbar->lpVtbl->SetProgressState( ( _ITaskbarList3 * )g_taskbar, g_hWnd_main, TBPF_NORMAL );
+					g_taskbar->lpVtbl->SetProgressState( g_taskbar, g_hWnd_main, TBPF_NORMAL );
 
 					g_taskbar_info.current_total_downloaded = g_taskbar_info.current_total_file_size = 0;
 
@@ -576,8 +583,33 @@ DWORD WINAPI UpdateWindow( LPVOID WorkThreadContext )
 				title_text[ title_text_offset ] = 0;	// Sanity.
 				_SendMessageW( g_hWnd_main, WM_SETTEXT, NULL, ( LPARAM )title_text );
 
+				if ( all_paused == 1 )
+				{
+					border_color = RGB( 0x40, 0x40, 0x00 );
+					progress_color = RGB( 0xFF, 0xFF, 0x00 );
+				}
+				else
+				{
+					border_color = RGB( 0x00, 0x40, 0x00 );
+					progress_color = RGB( 0x00, 0xFF, 0x00 );
+				}
+
+				if ( cfg_enable_drop_window && cfg_show_drop_window_progress )
+				{
+					UpdateDropWindow( g_taskbar_info.current_total_downloaded, g_taskbar_info.current_total_file_size, border_color, progress_color );
+				}
+
 				if ( cfg_tray_icon )
 				{
+					if ( cfg_show_tray_progress )
+					{
+						g_nid.hIcon = CreateSystemTrayIcon( g_taskbar_info.current_total_downloaded, g_taskbar_info.current_total_file_size, border_color, progress_color );
+					}
+					else
+					{
+						g_nid.hIcon = g_default_tray_icon;
+					}
+
 					g_nid.uFlags &= ~NIF_INFO;
 
 					_wmemcpy_s( g_nid.szTip + tooltip_offset, ( sizeof( g_nid.szTip ) / sizeof( g_nid.szTip[ 0 ] ) ) - tooltip_offset, L"\r\n", 2 );
@@ -601,12 +633,12 @@ DWORD WINAPI UpdateWindow( LPVOID WorkThreadContext )
 
 				if ( all_paused == 1 )
 				{
-					g_taskbar->lpVtbl->SetProgressState( ( _ITaskbarList3 * )g_taskbar, g_hWnd_main, TBPF_PAUSED );
+					g_taskbar->lpVtbl->SetProgressState( g_taskbar, g_hWnd_main, TBPF_PAUSED );
 				}
 
 				if ( g_taskbar_info.current_total_file_size > 0 )
 				{
-					g_taskbar->lpVtbl->SetProgressValue( ( _ITaskbarList3 * )g_taskbar, g_hWnd_main, g_taskbar_info.current_total_downloaded, g_taskbar_info.current_total_file_size );
+					g_taskbar->lpVtbl->SetProgressValue( g_taskbar, g_hWnd_main, g_taskbar_info.current_total_downloaded, g_taskbar_info.current_total_file_size );
 				}
 			}
 		}
@@ -621,14 +653,39 @@ DWORD WINAPI UpdateWindow( LPVOID WorkThreadContext )
 				// If Timed Out, Failed, or File IO Error
 				if ( g_session_status_count[ 2 ] > 0 || g_session_status_count[ 3 ] > 0 || g_session_status_count[ 4 ] > 0 )
 				{
-					g_taskbar->lpVtbl->SetProgressState( ( _ITaskbarList3 * )g_taskbar, g_hWnd_main, TBPF_ERROR );
+					g_taskbar->lpVtbl->SetProgressState( g_taskbar, g_hWnd_main, TBPF_ERROR );
 				}
 
-				g_taskbar->lpVtbl->SetProgressValue( ( _ITaskbarList3 * )g_taskbar, g_hWnd_main, g_taskbar_info.current_total_downloaded, g_taskbar_info.current_total_file_size );
+				g_taskbar->lpVtbl->SetProgressValue( g_taskbar, g_hWnd_main, 1, 1 );
+			}
+
+			if ( g_session_status_count[ 2 ] > 0 || g_session_status_count[ 3 ] > 0 || g_session_status_count[ 4 ] > 0 )
+			{
+				border_color = RGB( 0x40, 0x00, 0x00 );
+				progress_color = RGB( 0xFF, 0x00, 0x00 );
+			}
+			else
+			{
+				border_color = RGB( 0x00, 0x40, 0x00 );
+				progress_color = RGB( 0x00, 0xFF, 0x00 );
+			}
+
+			if ( cfg_enable_drop_window && cfg_show_drop_window_progress )
+			{
+				UpdateDropWindow( 1, 1, border_color, progress_color );
 			}
 
 			if ( cfg_tray_icon )
 			{
+				if ( cfg_show_tray_progress )
+				{
+					g_nid.hIcon = CreateSystemTrayIcon( 1, 1, border_color, progress_color );
+				}
+				else
+				{
+					g_nid.hIcon = g_default_tray_icon;
+				}
+
 				if ( cfg_show_notification )
 				{
 					FormatTooltipStatus();
@@ -639,10 +696,11 @@ DWORD WINAPI UpdateWindow( LPVOID WorkThreadContext )
 				{
 					g_nid.uFlags &= ~NIF_INFO;
 				}
-
 				g_nid.szTip[ 15 ] = 0;	// Sanity.
 				_Shell_NotifyIconW( NIM_MODIFY, &g_nid );
 			}
+
+			ResetSessionStatus();
 
 			if ( cfg_play_sound && cfg_sound_file_path != NULL )
 			{
@@ -684,7 +742,7 @@ DWORD WINAPI UpdateWindow( LPVOID WorkThreadContext )
 
 LRESULT CALLBACK EditSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
 {
-	switch( msg )
+	switch ( msg )
 	{
 		case WM_WINDOWPOSCHANGING:
 		{
@@ -773,7 +831,7 @@ wchar_t *GetDownloadInfoString( DOWNLOAD_INFO *di, int column, int item_index, w
 		{
 			buf = tbuf;	// Reset the buffer pointer.
 
-			FormatSizes( buf, tbuf_size, cfg_t_downloaded, di->last_downloaded );
+			FormatSizes( buf, tbuf_size, cfg_t_downloaded, ( IS_STATUS( di->status, STATUS_MOVING_FILE ) ? di->downloaded : di->last_downloaded ) );
 		}
 		break;
 
@@ -782,7 +840,8 @@ wchar_t *GetDownloadInfoString( DOWNLOAD_INFO *di, int column, int item_index, w
 			buf = tbuf;	// Reset the buffer pointer.
 
 			if ( di->file_size > 0 ||
-			   ( di->status == STATUS_COMPLETED && di->file_size == 0 && di->last_downloaded == 0 ) )
+			   ( di->status == STATUS_COMPLETED && di->file_size == 0 && di->last_downloaded == 0 ) ||
+			   ( IS_STATUS( di->status, STATUS_MOVING_FILE ) && di->file_size == 0 && di->downloaded == 0 ) )
 			{
 				FormatSizes( buf, tbuf_size, cfg_t_file_size, di->file_size );
 			}
@@ -865,9 +924,16 @@ wchar_t *GetDownloadInfoString( DOWNLOAD_INFO *di, int column, int item_index, w
 				{
 					__snwprintf( buf, tbuf_size, L"%s - %d.%1d%%", ST_V_Paused, i_percentage, remainder );
 				}
-				else if ( di->status == STATUS_QUEUED )
+				else if ( IS_STATUS( di->status, STATUS_QUEUED ) )
 				{
-					__snwprintf( buf, tbuf_size, L"%s - %d.%1d%%", ST_V_Queued, i_percentage, remainder );
+					if ( IS_STATUS( di->status, STATUS_MOVING_FILE ) )
+					{
+						__snwprintf( buf, tbuf_size, L"%s - %s", ST_V_Moving_File, ST_V_Queued );
+					}
+					else
+					{
+						__snwprintf( buf, tbuf_size, L"%s - %d.%1d%%", ST_V_Queued, i_percentage, remainder );
+					}
 				}
 				else if ( di->status == STATUS_COMPLETED )
 				{
@@ -905,6 +971,11 @@ wchar_t *GetDownloadInfoString( DOWNLOAD_INFO *di, int column, int item_index, w
 				{
 					buf = ST_V_Allocating_File;
 				}
+				else if ( di->status == STATUS_MOVING_FILE )
+				{
+					//buf = ST_V_Moving_File;
+					__snwprintf( buf, tbuf_size, L"%s - %d.%1d%%", ST_V_Moving_File, i_percentage, remainder );
+				}
 				else	// Downloading.
 				{
 					__snwprintf( buf, tbuf_size, L"%d.%1d%%", i_percentage, remainder );
@@ -922,9 +993,16 @@ wchar_t *GetDownloadInfoString( DOWNLOAD_INFO *di, int column, int item_index, w
 			{
 				buf = ST_V_Paused;
 			}
-			else if ( di->status == STATUS_QUEUED )
+			else if ( IS_STATUS( di->status, STATUS_QUEUED ) )
 			{
-				buf = ST_V_Queued;
+				if ( IS_STATUS( di->status, STATUS_MOVING_FILE ) )
+				{
+					__snwprintf( buf, tbuf_size, L"%s - %s", ST_V_Moving_File, ST_V_Queued );
+				}
+				else
+				{
+					buf = ST_V_Queued;
+				}
 			}
 			else if ( di->status == STATUS_COMPLETED )
 			{
@@ -968,6 +1046,10 @@ wchar_t *GetDownloadInfoString( DOWNLOAD_INFO *di, int column, int item_index, w
 			else if ( di->status == STATUS_ALLOCATING_FILE )
 			{
 				buf = ST_V_Allocating_File;
+			}
+			else if ( di->status == STATUS_MOVING_FILE )
+			{
+				buf = ST_V_Moving_File;
 			}
 			else	// Downloading.
 			{
@@ -1045,7 +1127,7 @@ wchar_t *GetDownloadInfoString( DOWNLOAD_INFO *di, int column, int item_index, w
 
 LRESULT CALLBACK ListViewSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
 {
-	switch( msg )
+	switch ( msg )
 	{
 		case WM_NOTIFY:
 		{
@@ -1080,7 +1162,7 @@ LRESULT CALLBACK ListViewSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPa
 
 							RECT rc;
 							HDC hDC = _GetDC( hWnd );
-							HFONT ohf = ( HFONT )_SelectObject( hDC, hFont );
+							HFONT ohf = ( HFONT )_SelectObject( hDC, g_hFont );
 							_DeleteObject( ohf );
 
 							for ( ; index <= index_end; ++index )
@@ -1140,7 +1222,7 @@ LRESULT CALLBACK ListViewSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPa
 
 void HandleCommand( HWND hWnd, WPARAM wParam, LPARAM lParam )
 {
-	switch( LOWORD( wParam ) )
+	switch ( LOWORD( wParam ) )
 	{
 		case MENU_OPEN_FILE:
 		case MENU_OPEN_DIRECTORY:
@@ -1171,15 +1253,17 @@ void HandleCommand( HWND hWnd, WPARAM wParam, LPARAM lParam )
 					}
 
 					wchar_t file_path[ MAX_PATH ];
+					if ( cfg_use_temp_download_directory && di->status != STATUS_COMPLETED )
+					{
+						GetTemporaryFilePath( di, file_path );
+					}
+					else
+					{
+						GetDownloadFilePath( di, file_path );
+					}
 
 					if ( LOWORD( wParam ) == MENU_OPEN_FILE )
 					{
-						_wmemcpy_s( file_path, MAX_PATH, di->file_path, MAX_PATH );
-						if ( di->filename_offset > 0 )
-						{
-							file_path[ di->filename_offset - 1 ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
-						}
-
 						// Set the verb to NULL so that unknown file types can be handled by the system.
 						HINSTANCE hInst = _ShellExecuteW( NULL, NULL, file_path, NULL, NULL, SW_SHOWNORMAL );
 						if ( hInst == ( HINSTANCE )ERROR_FILE_NOT_FOUND )
@@ -1192,12 +1276,6 @@ void HandleCommand( HWND hWnd, WPARAM wParam, LPARAM lParam )
 					}
 					else if ( LOWORD( wParam ) == MENU_OPEN_DIRECTORY )
 					{
-						_wmemcpy_s( file_path, MAX_PATH, di->file_path, MAX_PATH );
-						if ( di->filename_offset > 0 )
-						{
-							file_path[ di->filename_offset - 1 ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
-						}
-
 						HINSTANCE hInst = ( HINSTANCE )ERROR_FILE_NOT_FOUND;
 
 						LPITEMIDLIST iidl = _ILCreateFromPathW( file_path );
@@ -1401,7 +1479,7 @@ void HandleCommand( HWND hWnd, WPARAM wParam, LPARAM lParam )
 				{
 					if ( g_hWnd_update_download == NULL )
 					{
-						g_hWnd_update_download = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"update_download", ST_V_Update_Download, WS_OVERLAPPEDWINDOW, ( ( _GetSystemMetrics( SM_CXSCREEN ) - 525 ) / 2 ), ( ( _GetSystemMetrics( SM_CYSCREEN ) - 405 ) / 2 ), 525, 405, NULL, NULL, NULL, NULL );
+						g_hWnd_update_download = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"update_download", ST_V_Update_Download, WS_OVERLAPPEDWINDOW, ( ( _GetSystemMetrics( SM_CXSCREEN ) - 525 ) / 2 ), ( ( _GetSystemMetrics( SM_CYSCREEN ) - 400 ) / 2 ), 525, 400, NULL, NULL, NULL, NULL );
 					}
 					else if ( _IsIconic( g_hWnd_update_download ) )	// If minimized, then restore the window.
 					{
@@ -1565,6 +1643,30 @@ void HandleCommand( HWND hWnd, WPARAM wParam, LPARAM lParam )
 		}
 		break;
 
+		case MENU_SHOW_COLUMN_HEADERS:
+		{
+			cfg_show_column_headers = !cfg_show_column_headers;
+
+			LONG_PTR style = _GetWindowLongPtrW( g_hWnd_files, GWL_STYLE );
+
+			if ( cfg_show_column_headers )
+			{
+				style &= ~( LVS_NOCOLUMNHEADER );
+
+				_CheckMenuItem( g_hMenuSub_view, MENU_SHOW_COLUMN_HEADERS, MF_CHECKED );
+			}
+			else
+			{
+				style |= LVS_NOCOLUMNHEADER;
+
+				_CheckMenuItem( g_hMenuSub_view, MENU_SHOW_COLUMN_HEADERS, MF_UNCHECKED );
+			}
+
+			// Show/hide the files border if the toolbar is/isn't visible.
+			_SetWindowLongPtrW( g_hWnd_files, GWL_STYLE, style );
+		}
+		break;
+
 		case MENU_SHOW_STATUS_BAR:
 		{
 			cfg_show_status_bar = !cfg_show_status_bar;
@@ -1599,7 +1701,7 @@ void HandleCommand( HWND hWnd, WPARAM wParam, LPARAM lParam )
 		{
 			if ( g_hWnd_options == NULL )
 			{
-				g_hWnd_options = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"options", ST_V_Options, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU, ( ( _GetSystemMetrics( SM_CXSCREEN ) - 480 ) / 2 ), ( ( _GetSystemMetrics( SM_CYSCREEN ) - 490 ) / 2 ), 480, 490, NULL, NULL, NULL, NULL );
+				g_hWnd_options = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"options", ST_V_Options, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU, ( ( _GetSystemMetrics( SM_CXSCREEN ) - 480 ) / 2 ), ( ( _GetSystemMetrics( SM_CYSCREEN ) - 400 ) / 2 ), 480, 400, NULL, NULL, NULL, NULL );
 				_ShowWindow( g_hWnd_options, SW_SHOWNORMAL );
 			}
 			_SetForegroundWindow( g_hWnd_options );
@@ -1634,7 +1736,7 @@ void HandleCommand( HWND hWnd, WPARAM wParam, LPARAM lParam )
 		{
 			wchar_t msg[ 512 ];
 			__snwprintf( msg, 512, L"HTTP Downloader is made free under the GPLv3 license.\r\n\r\n" \
-								   L"Version 1.0.1.9 (%u-bit)\r\n\r\n" \
+								   L"Version 1.0.2.0 (%u-bit)\r\n\r\n" \
 								   L"Built on %s, %s %d, %04d %d:%02d:%02d %s (UTC)\r\n\r\n" \
 								   L"Copyright \xA9 2015-2019 Eric Kutcher",
 #ifdef _WIN64
@@ -1718,8 +1820,8 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 
 			_SendMessageW( g_hWnd_toolbar, TB_ADDBUTTONS, 13, ( LPARAM )&tbb );
 
-			g_hWnd_files = _CreateWindowW( WC_LISTVIEW, NULL, LVS_REPORT | LVS_EDITLABELS | LVS_OWNERDRAWFIXED | WS_CHILDWINDOW | WS_VISIBLE | ( cfg_show_toolbar ? WS_BORDER : 0 ), 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
-			_SendMessageW( g_hWnd_files, LVM_SETEXTENDEDLISTVIEWSTYLE, 0, LVS_EX_DOUBLEBUFFER | LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES | LVS_EX_HEADERDRAGDROP );
+			g_hWnd_files = _CreateWindowW( WC_LISTVIEW, NULL, LVS_REPORT | LVS_EDITLABELS | LVS_OWNERDRAWFIXED | WS_CHILDWINDOW | WS_VISIBLE | ( cfg_show_toolbar ? WS_BORDER : 0 ) | ( cfg_show_column_headers ? 0 : LVS_NOCOLUMNHEADER ), 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+			_SendMessageW( g_hWnd_files, LVM_SETEXTENDEDLISTVIEWSTYLE, 0, LVS_EX_DOUBLEBUFFER | LVS_EX_FULLROWSELECT | ( cfg_show_gridlines ? LVS_EX_GRIDLINES : 0 ) | LVS_EX_HEADERDRAGDROP );
 
 			g_hWnd_status = _CreateWindowW( STATUSCLASSNAME, NULL, SBARS_SIZEGRIP | WS_CHILDWINDOW | ( cfg_show_status_bar ? WS_VISIBLE : 0 ), 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 
@@ -1739,9 +1841,9 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 			_SendMessageW( g_hWnd_files, LVM_SETTOOLTIPS, ( WPARAM )g_hWnd_tooltip, 0 );
 
 
-			_SendMessageW( g_hWnd_toolbar, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_files, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_status, WM_SETFONT, ( WPARAM )hFont, 0 );
+			_SendMessageW( g_hWnd_toolbar, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_files, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_status, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 
 			ListViewProc = ( WNDPROC )_GetWindowLongPtrW( g_hWnd_files, GWLP_WNDPROC );
 			_SetWindowLongPtrW( g_hWnd_files, GWLP_WNDPROC, ( LONG_PTR )ListViewSubProc );
@@ -1810,22 +1912,16 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 
 			g_hWnd_files_columns = ( HWND )_SendMessageW( g_hWnd_files, LVM_GETHEADER, 0, 0 );
 
+			g_default_tray_icon = ( HICON )_LoadImageW( GetModuleHandle( NULL ), MAKEINTRESOURCE( IDI_ICON ), IMAGE_ICON, 16, 16, LR_SHARED );
+
 			if ( cfg_tray_icon )
 			{
-				_memzero( &g_nid, sizeof( NOTIFYICONDATA ) );
-				g_nid.cbSize = NOTIFYICONDATA_V2_SIZE;	// 5.0 (Windows 2000) and newer.
-				g_nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
-				g_nid.hWnd = hWnd;
-				g_nid.uCallbackMessage = WM_TRAY_NOTIFY;
-				g_nid.uID = 1000;
-				g_nid.hIcon = ( HICON )_LoadImageW( GetModuleHandle( NULL ), MAKEINTRESOURCE( IDI_ICON ), IMAGE_ICON, 16, 16, LR_SHARED );
-				g_nid.dwInfoFlags = NIIF_INFO;
-				unsigned char info_size = ( unsigned char )( ST_L_Downloads_Have_Finished > ( ( sizeof( g_nid.szInfoTitle ) / sizeof( g_nid.szInfoTitle[ 0 ] ) ) - 1 ) ? ( ( sizeof( g_nid.szInfoTitle ) / sizeof( g_nid.szInfoTitle[ 0 ] ) ) - 1 ) : ST_L_Downloads_Have_Finished );
-				_wmemcpy_s( g_nid.szInfoTitle, sizeof( g_nid.szInfoTitle ) / sizeof( g_nid.szInfoTitle[ 0 ] ), ST_V_Downloads_Have_Finished, info_size );
-				g_nid.szInfoTitle[ info_size ] = 0;	// Sanity.
-				_wmemcpy_s( g_nid.szTip, sizeof( g_nid.szTip ) / sizeof( g_nid.szTip[ 0 ] ), PROGRAM_CAPTION, 16 );
-				g_nid.szTip[ 15 ] = 0;	// Sanity.
-				_Shell_NotifyIconW( NIM_ADD, &g_nid );
+				InitializeSystemTray( hWnd );
+
+				if ( cfg_show_tray_progress )
+				{
+					InitializeIconValues( hWnd );
+				}
 			}
 
 			// Create the menus after we've gotten the total active columns (g_total_columns).
@@ -2667,7 +2763,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 			// Set the row height of the list view.
 			if ( ( ( LPMEASUREITEMSTRUCT )lParam )->CtlType = ODT_LISTVIEW )
 			{
-				( ( LPMEASUREITEMSTRUCT )lParam )->itemHeight = row_height;// * 4;
+				( ( LPMEASUREITEMSTRUCT )lParam )->itemHeight = g_row_height;// * 4;
 			}
 			return TRUE;
 		}
@@ -2681,12 +2777,9 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 			if ( dis->CtlType == ODT_LISTVIEW && dis->itemData != NULL )
 			{
 				// Alternate item color's background.
-				if ( dis->itemID % 2 )	// Even rows will have a light grey background.
-				{
-					HBRUSH color = _CreateSolidBrush( ( COLORREF )RGB( 0xF7, 0xF7, 0xF7 ) );
-					_FillRect( dis->hDC, &dis->rcItem, color );
-					_DeleteObject( color );
-				}
+				HBRUSH color = _CreateSolidBrush( ( dis->itemID & 1 ? cfg_even_row_background_color : cfg_odd_row_background_color ) );
+				_FillRect( dis->hDC, &dis->rcItem, color );
+				_DeleteObject( color );
 
 				// Set the selected item's color.
 				bool selected = false;
@@ -2697,7 +2790,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 						return TRUE;	// Don't draw selected items because their lParam values are being deleted.
 					}
 
-					HBRUSH color = _CreateSolidBrush( ( COLORREF )_GetSysColor( COLOR_HIGHLIGHT ) );
+					HBRUSH color = _CreateSolidBrush( ( dis->itemID & 1 ? cfg_even_row_highlight_color : cfg_odd_row_highlight_color ) );
 					_FillRect( dis->hDC, &dis->rcItem, color );
 					_DeleteObject( color );
 					selected = true;
@@ -2804,7 +2897,15 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 						last_rc.left = 2 + last_left;
 						last_rc.right = lvc.cx + last_left - 1;
 						last_rc.top += 1;
-						last_rc.bottom -= 2;
+
+						if ( cfg_show_gridlines )
+						{
+							last_rc.bottom -= 2;
+						}
+						else
+						{
+							--last_rc.bottom;
+						}
 					}
 
 					// Save the last left position of our column.
@@ -2832,7 +2933,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 					HBITMAP ohbm = ( HBITMAP )_SelectObject( hdcMem, hbm );
 					_DeleteObject( ohbm );
 					_DeleteObject( hbm );
-					HFONT ohf = ( HFONT )_SelectObject( hdcMem, hFont );
+					HFONT ohf = ( HFONT )_SelectObject( hdcMem, ( dis->itemID & 1 ? cfg_even_row_font_settings.font : cfg_odd_row_font_settings.font ) );
 					_DeleteObject( ohf );
 
 					// Transparent background for text.
@@ -2842,7 +2943,22 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 					{
 						if ( di->icon != NULL )
 						{
-							_DrawIconEx( dis->hDC, dis->rcItem.left + last_rc.left, last_rc.top, *di->icon, 0, 0, NULL, NULL, DI_NORMAL );
+							int icon_top_offset = g_row_height - ( cfg_show_gridlines ? 18 : 16 );	// 16 pixel height + 2.
+							if ( icon_top_offset > 0 )
+							{
+								if ( icon_top_offset & 1 )
+								{
+									++icon_top_offset;
+								}
+
+								icon_top_offset /= 2;
+							}
+							else
+							{
+								icon_top_offset = 1;
+							}
+
+							_DrawIconEx( dis->hDC, dis->rcItem.left + last_rc.left, last_rc.top + icon_top_offset, *di->icon, 0, 0, NULL, NULL, DI_NORMAL );
 						}
 					}
 					else if ( arr2[ i ] == 9 )	// Progress
@@ -2855,7 +2971,6 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 						if ( IS_STATUS( di->status,
 								STATUS_CONNECTING |
 								STATUS_DOWNLOADING |
-								STATUS_QUEUED |
 								STATUS_STOPPED ) )
 						{
 							if ( di->file_size > 0 )
@@ -2880,45 +2995,43 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 							}
 						}
 
-						// Fill the background.
-						HBRUSH color = _CreateSolidBrush( ( COLORREF )_GetSysColor( COLOR_WINDOW ) );
+						COLORREF color_ref_body = 0, color_ref_border = 0, color_ref_background = 0, color_ref_body_text = 0, color_ref_background_text = 0;
+
+						if		( di->status == STATUS_CONNECTING )			{ color_ref_body = cfg_color_4a; color_ref_background = cfg_color_4b; color_ref_body_text = cfg_color_4c; color_ref_background_text = cfg_color_4d; color_ref_border = cfg_color_4e; }
+						else if ( IS_STATUS( di->status, STATUS_RESTART ) )	{ color_ref_body = cfg_color_12a; color_ref_background = cfg_color_12b; color_ref_body_text = cfg_color_12c; color_ref_background_text = cfg_color_12d; color_ref_border = cfg_color_12e; }
+						else if ( IS_STATUS( di->status, STATUS_PAUSED ) )	{ color_ref_body = cfg_color_9a; color_ref_background = cfg_color_9b; color_ref_body_text = cfg_color_9c; color_ref_background_text = cfg_color_9d; color_ref_border = cfg_color_9e; }
+						else if ( IS_STATUS( di->status, STATUS_QUEUED ) )	{ color_ref_body = cfg_color_11a; color_ref_background = cfg_color_11b; color_ref_body_text = cfg_color_11c; color_ref_background_text = cfg_color_11d; color_ref_border = cfg_color_11e; }
+						else if ( di->status == STATUS_COMPLETED )			{ color_ref_body = cfg_color_3a; color_ref_background = cfg_color_3b; color_ref_body_text = cfg_color_3c; color_ref_background_text = cfg_color_3d; color_ref_border = cfg_color_3e; }
+						else if ( di->status == STATUS_STOPPED )			{ color_ref_body = cfg_color_14a; color_ref_background = cfg_color_14b; color_ref_body_text = cfg_color_14c; color_ref_background_text = cfg_color_14d; color_ref_border = cfg_color_14e; }
+						else if ( di->status == STATUS_TIMED_OUT )			{ color_ref_body = cfg_color_15a; color_ref_background = cfg_color_15b; color_ref_body_text = cfg_color_15c; color_ref_background_text = cfg_color_15d; color_ref_border = cfg_color_15e; }
+						else if ( di->status == STATUS_FAILED )				{ color_ref_body = cfg_color_6a; color_ref_background = cfg_color_6b; color_ref_body_text = cfg_color_6c; color_ref_background_text = cfg_color_6d; color_ref_border = cfg_color_6e; }
+						else if ( di->status == STATUS_FILE_IO_ERROR )		{ color_ref_body = cfg_color_7a; color_ref_background = cfg_color_7b; color_ref_body_text = cfg_color_7c; color_ref_background_text = cfg_color_7d; color_ref_border = cfg_color_7e; }
+						else if ( di->status == STATUS_SKIPPED )			{ color_ref_body = cfg_color_13a; color_ref_background = cfg_color_13b; color_ref_body_text = cfg_color_13c; color_ref_background_text = cfg_color_13d; color_ref_border = cfg_color_13e; }
+						else if ( di->status == STATUS_AUTH_REQUIRED )		{ color_ref_body = cfg_color_2a; color_ref_background = cfg_color_2b; color_ref_body_text = cfg_color_2c; color_ref_background_text = cfg_color_2d; color_ref_border = cfg_color_2e; }
+						else if ( di->status == STATUS_PROXY_AUTH_REQUIRED ){ color_ref_body = cfg_color_10a; color_ref_background = cfg_color_10b; color_ref_body_text = cfg_color_10c; color_ref_background_text = cfg_color_10d; color_ref_border = cfg_color_10e; }
+						else if	( di->status == STATUS_ALLOCATING_FILE )	{ color_ref_body = cfg_color_1a; color_ref_background = cfg_color_1b; color_ref_body_text = cfg_color_1c; color_ref_background_text = cfg_color_1d; color_ref_border = cfg_color_1e; }
+						else if	( di->status == STATUS_MOVING_FILE )		{ color_ref_body = cfg_color_8a; color_ref_background = cfg_color_8b; color_ref_body_text = cfg_color_8c; color_ref_background_text = cfg_color_8d; color_ref_border = cfg_color_8e; }
+						else												{ color_ref_body = cfg_color_5a; color_ref_background = cfg_color_5b; color_ref_body_text = cfg_color_5c; color_ref_background_text = cfg_color_5d; color_ref_border = cfg_color_5e; }
+
+						HBRUSH color = _CreateSolidBrush( color_ref_background );
 						_FillRect( hdcMem, &rc, color );
 						_DeleteObject( color );
 
-						color = _CreateSolidBrush( ( COLORREF )RGB( 0x00, 0x00, 0x00 ) );
-						_FillRect( hdcMem, &rc_clip, color );
-						_DeleteObject( color );
-
-						_BitBlt( dis->hDC, dis->rcItem.left + last_rc.left, last_rc.top, width, height, hdcMem, 0, 0, SRCINVERT );
-
-						color = _CreateSolidBrush( ( COLORREF )_GetSysColor( COLOR_WINDOW ) );
-						_FillRect( hdcMem, &rc, color );
-						_DeleteObject( color );
-
-						_SetTextColor( hdcMem, RGB( 0x00, 0x00, 0x00 ) );
+						_SetTextColor( hdcMem, color_ref_background_text );
 						_DrawTextW( hdcMem, buf, -1, &rc, DT_NOPREFIX | DT_SINGLELINE | DT_CENTER | DT_VCENTER | DT_END_ELLIPSIS );
 
-						_BitBlt( dis->hDC, dis->rcItem.left + last_rc.left, last_rc.top, width, height, hdcMem, 0, 0, SRCINVERT );
-
-						COLORREF color_ref_body = 0, color_ref_border = 0;
-
-						switch ( di->status )
-						{
-							case STATUS_FAILED:
-							case STATUS_FILE_IO_ERROR:			{ color_ref_body = RGB( 0xFF, 0x80, 0x80 ); color_ref_border = RGB( 0xFF, 0x20, 0x20 ); } break;
-							case STATUS_TIMED_OUT:				{ color_ref_body = RGB( 0xFF, 0xB0, 0x00 ); color_ref_border = RGB( 0xFF, 0x50, 0x00 ); } break;
-							case STATUS_SKIPPED:				{ color_ref_body = RGB( 0x80, 0x80, 0xA0 ); color_ref_border = RGB( 0x40, 0x40, 0x80 ); } break;
-							case STATUS_AUTH_REQUIRED:
-							case STATUS_PROXY_AUTH_REQUIRED:	{ color_ref_body = RGB( 0xFF, 0x80, 0xFF ); color_ref_border = RGB( 0xA0, 0x40, 0xA0 ); } break;
-							case STATUS_ALLOCATING_FILE:		{ color_ref_body = RGB( 0x40, 0xC0, 0x40 ); color_ref_border = RGB( 0x00, 0x80, 0x00 ); } break;
-							default:							{ color_ref_body = RGB( 0xA0, 0xA0, 0xFF ); color_ref_border = RGB( 0x40, 0x40, 0xFF ); } break;
-						}
+						_BitBlt( dis->hDC, dis->rcItem.left + last_rc.left, last_rc.top, width, height, hdcMem, 0, 0, SRCCOPY );
 
 						color = _CreateSolidBrush( color_ref_body );
 						_FillRect( hdcMem, &rc_clip, color );
 						_DeleteObject( color );
 
-						_BitBlt( dis->hDC, dis->rcItem.left + last_rc.left, last_rc.top, width, height, hdcMem, 0, 0, SRCPAINT );
+						_SetTextColor( hdcMem, color_ref_body_text );
+						_DrawTextW( hdcMem, buf, -1, &rc, DT_NOPREFIX | DT_SINGLELINE | DT_CENTER | DT_VCENTER | DT_END_ELLIPSIS );
+
+						_BitBlt( dis->hDC, dis->rcItem.left + last_rc.left, last_rc.top, ( rc_clip.right - rc_clip.left ), height, hdcMem, 0, 0, SRCCOPY );
+
+
 
 						HPEN hPen = _CreatePen( PS_SOLID, 1, color_ref_border );
 						_SelectObject( dis->hDC, hPen );
@@ -2935,25 +3048,25 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 						if ( selected )
 						{
 							// Fill the background.
-							HBRUSH color = _CreateSolidBrush( ( COLORREF )_GetSysColor( COLOR_HIGHLIGHT ) );
+							HBRUSH color = _CreateSolidBrush( ( dis->itemID & 1 ? cfg_even_row_highlight_color : cfg_odd_row_highlight_color ) );
 							_FillRect( hdcMem, &rc, color );
 							_DeleteObject( color );
 
 							// White text.
-							_SetTextColor( hdcMem, RGB( 0xFF, 0xFF, 0xFF ) );
+							_SetTextColor( hdcMem, ( dis->itemID & 1 ? cfg_even_row_highlight_font_color : cfg_odd_row_highlight_font_color ) );
 							_DrawTextW( hdcMem, buf, -1, &rc, DT_NOPREFIX | DT_SINGLELINE | DT_ALIGN | DT_VCENTER | DT_END_ELLIPSIS );
 							_BitBlt( dis->hDC, dis->rcItem.left + last_rc.left, last_rc.top, width, height, hdcMem, 0, 0, SRCCOPY );
 						}
 						else
 						{
 							// Fill the background.
-							HBRUSH color = _CreateSolidBrush( ( COLORREF )_GetSysColor( COLOR_WINDOW ) );
+							HBRUSH color = _CreateSolidBrush( ( dis->itemID & 1 ? cfg_even_row_background_color : cfg_odd_row_background_color ) );
 							_FillRect( hdcMem, &rc, color );
 							_DeleteObject( color );
 
-							_SetTextColor( hdcMem, RGB( 0x00, 0x00, 0x00 ) );
+							_SetTextColor( hdcMem, ( dis->itemID & 1 ? cfg_even_row_font_settings.font_color : cfg_odd_row_font_settings.font_color ) );
 							_DrawTextW( hdcMem, buf, -1, &rc, DT_NOPREFIX | DT_SINGLELINE | DT_ALIGN | DT_VCENTER | DT_END_ELLIPSIS );
-							_BitBlt( dis->hDC, dis->rcItem.left + last_rc.left, last_rc.top, width, height, hdcMem, 0, 0, SRCAND );
+							_BitBlt( dis->hDC, dis->rcItem.left + last_rc.left, last_rc.top, width, height, hdcMem, 0, 0, SRCCOPY );
 						}
 					}
 
@@ -3003,7 +3116,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 
 					// Show our tray context menu as a popup.
 					POINT p;
-					_GetCursorPos( &p ) ;
+					_GetCursorPos( &p );
 					_TrackPopupMenu( g_hMenuSub_tray, 0, p.x, p.y, 0, hWnd, NULL );
 				}
 				break;
@@ -3156,11 +3269,23 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 
 		case WM_ACTIVATE:
 		{
-			if ( g_taskbar != NULL && g_taskbar_info.download_state == 1 )
+			if ( g_taskbar_info.download_state == 1 )
 			{
 				g_taskbar_info.download_state = 0;
 
-				g_taskbar->lpVtbl->SetProgressState( ( _ITaskbarList3 * )g_taskbar, g_hWnd_main, TBPF_NOPROGRESS );
+				if ( g_taskbar != NULL )
+				{
+					g_taskbar->lpVtbl->SetProgressState( g_taskbar, g_hWnd_main, TBPF_NOPROGRESS );
+				}
+
+				if ( cfg_enable_drop_window )
+				{
+					UpdateDropWindow( 0, 0, 0, 0, false );
+				}
+
+				g_nid.uFlags &= ~NIF_INFO;
+				g_nid.hIcon = g_default_tray_icon;
+				_Shell_NotifyIconW( NIM_MODIFY, &g_nid );
 			}
 
 			_SetFocus( g_hWnd_files );
@@ -3351,6 +3476,11 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 
 			if ( cfg_tray_icon )
 			{
+				if ( cfg_show_tray_progress )
+				{
+					UninitializeIconValues();
+				}
+
 				// Remove the icon from the notification area.
 				_Shell_NotifyIconW( NIM_DELETE, &g_nid );
 			}
@@ -3366,7 +3496,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 			{
 				if ( g_taskbar != NULL )
 				{
-					g_taskbar->lpVtbl->Release( ( _ITaskbarList3 * )g_taskbar );
+					g_taskbar->lpVtbl->Release( g_taskbar );
 				}
 
 				_CoUninitialize();

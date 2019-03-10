@@ -18,8 +18,6 @@
 
 #include "globals.h"
 
-#include "lite_comdlg32.h"
-#include "lite_ole32.h"
 #include "lite_gdi32.h"
 #include "lite_normaliz.h"
 #include "lite_winmm.h"
@@ -30,406 +28,28 @@
 
 #include "string_tables.h"
 
+#include "system_tray.h"
+#include "drop_window.h"
+
+#include "options.h"
+
 #define BTN_OK					1000
 #define BTN_CANCEL				1001
 #define BTN_APPLY				1002
 
-#define BTN_TRAY_ICON			1003
-#define BTN_MINIMIZE_TO_TRAY	1004
-#define BTN_CLOSE_TO_TRAY		1005
-
-#define BTN_ALWAYS_ON_TOP		1006
-
-#define BTN_DOWNLOAD_HISTORY	1007
-
-#define BTN_QUICK_ALLOCATION	1008
-
-#define EDIT_MAX_DOWNLOADS		1009
-
-#define EDIT_RETRY_DOWNLOADS_COUNT	1010
-#define EDIT_RETRY_PARTS_COUNT	1011
-
-#define EDIT_TIMEOUT			1012
-
-#define EDIT_MAX_REDIRECTS		1013
-
-#define CB_DEFAULT_SSL_VERSION	1014
-
-#define EDIT_THREAD_COUNT		1015
-
-#define EDIT_DEFAULT_DOWNLOAD_PARTS	1016
-#define BTN_DEFAULT_DOWNLOAD_DIRECTORY	1017
-
-#define BTN_PROXY				1018
-
-#define BTN_TYPE_HOST			1019
-#define BTN_TYPE_IP_ADDRESS		1020
-#define EDIT_HOST				1021
-#define EDIT_IP_ADDRESS			1022
-#define EDIT_PORT				1023
-
-#define BTN_PROXY_S				1024
-
-#define BTN_TYPE_HOST_S			1025
-#define BTN_TYPE_IP_ADDRESS_S	1026
-#define EDIT_HOST_S				1027
-#define EDIT_IP_ADDRESS_S		1028
-#define EDIT_PORT_S				1029
-
-#define EDIT_AUTH_USERNAME		1030
-#define EDIT_AUTH_PASSWORD		1031
-#define EDIT_AUTH_USERNAME_S	1032
-#define EDIT_AUTH_PASSWORD_S	1033
-
-#define BTN_ENABLE_SERVER				1034
-#define BTN_TYPE_SERVER_HOST			1035
-#define BTN_TYPE_SERVER_IP_ADDRESS		1036
-#define EDIT_SERVER_HOST				1037
-#define EDIT_SERVER_IP_ADDRESS			1038
-#define EDIT_SERVER_PORT				1039
-#define BTN_USE_AUTHENTICATION			1040
-#define EDIT_AUTHENTICATION_USERNAME	1041
-#define EDIT_AUTHENTICATION_PASSWORD	1042
-#define BTN_AUTH_TYPE_BASIC				1043
-#define BTN_AUTH_TYPE_DIGEST			1044
-
-#define BTN_SERVER_ENABLE_SSL			1045
-#define BTN_TYPE_PKCS					1046
-#define BTN_TYPE_PAIR					1047
-#define EDIT_CERTIFICATE_PKCS			1048
-#define BTN_CERTIFICATE_PKCS			1049
-#define EDIT_CERTIFICATE_PKCS_PASSWORD	1050
-#define EDIT_CERTIFICATE_CER			1051
-#define BTN_CERTIFICATE_CER				1052
-#define EDIT_CERTIFICATE_KEY			1053
-#define BTN_CERTIFICATE_KEY				1054
-#define CB_SERVER_SSL_VERSION			1055
-
-#define BTN_SET_FILETIME			1056
-#define BTN_USE_ONE_INSTANCE		1057
-#define BTN_ENABLE_DROP_WINDOW		1058
-#define BTN_DOWNLOAD_IMMEDIATELY	1059
-
-#define BTN_PLAY_SOUND				1060
-#define EDIT_SOUND_FILE				1061
-#define BTN_LOAD_SOUND_FILE			1062
-
-#define BTN_SHOW_NOTIFICATION		1063
-#define BTN_PREVENT_STANDBY			1064
-
 HWND g_hWnd_options = NULL;
 
-
 bool options_state_changed = false;
-
-wchar_t *t_default_download_directory = NULL;
-wchar_t *t_sound_file_path = NULL;
-
-// Free these when done.
-wchar_t *certificate_pkcs_file_name = NULL;
-wchar_t *certificate_cer_file_name = NULL;
-wchar_t *certificate_key_file_name = NULL;
-
-unsigned int certificate_pkcs_file_name_length = 0;
-unsigned int certificate_cer_file_name_length = 0;
-unsigned int certificate_key_file_name_length = 0;
-
-HFONT hFont_copy_proxy = NULL;
-HFONT hFont_copy_connection = NULL;
-
 
 // Options Window
 HWND g_hWnd_options_tab = NULL;
 HWND g_hWnd_general_tab = NULL;
+HWND g_hWnd_appearance_tab = NULL;
 HWND g_hWnd_connection_tab = NULL;
 HWND g_hWnd_proxy_tab = NULL;
+HWND g_hWnd_advanced_tab = NULL;
 
 HWND g_hWnd_apply = NULL;
-
-
-// Connection Tab
-HWND g_hWnd_max_downloads = NULL;
-
-HWND g_hWnd_retry_downloads_count = NULL;
-HWND g_hWnd_retry_parts_count = NULL;
-
-HWND g_hWnd_timeout = NULL;
-
-HWND g_hWnd_max_redirects = NULL;
-
-HWND g_hWnd_default_ssl_version = NULL;
-HWND g_hWnd_default_download_parts = NULL;
-
-HWND g_hWnd_chk_enable_server = NULL;
-HWND g_hWnd_static_hoz1 = NULL;
-HWND g_hWnd_chk_type_server_hostname = NULL;
-HWND g_hWnd_chk_type_server_ip_address = NULL;
-HWND g_hWnd_server_hostname = NULL;
-HWND g_hWnd_server_ip_address = NULL;
-HWND g_hWnd_static_server_colon = NULL;
-HWND g_hWnd_static_server_port = NULL;
-HWND g_hWnd_server_port = NULL;
-HWND g_hWnd_chk_use_authentication = NULL;
-HWND g_hWnd_static_authentication_username = NULL;
-HWND g_hWnd_authentication_username = NULL;
-HWND g_hWnd_static_authentication_password = NULL;
-HWND g_hWnd_authentication_password = NULL;
-HWND g_hWnd_chk_authentication_type_basic = NULL;
-HWND g_hWnd_chk_authentication_type_digest = NULL;
-
-HWND g_hWnd_chk_server_enable_ssl = NULL;
-HWND g_hWnd_static_hoz2 = NULL;
-HWND g_hWnd_chk_type_pkcs = NULL;
-HWND g_hWnd_chk_type_pair = NULL;
-HWND g_hWnd_static_certificate_pkcs_location = NULL;
-HWND g_hWnd_certificate_pkcs_location = NULL;
-HWND g_hWnd_btn_certificate_pkcs_location = NULL;
-HWND g_hWnd_static_certificate_pkcs_password = NULL;
-HWND g_hWnd_certificate_pkcs_password = NULL;
-HWND g_hWnd_static_certificate_cer_location = NULL;
-HWND g_hWnd_certificate_cer_location = NULL;
-HWND g_hWnd_btn_certificate_cer_location = NULL;
-HWND g_hWnd_static_certificate_key_location = NULL;
-HWND g_hWnd_certificate_key_location = NULL;
-HWND g_hWnd_btn_certificate_key_location = NULL;
-HWND g_hWnd_static_server_ssl_version = NULL;
-HWND g_hWnd_server_ssl_version = NULL;
-
-// Proxy Tab
-// HTTP proxy
-HWND g_hWnd_chk_proxy = NULL;
-
-HWND g_hWnd_ip_address = NULL;
-HWND g_hWnd_hostname = NULL;
-HWND g_hWnd_port = NULL;
-
-HWND g_hWnd_static_port = NULL;
-HWND g_hWnd_static_colon = NULL;
-
-HWND g_hWnd_chk_type_hostname = NULL;
-HWND g_hWnd_chk_type_ip_address = NULL;
-
-HWND g_hWnd_static_auth_username = NULL;
-HWND g_hWnd_auth_username = NULL;
-HWND g_hWnd_static_auth_password = NULL;
-HWND g_hWnd_auth_password = NULL;
-
-// HTTPS proxy
-HWND g_hWnd_chk_proxy_s = NULL;
-
-HWND g_hWnd_ip_address_s = NULL;
-HWND g_hWnd_hostname_s = NULL;
-HWND g_hWnd_port_s = NULL;
-
-HWND g_hWnd_static_port_s = NULL;
-HWND g_hWnd_static_colon_s = NULL;
-
-HWND g_hWnd_chk_type_hostname_s = NULL;
-HWND g_hWnd_chk_type_ip_address_s = NULL;
-
-HWND g_hWnd_static_auth_username_s = NULL;
-HWND g_hWnd_auth_username_s = NULL;
-HWND g_hWnd_static_auth_password_s = NULL;
-HWND g_hWnd_auth_password_s = NULL;
-
-// General Tab
-HWND g_hWnd_chk_tray_icon = NULL;
-HWND g_hWnd_chk_minimize = NULL;
-HWND g_hWnd_chk_close = NULL;
-HWND g_hWnd_chk_show_notification = NULL;
-
-HWND g_hWnd_chk_always_on_top = NULL;
-HWND g_hWnd_chk_download_history = NULL;
-HWND g_hWnd_chk_quick_allocation = NULL;
-HWND g_hWnd_chk_set_filetime = NULL;
-HWND g_hWnd_chk_use_one_instance = NULL;
-HWND g_hWnd_chk_enable_drop_window = NULL;
-HWND g_hWnd_chk_download_immediately = NULL;
-HWND g_hWnd_chk_prevent_standby = NULL;
-
-HWND g_hWnd_chk_play_sound = NULL;
-HWND g_hWnd_sound_file = NULL;
-HWND g_hWnd_load_sound_file = NULL;
-
-HWND g_hWnd_thread_count = NULL;
-
-HWND g_hWnd_default_download_directory = NULL;
-HWND g_hWnd_btn_default_download_directory = NULL;
-
-void Enable_Disable_Windows( BOOL enable )
-{
-	_EnableWindow( g_hWnd_static_hoz1, enable );
-	_EnableWindow( g_hWnd_static_hoz2, enable );
-
-	_EnableWindow( g_hWnd_chk_type_server_hostname, enable );
-	_EnableWindow( g_hWnd_chk_type_server_ip_address, enable );
-
-	_EnableWindow( g_hWnd_server_hostname, enable );
-	_EnableWindow( g_hWnd_server_ip_address, enable );
-
-	_EnableWindow( g_hWnd_static_server_colon, enable );
-
-	_EnableWindow( g_hWnd_static_server_port, enable );
-	_EnableWindow( g_hWnd_server_port, enable );
-
-	_EnableWindow( g_hWnd_chk_use_authentication, enable );
-
-	_EnableWindow( g_hWnd_chk_server_enable_ssl, enable );
-}
-
-void Enable_Disable_SSL_Windows( BOOL enable )
-{
-	_EnableWindow( g_hWnd_chk_type_pkcs, enable );
-	_EnableWindow( g_hWnd_chk_type_pair, enable );
-
-	_EnableWindow( g_hWnd_static_certificate_pkcs_location, enable );
-	_EnableWindow( g_hWnd_certificate_pkcs_location, enable );
-	_EnableWindow( g_hWnd_btn_certificate_pkcs_location, enable );
-
-	_EnableWindow( g_hWnd_static_certificate_pkcs_password, enable );
-	_EnableWindow( g_hWnd_certificate_pkcs_password, enable );
-
-	_EnableWindow( g_hWnd_static_certificate_cer_location, enable );
-	_EnableWindow( g_hWnd_certificate_cer_location, enable );
-	_EnableWindow( g_hWnd_btn_certificate_cer_location, enable );
-
-	_EnableWindow( g_hWnd_static_certificate_key_location, enable );
-	_EnableWindow( g_hWnd_certificate_key_location, enable );
-	_EnableWindow( g_hWnd_btn_certificate_key_location, enable );
-
-	_EnableWindow( g_hWnd_static_server_ssl_version, enable );
-	_EnableWindow( g_hWnd_server_ssl_version, enable );
-}
-
-void Enable_Disable_Authentication_Windows( BOOL enable )
-{
-	_EnableWindow( g_hWnd_static_authentication_username, enable );
-	_EnableWindow( g_hWnd_authentication_username, enable );
-	_EnableWindow( g_hWnd_static_authentication_password, enable );
-	_EnableWindow( g_hWnd_authentication_password, enable );
-	_EnableWindow( g_hWnd_chk_authentication_type_basic, enable );
-	_EnableWindow( g_hWnd_chk_authentication_type_digest, enable );
-}
-
-void Set_Window_Settings()
-{
-	if ( cfg_server_address_type == 1 )
-	{
-		_SendMessageW( g_hWnd_chk_type_server_ip_address, BM_SETCHECK, BST_CHECKED, 0 );
-		_SendMessageW( g_hWnd_chk_type_server_hostname, BM_SETCHECK, BST_UNCHECKED, 0 );
-
-		_ShowWindow( g_hWnd_server_hostname, SW_HIDE );
-		_ShowWindow( g_hWnd_server_ip_address, SW_SHOW );
-	}
-	else
-	{
-		_SendMessageW( g_hWnd_chk_type_server_hostname, BM_SETCHECK, BST_CHECKED, 0 );
-		_SendMessageW( g_hWnd_chk_type_server_ip_address, BM_SETCHECK, BST_UNCHECKED, 0 );
-
-		_ShowWindow( g_hWnd_server_ip_address, SW_HIDE );
-		_ShowWindow( g_hWnd_server_hostname, SW_SHOW );	
-	}
-
-	if ( cfg_server_hostname == NULL )
-	{
-		_SendMessageW( g_hWnd_server_hostname, WM_SETTEXT, 0, ( LPARAM )L"localhost" );
-	}
-	else
-	{
-		_SendMessageW( g_hWnd_server_hostname, WM_SETTEXT, 0, ( LPARAM )cfg_server_hostname );
-	}
-
-	_SendMessageW( g_hWnd_server_ip_address, IPM_SETADDRESS, 0, cfg_server_ip_address );
-
-	char value[ 21 ];
-	_memzero( value, sizeof( char ) * 21 );
-	__snprintf( value, 21, "%hu", cfg_server_port );
-	_SendMessageA( g_hWnd_server_port, WM_SETTEXT, 0, ( LPARAM )value );
-
-	_SendMessageW( g_hWnd_chk_server_enable_ssl, BM_SETCHECK, ( cfg_server_enable_ssl ? BST_CHECKED : BST_UNCHECKED ), 0 );
-
-	_SendMessageW( g_hWnd_chk_use_authentication, BM_SETCHECK, ( cfg_use_authentication ? BST_CHECKED : BST_UNCHECKED ), 0 );
-
-	_SendMessageW( g_hWnd_authentication_username, WM_SETTEXT, 0, ( LPARAM )cfg_authentication_username );
-	_SendMessageW( g_hWnd_authentication_password, WM_SETTEXT, 0, ( LPARAM )cfg_authentication_password );
-
-	if ( cfg_authentication_type == AUTH_TYPE_DIGEST )
-	{
-		_SendMessageW( g_hWnd_chk_authentication_type_basic, BM_SETCHECK, BST_UNCHECKED, 0 );
-		_SendMessageW( g_hWnd_chk_authentication_type_digest, BM_SETCHECK, BST_CHECKED, 0 );
-	}
-	else
-	{
-		_SendMessageW( g_hWnd_chk_authentication_type_basic, BM_SETCHECK, BST_CHECKED, 0 );
-		_SendMessageW( g_hWnd_chk_authentication_type_digest, BM_SETCHECK, BST_UNCHECKED, 0 );
-	}
-
-	if ( cfg_certificate_type == 1 )
-	{
-		_SendMessageW( g_hWnd_chk_type_pair, BM_SETCHECK, BST_CHECKED, 0 );
-		_SendMessageW( g_hWnd_chk_type_pkcs, BM_SETCHECK, BST_UNCHECKED, 0 );
-
-		_ShowWindow( g_hWnd_static_certificate_pkcs_location, SW_HIDE );
-		_ShowWindow( g_hWnd_certificate_pkcs_location, SW_HIDE );
-		_ShowWindow( g_hWnd_btn_certificate_pkcs_location, SW_HIDE );
-
-		_ShowWindow( g_hWnd_static_certificate_pkcs_password, SW_HIDE );
-		_ShowWindow( g_hWnd_certificate_pkcs_password, SW_HIDE );
-
-		_ShowWindow( g_hWnd_static_certificate_cer_location, SW_SHOW );
-		_ShowWindow( g_hWnd_certificate_cer_location, SW_SHOW );
-		_ShowWindow( g_hWnd_btn_certificate_cer_location, SW_SHOW );
-
-		_ShowWindow( g_hWnd_static_certificate_key_location, SW_SHOW );
-		_ShowWindow( g_hWnd_certificate_key_location, SW_SHOW );
-		_ShowWindow( g_hWnd_btn_certificate_key_location, SW_SHOW );
-	}
-	else
-	{
-		_SendMessageW( g_hWnd_chk_type_pkcs, BM_SETCHECK, BST_CHECKED, 0 );
-		_SendMessageW( g_hWnd_chk_type_pair, BM_SETCHECK, BST_UNCHECKED, 0 );
-
-		_ShowWindow( g_hWnd_static_certificate_cer_location, SW_HIDE );
-		_ShowWindow( g_hWnd_certificate_cer_location, SW_HIDE );
-		_ShowWindow( g_hWnd_btn_certificate_cer_location, SW_HIDE );
-
-		_ShowWindow( g_hWnd_static_certificate_key_location, SW_HIDE );
-		_ShowWindow( g_hWnd_certificate_key_location, SW_HIDE );
-		_ShowWindow( g_hWnd_btn_certificate_key_location, SW_HIDE );
-
-		_ShowWindow( g_hWnd_static_certificate_pkcs_location, SW_SHOW );
-		_ShowWindow( g_hWnd_certificate_pkcs_location, SW_SHOW );
-		_ShowWindow( g_hWnd_btn_certificate_pkcs_location, SW_SHOW );
-
-		_ShowWindow( g_hWnd_static_certificate_pkcs_password, SW_SHOW );
-		_ShowWindow( g_hWnd_certificate_pkcs_password, SW_SHOW );
-	}
-
-	_SendMessageW( g_hWnd_certificate_pkcs_location, WM_SETTEXT, 0, ( LPARAM )cfg_certificate_pkcs_file_name );
-	_SendMessageW( g_hWnd_certificate_pkcs_password, WM_SETTEXT, 0, ( LPARAM )cfg_certificate_pkcs_password );
-
-	_SendMessageW( g_hWnd_certificate_cer_location, WM_SETTEXT, 0, ( LPARAM )cfg_certificate_cer_file_name );
-	_SendMessageW( g_hWnd_certificate_key_location, WM_SETTEXT, 0, ( LPARAM )cfg_certificate_key_file_name );
-
-	_SendMessageW( g_hWnd_server_ssl_version, CB_SETCURSEL, cfg_server_ssl_version, 0 );
-
-	if ( cfg_enable_server )
-	{
-		_SendMessageW( g_hWnd_chk_enable_server, BM_SETCHECK, BST_CHECKED, 0 );
-		Enable_Disable_Windows( TRUE );
-
-		Enable_Disable_SSL_Windows( ( ( cfg_server_enable_ssl ) ? TRUE : FALSE ) );
-		Enable_Disable_Authentication_Windows( ( ( cfg_use_authentication ) ? TRUE : FALSE ) );
-	}
-	else
-	{
-		_SendMessageW( g_hWnd_chk_enable_server, BM_SETCHECK, BST_UNCHECKED, 0 );
-		Enable_Disable_Windows( FALSE );
-
-		Enable_Disable_SSL_Windows( FALSE );
-		Enable_Disable_Authentication_Windows( FALSE );
-	}
-}
 
 void SetServerSettings()
 {
@@ -792,1750 +412,53 @@ void SetServerSettings()
 	}
 }
 
-
-LRESULT CALLBACK GeneralTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
+void SetAppearanceSettings()
 {
-    switch ( msg )
-    {
-		case WM_CREATE:
-		{
-			RECT rc;
-			_GetClientRect( hWnd, &rc );
+	cfg_odd_row_background_color = t_odd_row_background_color;
+	cfg_even_row_background_color = t_even_row_background_color;
 
-			g_hWnd_chk_tray_icon = _CreateWindowW( WC_BUTTON, ST_V_Enable_System_Tray_icon_, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, rc.right, 20, hWnd, ( HMENU )BTN_TRAY_ICON, NULL, NULL );
-			g_hWnd_chk_minimize = _CreateWindowW( WC_BUTTON, ST_V_Minimize_to_System_Tray, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 15, 20, rc.right - 15, 20, hWnd, ( HMENU )BTN_MINIMIZE_TO_TRAY, NULL, NULL );
-			g_hWnd_chk_close = _CreateWindowW( WC_BUTTON, ST_V_Close_to_System_Tray, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 15, 40, rc.right - 15, 20, hWnd, ( HMENU )BTN_CLOSE_TO_TRAY, NULL, NULL );
-			g_hWnd_chk_show_notification = _CreateWindowW( WC_BUTTON, ST_V_Show_notification_when_downloads_finish, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 15, 60, rc.right - 15, 20, hWnd, ( HMENU )BTN_SHOW_NOTIFICATION, NULL, NULL );
+	cfg_odd_row_highlight_color = t_odd_row_highlight_color;
+	cfg_even_row_highlight_color = t_even_row_highlight_color;
 
-			g_hWnd_chk_always_on_top = _CreateWindowW( WC_BUTTON, ST_V_Always_on_top, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 80, rc.right, 20, hWnd, ( HMENU )BTN_ALWAYS_ON_TOP, NULL, NULL );
+	cfg_odd_row_highlight_font_color = t_odd_row_highlight_font_color;
+	cfg_even_row_highlight_font_color = t_even_row_highlight_font_color;
 
-			g_hWnd_chk_download_history = _CreateWindowW( WC_BUTTON, ST_V_Enable_download_history, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 100, rc.right, 20, hWnd, ( HMENU )BTN_DOWNLOAD_HISTORY, NULL, NULL );
-
-			g_hWnd_chk_quick_allocation = _CreateWindowW( WC_BUTTON, ST_V_Enable_quick_file_allocation, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 120, rc.right, 20, hWnd, ( HMENU )BTN_QUICK_ALLOCATION, NULL, NULL );
-
-			g_hWnd_chk_set_filetime = _CreateWindowW( WC_BUTTON, ST_V_Set_date_and_time_of_file, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 140, rc.right, 20, hWnd, ( HMENU )BTN_SET_FILETIME, NULL, NULL );
-
-			g_hWnd_chk_use_one_instance = _CreateWindowW( WC_BUTTON, ST_V_Allow_only_one_instance, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 160, rc.right, 20, hWnd, ( HMENU )BTN_USE_ONE_INSTANCE, NULL, NULL );
-
-			g_hWnd_chk_enable_drop_window = _CreateWindowW( WC_BUTTON, ST_V_Enable_URL_drop_window, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 180, rc.right, 20, hWnd, ( HMENU )BTN_ENABLE_DROP_WINDOW, NULL, NULL );
-
-			g_hWnd_chk_download_immediately = _CreateWindowW( WC_BUTTON, ST_V_Download_drag_and_drop_immediately, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 200, rc.right, 20, hWnd, ( HMENU )BTN_DOWNLOAD_IMMEDIATELY, NULL, NULL );
-
-			g_hWnd_chk_prevent_standby = _CreateWindowW( WC_BUTTON, ST_V_Prevent_system_standby, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 220, rc.right, 20, hWnd, ( HMENU )BTN_PREVENT_STANDBY, NULL, NULL );
-
-			g_hWnd_chk_play_sound = _CreateWindowW( WC_BUTTON, ST_V_Play_sound_when_downloads_finish_, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 240, rc.right, 20, hWnd, ( HMENU )BTN_PLAY_SOUND, NULL, NULL );
-			g_hWnd_sound_file = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, cfg_sound_file_path, ES_AUTOHSCROLL | ES_READONLY | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 260, rc.right - 40, 20, hWnd, NULL, NULL, NULL );
-			g_hWnd_load_sound_file = _CreateWindowW( WC_BUTTON, ST_V_BTN___, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 35, 260, 35, 20, hWnd, ( HMENU )BTN_LOAD_SOUND_FILE, NULL, NULL );
-
-			HWND hWnd_static_default_download_directory = _CreateWindowW( WC_STATIC, ST_V_Default_download_directory_, WS_CHILD | WS_VISIBLE, 0, 285, rc.right, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_default_download_directory = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, cfg_default_download_directory, ES_AUTOHSCROLL | ES_READONLY | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 300, rc.right - 40, 20, hWnd, NULL, NULL, NULL );
-			g_hWnd_btn_default_download_directory = _CreateWindowW( WC_BUTTON, ST_V_BTN___, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 35, 300, 35, 20, hWnd, ( HMENU )BTN_DEFAULT_DOWNLOAD_DIRECTORY, NULL, NULL );
-
-			HWND hWnd_static_thread_count = _CreateWindowW( WC_STATIC, ST_V_Thread_pool_count_, WS_CHILD | WS_VISIBLE, 0, 325, rc.right, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_thread_count = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 340, 100, 20, hWnd, ( HMENU )EDIT_THREAD_COUNT, NULL, NULL );
-
-			// Keep this unattached. Looks ugly inside the text box.
-			HWND hWnd_ud_thread_count = _CreateWindowW( UPDOWN_CLASS, NULL, /*UDS_ALIGNRIGHT |*/ UDS_ARROWKEYS | UDS_NOTHOUSANDS | UDS_SETBUDDYINT | WS_CHILD | WS_VISIBLE, 100, 339, _GetSystemMetrics( SM_CXVSCROLL ), 22, hWnd, NULL, NULL, NULL );
-
-			_SendMessageW( g_hWnd_thread_count, EM_LIMITTEXT, 10, 0 );
-			_SendMessageW( hWnd_ud_thread_count, UDM_SETBUDDY, ( WPARAM )g_hWnd_thread_count, 0 );
-			_SendMessageW( hWnd_ud_thread_count, UDM_SETBASE, 10, 0 );
-			_SendMessageW( hWnd_ud_thread_count, UDM_SETRANGE32, 1, g_max_threads );
-			_SendMessageW( hWnd_ud_thread_count, UDM_SETPOS, 0, cfg_thread_count );
-
-
-
-			_SendMessageW( g_hWnd_chk_tray_icon, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_chk_minimize, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_chk_close, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_chk_show_notification, WM_SETFONT, ( WPARAM )hFont, 0 );
-
-			_SendMessageW( g_hWnd_chk_always_on_top, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_chk_download_history, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_chk_quick_allocation, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_chk_set_filetime, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_chk_use_one_instance, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_chk_enable_drop_window, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_chk_download_immediately, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_chk_prevent_standby, WM_SETFONT, ( WPARAM )hFont, 0 );
-
-			_SendMessageW( g_hWnd_chk_play_sound, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_sound_file, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_load_sound_file, WM_SETFONT, ( WPARAM )hFont, 0 );
-
-			_SendMessageW( hWnd_static_thread_count, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_thread_count, WM_SETFONT, ( WPARAM )hFont, 0 );
-
-			_SendMessageW( hWnd_static_default_download_directory, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_default_download_directory, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_btn_default_download_directory, WM_SETFONT, ( WPARAM )hFont, 0 );
-
-			// Set settings.
-
-			if ( cfg_tray_icon )
-			{
-				_SendMessageW( g_hWnd_chk_tray_icon, BM_SETCHECK, BST_CHECKED, 0 );
-				_EnableWindow( g_hWnd_chk_minimize, TRUE );
-				_EnableWindow( g_hWnd_chk_close, TRUE );
-				_EnableWindow( g_hWnd_chk_show_notification, TRUE );
-			}
-			else
-			{
-				_SendMessageW( g_hWnd_chk_tray_icon, BM_SETCHECK, BST_UNCHECKED, 0 );
-				_EnableWindow( g_hWnd_chk_minimize, FALSE );
-				_EnableWindow( g_hWnd_chk_close, FALSE );
-				_EnableWindow( g_hWnd_chk_show_notification, FALSE );
-			}
-
-			_SendMessageW( g_hWnd_chk_minimize, BM_SETCHECK, ( cfg_minimize_to_tray ? BST_CHECKED : BST_UNCHECKED ), 0 );
-			_SendMessageW( g_hWnd_chk_close, BM_SETCHECK, ( cfg_close_to_tray ? BST_CHECKED : BST_UNCHECKED ), 0 );
-			_SendMessageW( g_hWnd_chk_show_notification, BM_SETCHECK, ( cfg_show_notification ? BST_CHECKED : BST_UNCHECKED ), 0 );
-
-			_SendMessageW( g_hWnd_chk_always_on_top, BM_SETCHECK, ( cfg_always_on_top ? BST_CHECKED : BST_UNCHECKED ), 0 );
-
-			_SendMessageW( g_hWnd_chk_download_history, BM_SETCHECK, ( cfg_enable_download_history ? BST_CHECKED : BST_UNCHECKED ), 0 );
-
-			_SendMessageW( g_hWnd_chk_quick_allocation, BM_SETCHECK, ( cfg_enable_quick_allocation ? BST_CHECKED : BST_UNCHECKED ), 0 );
-
-			_SendMessageW( g_hWnd_chk_set_filetime, BM_SETCHECK, ( cfg_set_filetime ? BST_CHECKED : BST_UNCHECKED ), 0 );
-
-			_SendMessageW( g_hWnd_chk_use_one_instance, BM_SETCHECK, ( cfg_use_one_instance ? BST_CHECKED : BST_UNCHECKED ), 0 );
-
-			_SendMessageW( g_hWnd_chk_enable_drop_window, BM_SETCHECK, ( cfg_enable_drop_window ? BST_CHECKED : BST_UNCHECKED ), 0 );
-
-			_SendMessageW( g_hWnd_chk_download_immediately, BM_SETCHECK, ( cfg_download_immediately ? BST_CHECKED : BST_UNCHECKED ), 0 );
-
-			_SendMessageW( g_hWnd_chk_prevent_standby, BM_SETCHECK, ( cfg_prevent_standby ? BST_CHECKED : BST_UNCHECKED ), 0 );
-
-			if ( cfg_play_sound )
-			{
-				_SendMessageW( g_hWnd_chk_play_sound, BM_SETCHECK, BST_CHECKED, 0 );
-				_EnableWindow( g_hWnd_sound_file, TRUE );
-				_EnableWindow( g_hWnd_load_sound_file, TRUE );
-			}
-			else
-			{
-				_SendMessageW( g_hWnd_chk_play_sound, BM_SETCHECK, BST_UNCHECKED, 0 );
-				_EnableWindow( g_hWnd_sound_file, FALSE );
-				_EnableWindow( g_hWnd_load_sound_file, FALSE );
-			}
-
-			if ( cfg_default_download_directory != NULL )
-			{
-				t_default_download_directory = GlobalStrDupW( cfg_default_download_directory );
-			}
-
-			if ( cfg_sound_file_path != NULL )
-			{
-				t_sound_file_path = GlobalStrDupW( cfg_sound_file_path );
-			}
-
-			return 0;
-		}
-		break;
-
-		case WM_CTLCOLORSTATIC:
-		{
-			return ( LRESULT )( _GetSysColorBrush( COLOR_WINDOW ) );
-		}
-		break;
-
-		case WM_COMMAND:
-		{
-			switch( LOWORD( wParam ) )
-			{
-				case BTN_TRAY_ICON:
-				{
-					if ( _SendMessageW( g_hWnd_chk_tray_icon, BM_GETCHECK, 0, 0 ) == BST_CHECKED )
-					{
-						_EnableWindow( g_hWnd_chk_minimize, TRUE );
-						_EnableWindow( g_hWnd_chk_close, TRUE );
-						_EnableWindow( g_hWnd_chk_show_notification, TRUE );
-					}
-					else
-					{
-						_EnableWindow( g_hWnd_chk_minimize, FALSE );
-						_EnableWindow( g_hWnd_chk_close, FALSE );
-						_EnableWindow( g_hWnd_chk_show_notification, FALSE );
-					}
-
-					options_state_changed = true;
-					_EnableWindow( g_hWnd_apply, TRUE );
-				}
-				break;
-
-				case BTN_CLOSE_TO_TRAY:
-				case BTN_MINIMIZE_TO_TRAY:
-				case BTN_ALWAYS_ON_TOP:
-				case BTN_DOWNLOAD_HISTORY:
-				case BTN_QUICK_ALLOCATION:
-				case BTN_SET_FILETIME:
-				case BTN_USE_ONE_INSTANCE:
-				case BTN_ENABLE_DROP_WINDOW:
-				case BTN_DOWNLOAD_IMMEDIATELY:
-				case BTN_SHOW_NOTIFICATION:
-				case BTN_PREVENT_STANDBY:
-				{
-					options_state_changed = true;
-					_EnableWindow( g_hWnd_apply, TRUE );
-				}
-				break;
-
-				case BTN_PLAY_SOUND:
-				{
-					bool show_dialog = false;
-
-					if ( _SendMessageW( g_hWnd_chk_play_sound, BM_GETCHECK, 0, 0 ) == BST_CHECKED )
-					{
-						if ( _SendMessageW( g_hWnd_sound_file, WM_GETTEXTLENGTH, 0, 0 ) == 0 )
-						{
-							show_dialog = true;
-						}
-
-						_EnableWindow( g_hWnd_sound_file, TRUE );
-						_EnableWindow( g_hWnd_load_sound_file, TRUE );
-					}
-					else
-					{
-						_EnableWindow( g_hWnd_sound_file, FALSE );
-						_EnableWindow( g_hWnd_load_sound_file, FALSE );
-					}
-
-					// Fall through if we haven't chosen a file yet.
-					if ( !show_dialog )
-					{
-						options_state_changed = true;
-						_EnableWindow( g_hWnd_apply, TRUE );
-
-						break;
-					}
-				}
-
-				case BTN_LOAD_SOUND_FILE:
-				{
-					wchar_t *file_name = ( wchar_t * )GlobalAlloc( GPTR, sizeof( wchar_t ) * MAX_PATH );
-
-					OPENFILENAME ofn;
-					_memzero( &ofn, sizeof( OPENFILENAME ) );
-					ofn.lStructSize = sizeof( OPENFILENAME );
-					ofn.hwndOwner = hWnd;
-					ofn.lpstrFilter = L"WAV (*.WAV;*.WAVE)\0*.wav;*.wave\0All Files (*.*)\0*.*\0";
-					ofn.lpstrTitle = ST_V_Load_Download_Finish_Sound_File;
-					ofn.lpstrFile = file_name;
-					ofn.nMaxFile = MAX_PATH;
-					ofn.Flags = OFN_EXPLORER | OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_READONLY;
-
-					if ( _GetOpenFileNameW( &ofn ) )
-					{
-						if ( t_sound_file_path != NULL )
-						{
-							GlobalFree( t_sound_file_path );
-						}
-
-						t_sound_file_path = file_name;
-
-						_SendMessageW( g_hWnd_sound_file, WM_SETTEXT, 0, ( LPARAM )t_sound_file_path );
-
-						options_state_changed = true;
-						_EnableWindow( g_hWnd_apply, TRUE );
-					}
-					else
-					{
-						GlobalFree( file_name );
-
-						if ( _SendMessageW( g_hWnd_chk_play_sound, BM_GETCHECK, 0, 0 ) == BST_CHECKED &&
-							 _SendMessageW( g_hWnd_sound_file, WM_GETTEXTLENGTH, 0, 0 ) == 0 )
-						{
-							_SendMessageW( g_hWnd_chk_play_sound, BM_SETCHECK, BST_UNCHECKED, 0 );
-							_EnableWindow( g_hWnd_sound_file, FALSE );
-							_EnableWindow( g_hWnd_load_sound_file, FALSE );
-						}
-					}
-				}
-				break;
-
-				case EDIT_THREAD_COUNT:
-				{
-					if ( HIWORD( wParam ) == EN_UPDATE )
-					{
-						DWORD sel_start = 0;
-
-						char value[ 11 ];
-						_SendMessageA( ( HWND )lParam, WM_GETTEXT, 11, ( LPARAM )value );
-						unsigned long num = _strtoul( value, NULL, 10 );
-
-						if ( num > g_max_threads )
-						{
-							_SendMessageA( ( HWND )lParam, EM_GETSEL, ( WPARAM )&sel_start, NULL );
-
-							__snprintf( value, 11, "%lu", g_max_threads );
-							_SendMessageA( ( HWND )lParam, WM_SETTEXT, 0, ( LPARAM )value );
-
-							_SendMessageA( ( HWND )lParam, EM_SETSEL, sel_start, sel_start );
-						}
-						else if ( num == 0 )
-						{
-							_SendMessageA( ( HWND )lParam, EM_GETSEL, ( WPARAM )&sel_start, NULL );
-
-							_SendMessageA( ( HWND )lParam, WM_SETTEXT, 0, ( LPARAM )"1" );
-
-							_SendMessageA( ( HWND )lParam, EM_SETSEL, sel_start, sel_start );
-						}
-
-						if ( num != cfg_thread_count )
-						{
-							options_state_changed = true;
-							_EnableWindow( g_hWnd_apply, TRUE );
-						}
-					}
-				}
-				break;
-
-				case BTN_DEFAULT_DOWNLOAD_DIRECTORY:
-				{
-					// Open a browse for folder dialog box.
-					BROWSEINFO bi;
-					_memzero( &bi, sizeof( BROWSEINFO ) );
-					bi.hwndOwner = hWnd;
-					bi.lpszTitle = ST_V_Select_the_default_download_directory;
-					bi.ulFlags = BIF_EDITBOX | BIF_NEWDIALOGSTYLE | BIF_VALIDATE;
-
-					bool destroy = true;
-					#ifndef OLE32_USE_STATIC_LIB
-						if ( ole32_state == OLE32_STATE_SHUTDOWN )
-						{
-							destroy = InitializeOle32();
-						}
-					#endif
-
-					if ( destroy )
-					{
-						// OleInitialize calls CoInitializeEx
-						_OleInitialize( NULL );
-					}
-
-					LPITEMIDLIST lpiidl = _SHBrowseForFolderW( &bi );
-					if ( lpiidl )
-					{
-						wchar_t *directory = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * MAX_PATH );
-						_memzero( directory, sizeof( wchar_t ) * MAX_PATH );
-
-						// Get the directory path from the id list.
-						_SHGetPathFromIDListW( lpiidl, ( LPTSTR )directory );
-
-						if ( directory[ 0 ] != NULL )
-						{
-							if ( t_default_download_directory != NULL )
-							{
-								GlobalFree( t_default_download_directory );
-							}
-
-							t_default_download_directory = directory;
-
-							_SendMessageW( g_hWnd_default_download_directory, WM_SETTEXT, 0, ( LPARAM )t_default_download_directory );
-
-							options_state_changed = true;
-							_EnableWindow( g_hWnd_apply, TRUE );
-						}
-						else
-						{
-							GlobalFree( directory );
-						}
-
-						if ( destroy )
-						{
-							_CoTaskMemFree( lpiidl );
-						}
-						else	// Warn of leak if we can't free.
-						{
-							_MessageBoxW( NULL, L"Item ID List was not freed.", PROGRAM_CAPTION, 0 );
-						}
-					}
-
-					if ( destroy )
-					{
-						_OleUninitialize();
-					}
-				}
-				break;
-			}
-
-			return 0;
-		}
-		break;
-
-		case WM_DESTROY:
-		{
-			if ( t_default_download_directory != NULL )
-			{
-				GlobalFree( t_default_download_directory );
-				t_default_download_directory = NULL;
-			}
-
-			if ( t_sound_file_path != NULL )
-			{
-				GlobalFree( t_sound_file_path );
-				t_sound_file_path = NULL;
-			}
-
-			return 0;
-		}
-		break;
-
-		default:
-		{
-			return _DefWindowProcW( hWnd, msg, wParam, lParam );
-		}
-		break;
+	for ( unsigned char i = 0; i < NUM_COLORS; ++i )
+	{
+		*progress_colors[ i ] = t_progress_colors[ i ];
 	}
-	return TRUE;
-}
 
-LRESULT CALLBACK ConnectionTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
-{
-    switch ( msg )
-    {
-		case WM_CREATE:
-		{
-			RECT rc;
-			_GetClientRect( hWnd, &rc );
-
-			HWND hWnd_static_max_downloads = _CreateWindowW( WC_STATIC, ST_V_Active_download_limit_, WS_CHILD | WS_VISIBLE, 0, 0, 190, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_max_downloads = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 15, 100, 20, hWnd, ( HMENU )EDIT_MAX_DOWNLOADS, NULL, NULL );
-
-			// Keep this unattached. Looks ugly inside the text box.
-			HWND hWnd_ud_max_downloads = _CreateWindowW( UPDOWN_CLASS, NULL, /*UDS_ALIGNRIGHT |*/ UDS_ARROWKEYS | UDS_NOTHOUSANDS | UDS_SETBUDDYINT | WS_CHILD | WS_VISIBLE, 100, 14, _GetSystemMetrics( SM_CXVSCROLL ), 22, hWnd, NULL, NULL, NULL );
-
-			_SendMessageW( g_hWnd_max_downloads, EM_LIMITTEXT, 3, 0 );
-			_SendMessageW( hWnd_ud_max_downloads, UDM_SETBUDDY, ( WPARAM )g_hWnd_max_downloads, 0 );
-			_SendMessageW( hWnd_ud_max_downloads, UDM_SETBASE, 10, 0 );
-			_SendMessageW( hWnd_ud_max_downloads, UDM_SETRANGE32, 0, 100 );
-			_SendMessageW( hWnd_ud_max_downloads, UDM_SETPOS, 0, cfg_max_downloads );
-
-
-			HWND hWnd_static_retry_downloads_count = _CreateWindowW( WC_STATIC, ST_V_Retry_incomplete_downloads_, WS_CHILD | WS_VISIBLE, 200, 0, 190, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_retry_downloads_count = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 200, 15, 100, 20, hWnd, ( HMENU )EDIT_RETRY_DOWNLOADS_COUNT, NULL, NULL );
-
-			// Keep this unattached. Looks ugly inside the text box.
-			HWND hWnd_ud_retry_downloads_count = _CreateWindowW( UPDOWN_CLASS, NULL, /*UDS_ALIGNRIGHT |*/ UDS_ARROWKEYS | UDS_NOTHOUSANDS | UDS_SETBUDDYINT | WS_CHILD | WS_VISIBLE, 300, 14, _GetSystemMetrics( SM_CXVSCROLL ), 22, hWnd, NULL, NULL, NULL );
-
-			_SendMessageW( g_hWnd_retry_downloads_count, EM_LIMITTEXT, 3, 0 );
-			_SendMessageW( hWnd_ud_retry_downloads_count, UDM_SETBUDDY, ( WPARAM )g_hWnd_retry_downloads_count, 0 );
-			_SendMessageW( hWnd_ud_retry_downloads_count, UDM_SETBASE, 10, 0 );
-			_SendMessageW( hWnd_ud_retry_downloads_count, UDM_SETRANGE32, 0, 100 );
-			_SendMessageW( hWnd_ud_retry_downloads_count, UDM_SETPOS, 0, cfg_retry_downloads_count );
-
-			//
-
-			HWND hWnd_static_download_parts = _CreateWindowW( WC_STATIC, ST_V_Default_download_parts_, WS_CHILD | WS_VISIBLE, 0, 45, 190, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_default_download_parts = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 60, 100, 20, hWnd, ( HMENU )EDIT_DEFAULT_DOWNLOAD_PARTS, NULL, NULL );
-
-			// Keep this unattached. Looks ugly inside the text box.
-			HWND hWnd_ud_download_parts = _CreateWindowW( UPDOWN_CLASS, NULL, /*UDS_ALIGNRIGHT |*/ UDS_ARROWKEYS | UDS_NOTHOUSANDS | UDS_SETBUDDYINT | WS_CHILD | WS_VISIBLE, 100, 59, _GetSystemMetrics( SM_CXVSCROLL ), 22, hWnd, NULL, NULL, NULL );
-
-			_SendMessageW( g_hWnd_default_download_parts, EM_LIMITTEXT, 3, 0 );
-			_SendMessageW( hWnd_ud_download_parts, UDM_SETBUDDY, ( WPARAM )g_hWnd_default_download_parts, 0 );
-			_SendMessageW( hWnd_ud_download_parts, UDM_SETBASE, 10, 0 );
-			_SendMessageW( hWnd_ud_download_parts, UDM_SETRANGE32, 1, 100 );
-			_SendMessageW( hWnd_ud_download_parts, UDM_SETPOS, 0, cfg_default_download_parts );
-
-
-			HWND hWnd_static_retry_parts_count = _CreateWindowW( WC_STATIC, ST_V_Retry_incomplete_parts_, WS_CHILD | WS_VISIBLE, 200, 45, 190, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_retry_parts_count = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 200, 60, 100, 20, hWnd, ( HMENU )EDIT_RETRY_PARTS_COUNT, NULL, NULL );
-
-			// Keep this unattached. Looks ugly inside the text box.
-			HWND hWnd_ud_retry_parts_count = _CreateWindowW( UPDOWN_CLASS, NULL, /*UDS_ALIGNRIGHT |*/ UDS_ARROWKEYS | UDS_NOTHOUSANDS | UDS_SETBUDDYINT | WS_CHILD | WS_VISIBLE, 300, 59, _GetSystemMetrics( SM_CXVSCROLL ), 22, hWnd, NULL, NULL, NULL );
-
-			_SendMessageW( g_hWnd_retry_parts_count, EM_LIMITTEXT, 3, 0 );
-			_SendMessageW( hWnd_ud_retry_parts_count, UDM_SETBUDDY, ( WPARAM )g_hWnd_retry_parts_count, 0 );
-			_SendMessageW( hWnd_ud_retry_parts_count, UDM_SETBASE, 10, 0 );
-			_SendMessageW( hWnd_ud_retry_parts_count, UDM_SETRANGE32, 0, 100 );
-			_SendMessageW( hWnd_ud_retry_parts_count, UDM_SETPOS, 0, cfg_retry_parts_count );
-
-			//
-
-			HWND hWnd_static_timeout = _CreateWindowW( WC_STATIC, ST_V_Timeout__seconds__, WS_CHILD | WS_VISIBLE, 0, 90, 190, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_timeout = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 105, 100, 20, hWnd, ( HMENU )EDIT_TIMEOUT, NULL, NULL );
-
-			// Keep this unattached. Looks ugly inside the text box.
-			HWND hWnd_ud_timeout = _CreateWindowW( UPDOWN_CLASS, NULL, /*UDS_ALIGNRIGHT |*/ UDS_ARROWKEYS | UDS_NOTHOUSANDS | UDS_SETBUDDYINT | WS_CHILD | WS_VISIBLE, 100, 104, _GetSystemMetrics( SM_CXVSCROLL ), 22, hWnd, NULL, NULL, NULL );
-
-			_SendMessageW( g_hWnd_timeout, EM_LIMITTEXT, 3, 0 );
-			_SendMessageW( hWnd_ud_timeout, UDM_SETBUDDY, ( WPARAM )g_hWnd_timeout, 0 );
-			_SendMessageW( hWnd_ud_timeout, UDM_SETBASE, 10, 0 );
-			_SendMessageW( hWnd_ud_timeout, UDM_SETRANGE32, 10, 300 );
-			_SendMessageW( hWnd_ud_timeout, UDM_SETPOS, 0, cfg_timeout );
-			if ( cfg_timeout == 0 )
-			{
-				_SendMessageW( g_hWnd_timeout, WM_SETTEXT, 0, ( LPARAM )L"0" );
-			}
-
-
-			HWND hWnd_static_max_redirects = _CreateWindowW( WC_STATIC, ST_V_Maximum_redirects_, WS_CHILD | WS_VISIBLE, 200, 90, 190, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_max_redirects = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 200, 105, 100, 20, hWnd, ( HMENU )EDIT_MAX_REDIRECTS, NULL, NULL );
-
-			// Keep this unattached. Looks ugly inside the text box.
-			HWND hWnd_ud_max_redirects = _CreateWindowW( UPDOWN_CLASS, NULL, /*UDS_ALIGNRIGHT |*/ UDS_ARROWKEYS | UDS_NOTHOUSANDS | UDS_SETBUDDYINT | WS_CHILD | WS_VISIBLE, 300, 104, _GetSystemMetrics( SM_CXVSCROLL ), 22, hWnd, NULL, NULL, NULL );
-
-			_SendMessageW( g_hWnd_max_redirects, EM_LIMITTEXT, 3, 0 );
-			_SendMessageW( hWnd_ud_max_redirects, UDM_SETBUDDY, ( WPARAM )g_hWnd_max_redirects, 0 );
-			_SendMessageW( hWnd_ud_max_redirects, UDM_SETBASE, 10, 0 );
-			_SendMessageW( hWnd_ud_max_redirects, UDM_SETRANGE32, 0, 100 );
-			_SendMessageW( hWnd_ud_max_redirects, UDM_SETPOS, 0, cfg_max_redirects );
-
-			//
-
-			HWND hWnd_static_ssl_version = _CreateWindowW( WC_STATIC, ST_V_Default_SSL___TLS_version_, WS_CHILD | WS_VISIBLE, 0, 135, rc.right - 10, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_default_ssl_version = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_COMBOBOX, NULL, CBS_AUTOHSCROLL | CBS_DROPDOWNLIST | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE, 0, 150, 100, 20, hWnd, ( HMENU )CB_DEFAULT_SSL_VERSION, NULL, NULL );
-			_SendMessageW( g_hWnd_default_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_V_SSL_2_0 );
-			_SendMessageW( g_hWnd_default_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_V_SSL_3_0 );
-			_SendMessageW( g_hWnd_default_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_V_TLS_1_0 );
-			_SendMessageW( g_hWnd_default_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_V_TLS_1_1 );
-			_SendMessageW( g_hWnd_default_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_V_TLS_1_2 );
-
-			_SendMessageW( g_hWnd_default_ssl_version, CB_SETCURSEL, cfg_default_ssl_version, 0 );
-
-			//
-
-			g_hWnd_chk_enable_server = _CreateWindowW( WC_BUTTON, ST_V_Enable_server_, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 180, rc.right - 10, 20, hWnd, ( HMENU )BTN_ENABLE_SERVER, NULL, NULL );
-
-			g_hWnd_static_hoz1 = _CreateWindowW( WC_STATIC, NULL, SS_ETCHEDHORZ | WS_CHILD | WS_VISIBLE, 0, 205, rc.right - 10, 5, hWnd, NULL, NULL, NULL );
-
-			g_hWnd_chk_type_server_hostname = _CreateWindowW( WC_BUTTON, ST_V_Hostname___IPv6_address_, BS_AUTORADIOBUTTON | WS_CHILD | WS_GROUP | WS_TABSTOP | WS_VISIBLE, 0, 210, 200, 20, hWnd, ( HMENU )BTN_TYPE_SERVER_HOST, NULL, NULL );
-			g_hWnd_chk_type_server_ip_address = _CreateWindowW( WC_BUTTON, ST_V_IPv4_address_, BS_AUTORADIOBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 205, 210, 110, 20, hWnd, ( HMENU )BTN_TYPE_SERVER_IP_ADDRESS, NULL, NULL );
-
-			g_hWnd_server_hostname = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 230, 310, 20, hWnd, ( HMENU )EDIT_SERVER_HOST, NULL, NULL );
-			g_hWnd_server_ip_address = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_IPADDRESS, NULL, WS_CHILD | WS_TABSTOP, 0, 230, 310, 20, hWnd, ( HMENU )EDIT_SERVER_IP_ADDRESS, NULL, NULL );
-
-
-			g_hWnd_static_server_colon = _CreateWindowW( WC_STATIC, ST_V__, WS_CHILD | WS_VISIBLE, 314, 232, 75, 15, hWnd, NULL, NULL, NULL );
-
-
-			g_hWnd_static_server_port = _CreateWindowW( WC_STATIC, ST_V_Port_, WS_CHILD | WS_VISIBLE, 320, 215, 75, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_server_port = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 320, 230, 75, 20, hWnd, ( HMENU )EDIT_SERVER_PORT, NULL, NULL );
-
-			g_hWnd_chk_use_authentication = _CreateWindowW( WC_BUTTON, ST_V_Require_authentication_, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 260, rc.right - 10, 20, hWnd, ( HMENU )BTN_USE_AUTHENTICATION, NULL, NULL );
-
-			g_hWnd_chk_authentication_type_basic = _CreateWindowW( WC_BUTTON, ST_V_Basic_Authentication, BS_AUTORADIOBUTTON | WS_CHILD | WS_GROUP | WS_TABSTOP | WS_VISIBLE, 15, 282, 150, 20, hWnd, ( HMENU )BTN_AUTH_TYPE_BASIC, NULL, NULL );
-			g_hWnd_chk_authentication_type_digest = _CreateWindowW( WC_BUTTON, ST_V_Digest_Authentication, BS_AUTORADIOBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 170, 282, 150, 20, hWnd, ( HMENU )BTN_AUTH_TYPE_DIGEST, NULL, NULL );
-
-			g_hWnd_static_authentication_username = _CreateWindowW( WC_STATIC, ST_V_Username_, WS_CHILD | WS_VISIBLE, 15, 305, 150, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_authentication_username = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 15, 320, 150, 20, hWnd, ( HMENU )EDIT_AUTHENTICATION_USERNAME, NULL, NULL );
-
-			g_hWnd_static_authentication_password = _CreateWindowW( WC_STATIC, ST_V_Password_, WS_CHILD | WS_VISIBLE, 175, 305, 150, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_authentication_password = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_PASSWORD | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 175, 320, 150, 20, hWnd, ( HMENU )EDIT_AUTHENTICATION_PASSWORD, NULL, NULL );
-
-
-			g_hWnd_chk_server_enable_ssl = _CreateWindowW( WC_BUTTON, ST_V_Enable_SSL___TLS_, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 350, rc.right - 10, 20, hWnd, ( HMENU )BTN_SERVER_ENABLE_SSL, NULL, NULL );
-
-			g_hWnd_static_hoz2 = _CreateWindowW( WC_STATIC, NULL, SS_ETCHEDHORZ | WS_CHILD | WS_VISIBLE, 0, 375, rc.right - 10, 5, hWnd, NULL, NULL, NULL );
-
-
-			g_hWnd_chk_type_pkcs = _CreateWindowW( WC_BUTTON, ST_V_PKCS_NUM12_, BS_AUTORADIOBUTTON | WS_CHILD | WS_GROUP | WS_TABSTOP | WS_VISIBLE, 0, 380, 100, 20, hWnd, ( HMENU )BTN_TYPE_PKCS, NULL, NULL );
-			g_hWnd_chk_type_pair = _CreateWindowW( WC_BUTTON, ST_V_Public___Private_key_pair_, BS_AUTORADIOBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 110, 380, 250, 20, hWnd, ( HMENU )BTN_TYPE_PAIR, NULL, NULL );
-
-
-			g_hWnd_static_certificate_pkcs_location = _CreateWindowW( WC_STATIC, ST_V_PKCS_NUM12_file_, WS_CHILD | WS_VISIBLE, 15, 405, rc.right - 65, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_certificate_pkcs_location = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_READONLY | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 15, 420, rc.right - 65, 20, hWnd, ( HMENU )EDIT_CERTIFICATE_PKCS, NULL, NULL );
-			g_hWnd_btn_certificate_pkcs_location = _CreateWindowW( WC_BUTTON, ST_V_BTN___, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 45, 420, 35, 20, hWnd, ( HMENU )BTN_CERTIFICATE_PKCS, NULL, NULL );
-
-			g_hWnd_static_certificate_pkcs_password = _CreateWindowW( WC_STATIC, ST_V_PKCS_NUM12_password_, WS_CHILD | WS_VISIBLE, 15, 445, rc.right - 65, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_certificate_pkcs_password = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_PASSWORD | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 15, 460, rc.right - 65, 20, hWnd, ( HMENU )EDIT_CERTIFICATE_PKCS_PASSWORD, NULL, NULL );
-
-			g_hWnd_static_certificate_cer_location = _CreateWindowW( WC_STATIC, ST_V_Certificate_file_, WS_CHILD | WS_VISIBLE, 15, 405, rc.right - 65, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_certificate_cer_location = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_READONLY | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 15, 420, rc.right - 65, 20, hWnd, ( HMENU )EDIT_CERTIFICATE_CER, NULL, NULL );
-			g_hWnd_btn_certificate_cer_location = _CreateWindowW( WC_BUTTON, ST_V_BTN___, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 45, 420, 35, 20, hWnd, ( HMENU )BTN_CERTIFICATE_CER, NULL, NULL );
-
-			g_hWnd_static_certificate_key_location = _CreateWindowW( WC_STATIC, ST_V_Key_file_, WS_CHILD | WS_VISIBLE, 15, 445, rc.right - 65, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_certificate_key_location = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_READONLY | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 15, 460, rc.right - 65, 20, hWnd, ( HMENU )EDIT_CERTIFICATE_KEY, NULL, NULL );
-			g_hWnd_btn_certificate_key_location = _CreateWindowW( WC_BUTTON, ST_V_BTN___, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 45, 460, 35, 20, hWnd, ( HMENU )BTN_CERTIFICATE_KEY, NULL, NULL );
-
-			g_hWnd_static_server_ssl_version = _CreateWindowW( WC_STATIC, ST_V_Server_SSL___TLS_version_, WS_CHILD | WS_VISIBLE, 0, 490, rc.right - 10, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_server_ssl_version = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_COMBOBOX, NULL, CBS_AUTOHSCROLL | CBS_DROPDOWNLIST | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE, 0, 505, 100, 20, hWnd, ( HMENU )CB_SERVER_SSL_VERSION, NULL, NULL );
-			_SendMessageW( g_hWnd_server_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_V_SSL_2_0 );
-			_SendMessageW( g_hWnd_server_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_V_SSL_3_0 );
-			_SendMessageW( g_hWnd_server_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_V_TLS_1_0 );
-			_SendMessageW( g_hWnd_server_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_V_TLS_1_1 );
-			_SendMessageW( g_hWnd_server_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_V_TLS_1_2 );
-
-			_SendMessageW( g_hWnd_server_hostname, EM_LIMITTEXT, 254, 0 );
-			_SendMessageW( g_hWnd_server_port, EM_LIMITTEXT, 5, 0 );
-			_SendMessageW( g_hWnd_certificate_pkcs_password, EM_LIMITTEXT, 1024, 0 );	// 1024 characters + 1 NULL
-
-			//
-
-			SCROLLINFO si;
-			si.cbSize = sizeof( SCROLLINFO );
-			si.fMask = SIF_ALL;
-			si.nMin = 0;
-			si.nMax = 525 + 13;	// Value is the position and height of the bottom most control. Needs 13px more padding for Windows 10.
-			si.nPage = ( rc.bottom - rc.top );
-			si.nPos = 0;
-			_SetScrollInfo( hWnd, SB_VERT, &si, TRUE );
-
-			//
-
-			_SendMessageW( g_hWnd_chk_enable_server, WM_SETFONT, ( WPARAM )hFont, 0 );
-
-			_SendMessageW( g_hWnd_chk_type_server_hostname, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_chk_type_server_ip_address, WM_SETFONT, ( WPARAM )hFont, 0 );
-
-			_SendMessageW( g_hWnd_server_hostname, WM_SETFONT, ( WPARAM )hFont, 0 );
-
-			_SendMessageW( g_hWnd_static_server_colon, WM_SETFONT, ( WPARAM )hFont, 0 );
-
-			_SendMessageW( g_hWnd_static_server_port, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_server_port, WM_SETFONT, ( WPARAM )hFont, 0 );
-
-			_SendMessageW( g_hWnd_chk_use_authentication, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_static_authentication_username, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_authentication_username, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_static_authentication_password, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_authentication_password, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_chk_authentication_type_basic, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_chk_authentication_type_digest, WM_SETFONT, ( WPARAM )hFont, 0 );
-
-			_SendMessageW( g_hWnd_chk_server_enable_ssl, WM_SETFONT, ( WPARAM )hFont, 0 );
-
-			_SendMessageW( g_hWnd_chk_type_pkcs, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_chk_type_pair, WM_SETFONT, ( WPARAM )hFont, 0 );
-
-			_SendMessageW( g_hWnd_static_certificate_pkcs_location, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_certificate_pkcs_location, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_btn_certificate_pkcs_location, WM_SETFONT, ( WPARAM )hFont, 0 );
-
-			_SendMessageW( g_hWnd_static_certificate_pkcs_password, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_certificate_pkcs_password, WM_SETFONT, ( WPARAM )hFont, 0 );
-
-			_SendMessageW( g_hWnd_static_certificate_cer_location, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_certificate_cer_location, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_btn_certificate_cer_location, WM_SETFONT, ( WPARAM )hFont, 0 );
-
-			_SendMessageW( g_hWnd_static_certificate_key_location, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_certificate_key_location, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_btn_certificate_key_location, WM_SETFONT, ( WPARAM )hFont, 0 );
-
-			_SendMessageW( g_hWnd_static_server_ssl_version, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_server_ssl_version, WM_SETFONT, ( WPARAM )hFont, 0 );
-
-			_SendMessageW( hWnd_static_max_downloads, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_max_downloads, WM_SETFONT, ( WPARAM )hFont, 0 );
-
-			_SendMessageW( hWnd_static_retry_downloads_count, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_retry_downloads_count, WM_SETFONT, ( WPARAM )hFont, 0 );
-
-			_SendMessageW( hWnd_static_retry_parts_count, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_retry_parts_count, WM_SETFONT, ( WPARAM )hFont, 0 );
-
-			_SendMessageW( hWnd_static_ssl_version, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_default_ssl_version, WM_SETFONT, ( WPARAM )hFont, 0 );
-
-			_SendMessageW( hWnd_static_download_parts, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_default_download_parts, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( hWnd_ud_download_parts, WM_SETFONT, ( WPARAM )hFont, 0 );
-
-			_SendMessageW( hWnd_static_timeout, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_timeout, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( hWnd_ud_timeout, WM_SETFONT, ( WPARAM )hFont, 0 );
-
-			_SendMessageW( hWnd_static_max_redirects, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_max_redirects, WM_SETFONT, ( WPARAM )hFont, 0 );
-
-			// Stupid control likes to delete the font object. :-/
-			// We'll make a copy.
-			LOGFONT lf;
-			_memzero( &lf, sizeof( LOGFONT ) );
-			_GetObjectW( hFont, sizeof( LOGFONT ), &lf );
-			hFont_copy_connection = _CreateFontIndirectW( &lf );
-			_SendMessageW( g_hWnd_server_ip_address, WM_SETFONT, ( WPARAM )hFont_copy_connection, 0 );
-
-
-			if ( cfg_certificate_pkcs_file_name != NULL )
-			{
-				certificate_pkcs_file_name_length = lstrlenW( cfg_certificate_pkcs_file_name );
-				certificate_pkcs_file_name = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t * ) * ( certificate_pkcs_file_name_length + 1 ) );
-				_wmemcpy_s( certificate_pkcs_file_name, certificate_pkcs_file_name_length, cfg_certificate_pkcs_file_name, certificate_pkcs_file_name_length );
-				certificate_pkcs_file_name[ certificate_pkcs_file_name_length ] = 0;	// Sanity.
-			}
-
-			if ( cfg_certificate_cer_file_name != NULL )
-			{
-				certificate_cer_file_name_length = lstrlenW( cfg_certificate_cer_file_name );
-				certificate_cer_file_name = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t * ) * ( certificate_cer_file_name_length + 1 ) );
-				_wmemcpy_s( certificate_cer_file_name, certificate_cer_file_name_length, cfg_certificate_cer_file_name, certificate_cer_file_name_length );
-				certificate_cer_file_name[ certificate_cer_file_name_length ] = 0;	// Sanity.
-			}
-
-			if ( cfg_certificate_key_file_name != NULL )
-			{
-				certificate_key_file_name_length = lstrlenW( cfg_certificate_key_file_name );
-				certificate_key_file_name = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t * ) * ( certificate_key_file_name_length + 1 ) );
-				_wmemcpy_s( certificate_key_file_name, certificate_key_file_name_length, cfg_certificate_key_file_name, certificate_key_file_name_length );
-				certificate_key_file_name[ certificate_key_file_name_length ] = 0;	// Sanity.
-			}
-
-			Set_Window_Settings();
-
-			return 0;
-		}
-		break;
-
-		case WM_CTLCOLORSTATIC:
-		{
-			return ( LRESULT )( _GetSysColorBrush( COLOR_WINDOW ) );
-		}
-		break;
-
-		case WM_MBUTTONUP:
-		case WM_LBUTTONUP:
-		case WM_RBUTTONUP:
-		{
-			_SetFocus( hWnd );
-
-			return 0;
-		}
-		break;
-
-		case WM_MOUSEWHEEL:
-		case WM_VSCROLL:
-		{
-			SCROLLINFO si;
-			si.cbSize = sizeof( SCROLLINFO );
-			si.fMask = SIF_POS;
-			_GetScrollInfo( hWnd, SB_VERT, &si );
-
-			int delta = si.nPos;
-
-			if ( msg == WM_VSCROLL )
-			{
-				// Only process the standard scroll bar.
-				if ( lParam != NULL )
-				{
-					return _DefWindowProcW( hWnd, msg, wParam, lParam );
-				}
-
-				switch ( LOWORD( wParam ) )
-				{
-					case SB_LINEUP: { si.nPos -= 10; } break;
-					case SB_LINEDOWN: { si.nPos += 10; } break;
-					case SB_PAGEUP: { si.nPos -= 50; } break;
-					case SB_PAGEDOWN: { si.nPos += 50; } break;
-					//case SB_THUMBPOSITION:
-					case SB_THUMBTRACK: { si.nPos = ( int )HIWORD( wParam ); } break;
-					default: { return 0; } break;
-				}
-			}
-			else if ( msg == WM_MOUSEWHEEL )
-			{
-				si.nPos -= ( GET_WHEEL_DELTA_WPARAM( wParam ) / WHEEL_DELTA ) * 20;
-			}
-
-			_SetScrollPos( hWnd, SB_VERT, si.nPos, TRUE );
-
-			si.fMask = SIF_POS;
-			_GetScrollInfo( hWnd, SB_VERT, &si );
-
-			if ( si.nPos != delta )
-			{
-				_ScrollWindow( hWnd, 0, delta - si.nPos, NULL, NULL );
-			}
-
-			return 0;
-		}
-		break;
-
-		case WM_COMMAND:
-		{
-			switch( LOWORD( wParam ) )
-			{
-				case EDIT_MAX_DOWNLOADS:
-				case EDIT_MAX_REDIRECTS:
-				{
-					if ( HIWORD( wParam ) == EN_UPDATE )
-					{
-						DWORD sel_start = 0;
-
-						char value[ 11 ];
-						_SendMessageA( ( HWND )lParam, WM_GETTEXT, 11, ( LPARAM )value );
-						unsigned long num = _strtoul( value, NULL, 10 );
-
-						if ( num > 100 )
-						{
-							_SendMessageA( ( HWND )lParam, EM_GETSEL, ( WPARAM )&sel_start, NULL );
-
-							_SendMessageA( ( HWND )lParam, WM_SETTEXT, 0, ( LPARAM )"100" );
-
-							_SendMessageA( ( HWND )lParam, EM_SETSEL, sel_start, sel_start );
-						}
-						/*else if ( num == 0 )
-						{
-							_SendMessageA( ( HWND )lParam, EM_GETSEL, ( WPARAM )&sel_start, NULL );
-
-							_SendMessageA( ( HWND )lParam, WM_SETTEXT, 0, ( LPARAM )"1" );
-
-							_SendMessageA( ( HWND )lParam, EM_SETSEL, sel_start, sel_start );
-						}*/
-
-						if ( ( LOWORD( wParam ) == EDIT_MAX_DOWNLOADS && num != cfg_max_downloads ) ||
-							 ( LOWORD( wParam ) == EDIT_MAX_REDIRECTS && num != cfg_max_redirects ) )
-						{
-							options_state_changed = true;
-							_EnableWindow( g_hWnd_apply, TRUE );
-						}
-					}
-				}
-				break;
-
-				case EDIT_RETRY_DOWNLOADS_COUNT:
-				case EDIT_RETRY_PARTS_COUNT:
-				{
-					if ( HIWORD( wParam ) == EN_UPDATE )
-					{
-						DWORD sel_start = 0;
-
-						char value[ 11 ];
-						_SendMessageA( ( HWND )lParam, WM_GETTEXT, 11, ( LPARAM )value );
-						unsigned long num = _strtoul( value, NULL, 10 );
-
-						if ( num > 100 )
-						{
-							_SendMessageA( ( HWND )lParam, EM_GETSEL, ( WPARAM )&sel_start, NULL );
-
-							_SendMessageA( ( HWND )lParam, WM_SETTEXT, 0, ( LPARAM )"100" );
-
-							_SendMessageA( ( HWND )lParam, EM_SETSEL, sel_start, sel_start );
-						}
-
-						if ( ( LOWORD( wParam ) == EDIT_RETRY_DOWNLOADS_COUNT && num != cfg_retry_downloads_count ) ||
-							 ( LOWORD( wParam ) == EDIT_RETRY_PARTS_COUNT && num != cfg_retry_parts_count ) )
-						{
-							options_state_changed = true;
-							_EnableWindow( g_hWnd_apply, TRUE );
-						}
-					}
-				}
-				break;
-
-				case EDIT_TIMEOUT:
-				{
-					if ( HIWORD( wParam ) == EN_UPDATE )
-					{
-						DWORD sel_start = 0;
-
-						char value[ 11 ];
-						_SendMessageA( ( HWND )lParam, WM_GETTEXT, 4, ( LPARAM )value );
-						unsigned long num = _strtoul( value, NULL, 10 );
-
-						if ( num > 300 )
-						{
-							_SendMessageA( ( HWND )lParam, EM_GETSEL, ( WPARAM )&sel_start, NULL );
-
-							_SendMessageA( ( HWND )lParam, WM_SETTEXT, 0, ( LPARAM )"300" );
-
-							_SendMessageA( ( HWND )lParam, EM_SETSEL, sel_start, sel_start );
-						}
-
-						if ( num != cfg_timeout )
-						{
-							options_state_changed = true;
-							_EnableWindow( g_hWnd_apply, TRUE );
-						}
-					}
-					else if ( HIWORD( wParam ) == EN_KILLFOCUS )
-					{
-						DWORD sel_start = 0;
-
-						char value[ 11 ];
-						_SendMessageA( ( HWND )lParam, WM_GETTEXT, 4, ( LPARAM )value );
-						unsigned long num = _strtoul( value, NULL, 10 );
-
-						if ( num > 0 && num < 10 )
-						{
-							_SendMessageA( ( HWND )lParam, EM_GETSEL, ( WPARAM )&sel_start, NULL );
-
-							_SendMessageA( ( HWND )lParam, WM_SETTEXT, 0, ( LPARAM )"10" );
-
-							_SendMessageA( ( HWND )lParam, EM_SETSEL, sel_start, sel_start );
-						}
-
-						if ( num != cfg_timeout )
-						{
-							options_state_changed = true;
-							_EnableWindow( g_hWnd_apply, TRUE );
-						}
-					}
-				}
-				break;
-
-				case CB_DEFAULT_SSL_VERSION:
-				{
-					if ( HIWORD( wParam ) == CBN_SELCHANGE )
-					{
-						options_state_changed = true;
-						_EnableWindow( g_hWnd_apply, TRUE );
-					}
-				}
-				break;
-
-				case EDIT_DEFAULT_DOWNLOAD_PARTS:
-				{
-					if ( HIWORD( wParam ) == EN_UPDATE )
-					{
-						DWORD sel_start = 0;
-
-						char value[ 11 ];
-						_SendMessageA( ( HWND )lParam, WM_GETTEXT, 11, ( LPARAM )value );
-						unsigned long num = _strtoul( value, NULL, 10 );
-
-						if ( num > 100 )
-						{
-							_SendMessageA( ( HWND )lParam, EM_GETSEL, ( WPARAM )&sel_start, NULL );
-
-							_SendMessageA( ( HWND )lParam, WM_SETTEXT, 0, ( LPARAM )"100" );
-
-							_SendMessageA( ( HWND )lParam, EM_SETSEL, sel_start, sel_start );
-						}
-						else if ( num == 0 )
-						{
-							_SendMessageA( ( HWND )lParam, EM_GETSEL, ( WPARAM )&sel_start, NULL );
-
-							_SendMessageA( ( HWND )lParam, WM_SETTEXT, 0, ( LPARAM )"1" );
-
-							_SendMessageA( ( HWND )lParam, EM_SETSEL, sel_start, sel_start );
-						}
-
-						if ( num != cfg_default_download_parts )
-						{
-							options_state_changed = true;
-							_EnableWindow( g_hWnd_apply, TRUE );
-						}
-					}
-				}
-				break;
-
-				case BTN_ENABLE_SERVER:
-				{
-					if ( _SendMessageW( g_hWnd_chk_enable_server, BM_GETCHECK, 0, 0 ) == BST_CHECKED )
-					{
-						Enable_Disable_Windows( TRUE );
-						Enable_Disable_SSL_Windows( ( ( _SendMessageW( g_hWnd_chk_server_enable_ssl, BM_GETCHECK, 0, 0 ) == BST_CHECKED ) ? TRUE : FALSE ) );
-						Enable_Disable_Authentication_Windows( ( ( _SendMessageW( g_hWnd_chk_use_authentication, BM_GETCHECK, 0, 0 ) == BST_CHECKED ) ? TRUE : FALSE ) );
-					}
-					else
-					{
-						Enable_Disable_Windows( FALSE );
-						Enable_Disable_SSL_Windows( FALSE );
-						Enable_Disable_Authentication_Windows( FALSE );
-					}
-
-					options_state_changed = true;
-					_EnableWindow( g_hWnd_apply, TRUE );
-				}
-				break;
-
-				case EDIT_SERVER_PORT:
-				{
-					if ( HIWORD( wParam ) == EN_UPDATE )
-					{
-						DWORD sel_start = 0;
-
-						char value[ 11 ];
-						_SendMessageA( ( HWND )lParam, WM_GETTEXT, 6, ( LPARAM )value );
-						unsigned long num = _strtoul( value, NULL, 10 );
-
-						if ( num > 65535 )
-						{
-							_SendMessageA( ( HWND )lParam, EM_GETSEL, ( WPARAM )&sel_start, NULL );
-
-							_SendMessageA( ( HWND )lParam, WM_SETTEXT, 0, ( LPARAM )"65535" );
-
-							_SendMessageA( ( HWND )lParam, EM_SETSEL, sel_start, sel_start );
-						}
-						else if ( num == 0 )
-						{
-							_SendMessageA( ( HWND )lParam, EM_GETSEL, ( WPARAM )&sel_start, NULL );
-
-							_SendMessageA( ( HWND )lParam, WM_SETTEXT, 0, ( LPARAM )"1" );
-
-							_SendMessageA( ( HWND )lParam, EM_SETSEL, sel_start, sel_start );
-						}
-
-						if ( num != cfg_server_port )
-						{
-							options_state_changed = true;
-							_EnableWindow( g_hWnd_apply, TRUE );
-						}
-					}
-				}
-				break;
-
-				case EDIT_AUTHENTICATION_USERNAME:
-				case EDIT_AUTHENTICATION_PASSWORD:
-				case EDIT_CERTIFICATE_PKCS_PASSWORD:
-				case EDIT_SERVER_HOST:
-				{
-					if ( HIWORD( wParam ) == EN_UPDATE )
-					{
-						options_state_changed = true;
-						_EnableWindow( g_hWnd_apply, TRUE );
-					}
-				}
-				break;
-
-				case EDIT_SERVER_IP_ADDRESS:
-				{
-					if ( HIWORD( wParam ) == EN_CHANGE )
-					{
-						options_state_changed = true;
-						_EnableWindow( g_hWnd_apply, TRUE );
-					}
-				}
-				break;
-
-				case BTN_TYPE_SERVER_HOST:
-				{
-					if ( _SendMessageW( g_hWnd_chk_type_server_hostname, BM_GETCHECK, 0, 0 ) == BST_CHECKED )
-					{
-						_ShowWindow( g_hWnd_server_ip_address, SW_HIDE );
-						_ShowWindow( g_hWnd_server_hostname, SW_SHOW );
-					}
-
-					options_state_changed = true;
-					_EnableWindow( g_hWnd_apply, TRUE );
-				}
-				break;
-
-				case BTN_TYPE_SERVER_IP_ADDRESS:
-				{
-					if ( _SendMessageW( g_hWnd_chk_type_server_ip_address, BM_GETCHECK, 0, 0 ) == BST_CHECKED )
-					{
-						_ShowWindow( g_hWnd_server_hostname, SW_HIDE );
-						_ShowWindow( g_hWnd_server_ip_address, SW_SHOW );
-					}
-
-					options_state_changed = true;
-					_EnableWindow( g_hWnd_apply, TRUE );
-				}
-				break;
-
-				case BTN_USE_AUTHENTICATION:
-				{
-					if ( _SendMessageW( g_hWnd_chk_use_authentication, BM_GETCHECK, 0, 0 ) == BST_CHECKED )
-					{
-						Enable_Disable_Authentication_Windows( TRUE );
-					}
-					else
-					{
-						Enable_Disable_Authentication_Windows( FALSE );
-					}
-
-					options_state_changed = true;
-					_EnableWindow( g_hWnd_apply, TRUE );
-				}
-				break;
-
-				case BTN_AUTH_TYPE_BASIC:
-				case BTN_AUTH_TYPE_DIGEST:
-				{
-					options_state_changed = true;
-					_EnableWindow( g_hWnd_apply, TRUE );
-				}
-				break;
-
-				case BTN_SERVER_ENABLE_SSL:
-				{
-					if ( _SendMessageW( g_hWnd_chk_server_enable_ssl, BM_GETCHECK, 0, 0 ) == BST_CHECKED )
-					{
-						// Revert to saved port of ssl is already enabled.
-						if ( cfg_server_enable_ssl )
-						{
-							char port[ 6 ];
-							_memzero( port, sizeof( char ) * 6 );
-							__snprintf( port, 6, "%hu", cfg_server_port );
-							_SendMessageA( g_hWnd_server_port, WM_SETTEXT, 0, ( LPARAM )port );
-						}
-						else	// Otherwise, use the default https port.
-						{
-							_SendMessageA( g_hWnd_server_port, WM_SETTEXT, 0, ( LPARAM )"443" );
-						}
-						Enable_Disable_SSL_Windows( TRUE );
-					}
-					else
-					{
-						// Revert to saved port if ssl is disabled.
-						if ( !cfg_server_enable_ssl )
-						{
-							char port[ 6 ];
-							_memzero( port, sizeof( char ) * 6 );
-							__snprintf( port, 6, "%hu", cfg_server_port );
-							_SendMessageA( g_hWnd_server_port, WM_SETTEXT, 0, ( LPARAM )port );
-						}
-						else	// Otherwise, use the default http port.
-						{
-							_SendMessageA( g_hWnd_server_port, WM_SETTEXT, 0, ( LPARAM )"80" );
-						}
-						Enable_Disable_SSL_Windows( FALSE );
-					}
-
-					options_state_changed = true;
-					_EnableWindow( g_hWnd_apply, TRUE );
-				}
-				break;
-
-				case BTN_TYPE_PKCS:
-				{
-					if ( _SendMessageW( g_hWnd_chk_type_pkcs, BM_GETCHECK, 0, 0 ) == BST_CHECKED )
-					{
-						_ShowWindow( g_hWnd_static_certificate_cer_location, SW_HIDE );
-						_ShowWindow( g_hWnd_certificate_cer_location, SW_HIDE );
-						_ShowWindow( g_hWnd_btn_certificate_cer_location, SW_HIDE );
-
-						_ShowWindow( g_hWnd_static_certificate_key_location, SW_HIDE );
-						_ShowWindow( g_hWnd_certificate_key_location, SW_HIDE );
-						_ShowWindow( g_hWnd_btn_certificate_key_location, SW_HIDE );
-
-						_ShowWindow( g_hWnd_static_certificate_pkcs_location, SW_SHOW );
-						_ShowWindow( g_hWnd_certificate_pkcs_location, SW_SHOW );
-						_ShowWindow( g_hWnd_btn_certificate_pkcs_location, SW_SHOW );
-
-						_ShowWindow( g_hWnd_static_certificate_pkcs_password, SW_SHOW );
-						_ShowWindow( g_hWnd_certificate_pkcs_password, SW_SHOW );
-					}
-
-					options_state_changed = true;
-					_EnableWindow( g_hWnd_apply, TRUE );
-				}
-				break;
-
-				case BTN_TYPE_PAIR:
-				{
-					if ( _SendMessageW( g_hWnd_chk_type_pair, BM_GETCHECK, 0, 0 ) == BST_CHECKED )
-					{
-						_ShowWindow( g_hWnd_static_certificate_pkcs_location, SW_HIDE );
-						_ShowWindow( g_hWnd_certificate_pkcs_location, SW_HIDE );
-						_ShowWindow( g_hWnd_btn_certificate_pkcs_location, SW_HIDE );
-
-						_ShowWindow( g_hWnd_static_certificate_pkcs_password, SW_HIDE );
-						_ShowWindow( g_hWnd_certificate_pkcs_password, SW_HIDE );
-
-						_ShowWindow( g_hWnd_static_certificate_cer_location, SW_SHOW );
-						_ShowWindow( g_hWnd_certificate_cer_location, SW_SHOW );
-						_ShowWindow( g_hWnd_btn_certificate_cer_location, SW_SHOW );
-
-						_ShowWindow( g_hWnd_static_certificate_key_location, SW_SHOW );
-						_ShowWindow( g_hWnd_certificate_key_location, SW_SHOW );
-						_ShowWindow( g_hWnd_btn_certificate_key_location, SW_SHOW );
-					}
-
-					options_state_changed = true;
-					_EnableWindow( g_hWnd_apply, TRUE );
-				}
-				break;
-
-				case BTN_CERTIFICATE_PKCS:
-				{
-					wchar_t *file_name = ( wchar_t * )GlobalAlloc( GPTR, sizeof( wchar_t ) * MAX_PATH );
-
-					if ( certificate_pkcs_file_name != NULL )
-					{
-						_wcsncpy_s( file_name, MAX_PATH, certificate_pkcs_file_name, MAX_PATH );
-						file_name[ MAX_PATH - 1 ] = 0;	// Sanity.
-					}
-
-					OPENFILENAME ofn;
-					_memzero( &ofn, sizeof( OPENFILENAME ) );
-					ofn.lStructSize = sizeof( OPENFILENAME );
-					ofn.hwndOwner = hWnd;
-					ofn.lpstrFilter = L"Personal Information Exchange (*.pfx;*.p12)\0*.pfx;*.p12\0All Files (*.*)\0*.*\0";
-					ofn.lpstrTitle = ST_V_Load_PKCS_NUM12_File;
-					ofn.lpstrFile = file_name;
-					ofn.nMaxFile = MAX_PATH;
-					ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_READONLY;
-
-					if ( _GetOpenFileNameW( &ofn ) )
-					{
-						if ( certificate_pkcs_file_name != NULL )
-						{
-							GlobalFree( certificate_pkcs_file_name );
-						}
-
-						certificate_pkcs_file_name = file_name;
-						certificate_pkcs_file_name_length = lstrlenW( certificate_pkcs_file_name );
-
-						_SendMessageW( g_hWnd_certificate_pkcs_location, WM_SETTEXT, 0, ( LPARAM )certificate_pkcs_file_name );
-
-						options_state_changed = true;
-						_EnableWindow( g_hWnd_apply, TRUE );
-					}
-					else
-					{
-						GlobalFree( file_name );
-					}
-				}
-				break;
-
-				case BTN_CERTIFICATE_CER:
-				{
-					wchar_t *file_name = ( wchar_t * )GlobalAlloc( GPTR, sizeof( wchar_t ) * MAX_PATH );
-
-					if ( certificate_cer_file_name != NULL )
-					{
-						_wcsncpy_s( file_name, MAX_PATH, certificate_cer_file_name, MAX_PATH );
-						file_name[ MAX_PATH - 1 ] = 0;	// Sanity.
-					}
-
-					OPENFILENAME ofn;
-					_memzero( &ofn, sizeof( OPENFILENAME ) );
-					ofn.lStructSize = sizeof( OPENFILENAME );
-					ofn.hwndOwner = hWnd;
-					ofn.lpstrFilter = L"X.509 Certificate (*.cer;*.crt)\0*.cer;*.crt\0All Files (*.*)\0*.*\0";
-					ofn.lpstrTitle = ST_V_Load_X_509_Certificate_File;
-					ofn.lpstrFile = file_name;
-					ofn.nMaxFile = MAX_PATH;
-					ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_READONLY;
-
-					if ( _GetOpenFileNameW( &ofn ) )
-					{
-						if ( certificate_cer_file_name != NULL )
-						{
-							GlobalFree( certificate_cer_file_name );
-						}
-
-						certificate_cer_file_name = file_name;
-						certificate_cer_file_name_length = lstrlenW( certificate_cer_file_name );
-
-						_SendMessageW( g_hWnd_certificate_cer_location, WM_SETTEXT, 0, ( LPARAM )certificate_cer_file_name );
-
-						options_state_changed = true;
-						_EnableWindow( g_hWnd_apply, TRUE );
-					}
-					else
-					{
-						GlobalFree( file_name );
-					}
-				}
-				break;
-
-				case BTN_CERTIFICATE_KEY:
-				{
-					wchar_t *file_name = ( wchar_t * )GlobalAlloc( GPTR, sizeof( wchar_t ) * MAX_PATH );
-
-					if ( certificate_key_file_name != NULL )
-					{
-						_wcsncpy_s( file_name, MAX_PATH, certificate_key_file_name, MAX_PATH );
-						file_name[ MAX_PATH - 1 ] = 0;	// Sanity.
-					}
-
-					OPENFILENAME ofn;
-					_memzero( &ofn, sizeof( OPENFILENAME ) );
-					ofn.lStructSize = sizeof( OPENFILENAME );
-					ofn.hwndOwner = hWnd;
-					ofn.lpstrFilter = L"Private Key (*.key)\0*.key\0All Files (*.*)\0*.*\0";
-					ofn.lpstrTitle = ST_V_Load_Private_Key_File;
-					ofn.lpstrFile = file_name;
-					ofn.nMaxFile = MAX_PATH;
-					ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_READONLY;
-
-					if ( _GetOpenFileNameW( &ofn ) )
-					{
-						if ( certificate_key_file_name != NULL )
-						{
-							GlobalFree( certificate_key_file_name );
-						}
-
-						certificate_key_file_name = file_name;
-						certificate_key_file_name_length = lstrlenW( certificate_key_file_name );
-
-						_SendMessageW( g_hWnd_certificate_key_location, WM_SETTEXT, 0, ( LPARAM )certificate_key_file_name );
-
-						options_state_changed = true;
-						_EnableWindow( g_hWnd_apply, TRUE );
-					}
-					else
-					{
-						GlobalFree( file_name );
-					}
-				}
-				break;
-
-				case CB_SERVER_SSL_VERSION:
-				{
-					if ( HIWORD( wParam ) == CBN_SELCHANGE )
-					{
-						options_state_changed = true;
-						_EnableWindow( g_hWnd_apply, TRUE );
-					}
-				}
-				break;
-			}
-
-			return 0;
-		}
-		break;
-
-		case WM_DESTROY:
-		{
-			if ( certificate_pkcs_file_name != NULL )
-			{
-				GlobalFree( certificate_pkcs_file_name );
-				certificate_pkcs_file_name = NULL;
-			}
-			certificate_pkcs_file_name_length = 0;
-
-			if ( certificate_cer_file_name != NULL )
-			{
-				GlobalFree( certificate_cer_file_name );
-				certificate_cer_file_name = NULL;
-			}
-			certificate_cer_file_name_length = 0;
-
-			if ( certificate_key_file_name != NULL )
-			{
-				GlobalFree( certificate_key_file_name );
-				certificate_key_file_name = NULL;
-			}
-			certificate_key_file_name_length = 0;
-
-			_DeleteObject( hFont_copy_connection );
-			hFont_copy_connection = NULL;
-
-			return 0;
-		}
-		break;
-
-		default:
-		{
-			return _DefWindowProcW( hWnd, msg, wParam, lParam );
-		}
-		break;
-	}
-	return TRUE;
-}
-
-LRESULT CALLBACK ProxyTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
-{
-	 switch ( msg )
-    {
-		case WM_CREATE:
-		{
-			RECT rc;
-			_GetClientRect( hWnd, &rc );
-
-			//
-
-			g_hWnd_chk_proxy = _CreateWindowW( WC_BUTTON, ST_V_Enable_HTTP_proxy_, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, rc.right, 20, hWnd, ( HMENU )BTN_PROXY, NULL, NULL );
-
-
-			g_hWnd_chk_type_hostname = _CreateWindowW( WC_BUTTON, ST_V_Hostname___IPv6_address_, BS_AUTORADIOBUTTON | WS_CHILD | WS_GROUP | WS_TABSTOP | WS_VISIBLE, 0, 20, 200, 20, hWnd, ( HMENU )BTN_TYPE_HOST, NULL, NULL );
-			g_hWnd_chk_type_ip_address = _CreateWindowW( WC_BUTTON, ST_V_IPv4_address_, BS_AUTORADIOBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 205, 20, 110, 20, hWnd, ( HMENU )BTN_TYPE_IP_ADDRESS, NULL, NULL );
-
-			g_hWnd_hostname = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 40, 310, 20, hWnd, ( HMENU )EDIT_HOST, NULL, NULL );
-			g_hWnd_ip_address = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_IPADDRESS, NULL, WS_CHILD | WS_TABSTOP, 0, 40, 310, 20, hWnd, ( HMENU )EDIT_IP_ADDRESS, NULL, NULL );
-
-
-			g_hWnd_static_colon = _CreateWindowW( WC_STATIC, ST_V__, WS_CHILD | WS_VISIBLE, 314, 42, 75, 15, hWnd, NULL, NULL, NULL );
-
-
-			g_hWnd_static_port = _CreateWindowW( WC_STATIC, ST_V_Port_, WS_CHILD | WS_VISIBLE, 320, 25, 75, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_port = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 320, 40, 75, 20, hWnd, ( HMENU )EDIT_PORT, NULL, NULL );
-
-
-			g_hWnd_static_auth_username = _CreateWindowW( WC_STATIC, ST_V_Username_, WS_CHILD | WS_VISIBLE, 0, 65, 150, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_auth_username = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 80, 150, 20, hWnd, ( HMENU )( HMENU )EDIT_AUTH_USERNAME, NULL, NULL );
-
-			g_hWnd_static_auth_password = _CreateWindowW( WC_STATIC, ST_V_Password_, WS_CHILD | WS_VISIBLE, 160, 65, 150, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_auth_password = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_PASSWORD | ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 160, 80, 150, 20, hWnd, ( HMENU )( HMENU )EDIT_AUTH_PASSWORD, NULL, NULL );
-
-
-			_SendMessageW( g_hWnd_hostname, EM_LIMITTEXT, 254, 0 );
-			_SendMessageW( g_hWnd_port, EM_LIMITTEXT, 5, 0 );
-
-
-			//
-
-			HWND hWnd_static_hoz = _CreateWindowW( WC_STATIC, NULL, SS_ETCHEDHORZ | WS_CHILD | WS_VISIBLE, 0, 110, rc.right, 5, hWnd, NULL, NULL, NULL );
-
-			//
-
-			g_hWnd_chk_proxy_s = _CreateWindowW( WC_BUTTON, ST_V_Enable_HTTPS_proxy_, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 120, rc.right, 20, hWnd, ( HMENU )BTN_PROXY_S, NULL, NULL );
-
-
-			g_hWnd_chk_type_hostname_s = _CreateWindowW( WC_BUTTON, ST_V_Hostname___IPv6_address_, BS_AUTORADIOBUTTON | WS_CHILD | WS_GROUP | WS_TABSTOP | WS_VISIBLE, 0, 140, 200, 20, hWnd, ( HMENU )BTN_TYPE_HOST_S, NULL, NULL );
-			g_hWnd_chk_type_ip_address_s = _CreateWindowW( WC_BUTTON, ST_V_IPv4_address_, BS_AUTORADIOBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 205, 140, 110, 20, hWnd, ( HMENU )BTN_TYPE_IP_ADDRESS_S, NULL, NULL );
-
-			g_hWnd_hostname_s = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 160, 310, 20, hWnd, ( HMENU )EDIT_HOST_S, NULL, NULL );
-			g_hWnd_ip_address_s = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_IPADDRESS, NULL, WS_CHILD | WS_TABSTOP, 0, 160, 310, 20, hWnd, ( HMENU )EDIT_IP_ADDRESS_S, NULL, NULL );
-
-
-			g_hWnd_static_colon_s = _CreateWindowW( WC_STATIC, ST_V__, WS_CHILD | WS_VISIBLE, 314, 162, 75, 15, hWnd, NULL, NULL, NULL );
-
-
-			g_hWnd_static_port_s = _CreateWindowW( WC_STATIC, ST_V_Port_, WS_CHILD | WS_VISIBLE, 320, 145, 75, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_port_s = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 320, 160, 75, 20, hWnd, ( HMENU )EDIT_PORT_S, NULL, NULL );
-
-
-			g_hWnd_static_auth_username_s = _CreateWindowW( WC_STATIC, ST_V_Username_, WS_CHILD | WS_VISIBLE, 0, 185, 150, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_auth_username_s = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 200, 150, 20, hWnd, ( HMENU )( HMENU )EDIT_AUTH_USERNAME_S, NULL, NULL );
-
-			g_hWnd_static_auth_password_s = _CreateWindowW( WC_STATIC, ST_V_Password_, WS_CHILD | WS_VISIBLE, 160, 185, 150, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_auth_password_s = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_PASSWORD | ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 160, 200, 150, 20, hWnd, ( HMENU )( HMENU )EDIT_AUTH_PASSWORD_S, NULL, NULL );
-
-
-			_SendMessageW( g_hWnd_hostname_s, EM_LIMITTEXT, 254, 0 );
-			_SendMessageW( g_hWnd_port_s, EM_LIMITTEXT, 5, 0 );
-
-
-			//
-
-
-			_SendMessageW( g_hWnd_chk_proxy, WM_SETFONT, ( WPARAM )hFont, 0 );
-
-			_SendMessageW( g_hWnd_chk_type_hostname, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_chk_type_ip_address, WM_SETFONT, ( WPARAM )hFont, 0 );
-
-			_SendMessageW( g_hWnd_hostname, WM_SETFONT, ( WPARAM )hFont, 0 );
-
-			_SendMessageW( g_hWnd_static_colon, WM_SETFONT, ( WPARAM )hFont, 0 );
-
-			_SendMessageW( g_hWnd_static_port, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_port, WM_SETFONT, ( WPARAM )hFont, 0 );
-
-			_SendMessageW( g_hWnd_static_auth_username, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_auth_username, WM_SETFONT, ( WPARAM )hFont, 0 );
-
-			_SendMessageW( g_hWnd_static_auth_password, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_auth_password, WM_SETFONT, ( WPARAM )hFont, 0 );
-
-			_SendMessageW( g_hWnd_chk_proxy_s, WM_SETFONT, ( WPARAM )hFont, 0 );
-
-			_SendMessageW( g_hWnd_chk_type_hostname_s, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_chk_type_ip_address_s, WM_SETFONT, ( WPARAM )hFont, 0 );
-
-			_SendMessageW( g_hWnd_hostname_s, WM_SETFONT, ( WPARAM )hFont, 0 );
-
-			_SendMessageW( g_hWnd_static_colon_s, WM_SETFONT, ( WPARAM )hFont, 0 );
-
-			_SendMessageW( g_hWnd_static_port_s, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_port_s, WM_SETFONT, ( WPARAM )hFont, 0 );
-
-			_SendMessageW( g_hWnd_static_auth_username_s, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_auth_username_s, WM_SETFONT, ( WPARAM )hFont, 0 );
-
-			_SendMessageW( g_hWnd_static_auth_password_s, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_auth_password_s, WM_SETFONT, ( WPARAM )hFont, 0 );
-
-			// Stupid control likes to delete the font object. :-/
-			// We'll make a copy.
-			LOGFONT lf;
-			_memzero( &lf, sizeof( LOGFONT ) );
-			_GetObjectW( hFont, sizeof( LOGFONT ), &lf );
-			hFont_copy_proxy = _CreateFontIndirectW( &lf );
-			_SendMessageW( g_hWnd_ip_address, WM_SETFONT, ( WPARAM )hFont_copy_proxy, 0 );
-
-			_SendMessageW( g_hWnd_ip_address_s, WM_SETFONT, ( WPARAM )hFont_copy_proxy, 0 );
-
-			//
-			// HTTP proxy.
-			//
-			_SendMessageW( g_hWnd_chk_proxy, BM_SETCHECK, ( cfg_enable_proxy ? BST_CHECKED : BST_UNCHECKED ), 0 );
-
-			BOOL enable = ( cfg_enable_proxy ? TRUE : FALSE );
-
-			_EnableWindow( g_hWnd_chk_type_hostname, enable );
-			_EnableWindow( g_hWnd_chk_type_ip_address, enable );
-			_EnableWindow( g_hWnd_hostname, enable );
-			_EnableWindow( g_hWnd_ip_address, enable );
-			_EnableWindow( g_hWnd_static_colon, enable );
-			_EnableWindow( g_hWnd_static_port, enable );
-			_EnableWindow( g_hWnd_port, enable );
-			_EnableWindow( g_hWnd_static_auth_username, enable );
-			_EnableWindow( g_hWnd_auth_username, enable );
-			_EnableWindow( g_hWnd_static_auth_password, enable );
-			_EnableWindow( g_hWnd_auth_password, enable );
-
-			if ( cfg_address_type == 1 )
-			{
-				_SendMessageW( g_hWnd_chk_type_ip_address, BM_SETCHECK, BST_CHECKED, 0 );
-				_SendMessageW( g_hWnd_chk_type_hostname, BM_SETCHECK, BST_UNCHECKED, 0 );
-
-				_ShowWindow( g_hWnd_hostname, SW_HIDE );
-				_ShowWindow( g_hWnd_ip_address, SW_SHOW );
-			}
-			else
-			{
-				_SendMessageW( g_hWnd_chk_type_hostname, BM_SETCHECK, BST_CHECKED, 0 );
-				_SendMessageW( g_hWnd_chk_type_ip_address, BM_SETCHECK, BST_UNCHECKED, 0 );
-
-				_ShowWindow( g_hWnd_ip_address, SW_HIDE );
-				_ShowWindow( g_hWnd_hostname, SW_SHOW );	
-			}
-
-			if ( cfg_hostname == NULL )
-			{
-				_SendMessageW( g_hWnd_hostname, WM_SETTEXT, 0, ( LPARAM )L"localhost" );
-			}
-			else
-			{
-				_SendMessageW( g_hWnd_hostname, WM_SETTEXT, 0, ( LPARAM )cfg_hostname );
-			}
-
-			_SendMessageW( g_hWnd_ip_address, IPM_SETADDRESS, 0, cfg_ip_address );
-
-			char value[ 6 ];
-			_memzero( value, sizeof( char ) * 6 );
-			__snprintf( value, 6, "%hu", cfg_port );
-			_SendMessageA( g_hWnd_port, WM_SETTEXT, 0, ( LPARAM )value );
-
-			_SendMessageW( g_hWnd_auth_username, WM_SETTEXT, 0, ( LPARAM )cfg_proxy_auth_username );
-			_SendMessageW( g_hWnd_auth_password, WM_SETTEXT, 0, ( LPARAM )cfg_proxy_auth_password );
-
-			//
-			// HTTPS proxy.
-			//
-			_SendMessageW( g_hWnd_chk_proxy_s, BM_SETCHECK, ( cfg_enable_proxy_s ? BST_CHECKED : BST_UNCHECKED ), 0 );
-
-			enable = ( cfg_enable_proxy_s ? TRUE : FALSE );
-
-			_EnableWindow( g_hWnd_chk_type_hostname_s, enable );
-			_EnableWindow( g_hWnd_chk_type_ip_address_s, enable );
-			_EnableWindow( g_hWnd_hostname_s, enable );
-			_EnableWindow( g_hWnd_ip_address_s, enable );
-			_EnableWindow( g_hWnd_static_colon_s, enable );
-			_EnableWindow( g_hWnd_static_port_s, enable );
-			_EnableWindow( g_hWnd_port_s, enable );
-			_EnableWindow( g_hWnd_static_auth_username_s, enable );
-			_EnableWindow( g_hWnd_auth_username_s, enable );
-			_EnableWindow( g_hWnd_static_auth_password_s, enable );
-			_EnableWindow( g_hWnd_auth_password_s, enable );
-
-			if ( cfg_address_type_s == 1 )
-			{
-				_SendMessageW( g_hWnd_chk_type_ip_address_s, BM_SETCHECK, BST_CHECKED, 0 );
-				_SendMessageW( g_hWnd_chk_type_hostname_s, BM_SETCHECK, BST_UNCHECKED, 0 );
-
-				_ShowWindow( g_hWnd_hostname_s, SW_HIDE );
-				_ShowWindow( g_hWnd_ip_address_s, SW_SHOW );
-			}
-			else
-			{
-				_SendMessageW( g_hWnd_chk_type_hostname_s, BM_SETCHECK, BST_CHECKED, 0 );
-				_SendMessageW( g_hWnd_chk_type_ip_address_s, BM_SETCHECK, BST_UNCHECKED, 0 );
-
-				_ShowWindow( g_hWnd_ip_address_s, SW_HIDE );
-				_ShowWindow( g_hWnd_hostname_s, SW_SHOW );	
-			}
-
-			if ( cfg_hostname_s == NULL )
-			{
-				_SendMessageW( g_hWnd_hostname_s, WM_SETTEXT, 0, ( LPARAM )L"localhost" );
-			}
-			else
-			{
-				_SendMessageW( g_hWnd_hostname_s, WM_SETTEXT, 0, ( LPARAM )cfg_hostname_s );
-			}
-
-			_SendMessageW( g_hWnd_ip_address_s, IPM_SETADDRESS, 0, cfg_ip_address_s );
-
-			_memzero( value, sizeof( char ) * 6 );
-			__snprintf( value, 6, "%hu", cfg_port_s );
-			_SendMessageA( g_hWnd_port_s, WM_SETTEXT, 0, ( LPARAM )value );
-
-			_SendMessageW( g_hWnd_auth_username_s, WM_SETTEXT, 0, ( LPARAM )cfg_proxy_auth_username_s );
-			_SendMessageW( g_hWnd_auth_password_s, WM_SETTEXT, 0, ( LPARAM )cfg_proxy_auth_password_s );
-
-			return 0;
-		}
-		break;
-
-		case WM_COMMAND:
-		{
-			switch( LOWORD( wParam ) )
-			{
-				case BTN_PROXY:
-				{
-					BOOL enable = ( _SendMessageW( g_hWnd_chk_proxy, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? TRUE : FALSE );
-
-					_EnableWindow( g_hWnd_chk_type_hostname, enable );
-					_EnableWindow( g_hWnd_chk_type_ip_address, enable );
-					_EnableWindow( g_hWnd_hostname, enable );
-					_EnableWindow( g_hWnd_ip_address, enable );
-					_EnableWindow( g_hWnd_static_colon, enable );
-					_EnableWindow( g_hWnd_static_port, enable );
-					_EnableWindow( g_hWnd_port, enable );
-					_EnableWindow( g_hWnd_static_auth_username, enable );
-					_EnableWindow( g_hWnd_auth_username, enable );
-					_EnableWindow( g_hWnd_static_auth_password, enable );
-					_EnableWindow( g_hWnd_auth_password, enable );
-
-					options_state_changed = true;
-					_EnableWindow( g_hWnd_apply, TRUE );
-				}
-				break;
-
-				case BTN_PROXY_S:
-				{
-					BOOL enable = ( _SendMessageW( g_hWnd_chk_proxy_s, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? TRUE : FALSE );
-
-					_EnableWindow( g_hWnd_chk_type_hostname_s, enable );
-					_EnableWindow( g_hWnd_chk_type_ip_address_s, enable );
-					_EnableWindow( g_hWnd_hostname_s, enable );
-					_EnableWindow( g_hWnd_ip_address_s, enable );
-					_EnableWindow( g_hWnd_static_colon_s, enable );
-					_EnableWindow( g_hWnd_static_port_s, enable );
-					_EnableWindow( g_hWnd_port_s, enable );
-					_EnableWindow( g_hWnd_static_auth_username_s, enable );
-					_EnableWindow( g_hWnd_auth_username_s, enable );
-					_EnableWindow( g_hWnd_static_auth_password_s, enable );
-					_EnableWindow( g_hWnd_auth_password_s, enable );
-
-					options_state_changed = true;
-					_EnableWindow( g_hWnd_apply, TRUE );
-				}
-				break;
-
-				case EDIT_PORT:
-				case EDIT_PORT_S:
-				{
-					if ( HIWORD( wParam ) == EN_UPDATE )
-					{
-						DWORD sel_start = 0;
-
-						char value[ 11 ];
-						_SendMessageA( ( HWND )lParam, WM_GETTEXT, 6, ( LPARAM )value );
-						unsigned long num = _strtoul( value, NULL, 10 );
-
-						if ( num > 65535 )
-						{
-							_SendMessageA( ( HWND )lParam, EM_GETSEL, ( WPARAM )&sel_start, NULL );
-
-							_SendMessageA( ( HWND )lParam, WM_SETTEXT, 0, ( LPARAM )"65535" );
-
-							_SendMessageA( ( HWND )lParam, EM_SETSEL, sel_start, sel_start );
-						}
-						else if ( num == 0 )
-						{
-							_SendMessageA( ( HWND )lParam, EM_GETSEL, ( WPARAM )&sel_start, NULL );
-
-							_SendMessageA( ( HWND )lParam, WM_SETTEXT, 0, ( LPARAM )"1" );
-
-							_SendMessageA( ( HWND )lParam, EM_SETSEL, sel_start, sel_start );
-						}
-
-						if ( ( LOWORD( wParam ) == EDIT_PORT	&& num != cfg_port ) ||
-							 ( LOWORD( wParam ) == EDIT_PORT_S	&& num != cfg_port_s ) )
-						{
-							options_state_changed = true;
-							_EnableWindow( g_hWnd_apply, TRUE );
-						}
-					}
-				}
-				break;
-
-				case EDIT_HOST:
-				case EDIT_HOST_S:
-				case EDIT_AUTH_USERNAME:
-				case EDIT_AUTH_PASSWORD:
-				case EDIT_AUTH_USERNAME_S:
-				case EDIT_AUTH_PASSWORD_S:
-				{
-					if ( HIWORD( wParam ) == EN_UPDATE )
-					{
-						options_state_changed = true;
-						_EnableWindow( g_hWnd_apply, TRUE );
-					}
-				}
-				break;
-
-				case EDIT_IP_ADDRESS:
-				case EDIT_IP_ADDRESS_S:
-				{
-					if ( HIWORD( wParam ) == EN_CHANGE )
-					{
-						options_state_changed = true;
-						_EnableWindow( g_hWnd_apply, TRUE );
-					}
-				}
-				break;
-
-				case BTN_TYPE_HOST:
-				{
-					if ( _SendMessageW( g_hWnd_chk_type_hostname, BM_GETCHECK, 0, 0 ) == BST_CHECKED )
-					{
-						_ShowWindow( g_hWnd_ip_address, SW_HIDE );
-						_ShowWindow( g_hWnd_hostname, SW_SHOW );
-					}
-
-					options_state_changed = true;
-					_EnableWindow( g_hWnd_apply, TRUE );
-				}
-				break;
-
-				case BTN_TYPE_HOST_S:
-				{
-					if ( _SendMessageW( g_hWnd_chk_type_hostname_s, BM_GETCHECK, 0, 0 ) == BST_CHECKED )
-					{
-						_ShowWindow( g_hWnd_ip_address_s, SW_HIDE );
-						_ShowWindow( g_hWnd_hostname_s, SW_SHOW );
-					}
-
-					options_state_changed = true;
-					_EnableWindow( g_hWnd_apply, TRUE );
-				}
-				break;
-
-				case BTN_TYPE_IP_ADDRESS:
-				{
-					if ( _SendMessageW( g_hWnd_chk_type_ip_address, BM_GETCHECK, 0, 0 ) == BST_CHECKED )
-					{
-						_ShowWindow( g_hWnd_hostname, SW_HIDE );
-						_ShowWindow( g_hWnd_ip_address, SW_SHOW );
-					}
-
-					options_state_changed = true;
-					_EnableWindow( g_hWnd_apply, TRUE );
-				}
-				break;
-
-				case BTN_TYPE_IP_ADDRESS_S:
-				{
-					if ( _SendMessageW( g_hWnd_chk_type_ip_address_s, BM_GETCHECK, 0, 0 ) == BST_CHECKED )
-					{
-						_ShowWindow( g_hWnd_hostname_s, SW_HIDE );
-						_ShowWindow( g_hWnd_ip_address_s, SW_SHOW );
-					}
-
-					options_state_changed = true;
-					_EnableWindow( g_hWnd_apply, TRUE );
-				}
-				break;
-			}
-
-			return 0;
-		}
-		break;
-
-		case WM_CTLCOLORSTATIC:
-		{
-			return ( LRESULT )( _GetSysColorBrush( COLOR_WINDOW ) );
-		}
-		break;
-
-		case WM_DESTROY:
-		{
-			_DeleteObject( hFont_copy_proxy );
-			hFont_copy_proxy = NULL;
-
-			return 0;
-		}
-		break;
-
-		default:
-		{
-			return _DefWindowProcW( hWnd, msg, wParam, lParam );
-		}
-		break;
-	}
-	return TRUE;
+	HFONT tmp_font = cfg_odd_row_font_settings.font;
+	cfg_odd_row_font_settings.font = _CreateFontIndirectW( &t_odd_row_font_settings.lf );
+	_DeleteObject( tmp_font );
+
+	cfg_odd_row_font_settings.font_color = t_odd_row_font_settings.font_color;
+	//cfg_odd_row_font_settings.lf = t_odd_row_font_settings.lf;
+	_memcpy_s( &cfg_odd_row_font_settings.lf, sizeof( LOGFONT ), &t_odd_row_font_settings.lf, sizeof( LOGFONT ) );
+
+	tmp_font = cfg_even_row_font_settings.font;
+	cfg_even_row_font_settings.font = _CreateFontIndirectW( &t_even_row_font_settings.lf );
+	_DeleteObject( tmp_font );
+
+	cfg_even_row_font_settings.font_color = t_even_row_font_settings.font_color;
+	//cfg_even_row_font_settings.lf = t_even_row_font_settings.lf;
+	_memcpy_s( &cfg_even_row_font_settings.lf, sizeof( LOGFONT ), &t_even_row_font_settings.lf, sizeof( LOGFONT ) );
+
+	// Re-measure the row height.
+	// Get the row height for our listview control.
+	AdjustRowHeight();
+
+	// Force the files list to generate a WM_MEASUREITEM notification.
+	RECT rc;
+	_GetWindowRect( g_hWnd_files, &rc );
+	WINDOWPOS wp;
+	wp.hwnd = g_hWnd_files;
+	wp.cx = rc.right - rc.left;
+	wp.cy = rc.bottom - rc.top;
+	wp.flags = SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOOWNERZORDER | SWP_NOZORDER;
+	_SendMessageW( g_hWnd_files, WM_WINDOWPOSCHANGED, 0, ( LPARAM )&wp );
+
+	_InvalidateRect( g_hWnd_files, NULL, TRUE );
 }
 
 LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
@@ -2547,7 +470,8 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			RECT rc;
 			_GetClientRect( hWnd, &rc );
 
-			g_hWnd_options_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, WC_TABCONTROL, NULL, WS_CHILD | WS_CLIPCHILDREN | WS_TABSTOP | WS_VISIBLE, 10, 10, rc.right - 20, rc.bottom - 50, hWnd, NULL, NULL, NULL );
+			// WS_CLIPCHILDREN causes artifacts when entering a bad character in a number only edit control.
+			g_hWnd_options_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, WC_TABCONTROL, NULL, WS_CHILD | /*WS_CLIPCHILDREN |*/ WS_TABSTOP | WS_VISIBLE, 10, 10, rc.right - 20, rc.bottom - 50, hWnd, NULL, NULL, NULL );
 
 			TCITEM ti;
 			_memzero( &ti, sizeof( TCITEM ) );
@@ -2557,13 +481,21 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			ti.lParam = ( LPARAM )&g_hWnd_general_tab;
 			_SendMessageW( g_hWnd_options_tab, TCM_INSERTITEM, 0, ( LPARAM )&ti );	// Insert a new tab at the end.
 
+			ti.pszText = ( LPWSTR )ST_V_Appearance;
+			ti.lParam = ( LPARAM )&g_hWnd_appearance_tab;
+			_SendMessageW( g_hWnd_options_tab, TCM_INSERTITEM, 1, ( LPARAM )&ti );	// Insert a new tab at the end.
+
 			ti.pszText = ( LPWSTR )ST_V_Connection;
 			ti.lParam = ( LPARAM )&g_hWnd_connection_tab;
-			_SendMessageW( g_hWnd_options_tab, TCM_INSERTITEM, 1, ( LPARAM )&ti );	// Insert a new tab at the end.
+			_SendMessageW( g_hWnd_options_tab, TCM_INSERTITEM, 2, ( LPARAM )&ti );	// Insert a new tab at the end.
 
 			ti.pszText = ( LPWSTR )ST_V_Proxy;
 			ti.lParam = ( LPARAM )&g_hWnd_proxy_tab;
-			_SendMessageW( g_hWnd_options_tab, TCM_INSERTITEM, 2, ( LPARAM )&ti );	// Insert a new tab at the end.
+			_SendMessageW( g_hWnd_options_tab, TCM_INSERTITEM, 3, ( LPARAM )&ti );	// Insert a new tab at the end.
+
+			ti.pszText = ( LPWSTR )ST_V_Advanced;
+			ti.lParam = ( LPARAM )&g_hWnd_advanced_tab;
+			_SendMessageW( g_hWnd_options_tab, TCM_INSERTITEM, 4, ( LPARAM )&ti );	// Insert a new tab at the end.
 
 
 			HWND g_hWnd_ok = _CreateWindowW( WC_BUTTON, ST_V_OK, BS_DEFPUSHBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 260, rc.bottom - 32, 80, 23, hWnd, ( HMENU )BTN_OK, NULL, NULL );
@@ -2571,7 +503,7 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			g_hWnd_apply = _CreateWindowW( WC_BUTTON, ST_V_Apply, WS_CHILD | WS_DISABLED | WS_TABSTOP | WS_VISIBLE, rc.right - 90, rc.bottom - 32, 80, 23, hWnd, ( HMENU )BTN_APPLY, NULL, NULL );
 
 
-			_SendMessageW( g_hWnd_options_tab, WM_SETFONT, ( WPARAM )hFont, 0 );
+			_SendMessageW( g_hWnd_options_tab, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 
 			// Set the tab control's font so we can get the correct tab height to adjust its children.
 			RECT rc_tab;
@@ -2580,12 +512,14 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			_SendMessageW( g_hWnd_options_tab, TCM_GETITEMRECT, 0, ( LPARAM )&rc_tab );
 
 			g_hWnd_general_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"general_tab", NULL, WS_CHILD | WS_TABSTOP | WS_VISIBLE, 15, ( rc_tab.bottom + rc_tab.top ) + 12, rc.right - 30, rc.bottom - ( ( rc_tab.bottom + rc_tab.top ) + 24 ), g_hWnd_options_tab, NULL, NULL, NULL );
+			g_hWnd_appearance_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"appearance_tab", NULL, WS_CHILD | WS_TABSTOP, 15, ( rc_tab.bottom + rc_tab.top ) + 12, rc.right - 30, rc.bottom - ( ( rc_tab.bottom + rc_tab.top ) + 24 ), g_hWnd_options_tab, NULL, NULL, NULL );
 			g_hWnd_connection_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"connection_tab", NULL, WS_CHILD | WS_VSCROLL | WS_TABSTOP, 15, ( rc_tab.bottom + rc_tab.top ) + 12, rc.right - 30, rc.bottom - ( ( rc_tab.bottom + rc_tab.top ) + 24 ), g_hWnd_options_tab, NULL, NULL, NULL );
 			g_hWnd_proxy_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"proxy_tab", NULL, WS_CHILD | WS_TABSTOP, 15, ( rc_tab.bottom + rc_tab.top ) + 12, rc.right - 30, rc.bottom - ( ( rc_tab.bottom + rc_tab.top ) + 24 ), g_hWnd_options_tab, NULL, NULL, NULL );
+			g_hWnd_advanced_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"advanced_tab", NULL, WS_CHILD | WS_TABSTOP, 15, ( rc_tab.bottom + rc_tab.top ) + 12, rc.right - 30, rc.bottom - ( ( rc_tab.bottom + rc_tab.top ) + 24 ), g_hWnd_options_tab, NULL, NULL, NULL );
 
-			_SendMessageW( g_hWnd_ok, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_cancel, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_apply, WM_SETFONT, ( WPARAM )hFont, 0 );
+			_SendMessageW( g_hWnd_ok, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_cancel, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_apply, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 
 			options_state_changed = false;
 			_EnableWindow( g_hWnd_apply, FALSE );
@@ -2617,7 +551,7 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			_DeleteObject( hbm );
 
 			// Fill the background.
-			HBRUSH color = _CreateSolidBrush( ( COLORREF )_GetSysColor( COLOR_MENU ) );
+			HBRUSH color = _CreateSolidBrush( ( COLORREF )_GetSysColor( COLOR_3DFACE ) );
 			_FillRect( hdcMem, &client_rc, color );
 			_DeleteObject( color );
 
@@ -2664,8 +598,6 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 						_SendMessageW( nmhdr->hwndFrom, TCM_GETITEM, index, ( LPARAM )&tie );	// Get the selected tab's information
 						_ShowWindow( *( ( HWND * )tie.lParam ), SW_HIDE );
 					}
-
-					return FALSE;
 				}
 				break;
 
@@ -2690,8 +622,6 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 						_SetFocus( *( ( HWND * )tie.lParam ) );
 					}
-
-					return FALSE;
 				}
 				break;
 			}
@@ -2702,7 +632,7 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 		case WM_COMMAND:
 		{
-			switch( LOWORD( wParam ) )
+			switch ( LOWORD( wParam ) )
 			{
 				case IDOK:
 				case BTN_OK:
@@ -2713,6 +643,8 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 						_SendMessageW( hWnd, WM_CLOSE, 0, 0 );
 						break;
 					}
+
+					char value[ 21 ];
 
 					if ( cfg_default_download_directory != NULL )
 					{
@@ -2736,25 +668,33 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 					cfg_close_to_tray = ( _SendMessageW( g_hWnd_chk_close, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
 					cfg_show_notification = ( _SendMessageW( g_hWnd_chk_show_notification, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
 
+					cfg_show_tray_progress = ( _SendMessageW( g_hWnd_chk_show_tray_progress, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
+
 					bool tray_icon = ( _SendMessageW( g_hWnd_chk_tray_icon, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
 
 					// Add the tray icon if it was not previously enabled.
-					if ( tray_icon && !cfg_tray_icon )
+					if ( tray_icon )
 					{
-						_memzero( &g_nid, sizeof( NOTIFYICONDATA ) );
-						g_nid.cbSize = NOTIFYICONDATA_V2_SIZE;	// 5.0 (Windows 2000) and newer.
-						g_nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
-						g_nid.hWnd = g_hWnd_main;
-						g_nid.uCallbackMessage = WM_TRAY_NOTIFY;
-						g_nid.uID = 1000;
-						g_nid.hIcon = ( HICON )_LoadImageW( GetModuleHandle( NULL ), MAKEINTRESOURCE( IDI_ICON ), IMAGE_ICON, 16, 16, LR_SHARED );
-						g_nid.dwInfoFlags = NIIF_INFO;
-						unsigned char info_size = ( unsigned char )( ST_L_Downloads_Have_Finished > ( ( sizeof( g_nid.szInfoTitle ) / sizeof( g_nid.szInfoTitle[ 0 ] ) ) - 1 ) ? ( ( sizeof( g_nid.szInfoTitle ) / sizeof( g_nid.szInfoTitle[ 0 ] ) ) - 1 ) : ST_L_Downloads_Have_Finished );
-						_wmemcpy_s( g_nid.szInfoTitle, sizeof( g_nid.szInfoTitle ) / sizeof( g_nid.szInfoTitle[ 0 ] ), ST_V_Downloads_Have_Finished, info_size );
-						g_nid.szInfoTitle[ info_size ] = 0;	// Sanity.
-						_wmemcpy_s( g_nid.szTip, sizeof( g_nid.szTip ) / sizeof( g_nid.szTip[ 0 ] ), PROGRAM_CAPTION, 16 );
-						g_nid.szTip[ 15 ] = 0;	// Sanity.
-						_Shell_NotifyIconW( NIM_ADD, &g_nid );
+						if ( !cfg_tray_icon )
+						{
+							InitializeSystemTray( g_hWnd_main );
+						}
+						else	// Tray icon is still enabled.
+						{
+							if ( !cfg_show_tray_progress )
+							{
+								g_nid.uFlags &= ~NIF_INFO;
+								g_nid.hIcon = g_default_tray_icon;
+								_Shell_NotifyIconW( NIM_MODIFY, &g_nid );
+
+								UninitializeIconValues();
+							}
+						}
+
+						if ( cfg_show_tray_progress )
+						{
+							InitializeIconValues( g_hWnd_main );
+						}
 					}
 					else if ( !tray_icon && cfg_tray_icon )	// Remove the tray icon if it was previously enabled.
 					{
@@ -2765,6 +705,8 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 						}
 
 						_Shell_NotifyIconW( NIM_DELETE, &g_nid );
+
+						UninitializeIconValues();
 					}
 
 					cfg_tray_icon = tray_icon;
@@ -2801,16 +743,30 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 					cfg_enable_drop_window = ( _SendMessageW( g_hWnd_chk_enable_drop_window, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
 
+					_SendMessageA( g_hWnd_drop_window_transparency, WM_GETTEXT, 4, ( LPARAM )value );
+					cfg_drop_window_transparency = ( unsigned char )_strtoul( value, NULL, 10 );
+
+					cfg_show_drop_window_progress = ( _SendMessageW( g_hWnd_chk_show_drop_window_progress, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
+
 					if ( cfg_enable_drop_window )
 					{
 						if ( g_hWnd_url_drop_window == NULL )
 						{
 							g_hWnd_url_drop_window = _CreateWindowExW( WS_EX_NOPARENTNOTIFY | WS_EX_NOACTIVATE | WS_EX_TOPMOST, L"url_drop_window", NULL, WS_CLIPCHILDREN | WS_POPUP, 0, 0, 0, 0, NULL, NULL, NULL, NULL );
 							_SetWindowLongPtrW( g_hWnd_url_drop_window, GWL_EXSTYLE, _GetWindowLongPtrW( g_hWnd_url_drop_window, GWL_EXSTYLE ) | WS_EX_LAYERED );
-							_SetLayeredWindowAttributes( g_hWnd_url_drop_window, 0, 0x80, LWA_ALPHA );
+							_SetLayeredWindowAttributes( g_hWnd_url_drop_window, 0, cfg_drop_window_transparency, LWA_ALPHA );
 
 							// Prevents it from stealing focus.
 							_SetWindowPos( g_hWnd_url_drop_window, HWND_TOPMOST, cfg_drop_pos_x, cfg_drop_pos_y, 48, 48, SWP_SHOWWINDOW | SWP_NOACTIVATE | SWP_NOOWNERZORDER );
+						}
+						else
+						{
+							_SetLayeredWindowAttributes( g_hWnd_url_drop_window, 0, cfg_drop_window_transparency, LWA_ALPHA );
+
+							if ( !cfg_show_drop_window_progress )
+							{
+								UpdateDropWindow( 0, 0, 0, 0, false );
+							}
 						}
 					}
 					else
@@ -2822,8 +778,8 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 					}
 
 					cfg_download_immediately = ( _SendMessageW( g_hWnd_chk_download_immediately, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
-
 					cfg_prevent_standby = ( _SendMessageW( g_hWnd_chk_prevent_standby, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
+					cfg_resume_downloads = ( _SendMessageW( g_hWnd_chk_resume_downloads, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
 
 					cfg_play_sound = ( _SendMessageW( g_hWnd_chk_play_sound, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
 
@@ -2837,7 +793,24 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 						#endif
 					}
 
-					char value[ 11 ];
+					bool show_gridlines = ( _SendMessageW( g_hWnd_chk_show_gridlines, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
+
+					// If we change this, then SetAppearanceSettings() will end up refreshing it for us.
+					if ( show_gridlines != cfg_show_gridlines )
+					{
+						DWORD extended_style = LVS_EX_DOUBLEBUFFER | LVS_EX_FULLROWSELECT | LVS_EX_HEADERDRAGDROP;
+						if ( show_gridlines )
+						{
+							extended_style |= LVS_EX_GRIDLINES;
+						}
+
+						_SendMessageW( g_hWnd_files, LVM_SETEXTENDEDLISTVIEWSTYLE, 0, extended_style );
+
+						cfg_show_gridlines = show_gridlines;
+					}
+
+					SetAppearanceSettings();
+
 					_SendMessageA( g_hWnd_max_downloads, WM_GETTEXT, 11, ( LPARAM )value );
 					cfg_max_downloads = ( unsigned char )_strtoul( value, NULL, 10 );
 
@@ -2885,6 +858,26 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 						display_notice += 2;
 					}
+
+					//
+
+					cfg_prompt_rename = ( unsigned char )_SendMessageW( g_hWnd_prompt_rename, CB_GETCURSEL, 0, 0 );
+					cfg_prompt_file_size = ( unsigned char )_SendMessageW( g_hWnd_prompt_file_size, CB_GETCURSEL, 0, 0 );
+					_SendMessageA( g_hWnd_max_file_size, WM_GETTEXT, 21, ( LPARAM )value );
+					cfg_max_file_size = strtoull( value );
+					cfg_prompt_last_modified = ( unsigned char )_SendMessageW( g_hWnd_prompt_last_modified, CB_GETCURSEL, 0, 0 );
+					cfg_use_temp_download_directory = ( _SendMessageW( g_hWnd_chk_temp_download_directory, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
+
+					if ( cfg_temp_download_directory != NULL )
+					{
+						GlobalFree( cfg_temp_download_directory );
+					}
+
+					// We want the length, so don't do GlobalStrDupW.
+					g_temp_download_directory_length = lstrlenW( t_temp_download_directory );
+					cfg_temp_download_directory = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( g_temp_download_directory_length + 1 ) );
+					_wmemcpy_s( cfg_temp_download_directory, g_temp_download_directory_length + 1, t_temp_download_directory, g_temp_download_directory_length );
+					*( cfg_temp_download_directory + g_temp_download_directory_length ) = 0;	// Sanity.
 
 					//
 					// HTTP proxy.

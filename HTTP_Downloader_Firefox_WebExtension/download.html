@@ -26,8 +26,61 @@
 
 			fieldset
 			{
-				border: 1px solid grey;
 				display: inline-block;
+				border: 1px solid grey;
+			}
+
+			.tab
+			{
+				background-color: white;
+			}
+
+			.tab > input[type="radio"]
+			{
+				display: none;
+			}
+
+			.tab > input + label
+			{
+				display: inline-block;
+				position: relative;
+				top: 1px;
+				padding: 5px;
+				margin-right: -1px;
+				background-color: #F0F0F0;
+				border: 1px solid grey;
+				border-bottom: none;
+				z-index: 0;
+			}
+
+			.tab > input + label:hover
+			{
+				background-color: #E0E0E0;
+			}
+
+			.tab > input:checked + label
+			{
+				background-color: white;
+				z-index: 2;
+			}
+
+			.tab_frame
+			{
+				position: relative;
+				border: 1px solid grey;
+				z-index: 1;
+			}
+
+			.tab_panel
+			{
+				display: none;
+			}
+
+			.tab > input:nth-child(1):checked ~ .tab_frame > .tab_panel:nth-child(1),
+			.tab > input:nth-child(3):checked ~ .tab_frame > .tab_panel:nth-child(2),
+			.tab > input:nth-child(5):checked ~ .tab_frame > .tab_panel:nth-child(3)
+			{
+				display: block;
 			}
 		</style>
 		<script src="download.js"></script>
@@ -103,28 +156,33 @@
 								</fieldset>
 							</div>
 						</div>
-						<div style="margin-top: 15px;">
-							<div style="margin-top: auto;">
-								<label for="cookies">Cookies:</label>
-							</div>
-							<div>
-								<textarea id="cookies" rows="2"></textarea>
-							</div>
-						</div>
-						<div style="margin-top: 15px;">
-							<div style="margin-top: auto;">
-								<label for="headers">Headers:</label>
-							</div>
-							<div>
-								<textarea id="headers" rows="2"></textarea>
-							</div>
-						</div>
-						<div style="margin-top: 15px;">
-							<div style="margin-top: auto;">
-								<input type="checkbox" id="method"><label for="method">Send POST Data:</label>
-							</div>
-							<div>
-								<textarea id="post_data" rows="2"></textarea>
+						<div class="tab" style="margin-top: 15px;">
+							<input type="radio" name="tabs" id="tab_cookies" checked><label for="tab_cookies">Cookies</label><input type="radio" name="tabs" id="tab_headers"><label for="tab_headers">Headers</label><input type="radio" name="tabs" id="tab_post_data"><label for="tab_post_data">POST Data</label>
+							<div class="tab_frame">
+								<div class="tab_panel" style="margin: 10px;">
+									<div style="margin-top: auto;">
+										<label for="cookies">Cookies:</label>
+									</div>
+									<div>
+										<textarea id="cookies" rows="5"></textarea>
+									</div>
+								</div>
+								<div class="tab_panel" style="margin: 10px;">
+									<div style="margin-top: auto;">
+										<label for="headers">Headers:</label>
+									</div>
+									<div>
+										<textarea id="headers" rows="5"></textarea>
+									</div>
+								</div>
+								<div class="tab_panel" style="margin: 5px 10px 10px 10px;">
+									<div style="margin-top: auto;">
+										<input type="checkbox" id="method"><label for="method">Send POST Data:</label>
+									</div>
+									<div>
+										<textarea id="post_data" rows="5"></textarea>
+									</div>
+								</div>
 							</div>
 						</div>
 						<div style="margin-top: 15px;">

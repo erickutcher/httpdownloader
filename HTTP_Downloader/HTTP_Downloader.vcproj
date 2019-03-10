@@ -392,6 +392,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\folder_browser.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\http_parsing.cpp"
 				>
 			</File>
@@ -452,6 +456,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\lite_uxtheme.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\lite_winmm.cpp"
 				>
 			</File>
@@ -480,6 +488,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\system_tray.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\utilities.cpp"
 				>
 			</File>
@@ -500,6 +512,26 @@
 				>
 			</File>
 			<File
+				RelativePath=".\wnd_proc_options_advanced.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\wnd_proc_options_appearance.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\wnd_proc_options_connection.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\wnd_proc_options_general.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\wnd_proc_options_proxy.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\wnd_proc_search.cpp"
 				>
 			</File>
@@ -509,6 +541,10 @@
 			</File>
 			<File
 				RelativePath=".\wnd_proc_url_drop.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\wnd_subproc_tab.cpp"
 				>
 			</File>
 			<Filter
@@ -622,7 +658,15 @@
 				>
 			</File>
 			<File
+				RelativePath=".\drop_window.h"
+				>
+			</File>
+			<File
 				RelativePath=".\file_operations.h"
+				>
+			</File>
+			<File
+				RelativePath=".\folder_browser.h"
 				>
 			</File>
 			<File
@@ -690,6 +734,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\lite_uxtheme.h"
+				>
+			</File>
+			<File
 				RelativePath=".\lite_winmm.h"
 				>
 			</File>
@@ -706,6 +754,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\options.h"
+				>
+			</File>
+			<File
 				RelativePath=".\resource.h"
 				>
 			</File>
@@ -715,6 +767,10 @@
 			</File>
 			<File
 				RelativePath=".\string_tables.h"
+				>
+			</File>
+			<File
+				RelativePath=".\system_tray.h"
 				>
 			</File>
 			<File
@@ -757,6 +813,10 @@
 			</File>
 			<File
 				RelativePath=".\icon.ico"
+				>
+			</File>
+			<File
+				RelativePath=".\icon_tray.ico"
 				>
 			</File>
 			<File

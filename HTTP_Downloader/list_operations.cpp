@@ -343,10 +343,24 @@ THREAD_RETURN remove_items( void *pArguments )
 				{
 					if ( !( di->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
 					{
-						// We're freeing this anyway so it's safe to modify.
-						di->file_path[ di->filename_offset - 1 ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
+						wchar_t *file_path_delete;
 
-						if ( DeleteFileW( di->file_path ) == FALSE )
+						wchar_t file_path[ MAX_PATH ];
+						if ( cfg_use_temp_download_directory && di->status != STATUS_COMPLETED )
+						{
+							GetTemporaryFilePath( di, file_path );
+
+							file_path_delete = file_path;
+						}
+						else
+						{
+							// We're freeing this anyway so it's safe to modify.
+							di->file_path[ di->filename_offset - 1 ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
+
+							file_path_delete = di->file_path;
+						}
+
+						if ( DeleteFileW( file_path_delete ) == FALSE )
 						{
 							delete_success = false;
 
@@ -554,8 +568,7 @@ THREAD_RETURN handle_download_list( void *pArguments )
 				// Connecting, Downloading, Paused, Queued.
 				if ( IS_STATUS( di->status,
 						STATUS_CONNECTING |
-						STATUS_DOWNLOADING |
-						STATUS_QUEUED ) )
+						STATUS_DOWNLOADING ) )
 				{
 					// Download is active, close the connection.
 					if ( di->download_node.data != NULL )
@@ -986,7 +999,7 @@ THREAD_RETURN handle_connection( void *pArguments )
 									}
 									/*else
 									{
-										di->status = STATUS_QUEUED;	// Queued.
+										di->status |= STATUS_QUEUED;	// Queued.
 									}*/
 								}
 
@@ -1073,6 +1086,15 @@ THREAD_RETURN handle_connection( void *pArguments )
 
 								ResetDownload( di, ( status == STATUS_RESTART ? true : false ), ( di->status == STATUS_SKIPPED ? true : false ) );
 							}
+						}
+
+						LeaveCriticalSection( &di->shared_cs );
+					}
+					else if ( di->status == STATUS_MOVING_FILE )
+					{
+						if ( status == STATUS_STOPPED )
+						{
+							di->moving_state = 2;	// Cancel.
 						}
 
 						LeaveCriticalSection( &di->shared_cs );
@@ -1175,35 +1197,49 @@ THREAD_RETURN handle_download_queue( void *pArguments )
 		DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )lvi.lParam;
 
 		// Make sure the item is queued.
-		if ( di != NULL && di->status == STATUS_QUEUED )
+		if ( di != NULL && IS_STATUS( di->status, STATUS_QUEUED ) )
 		{
-			EnterCriticalSection( &download_queue_cs );
+			CRITICAL_SECTION *cs;
+			DoublyLinkedList **queue;
+
+			if ( IS_STATUS( di->status, STATUS_MOVING_FILE ) )
+			{
+				cs = &move_file_queue_cs;
+				queue = &move_file_queue;
+			}
+			else
+			{
+				cs = &download_queue_cs;
+				queue = &download_queue;
+			}
+
+			EnterCriticalSection( cs );
 
 			if ( di->queue_node.data != NULL )
 			{
 				if ( handle_type == 0 )			// Move to the beginning of the queue.
 				{
 					// Make sure we're not the head.
-					if ( &di->queue_node != download_queue )
+					if ( &di->queue_node != *queue )
 					{
-						DLL_RemoveNode( &download_queue, &di->queue_node );
-						DLL_AddNode( &download_queue, &di->queue_node, 0 );
+						DLL_RemoveNode( queue, &di->queue_node );
+						DLL_AddNode( queue, &di->queue_node, 0 );
 					}
 				}
 				else if ( handle_type == 1 )	// Move forward one position in the queue.
 				{
 					// Make sure we're not the head.
-					if ( &di->queue_node != download_queue )
+					if ( &di->queue_node != *queue )
 					{
 						DoublyLinkedList *prev = di->queue_node.prev;
 						if ( prev != NULL )
 						{
-							DLL_RemoveNode( &download_queue, &di->queue_node );
+							DLL_RemoveNode( queue, &di->queue_node );
 
 							// If the node we're replacing is the head.
-							if ( prev == download_queue )
+							if ( prev == *queue )
 							{
-								DLL_AddNode( &download_queue, &di->queue_node, 0 );
+								DLL_AddNode( queue, &di->queue_node, 0 );
 							}
 							else
 							{
@@ -1224,12 +1260,12 @@ THREAD_RETURN handle_download_queue( void *pArguments )
 					DoublyLinkedList *next = di->queue_node.next;
 					if ( next != NULL )
 					{
-						DLL_RemoveNode( &download_queue, &di->queue_node );
+						DLL_RemoveNode( queue, &di->queue_node );
 
 						// If the node we're replacing is the tail.
 						if ( next->next == NULL )
 						{
-							DLL_AddNode( &download_queue, &di->queue_node, -1 );
+							DLL_AddNode( queue, &di->queue_node, -1 );
 						}
 						else
 						{
@@ -1246,12 +1282,12 @@ THREAD_RETURN handle_download_queue( void *pArguments )
 				}
 				else if ( handle_type == 3 )	// Move to the end of the queue.
 				{
-					DLL_RemoveNode( &download_queue, &di->queue_node );
-					DLL_AddNode( &download_queue, &di->queue_node, -1 );
+					DLL_RemoveNode( queue, &di->queue_node );
+					DLL_AddNode( queue, &di->queue_node, -1 );
 				}
 			}
 
-			LeaveCriticalSection( &download_queue_cs );
+			LeaveCriticalSection( cs );
 		}
 	}
 
@@ -1560,10 +1596,23 @@ THREAD_RETURN rename_file( void *pArguments )
 							{
 								FILE_RENAME_INFO *fri = ( FILE_RENAME_INFO * )GlobalAlloc( GPTR, sizeof( FILE_RENAME_INFO ) + ( sizeof( wchar_t ) * MAX_PATH ) );
 
-								_wmemcpy_s( fri->FileName, MAX_PATH, di->file_path, di->filename_offset );
-								fri->FileName[ di->filename_offset - 1 ] = L'\\';
-								_wmemcpy_s( fri->FileName + di->filename_offset, MAX_PATH - di->filename_offset, ri->filename, ri->filename_length );
-								fri->FileNameLength = di->filename_offset + ri->filename_length;
+								if ( cfg_use_temp_download_directory && di->status != STATUS_COMPLETED )
+								{
+									_wmemcpy_s( fri->FileName, MAX_PATH, cfg_temp_download_directory, g_temp_download_directory_length );
+									fri->FileName[ g_temp_download_directory_length ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
+									_wmemcpy_s( fri->FileName + ( g_temp_download_directory_length + 1 ), MAX_PATH - ( g_temp_download_directory_length - 1 ), ri->filename, ri->filename_length );
+									fri->FileName[ g_temp_download_directory_length + ri->filename_length + 1 ] = 0; // Sanity.
+									fri->FileNameLength = g_temp_download_directory_length + ri->filename_length + 1;
+								}
+								else
+								{
+									_wmemcpy_s( fri->FileName, MAX_PATH, di->file_path, di->filename_offset );
+									fri->FileName[ di->filename_offset - 1 ] = L'\\';
+									_wmemcpy_s( fri->FileName + di->filename_offset, MAX_PATH - di->filename_offset, ri->filename, ri->filename_length );
+									fri->FileName[ di->filename_offset + ri->filename_length ] = 0;	// Sanity.
+									fri->FileNameLength = di->filename_offset + ri->filename_length;
+								}
+
 								fri->ReplaceIfExists = FALSE;
 								fri->RootDirectory = NULL;
 
@@ -1586,16 +1635,24 @@ THREAD_RETURN rename_file( void *pArguments )
 							wchar_t old_file_path[ MAX_PATH ];
 							wchar_t new_file_path[ MAX_PATH ];
 
-							_wmemcpy_s( old_file_path, MAX_PATH, di->file_path, MAX_PATH );
-							if ( di->filename_offset > 0 )
+							if ( cfg_use_temp_download_directory && di->status != STATUS_COMPLETED )
 							{
-								old_file_path[ di->filename_offset - 1 ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
-							}
+								GetTemporaryFilePath( di, old_file_path );
 
-							_wmemcpy_s( new_file_path, MAX_PATH, di->file_path, MAX_PATH - di->filename_offset );
-							new_file_path[ di->filename_offset - 1 ] = L'\\';
-							_wmemcpy_s( new_file_path + di->filename_offset, MAX_PATH - di->filename_offset, ri->filename, ri->filename_length );
-							new_file_path[ di->filename_offset + ri->filename_length ] = 0;	// Sanity.
+								_wmemcpy_s( new_file_path, MAX_PATH, cfg_temp_download_directory, g_temp_download_directory_length );
+								new_file_path[ g_temp_download_directory_length ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
+								_wmemcpy_s( new_file_path + ( g_temp_download_directory_length + 1 ), MAX_PATH - ( g_temp_download_directory_length - 1 ), ri->filename, ri->filename_length );
+								new_file_path[ g_temp_download_directory_length + ri->filename_length + 1 ] = 0;	// Sanity.
+							}
+							else
+							{
+								GetDownloadFilePath( di, old_file_path );
+
+								_wmemcpy_s( new_file_path, MAX_PATH, di->file_path, MAX_PATH - di->filename_offset );
+								new_file_path[ di->filename_offset - 1 ] = L'\\';
+								_wmemcpy_s( new_file_path + di->filename_offset, MAX_PATH - di->filename_offset, ri->filename, ri->filename_length );
+								new_file_path[ di->filename_offset + ri->filename_length ] = 0;	// Sanity.
+							}
 
 							if ( MoveFileW( old_file_path, new_file_path ) == FALSE )
 							{
@@ -1970,10 +2027,13 @@ THREAD_RETURN delete_files( void *pArguments )
 
 			if ( !( di->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
 			{
-				_wmemcpy_s( file_path, MAX_PATH, di->file_path, MAX_PATH );
-				if ( di->filename_offset > 0 )
+				if ( cfg_use_temp_download_directory && di->status != STATUS_COMPLETED )
 				{
-					file_path[ di->filename_offset - 1 ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
+					GetTemporaryFilePath( di, file_path );
+				}
+				else
+				{
+					GetDownloadFilePath( di, file_path );
 				}
 
 				if ( DeleteFileW( file_path ) == FALSE )

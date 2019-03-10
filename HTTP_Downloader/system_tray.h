@@ -16,20 +16,24 @@
 	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef _FILE_OPERATIONS_H
-#define _FILE_OPERATIONS_H
+#ifndef _SYSTEM_TRAY_H
+#define _SYSTEM_TRAY_H
 
-#define MAGIC_ID_SETTINGS		"HDM\x01"	// Version 2
-#define MAGIC_ID_DOWNLOADS		"HDM\x13"	// Version 4
+#define STRICT
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
 
-char read_config();
-char save_config();
+#include "lite_shell32.h"
 
-char read_download_history( wchar_t *file_path );
-char save_download_history( wchar_t *file_path );
+void InitializeSystemTray( HWND hWnd );
 
-char save_download_history_csv_file( wchar_t *file_path );
+void InitializeIconValues( HWND hWnd );
+void UninitializeIconValues();
 
-wchar_t *read_url_list_file( wchar_t *file_path, unsigned int &url_list_length );
+HICON CreateSystemTrayIcon( unsigned long long start, unsigned long long end, COLORREF border_color, COLORREF progress_color );
+
+extern NOTIFYICONDATA g_nid;	// Tray icon information.
+
+extern HICON g_default_tray_icon;
 
 #endif

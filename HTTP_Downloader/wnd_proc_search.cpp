@@ -68,16 +68,16 @@ LRESULT CALLBACK SearchWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 			g_hWnd_btn_search = _CreateWindowW( WC_BUTTON, ST_V_Search_Next, BS_DEFPUSHBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE | WS_DISABLED, rc.right - 190, rc.bottom - 32, 95, 23, hWnd, ( HMENU )BTN_SEARCH, NULL, NULL );
 			g_hWnd_search_cancel = _CreateWindowW( WC_BUTTON, ST_V_Cancel, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 90, rc.bottom - 32, 80, 23, hWnd, ( HMENU )BTN_SEARCH_CANCEL, NULL, NULL );
 
-			_SendMessageW( g_hWnd_static_search_for, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_search_for, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( hWnd_btn_search_type, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_chk_type_filename, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_chk_type_url, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_chk_match_case, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_chk_match_whole_word, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_btn_search_all, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_btn_search, WM_SETFONT, ( WPARAM )hFont, 0 );
-			_SendMessageW( g_hWnd_search_cancel, WM_SETFONT, ( WPARAM )hFont, 0 );
+			_SendMessageW( g_hWnd_static_search_for, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_search_for, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( hWnd_btn_search_type, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_chk_type_filename, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_chk_type_url, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_chk_match_case, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_chk_match_whole_word, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_btn_search_all, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_btn_search, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_search_cancel, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 
 			_SendMessageW( g_hWnd_chk_type_filename, BM_SETCHECK, BST_CHECKED, 0 );
 
@@ -110,7 +110,7 @@ LRESULT CALLBACK SearchWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 			_DeleteObject( hbm );
 
 			// Fill the background.
-			HBRUSH color = _CreateSolidBrush( ( COLORREF )_GetSysColor( COLOR_MENU ) );
+			HBRUSH color = _CreateSolidBrush( ( COLORREF )_GetSysColor( COLOR_3DFACE ) );
 			_FillRect( hdcMem, &client_rc, color );
 			_DeleteObject( color );
 
@@ -140,7 +140,7 @@ LRESULT CALLBACK SearchWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 
 		case WM_COMMAND:
 		{
-			switch( LOWORD( wParam ) )
+			switch ( LOWORD( wParam ) )
 			{
 				case IDOK:
 				case BTN_SEARCH:

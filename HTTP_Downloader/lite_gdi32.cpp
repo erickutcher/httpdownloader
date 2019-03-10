@@ -33,7 +33,7 @@
 	//pGdiAlphaBlend				_GdiAlphaBlend;
 	//pGdiGradientFill			_GdiGradientFill;
 	//pGetDeviceCaps				_GetDeviceCaps;
-	pGetObjectW					_GetObjectW;
+	//pGetObjectW					_GetObjectW;
 	pGetStockObject				_GetStockObject;
 	//pGetTextExtentPoint32W		_GetTextExtentPoint32W;
 	pGetTextMetricsW			_GetTextMetricsW;
@@ -74,7 +74,7 @@
 		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_gdi32, ( void ** )&_GdiAlphaBlend, "GdiAlphaBlend" ) )
 		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_gdi32, ( void ** )&_GdiGradientFill, "GdiGradientFill" ) )
 		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_gdi32, ( void ** )&_GetDeviceCaps, "GetDeviceCaps" ) )
-		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_gdi32, ( void ** )&_GetObjectW, "GetObjectW" ) )
+		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_gdi32, ( void ** )&_GetObjectW, "GetObjectW" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_gdi32, ( void ** )&_GetStockObject, "GetStockObject" ) )
 		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_gdi32, ( void ** )&_GetTextExtentPoint32W, "GetTextExtentPoint32W" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_gdi32, ( void ** )&_GetTextMetricsW, "GetTextMetricsW" ) )

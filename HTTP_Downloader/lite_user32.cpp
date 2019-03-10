@@ -36,6 +36,7 @@
 	pDefWindowProcW			_DefWindowProcW;
 	pDeferWindowPos			_DeferWindowPos;
 	//pDeleteMenu				_DeleteMenu;
+	pDestroyIcon			_DestroyIcon;
 	pDestroyMenu			_DestroyMenu;
 	pDestroyWindow			_DestroyWindow;
 	pDispatchMessageW		_DispatchMessageW;
@@ -59,6 +60,7 @@
 	pGetCursorPos			_GetCursorPos;
 	pGetDC					_GetDC;
 	//pGetDlgItem				_GetDlgItem;
+	pGetIconInfo			_GetIconInfo;
 	pGetKeyState			_GetKeyState;
 	//pGetMenuItemInfoW		_GetMenuItemInfoW;
 	//pGetMessagePos			_GetMessagePos;
@@ -77,6 +79,7 @@
 	//pIsCharAlphaNumericA		_IsCharAlphaNumericA;
 	pIsDialogMessageW		_IsDialogMessageW;
 	pIsIconic				_IsIconic;
+	pIsWindowEnabled		_IsWindowEnabled;
 	pIsWindowVisible		_IsWindowVisible;
 	pIsZoomed				_IsZoomed;
 	pKillTimer				_KillTimer;
@@ -156,6 +159,7 @@
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_DefWindowProcW, "DefWindowProcW" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_DeferWindowPos, "DeferWindowPos" ) )
 		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_DeleteMenu, "DeleteMenu" ) )
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_DestroyIcon, "DestroyIcon" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_DestroyMenu, "DestroyMenu" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_DestroyWindow, "DestroyWindow" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_DispatchMessageW, "DispatchMessageW" ) )
@@ -179,6 +183,7 @@
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_GetCursorPos, "GetCursorPos" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_GetDC, "GetDC" ) )
 		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_GetDlgItem, "GetDlgItem" ) )
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_GetDlgItem, "GetDlgItem" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_GetKeyState, "GetKeyState" ) )
 		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_GetMenuItemInfoW, "GetMenuItemInfoW" ) )
 		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_GetMessagePos, "GetMessagePos" ) )
@@ -197,6 +202,7 @@
 		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_IsCharAlphaNumericA, "IsCharAlphaNumericA" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_IsDialogMessageW, "IsDialogMessageW" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_IsIconic, "IsIconic" ) )
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_IsWindowEnabled, "IsWindowEnabled" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_IsWindowVisible, "IsWindowVisible" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_IsZoomed, "IsZoomed" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_KillTimer, "KillTimer" ) )

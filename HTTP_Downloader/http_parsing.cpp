@@ -2511,19 +2511,32 @@ char ParseHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int
 
 					context->download_info->file_extension_offset = context->download_info->filename_offset + get_file_extension_offset( context->download_info->file_path + context->download_info->filename_offset, w_filename_length );
 
-					wchar_t file_path[ MAX_PATH ];
-					_wmemcpy_s( file_path, MAX_PATH, context->download_info->file_path, MAX_PATH );
-					if ( context->download_info->filename_offset > 0 )
-					{
-						file_path[ context->download_info->filename_offset - 1 ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
-					}
-
 					// Make sure any existing file hasn't started downloading.
-					if ( !( context->download_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) &&
-						  GetFileAttributes( file_path ) != INVALID_FILE_ATTRIBUTES &&
-						  context->download_info->downloaded == 0 )
+					if ( !( context->download_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) && context->download_info->downloaded == 0 )
 					{
-						context->got_filename = 2;
+						wchar_t file_path[ MAX_PATH ];
+						if ( cfg_use_temp_download_directory )
+						{
+							//int filename_length = lstrlenW( context->download_info->file_path + context->download_info->filename_offset );
+
+							_wmemcpy_s( file_path, MAX_PATH, cfg_temp_download_directory, g_temp_download_directory_length );
+							file_path[ g_temp_download_directory_length ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
+							_wmemcpy_s( file_path + ( g_temp_download_directory_length + 1 ), MAX_PATH - ( g_temp_download_directory_length - 1 ), context->download_info->file_path + context->download_info->filename_offset, w_filename_length );
+							file_path[ g_temp_download_directory_length + w_filename_length + 1 ] = 0;	// Sanity.
+						}
+						else
+						{
+							GetDownloadFilePath( context->download_info, file_path );
+						}
+
+						if ( GetFileAttributes( file_path ) != INVALID_FILE_ATTRIBUTES )
+						{
+							context->got_filename = 2;
+						}
+						else	// No need to rename.
+						{
+							context->got_filename = 1;
+						}
 					}
 					else	// No need to rename.
 					{
@@ -2772,19 +2785,32 @@ char GetHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int h
 
 						context->download_info->file_extension_offset = context->download_info->filename_offset + get_file_extension_offset( context->download_info->file_path + context->download_info->filename_offset, w_filename_length );
 
-						wchar_t file_path[ MAX_PATH ];
-						_wmemcpy_s( file_path, MAX_PATH, context->download_info->file_path, MAX_PATH );
-						if ( context->download_info->filename_offset > 0 )
-						{
-							file_path[ context->download_info->filename_offset - 1 ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
-						}
-
 						// Make sure any existing file hasn't started downloading.
-						if ( !( context->download_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) &&
-							  GetFileAttributes( file_path ) != INVALID_FILE_ATTRIBUTES &&
-							  context->download_info->downloaded == 0 )
+						if ( !( context->download_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) && context->download_info->downloaded == 0 )
 						{
-							context->got_filename = 2;
+							wchar_t file_path[ MAX_PATH ];
+							if ( cfg_use_temp_download_directory )
+							{
+								//int filename_length = lstrlenW( context->download_info->file_path + context->download_info->filename_offset );
+
+								_wmemcpy_s( file_path, MAX_PATH, cfg_temp_download_directory, g_temp_download_directory_length );
+								file_path[ g_temp_download_directory_length ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
+								_wmemcpy_s( file_path + ( g_temp_download_directory_length + 1 ), MAX_PATH - ( g_temp_download_directory_length - 1 ), context->download_info->file_path + context->download_info->filename_offset, w_filename_length );
+								file_path[ g_temp_download_directory_length + w_filename_length + 1 ] = 0;	// Sanity.
+							}
+							else
+							{
+								GetDownloadFilePath( context->download_info, file_path );
+							}
+
+							if ( GetFileAttributes( file_path ) != INVALID_FILE_ATTRIBUTES )
+							{
+								context->got_filename = 2;
+							}
+							else	// No need to rename.
+							{
+								context->got_filename = 1;
+							}
 						}
 						else	// No need to rename.
 						{
@@ -2883,7 +2909,7 @@ char GetHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int h
 		else
 		{
 			// Check the file size threshold (4GB).
-			if ( context->header_info.range_info->content_length > MAX_FILE_SIZE )
+			if ( context->header_info.range_info->content_length > cfg_max_file_size )
 			{
 				if ( !context->processed_header )
 				{
@@ -3606,7 +3632,6 @@ char AllocateFile( SOCKET_CONTEXT *context )
 
 	if ( context->download_info != NULL )
 	{
-		// If not, then block other threads from creating it.
 		EnterCriticalSection( &context->download_info->shared_cs );
 
 		context->is_allocated = true;
@@ -3614,14 +3639,16 @@ char AllocateFile( SOCKET_CONTEXT *context )
 		// See if we've created a file.
 		if ( context->download_info->hFile == INVALID_HANDLE_VALUE )
 		{
-			// Check again to see if we've created a file (for threads entering this critical section).
-			if ( context->download_info->hFile == INVALID_HANDLE_VALUE && context->download_info->status != STATUS_FILE_IO_ERROR )
+			if ( context->download_info->status != STATUS_FILE_IO_ERROR )
 			{
 				wchar_t file_path[ MAX_PATH ];
-				_wmemcpy_s( file_path, MAX_PATH, context->download_info->file_path, MAX_PATH );
-				if ( context->download_info->filename_offset > 0 )
+				if ( cfg_use_temp_download_directory )
 				{
-					file_path[ context->download_info->filename_offset - 1 ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
+					GetTemporaryFilePath( context->download_info, file_path );
+				}
+				else
+				{
+					GetDownloadFilePath( context->download_info, file_path );
 				}
 
 				// If the file already exists and has been partially downloaded, then open it to resume downloading.
@@ -3769,56 +3796,55 @@ char HandleRenamePrompt( SOCKET_CONTEXT *context )
 
 	char content_status = CONTENT_STATUS_NONE;
 
-	// Ignore the prompt of we selected Rename or Overwrite to all.
-	if ( g_rename_file_cmb_ret != CMBIDRENAMEALL && g_rename_file_cmb_ret != CMBIDOVERWRITEALL )
+	if ( context->got_filename == 2 )
 	{
-		if ( context->got_filename == 2 )
+		context->got_filename = 1;
+
+		// If we selected Skip to all, or it's a remotely initiated download, then close the connection.
+		if ( cfg_prompt_rename == 3 ||
+		   ( cfg_prompt_rename == 0 && ( g_rename_file_cmb_ret == CMBIDSKIPALL ||
+										 context->download_info->download_operations & DOWNLOAD_OPERATION_OVERRIDE_PROMPTS ) ) )
 		{
-			context->got_filename = 1;
+			context->status = STATUS_SKIPPED;
 
-			// If we selected Skip to all, or it's a remotely initiated download, then close the connection.
-			if ( g_rename_file_cmb_ret == CMBIDSKIPALL || context->download_info->download_operations & DOWNLOAD_OPERATION_OVERRIDE_PROMPTS )
+			content_status = CONTENT_STATUS_FAILED;	// Stop downloading the file.
+		}
+		else if ( cfg_prompt_rename == 1 ||
+				( cfg_prompt_rename == 0 && g_rename_file_cmb_ret != CMBIDOVERWRITEALL ) ) 	// Otherwise, ask for a prompt.
+		{
+			content_status = context->content_status = CONTENT_STATUS_RENAME_FILE_PROMPT;
+
+			// Add item to prompt queue and continue.
+			EnterCriticalSection( &rename_file_prompt_list_cs );
+
+			DoublyLinkedList *di_node = DLL_CreateNode( ( void * )context->download_info );
+			DLL_AddNode( &rename_file_prompt_list, di_node, -1 );
+
+			if ( !rename_file_prompt_active )
 			{
-				context->status = STATUS_SKIPPED;
+				rename_file_prompt_active = true;
 
-				content_status = CONTENT_STATUS_FAILED;	// Stop downloading the file.
-			}
-			else	// Otherwise, ask for a prompt.
-			{
-				content_status = context->content_status = CONTENT_STATUS_RENAME_FILE_PROMPT;
+				HANDLE handle_prompt = ( HANDLE )_CreateThread( NULL, 0, RenameFilePrompt, ( void * )( ( cfg_prompt_rename == 1 || ( cfg_prompt_rename == 0 && g_rename_file_cmb_ret == CMBIDRENAMEALL ) ) ? 1 : 0 ), 0, NULL );
 
-				// Add item to prompt queue and continue.
-				EnterCriticalSection( &rename_file_prompt_list_cs );
-
-				DoublyLinkedList *di_node = DLL_CreateNode( ( void * )context->download_info );
-				DLL_AddNode( &rename_file_prompt_list, di_node, -1 );
-
-				if ( !rename_file_prompt_active )
+				// Make sure our thread spawned.
+				if ( handle_prompt == NULL )
 				{
-					rename_file_prompt_active = true;
+					DLL_RemoveNode( &rename_file_prompt_list, di_node );
+					GlobalFree( di_node );
 
-					HANDLE handle_prompt = ( HANDLE )_CreateThread( NULL, 0, RenameFilePrompt, NULL, 0, NULL );
+					rename_file_prompt_active = false;
 
-					// Make sure our thread spawned.
-					if ( handle_prompt == NULL )
-					{
-						DLL_RemoveNode( &rename_file_prompt_list, di_node );
-						GlobalFree( di_node );
+					context->status = STATUS_FILE_IO_ERROR;
 
-						rename_file_prompt_active = false;
-
-						context->status = STATUS_FILE_IO_ERROR;
-
-						content_status = CONTENT_STATUS_FAILED;	// Stop downloading the file.
-					}
-					else
-					{
-						CloseHandle( handle_prompt );
-					}
+					content_status = CONTENT_STATUS_FAILED;	// Stop downloading the file.
 				}
-
-				LeaveCriticalSection( &rename_file_prompt_list_cs );
+				else
+				{
+					CloseHandle( handle_prompt );
+				}
 			}
+
+			LeaveCriticalSection( &rename_file_prompt_list_cs );
 		}
 	}
 
@@ -3834,62 +3860,60 @@ char HandleFileSizePrompt( SOCKET_CONTEXT *context )
 
 	char content_status = CONTENT_STATUS_NONE;
 
-	// Ignore the prompt of we selected Yes to all.
-	if ( g_file_size_cmb_ret != CMBIDYESALL )
+	if ( context->show_file_size_prompt )
 	{
-		if ( context->show_file_size_prompt )
+		context->show_file_size_prompt = false;	// Ensure it stays false.
+
+		// If we selected No to all, or it's a remotely initiated download, then close the connection.
+		if ( cfg_prompt_file_size == 2 ||
+		   ( cfg_prompt_file_size == 0 && ( g_file_size_cmb_ret == CMBIDNOALL ||
+											context->download_info->download_operations & DOWNLOAD_OPERATION_OVERRIDE_PROMPTS ) ) )
 		{
-			context->show_file_size_prompt = false;	// Ensure it stays false.
+			context->header_info.range_info->content_length = 0;
+			context->header_info.range_info->range_start = 0;
+			context->header_info.range_info->range_end = 0;
+			context->header_info.range_info->content_offset = 0;
+			context->header_info.range_info->file_write_offset = 0;
 
-			// If we selected No to all, or it's a remotely initiated download, then close the connection.
-			if ( g_file_size_cmb_ret == CMBIDNOALL || context->download_info->download_operations & DOWNLOAD_OPERATION_OVERRIDE_PROMPTS )
+			context->status = STATUS_SKIPPED;
+
+			content_status = CONTENT_STATUS_FAILED;	// Stop downloading the file.
+		}
+		else if ( cfg_prompt_file_size == 0 && g_file_size_cmb_ret != CMBIDYESALL )	// Otherwise, ask for a prompt.
+		{
+			content_status = context->content_status = CONTENT_STATUS_FILE_SIZE_PROMPT;
+
+			// Add item to prompt queue and continue.
+			EnterCriticalSection( &file_size_prompt_list_cs );
+
+			DoublyLinkedList *di_node = DLL_CreateNode( ( void * )context->download_info );
+			DLL_AddNode( &file_size_prompt_list, di_node, -1 );
+
+			if ( !file_size_prompt_active )
 			{
-				context->header_info.range_info->content_length = 0;
-				context->header_info.range_info->range_start = 0;
-				context->header_info.range_info->range_end = 0;
-				context->header_info.range_info->content_offset = 0;
-				context->header_info.range_info->file_write_offset = 0;
+				file_size_prompt_active = true;
 
-				context->status = STATUS_SKIPPED;
+				HANDLE handle_prompt = ( HANDLE )_CreateThread( NULL, 0, FileSizePrompt, NULL, 0, NULL );
 
-				content_status = CONTENT_STATUS_FAILED;	// Stop downloading the file.
-			}
-			else	// Otherwise, ask for a prompt.
-			{
-				content_status = context->content_status = CONTENT_STATUS_FILE_SIZE_PROMPT;
-
-				// Add item to prompt queue and continue.
-				EnterCriticalSection( &file_size_prompt_list_cs );
-
-				DoublyLinkedList *di_node = DLL_CreateNode( ( void * )context->download_info );
-				DLL_AddNode( &file_size_prompt_list, di_node, -1 );
-
-				if ( !file_size_prompt_active )
+				// Make sure our thread spawned.
+				if ( handle_prompt == NULL )
 				{
-					file_size_prompt_active = true;
+					DLL_RemoveNode( &file_size_prompt_list, di_node );
+					GlobalFree( di_node );
 
-					HANDLE handle_prompt = ( HANDLE )_CreateThread( NULL, 0, FileSizePrompt, NULL, 0, NULL );
+					file_size_prompt_active = false;
 
-					// Make sure our thread spawned.
-					if ( handle_prompt == NULL )
-					{
-						DLL_RemoveNode( &file_size_prompt_list, di_node );
-						GlobalFree( di_node );
+					context->status = STATUS_FILE_IO_ERROR;
 
-						file_size_prompt_active = false;
-
-						context->status = STATUS_FILE_IO_ERROR;
-
-						content_status = CONTENT_STATUS_FAILED;	// Stop downloading the file.
-					}
-					else
-					{
-						CloseHandle( handle_prompt );
-					}
+					content_status = CONTENT_STATUS_FAILED;	// Stop downloading the file.
 				}
-
-				LeaveCriticalSection( &file_size_prompt_list_cs );
+				else
+				{
+					CloseHandle( handle_prompt );
+				}
 			}
+
+			LeaveCriticalSection( &file_size_prompt_list_cs );
 		}
 	}
 
@@ -3905,56 +3929,55 @@ char HandleLastModifiedPrompt( SOCKET_CONTEXT *context )
 
 	char content_status = CONTENT_STATUS_NONE;
 
-	// Ignore the prompt of we selected Continue or Restart to all.
-	if ( g_last_modified_cmb_ret != CMBIDCONTINUEALL && g_last_modified_cmb_ret != CMBIDRESTARTALL )
+	if ( context->got_last_modified == 2 )
 	{
-		if ( context->got_last_modified == 2 )
+		context->got_last_modified = 1;
+
+		// If we selected Skip to all, or it's a remotely initiated download, then close the connection.
+		if ( cfg_prompt_last_modified == 3 ||
+		   ( cfg_prompt_last_modified == 0 && ( g_last_modified_cmb_ret == CMBIDSKIPALL ||
+												context->download_info->download_operations & DOWNLOAD_OPERATION_OVERRIDE_PROMPTS ) ) )
 		{
-			context->got_last_modified = 1;
+			context->status = STATUS_SKIPPED;
 
-			// If we selected Skip to all, or it's a remotely initiated download, then close the connection.
-			if ( g_last_modified_cmb_ret == CMBIDSKIPALL || context->download_info->download_operations & DOWNLOAD_OPERATION_OVERRIDE_PROMPTS )
+			content_status = CONTENT_STATUS_FAILED;	// Stop downloading the file.
+		}
+		else if ( cfg_prompt_last_modified == 2 ||
+				( cfg_prompt_last_modified == 0 && g_last_modified_cmb_ret != CMBIDCONTINUEALL ) )	// Otherwise, ask for a prompt.
+		{
+			content_status = context->content_status = CONTENT_STATUS_LAST_MODIFIED_PROMPT;
+
+			// Add item to prompt queue and continue.
+			EnterCriticalSection( &last_modified_prompt_list_cs );
+
+			DoublyLinkedList *di_node = DLL_CreateNode( ( void * )context->download_info );
+			DLL_AddNode( &last_modified_prompt_list, di_node, -1 );
+
+			if ( !last_modified_prompt_active )
 			{
-				context->status = STATUS_SKIPPED;
+				last_modified_prompt_active = true;
 
-				content_status = CONTENT_STATUS_FAILED;	// Stop downloading the file.
-			}
-			else	// Otherwise, ask for a prompt.
-			{
-				content_status = context->content_status = CONTENT_STATUS_LAST_MODIFIED_PROMPT;
+				HANDLE handle_prompt = ( HANDLE )_CreateThread( NULL, 0, LastModifiedPrompt, ( void * )( ( cfg_prompt_last_modified == 2 || ( cfg_prompt_last_modified == 0 && g_last_modified_cmb_ret == CMBIDRESTARTALL ) ) ? 1 : 0 ), 0, NULL );
 
-				// Add item to prompt queue and continue.
-				EnterCriticalSection( &last_modified_prompt_list_cs );
-
-				DoublyLinkedList *di_node = DLL_CreateNode( ( void * )context->download_info );
-				DLL_AddNode( &last_modified_prompt_list, di_node, -1 );
-
-				if ( !last_modified_prompt_active )
+				// Make sure our thread spawned.
+				if ( handle_prompt == NULL )
 				{
-					last_modified_prompt_active = true;
+					DLL_RemoveNode( &last_modified_prompt_list, di_node );
+					GlobalFree( di_node );
 
-					HANDLE handle_prompt = ( HANDLE )_CreateThread( NULL, 0, LastModifiedPrompt, NULL, 0, NULL );
+					last_modified_prompt_active = false;
 
-					// Make sure our thread spawned.
-					if ( handle_prompt == NULL )
-					{
-						DLL_RemoveNode( &last_modified_prompt_list, di_node );
-						GlobalFree( di_node );
+					context->status = STATUS_FILE_IO_ERROR;
 
-						last_modified_prompt_active = false;
-
-						context->status = STATUS_FILE_IO_ERROR;
-
-						content_status = CONTENT_STATUS_FAILED;	// Stop downloading the file.
-					}
-					else
-					{
-						CloseHandle( handle_prompt );
-					}
+					content_status = CONTENT_STATUS_FAILED;	// Stop downloading the file.
 				}
-
-				LeaveCriticalSection( &last_modified_prompt_list_cs );
+				else
+				{
+					CloseHandle( handle_prompt );
+				}
 			}
+
+			LeaveCriticalSection( &last_modified_prompt_list_cs );
 		}
 	}
 

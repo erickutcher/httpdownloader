@@ -91,12 +91,11 @@ void UpdateMenus( bool enable )
 				_EnableMenuItem( g_hMenuSub_download, MENU_OPEN_DIRECTORY, MF_DISABLED );
 			}
 
-			// Allow download update if any of the following. Includes paused.
+			// Allow download update if any of the following. Includes paused and queued.
 			if ( di != NULL &&
 				 IS_STATUS( di->status,
 					STATUS_CONNECTING |
 					STATUS_DOWNLOADING |
-					STATUS_QUEUED |
 					STATUS_COMPLETED |
 					STATUS_STOPPED |
 					STATUS_TIMED_OUT |
@@ -116,7 +115,7 @@ void UpdateMenus( bool enable )
 
 			// Allow queue menu if item is queued.
 			if ( di != NULL &&
-				 di->status == STATUS_QUEUED )
+				 IS_STATUS( di->status, STATUS_QUEUED ) )
 			{
 				_EnableMenuItem( g_hMenuSub_queue, MENU_QUEUE_TOP, MF_ENABLED );
 				_EnableMenuItem( g_hMenuSub_queue, MENU_QUEUE_UP, MF_ENABLED );
@@ -166,7 +165,7 @@ void UpdateMenus( bool enable )
 			if ( di != NULL &&
 			   ( di->file_size == 0 || ( di->downloaded < di->file_size ) ) &&
 			   ( IS_STATUS( di->status, STATUS_PAUSED ) ||
-			   ( di->status == STATUS_QUEUED && ( total_downloading < cfg_max_downloads ) ) ||
+			   ( IS_STATUS( di->status, STATUS_QUEUED ) && ( total_downloading < cfg_max_downloads ) ) ||
 			   ( di->active_parts == 0 &&
 				 IS_STATUS( di->status,
 					STATUS_STOPPED |
@@ -213,12 +212,12 @@ void UpdateMenus( bool enable )
 				_SendMessageW( g_hWnd_toolbar, TB_SETBUTTONINFO, MENU_PAUSE, ( LPARAM )&tbb );
 			}
 
-			// Allow stop if connecting, downloading, paused, or queued.
+			// Allow stop if connecting, downloading, moving file, paused, or queued.
 			if ( di != NULL &&
 				 IS_STATUS( di->status,
 					STATUS_CONNECTING |
 					STATUS_DOWNLOADING |
-					STATUS_QUEUED ) )
+					STATUS_MOVING_FILE ) )
 			{
 				_EnableMenuItem( g_hMenuSub_download, MENU_STOP, MF_ENABLED );
 				_EnableMenuItem( g_hMenuSub_edit, MENU_STOP, MF_ENABLED );
@@ -235,12 +234,11 @@ void UpdateMenus( bool enable )
 				_SendMessageW( g_hWnd_toolbar, TB_SETBUTTONINFO, MENU_STOP, ( LPARAM )&tbb );
 			}
 
-			// Allow download restart if any of the following. Includes paused.
+			// Allow download restart if any of the following. Includes paused and queued.
 			if ( di != NULL &&
 				 IS_STATUS( di->status,
 					STATUS_CONNECTING |
 					STATUS_DOWNLOADING |
-					STATUS_QUEUED |
 					STATUS_COMPLETED |
 					STATUS_STOPPED |
 					STATUS_TIMED_OUT |
@@ -668,18 +666,18 @@ void CreateMenus()
 	_InsertMenuItemW( g_hMenuSub_tray, 1, TRUE, &mii );
 
 	mii.fType = MFT_STRING;
-	mii.dwTypeData = ST_V_Options___;
-	mii.cch = ST_L_Options___;
-	mii.wID = MENU_OPTIONS;
+	mii.dwTypeData = ST_V_Add_URL_s____;
+	mii.cch = ST_L_Add_URL_s____;
+	mii.wID = MENU_ADD_URLS;
 	_InsertMenuItemW( g_hMenuSub_tray, 2, TRUE, &mii );
 
 	mii.fType = MFT_SEPARATOR;
 	_InsertMenuItemW( g_hMenuSub_tray, 3, TRUE, &mii );
 
 	mii.fType = MFT_STRING;
-	mii.dwTypeData = ST_V_Add_URL_s____;
-	mii.cch = ST_L_Add_URL_s____;
-	mii.wID = MENU_ADD_URLS;
+	mii.dwTypeData = ST_V_Options___;
+	mii.cch = ST_L_Options___;
+	mii.wID = MENU_OPTIONS;
 	_InsertMenuItemW( g_hMenuSub_tray, 4, TRUE, &mii );
 
 	mii.fType = MFT_SEPARATOR;
@@ -714,18 +712,18 @@ void CreateMenus()
 	_InsertMenuItemW( g_hMenuSub_drag_drop, 3, TRUE, &mii );
 
 	mii.fType = MFT_STRING;
-	mii.dwTypeData = ST_V_Options___;
-	mii.cch = ST_L_Options___;
-	mii.wID = MENU_OPTIONS;
+	mii.dwTypeData = ST_V_Add_URL_s____;
+	mii.cch = ST_L_Add_URL_s____;
+	mii.wID = MENU_ADD_URLS;
 	_InsertMenuItemW( g_hMenuSub_drag_drop, 4, TRUE, &mii );
 
 	mii.fType = MFT_SEPARATOR;
 	_InsertMenuItemW( g_hMenuSub_drag_drop, 5, TRUE, &mii );
 
 	mii.fType = MFT_STRING;
-	mii.dwTypeData = ST_V_Add_URL_s____;
-	mii.cch = ST_L_Add_URL_s____;
-	mii.wID = MENU_ADD_URLS;
+	mii.dwTypeData = ST_V_Options___;
+	mii.cch = ST_L_Options___;
+	mii.wID = MENU_OPTIONS;
 	_InsertMenuItemW( g_hMenuSub_drag_drop, 6, TRUE, &mii );
 
 	mii.fType = MFT_SEPARATOR;
@@ -897,11 +895,17 @@ void CreateMenus()
 	mii.fState = ( cfg_show_toolbar ? MFS_CHECKED : MFS_UNCHECKED );
 	_InsertMenuItemW( g_hMenuSub_view, 0, TRUE, &mii );
 
+	mii.dwTypeData = ST_V__Column_Headers;
+	mii.cch = ST_L__Column_Headers;
+	mii.wID = MENU_SHOW_COLUMN_HEADERS;
+	mii.fState = ( cfg_show_column_headers ? MFS_CHECKED : MFS_UNCHECKED );
+	_InsertMenuItemW( g_hMenuSub_view, 1, TRUE, &mii );
+
 	mii.dwTypeData = ST_V__Status_Bar;
 	mii.cch = ST_L__Status_Bar;
 	mii.wID = MENU_SHOW_STATUS_BAR;
 	mii.fState = ( cfg_show_status_bar ? MFS_CHECKED : MFS_UNCHECKED );
-	_InsertMenuItemW( g_hMenuSub_view, 1, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_view, 2, TRUE, &mii );
 
 
 	// TOOLS MENU
