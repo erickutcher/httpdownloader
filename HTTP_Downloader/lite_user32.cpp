@@ -56,7 +56,7 @@
 	pFrameRect				_FrameRect;
 	//pGetClassLongPtrW		_GetClassLongPtrW;
 	pGetClientRect			_GetClientRect;
-	//pGetClipboardData		_GetClipboardData
+	//pGetClipboardData		_GetClipboardData;
 	pGetCursorPos			_GetCursorPos;
 	pGetDC					_GetDC;
 	//pGetDlgItem				_GetDlgItem;

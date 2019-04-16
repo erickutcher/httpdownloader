@@ -268,7 +268,7 @@ LRESULT CALLBACK URLDropWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 				// Allow our main window to attach to the desktop edge.
 				_SystemParametersInfoW( SPI_GETWORKAREA, 0, &wa, 0 );			
-				if( is_close( rc.left, wa.left ) )				// Attach to left side of the desktop.
+				if ( is_close( rc.left, wa.left ) )				// Attach to left side of the desktop.
 				{
 					_OffsetRect( &rc, wa.left - rc.left, 0 );
 				}
@@ -277,7 +277,7 @@ LRESULT CALLBACK URLDropWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 					_OffsetRect( &rc, wa.right - rc.right, 0 );
 				}
 
-				if( is_close( rc.top, wa.top ) )				// Attach to top of the desktop.
+				if ( is_close( rc.top, wa.top ) )				// Attach to top of the desktop.
 				{
 					_OffsetRect( &rc, 0, wa.top - rc.top );
 				}

@@ -23,6 +23,8 @@
 #include "lite_ole32.h"
 #include "lite_gdi32.h"
 
+#include "list_operations.h"
+
 #include "drag_and_drop.h"
 #include "folder_browser.h"
 
@@ -30,7 +32,7 @@
 
 #include "wnd_proc.h"
 
-#define MIN_ADVANCED_HEIGHT		525
+#define MIN_ADVANCED_HEIGHT		548
 
 #define BTN_DOWNLOAD			1000
 #define BTN_ADD_CANCEL			1001
@@ -39,6 +41,9 @@
 #define CHK_SEND_DATA			1005
 #define CHK_SIMULATE_DOWNLOAD	1006
 #define BTN_ADVANCED			1007
+
+#define CB_REGEX_FILTER_PRESET	1008
+#define BTN_APPLY_FILTER		1009
 
 HWND g_hWnd_add_urls = NULL;
 
@@ -78,6 +83,11 @@ HWND g_hWnd_btn_advanced = NULL;
 
 HWND g_hWnd_btn_download = NULL;
 HWND g_hWnd_cancel = NULL;
+
+HWND g_hWnd_static_regex_filter = NULL;
+HWND g_hWnd_regex_filter_preset = NULL;
+HWND g_hWnd_regex_filter = NULL;
+HWND g_hWnd_btn_apply_filter = NULL;
 
 bool g_show_advanced = false;
 
@@ -155,7 +165,22 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
     {
 		case WM_CREATE:
 		{
-			HWND hWnd_static_urls = _CreateWindowW( WC_STATIC, ST_V_URL_s__, WS_CHILD | WS_VISIBLE, 20, 20, 100, 15, hWnd, NULL, NULL, NULL );
+			DWORD enabled = ( g_use_regular_expressions ? 0 : WS_DISABLED );
+			g_hWnd_static_regex_filter = _CreateWindowW( WC_STATIC, ST_V_RegEx_filter_, SS_OWNERDRAW | WS_CHILD | WS_VISIBLE | enabled, 95, 24, 90, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_regex_filter_preset = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_COMBOBOX, NULL, CBS_AUTOHSCROLL | CBS_DROPDOWNLIST | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE | enabled, 190, 20, 80, 23, hWnd, ( HMENU )CB_REGEX_FILTER_PRESET, NULL, NULL );
+			_SendMessageW( g_hWnd_regex_filter_preset, CB_ADDSTRING, 0, ( LPARAM )ST_V_Custom );
+			_SendMessageW( g_hWnd_regex_filter_preset, CB_ADDSTRING, 0, ( LPARAM )ST_V_Images );
+			_SendMessageW( g_hWnd_regex_filter_preset, CB_ADDSTRING, 0, ( LPARAM )ST_V_Music );
+			_SendMessageW( g_hWnd_regex_filter_preset, CB_ADDSTRING, 0, ( LPARAM )ST_V_Videos );
+
+			_SendMessageW( g_hWnd_regex_filter_preset, CB_SETCURSEL, 0, 0 );
+
+			g_hWnd_regex_filter = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, L"", ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_VISIBLE | enabled, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+
+			g_hWnd_btn_apply_filter = _CreateWindowW( WC_BUTTON, ST_V_Apply, WS_CHILD | WS_TABSTOP | WS_VISIBLE | enabled, 0, 0, 0, 0, hWnd, ( HMENU )BTN_APPLY_FILTER, NULL, NULL );
+
+
+			HWND hWnd_static_urls = _CreateWindowW( WC_STATIC, ST_V_URL_s__, WS_CHILD | WS_VISIBLE, 20, 35, 70, 15, hWnd, NULL, NULL, NULL );
 			g_hWnd_edit_add = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, L"", WS_CHILD | WS_TABSTOP | ES_AUTOHSCROLL | ES_MULTILINE | WS_HSCROLL | WS_VSCROLL | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 
 			_SendMessageW( g_hWnd_edit_add, EM_LIMITTEXT, 0, 0 );	// Maximum size.
@@ -255,6 +280,11 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			_SendMessageW( g_hWnd_edit_data, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 			_SendMessageW( g_hWnd_btn_advanced, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 
+			_SendMessageW( g_hWnd_static_regex_filter, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_regex_filter_preset, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_regex_filter, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_btn_apply_filter, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+
 			t_download_directory = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * MAX_PATH );
 			_wmemcpy_s( t_download_directory, MAX_PATH, cfg_default_download_directory, g_default_download_directory_length );
 			t_download_directory[ g_default_download_directory_length ] = 0;	// Sanity.
@@ -300,6 +330,27 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			//{
 			//	return _DefWindowProcW( hWnd, msg, wParam, lParam );
 			//}
+		}
+		break;
+
+		case WM_DRAWITEM:
+		{
+			DRAWITEMSTRUCT *dis = ( DRAWITEMSTRUCT * )lParam;
+
+			// The disabled static control causes flickering. The only way around it is to draw it ourselves.
+			if ( dis->CtlType == ODT_STATIC )
+			{
+				_FillRect( dis->hDC, &dis->rcItem, _GetSysColorBrush( COLOR_WINDOW ) );
+
+				COLORREF font_color = _GetSysColor( COLOR_WINDOWTEXT );
+				if ( _IsWindowEnabled( dis->hwndItem ) == FALSE )
+				{
+					_SetTextColor( dis->hDC, _GetSysColor( COLOR_GRAYTEXT ) );
+				}
+				_DrawTextW( dis->hDC, L"RegEx filter:", 13, &dis->rcItem, DT_NOPREFIX | DT_SINGLELINE | DT_END_ELLIPSIS | DT_RIGHT );
+			}
+
+			return TRUE;
 		}
 		break;
 
@@ -354,25 +405,29 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			_GetClientRect( hWnd, &rc );
 
 			// Allow our controls to move in relation to the parent window.
-			HDWP hdwp = _BeginDeferWindowPos( 25 );
-			_DeferWindowPos( hdwp, g_hWnd_edit_add, HWND_TOP, 20, 35, rc.right - 40, rc.bottom - ( g_show_advanced ? 415 : 130 ), SWP_NOZORDER );
+			HDWP hdwp = _BeginDeferWindowPos( 27 );
 
-			_DeferWindowPos( hdwp, g_hWnd_static_download_directory, HWND_TOP, 20, rc.bottom - ( g_show_advanced ? 370 : 85 ), rc.right - 40, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_download_directory, HWND_TOP, 20, rc.bottom - ( g_show_advanced ? 355 : 70 ), rc.right - 80, 20, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_btn_download_directory, HWND_TOP, rc.right - 55, rc.bottom - ( g_show_advanced ? 355 : 70 ), 35, 20, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_regex_filter, HWND_TOP, 275, 20, rc.right - 365, 23, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_btn_apply_filter, HWND_TOP, rc.right - 85, 20, 65, 23, SWP_NOZORDER );
+
+			_DeferWindowPos( hdwp, g_hWnd_edit_add, HWND_TOP, 20, 50, rc.right - 40, rc.bottom - ( g_show_advanced ? 428 : 143 ), SWP_NOZORDER );
+
+			_DeferWindowPos( hdwp, g_hWnd_static_download_directory, HWND_TOP, 20, rc.bottom - ( g_show_advanced ? 373 : 88 ), rc.right - 40, 15, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_download_directory, HWND_TOP, 20, rc.bottom - ( g_show_advanced ? 358 : 73 ), rc.right - 80, 23, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_btn_download_directory, HWND_TOP, rc.right - 55, rc.bottom - ( g_show_advanced ? 358 : 73 ), 35, 23, SWP_NOZORDER );
 
 			_DeferWindowPos( hdwp, g_hWnd_static_download_parts, HWND_TOP, 20, rc.bottom - 325, 115, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_download_parts, HWND_TOP, 20, rc.bottom - 310, 85, 20, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_ud_download_parts, HWND_TOP, 105, rc.bottom - 311, _GetSystemMetrics( SM_CXVSCROLL ), 22, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_download_parts, HWND_TOP, 20, rc.bottom - 310, 85, 23, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_ud_download_parts, HWND_TOP, 105, rc.bottom - 311, _GetSystemMetrics( SM_CXVSCROLL ), 25, SWP_NOZORDER );
 
 			_DeferWindowPos( hdwp, g_hWnd_static_ssl_version, HWND_TOP, 140, rc.bottom - 325, 115, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_ssl_version, HWND_TOP, 140, rc.bottom - 310, 100, 20, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_ssl_version, HWND_TOP, 140, rc.bottom - 310, 100, 23, SWP_NOZORDER );
 
 			_DeferWindowPos( hdwp, g_hWnd_btn_authentication, HWND_TOP, 260, rc.bottom - 325, 230, 65, SWP_NOZORDER );
 			_DeferWindowPos( hdwp, g_hWnd_static_username, HWND_TOP, 270, rc.bottom - 310, 100, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_edit_username, HWND_TOP, 270, rc.bottom - 295, 100, 20, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_edit_username, HWND_TOP, 270, rc.bottom - 295, 100, 23, SWP_NOZORDER );
 			_DeferWindowPos( hdwp, g_hWnd_static_password, HWND_TOP, 380, rc.bottom - 310, 100, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_edit_password, HWND_TOP, 380, rc.bottom - 295, 100, 20, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_edit_password, HWND_TOP, 380, rc.bottom - 295, 100, 23, SWP_NOZORDER );
 
 			_DeferWindowPos( hdwp, g_hWnd_advanced_add_tab, HWND_TOP, 20, rc.bottom - 260, rc.right - 40, 185, SWP_NOZORDER );
 
@@ -403,7 +458,7 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			rc.left = 5;
 			rc.top = 5;
 			rc.right -= 65;
-			rc.bottom -= ( g_show_advanced ? 435 : 150 );	// Add 20 to each of these numbers from above.
+			rc.bottom -= ( g_show_advanced ? 448 : 163 );	// Add 20 to each of these numbers from above.
 			_SendMessageW( g_hWnd_edit_add, EM_SETRECT, 0, ( LPARAM )&rc );
 
 			return 0;
@@ -413,8 +468,8 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 		case WM_GETMINMAXINFO:
 		{
 			// Set the minimum dimensions that the window can be sized to.
-			( ( MINMAXINFO * )lParam )->ptMinTrackSize.x = 525;
-			( ( MINMAXINFO * )lParam )->ptMinTrackSize.y = ( g_show_advanced ? MIN_ADVANCED_HEIGHT : 240 );
+			( ( MINMAXINFO * )lParam )->ptMinTrackSize.x = 600;
+			( ( MINMAXINFO * )lParam )->ptMinTrackSize.y = ( g_show_advanced ? MIN_ADVANCED_HEIGHT : 263 );
 
 			return 0;
 		}
@@ -729,10 +784,68 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 					}
 				}
 				break;
+
+				case CB_REGEX_FILTER_PRESET:
+				{
+					if ( HIWORD( wParam ) == CBN_SELCHANGE )
+					{
+						int index = ( int )_SendMessageW( ( HWND )lParam, CB_GETCURSEL, 0, 0 );
+
+						wchar_t *filter = NULL;
+						switch ( index )
+						{
+							case 1: { filter = L"(?i)(^https?:\\/\\/[^\\/\\s]+\\/[^\\?#\\s]+\\.(jpe?g?|gif|png|bmp|tiff?|dib|ico)(\\?|#|$))"; } break;
+							case 2: { filter = L"(?i)(^https?:\\/\\/[^\\/\\s]+\\/[^\\?#\\s]+\\.(mp3|wave?|flac?|ogg|m4a|wma|aac|midi?|ape|shn|wv|aiff?|oga)(\\?|#|$))"; } break;
+							case 3: { filter = L"(?i)(^https?:\\/\\/[^\\/\\s]+\\/[^\\?#\\s]+\\.(avi|mp[124]|m4v|mpe?g?|mkv|webm|wmv|3gp|ogm|ogv|flv|vob)(\\?|#|$))"; } break;
+						}
+
+						_SendMessageW( g_hWnd_regex_filter, WM_SETTEXT, 0, ( LPARAM )filter );
+					}
+				}
+				break;
+
+				case BTN_APPLY_FILTER:
+				{
+					unsigned int edit_length = ( unsigned int )_SendMessageW( g_hWnd_edit_add, WM_GETTEXTLENGTH, 0, 0 );
+					unsigned int regex_filter_length = ( unsigned int )_SendMessageW( g_hWnd_regex_filter, WM_GETTEXTLENGTH, 0, 0 );
+
+					// http://a.b
+					if ( edit_length >= 10 && regex_filter_length > 0 )
+					{
+						FILTER_INFO *fi = ( FILTER_INFO * )GlobalAlloc( GMEM_FIXED, sizeof( FILTER_INFO ) );
+
+						// URLs
+						wchar_t *edit = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( edit_length + 1 ) );
+						_SendMessageW( g_hWnd_edit_add, WM_GETTEXT, edit_length + 1, ( LPARAM )edit );
+
+						fi->text = edit;
+
+						// Filter
+						edit = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( regex_filter_length + 1 ) );
+						_SendMessageW( g_hWnd_regex_filter, WM_GETTEXT, regex_filter_length + 1, ( LPARAM )edit );
+
+						fi->filter = edit;
+
+						// fi is freed in filter_urls.
+						HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, filter_urls, ( void * )fi, 0, NULL );
+						if ( thread != NULL )
+						{
+							CloseHandle( thread );
+						}
+						else
+						{
+							GlobalFree( fi->filter );
+							GlobalFree( fi->text );
+							GlobalFree( fi );
+						}
+					}
+				}
+				break;
 			}
 
 			return 0;
 		}
+		break;
 
 		case WM_NOTIFY:
 		{
@@ -856,6 +969,17 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			_SetForegroundWindow( hWnd );
 
 			_SetFocus( g_hWnd_edit_add );
+		}
+		break;
+
+		case WM_FILTER_TEXT:
+		{
+			_SendMessageW( g_hWnd_edit_add, EM_SETSEL, 0, -1 );
+			_SendMessageW( g_hWnd_edit_add, EM_REPLACESEL, TRUE, lParam );
+
+			_SetFocus( g_hWnd_edit_add );
+
+			GlobalFree( ( HGLOBAL )lParam );
 		}
 		break;
 

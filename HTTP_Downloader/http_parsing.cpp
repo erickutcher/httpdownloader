@@ -3700,7 +3700,7 @@ char AllocateFile( SOCKET_CONTEXT *context )
 							SetFilePointerEx( context->download_info->hFile, li, NULL, FILE_BEGIN );
 							SetEndOfFile( context->download_info->hFile );
 
-							if ( can_fast_allocate )	// Fast disk allocation if we're an administrator.
+							if ( g_can_fast_allocate )	// Fast disk allocation if we're an administrator.
 							{
 								if ( SetFileValidData( context->download_info->hFile, li.QuadPart ) == FALSE )
 								{

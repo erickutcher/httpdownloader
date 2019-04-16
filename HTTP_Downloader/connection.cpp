@@ -88,6 +88,15 @@ char *g_proxy_auth_password_s = NULL;
 char *g_proxy_auth_key_s = NULL;
 unsigned long g_proxy_auth_key_length_s = 0;
 
+// SOCKS5 Proxy
+
+wchar_t *g_punycode_hostname_socks = NULL;
+
+char *g_proxy_auth_username_socks = NULL;
+char *g_proxy_auth_password_socks = NULL;
+
+char *g_proxy_auth_ident_username_socks = NULL;
+
 ////////////////////
 
 unsigned long total_downloading = 0;
@@ -1444,7 +1453,8 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 		else
 		{
 			if ( *current_operation == IO_GetContent ||
-				 *current_operation == IO_GetCONNECTResponse )
+				 *current_operation == IO_GetCONNECTResponse ||
+				 *current_operation == IO_SOCKSResponse )
 			{
 				// If there's no more data that was read.
 				// Can occur when no file size has been set and the connection header is set to close.
@@ -1584,13 +1594,6 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 
 					// Post another outstanding AcceptEx.
 					CreateAcceptSocket( g_listen_socket, g_server_use_ipv6 );
-					/*if ( CreateAcceptSocket( g_listen_socket, g_server_use_ipv6 ) != LA_STATUS_OK )
-					{
-						_WSASetEvent( g_cleanup_event[ 0 ] );
-
-						_ExitThread( 0 );
-						return 0;
-					}*/
 				}
 				else if ( context->cleanup == 2 )	// If we've forced the cleanup, then allow it to continue its steps.
 				{
@@ -1678,7 +1681,7 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 							InterlockedIncrement( &context->pending_operations );
 
 							// If it's an HTTPS request and we're not going through a SSL/TLS proxy, then begin the SSL/TLS handshake.
-							if ( context->request_info.protocol == PROTOCOL_HTTPS && !cfg_enable_proxy_s )
+							if ( context->request_info.protocol == PROTOCOL_HTTPS && !cfg_enable_proxy_s && !cfg_enable_proxy_socks )
 							{
 								*next_operation = IO_ClientHandshakeResponse;
 
@@ -1703,6 +1706,14 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 									*next_operation = IO_GetCONNECTResponse;
 
 									ConstructRequest( context, true );
+								}
+								else if ( cfg_enable_proxy_socks )	// SOCKS5 request.
+								{
+									*next_operation = IO_SOCKSResponse;
+
+									context->content_status = SOCKS_STATUS_REQUEST_AUTH;
+
+									ConstructSOCKSRequest( context, 0 );
 								}
 								else	// HTTP request.
 								{
@@ -2124,6 +2135,170 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 			}
 			break;
 
+			case IO_SOCKSResponse:
+			{
+				char connection_status = 0;	// 0 = continue, 1 = fail, 2 = exit
+
+				EnterCriticalSection( &context->context_cs );
+
+				if ( context->cleanup == 0 )
+				{
+					InterlockedIncrement( &context->pending_operations );
+
+					context->current_bytes_read = io_size + ( DWORD )( context->wsabuf.buf - context->buffer );
+
+					context->wsabuf.buf = context->buffer;
+					context->wsabuf.len = BUFFER_SIZE;
+
+					context->wsabuf.buf[ context->current_bytes_read ] = 0;	// Sanity.
+
+					if ( context->content_status == SOCKS_STATUS_REQUEST_AUTH )
+					{
+						if ( context->current_bytes_read < 2 )	// Request more data.
+						{
+							context->wsabuf.buf += context->current_bytes_read;
+							context->wsabuf.len -= context->current_bytes_read;
+
+							// wsabuf will be offset in ParseHTTPHeader to handle more data.
+							nRet = _WSARecv( context->socket, &context->wsabuf, 1, NULL, &dwFlags, ( WSAOVERLAPPED * )overlapped, NULL );
+							if ( nRet == SOCKET_ERROR && ( _WSAGetLastError() != ERROR_IO_PENDING ) )
+							{
+								connection_status = 1;	// Failed.
+							}
+						}
+						else
+						{
+							if ( context->wsabuf.buf[ 1 ] == 0x5A )	// SOCKS4 - request granted.
+							{
+								context->content_status = SOCKS_STATUS_HANDLE_CONNECTION;
+							}
+							else if ( context->wsabuf.buf[ 1 ] == 0x00 )	// SOCKS5 - no authentication required.
+							{
+								context->content_status = SOCKS_STATUS_REQUEST_CONNECTION;
+							}
+							else if ( context->wsabuf.buf[ 1 ] == 0x02 )	// SOCKS5 - username and password authentication required.
+							{
+								if ( cfg_use_authentication_socks )
+								{
+									context->content_status = SOCKS_STATUS_AUTH_SENT;
+
+									ConstructSOCKSRequest( context, 2 );
+
+									*current_operation = IO_Write;
+
+									nRet = _WSASend( context->socket, &context->wsabuf, 1, NULL, dwFlags, ( WSAOVERLAPPED * )overlapped, NULL );
+									if ( nRet == SOCKET_ERROR && ( _WSAGetLastError() != ERROR_IO_PENDING ) )
+									{
+										connection_status = 1;	// Failed.
+									}
+									else
+									{
+										connection_status = 2;	// Exit the case.
+									}
+								}
+								else	// Server wants us to send it, but we don't have it enabled.
+								{
+									context->status = STATUS_PROXY_AUTH_REQUIRED;
+
+									connection_status = 1;	// Failed.
+								}
+							}
+							else	// Bad request, or unsupported authentication method.
+							{
+								connection_status = 1;	// Failed.
+							}
+						}
+					}
+					else if ( context->content_status == SOCKS_STATUS_AUTH_SENT )
+					{
+						if ( context->wsabuf.buf[ 1 ] == 0x00 )	// Username and password accepted.
+						{
+							context->content_status = SOCKS_STATUS_REQUEST_CONNECTION;
+						}
+						else	// We sent the username and password, but it was rejected.
+						{
+							context->status = STATUS_PROXY_AUTH_REQUIRED;
+
+							connection_status = 1;	// Failed.
+						}
+					}
+
+					// No problems, continue with our request.
+					if ( connection_status == 0 )
+					{
+						if ( context->content_status == SOCKS_STATUS_REQUEST_CONNECTION )
+						{
+							*current_operation = IO_Write;
+
+							context->content_status = SOCKS_STATUS_HANDLE_CONNECTION;
+
+							ConstructSOCKSRequest( context, 1 );
+
+							nRet = _WSASend( context->socket, &context->wsabuf, 1, NULL, dwFlags, ( WSAOVERLAPPED * )overlapped, NULL );
+							if ( nRet == SOCKET_ERROR && ( _WSAGetLastError() != ERROR_IO_PENDING ) )
+							{
+								connection_status = 1;	// Failed.
+							}
+						}
+						else if ( context->content_status == SOCKS_STATUS_HANDLE_CONNECTION )
+						{
+							context->content_status = CONTENT_STATUS_NONE;	// Reset.
+
+							if ( context->request_info.protocol == PROTOCOL_HTTPS )
+							{
+								*next_operation = IO_ClientHandshakeResponse;
+
+								SSL_WSAConnect( context, overlapped, context->request_info.host, sent );
+								if ( !sent )
+								{
+									connection_status = 1;	// Failed.
+								}
+							}
+							else
+							{
+								*current_operation = IO_Write;
+								*next_operation = IO_GetContent;
+
+								ConstructRequest( context, false );
+
+								nRet = _WSASend( context->socket, &context->wsabuf, 1, NULL, dwFlags, ( WSAOVERLAPPED * )overlapped, NULL );
+								if ( nRet == SOCKET_ERROR && ( _WSAGetLastError() != ERROR_IO_PENDING ) )
+								{
+									connection_status = 1;
+								}
+							}
+						}
+						else
+						{
+							context->status = STATUS_FAILED;
+
+							connection_status = 1;	// Failed.
+						}
+					}
+				}
+				else if ( context->cleanup == 2 )	// If we've forced the cleanup, then allow it to continue its steps.
+				{
+					context->cleanup = 1;	// Auto cleanup.
+				}
+				else	// We've already shutdown and/or closed the connection.
+				{
+					connection_status = 1;	// Failed.
+
+					InterlockedIncrement( &context->pending_operations );
+				}
+
+				// If something failed.
+				if ( connection_status == 1 )
+				{
+					*current_operation = IO_Close;
+
+					PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
+				}
+
+				LeaveCriticalSection( &context->context_cs );
+			}
+			break;
+
 			case IO_GetContent:
 			case IO_ResumeGetContent:
 			case IO_GetRequest:
@@ -2492,7 +2667,9 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 						}
 						else	// Read more data.
 						{
-							if ( *current_operation != IO_GetCONNECTResponse && use_ssl )
+							if ( *current_operation != IO_GetCONNECTResponse &&
+								 *current_operation != IO_SOCKSResponse &&
+								  use_ssl )
 							{
 								SSL_WSARecv( context, overlapped, sent );
 								if ( !sent )
@@ -2708,6 +2885,28 @@ bool CreateConnection( SOCKET_CONTEXT *context, char *host, unsigned short port 
 				whost = wcs_ip;
 			}
 		}
+		else if ( cfg_enable_proxy_socks )
+		{
+			__snwprintf( wport, 6, L"%hu", cfg_port_socks );
+
+			if ( cfg_address_type_socks == 0 )
+			{
+				whost = ( g_punycode_hostname_socks != NULL ? g_punycode_hostname_socks : cfg_hostname_socks );
+			}
+			else
+			{
+				struct sockaddr_in src_addr;
+				_memzero( &src_addr, sizeof( sockaddr_in ) );
+
+				src_addr.sin_family = AF_INET;
+				src_addr.sin_addr.s_addr = _htonl( cfg_ip_address_socks );
+
+				DWORD wcs_ip_length = 16;
+				_WSAAddressToStringW( ( SOCKADDR * )&src_addr, sizeof( struct sockaddr_in ), NULL, wcs_ip, &wcs_ip_length );
+
+				whost = wcs_ip;
+			}
+		}
 		else
 		{
 			__snwprintf( wport, 6, L"%hu", port );
@@ -2728,12 +2927,38 @@ bool CreateConnection( SOCKET_CONTEXT *context, char *host, unsigned short port 
 			nRet = _GetAddrInfoW( whost, wport, &hints, &context->address_info );
 		}
 
+		GlobalFree( t_whost );
+
 		if ( nRet != 0 )
 		{
-			GlobalFree( t_whost );
 			return false;
 		}
-		GlobalFree( t_whost );
+	}
+
+	if ( cfg_enable_proxy_socks &&
+		 context->proxy_address_info == NULL &&
+		 ( ( cfg_socks_type == SOCKS_TYPE_V4 && !cfg_resolve_domain_names_v4a ) ||
+		   ( cfg_socks_type == SOCKS_TYPE_V5 && !cfg_resolve_domain_names ) ) )
+	{
+		_memzero( &hints, sizeof( addrinfoW ) );
+		hints.ai_family = AF_INET;
+		hints.ai_socktype = SOCK_STREAM;
+		hints.ai_protocol = IPPROTO_IP;
+
+		__snwprintf( wport, 6, L"%hu", context->request_info.port );
+
+		int whost_length = MultiByteToWideChar( CP_UTF8, 0, context->request_info.host, -1, NULL, 0 );	// Include the NULL terminator.
+		whost = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * whost_length );
+		MultiByteToWideChar( CP_UTF8, 0, context->request_info.host, -1, whost, whost_length );
+
+		nRet = _GetAddrInfoW( whost, wport, &hints, &context->proxy_address_info );
+		if ( nRet == WSAHOST_NOT_FOUND && cfg_socks_type == SOCKS_TYPE_V5 )	// Allow IPv6 for SOCKS 5
+		{
+			hints.ai_family = AF_INET6;	// Try IPv6
+			_GetAddrInfoW( whost, wport, &hints, &context->proxy_address_info );
+		}
+
+		GlobalFree( whost );
 	}
 
 	SOCKET socket = CreateSocket( use_ipv6 );
@@ -4635,8 +4860,6 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 								context->download_info->status = STATUS_COMPLETED;
 							}
 
-							SetSessionStatusCount( context->download_info->status );
-
 							EnterCriticalSection( &active_download_list_cs );
 
 							// Remove the node from the active download list.
@@ -4795,6 +5018,10 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 
 										StartDownload( context->download_info, false );
 									}
+									else
+									{
+										SetSessionStatusCount( context->download_info->status );
+									}
 								}
 								else if ( context->download_info->status == STATUS_UPDATING )
 								{
@@ -4802,21 +5029,10 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 								}
 								else if ( context->download_info->status == STATUS_COMPLETED )
 								{
-									/*// All of this is safe to clean up when the download state is complete.
-									// For every other state we'll keep these in case we want to resume/restart the download.
+									SetSessionStatusCount( context->download_info->status );
 
-									GlobalFree( context->download_info->cookies );
-									context->download_info->cookies = NULL;
-									GlobalFree( context->download_info->headers );
-									context->download_info->headers = NULL;
-									GlobalFree( context->download_info->data );
-									context->download_info->data = NULL;
-									//GlobalFree( context->download_info->etag );
-									//context->download_info->etag = NULL;
-									GlobalFree( context->download_info->auth_info.username );
-									context->download_info->auth_info.username = NULL;
-									GlobalFree( context->download_info->auth_info.password );
-									context->download_info->auth_info.password = NULL;*/
+									// All of this is safe to clean up when the download state is complete.
+									// For every other state we'll keep these in case we want to resume/restart the download.
 
 									while ( context->download_info->range_list != NULL )
 									{
@@ -4841,6 +5057,10 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 									{
 										AddToMoveFileQueue( context->download_info );
 									}
+								}
+								else
+								{
+									SetSessionStatusCount( context->download_info->status );
 								}
 
 								LeaveCriticalSection( &context->download_info->shared_cs );
@@ -4890,6 +5110,7 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 			if ( context->ssl != NULL ) { SSL_free( context->ssl ); }
 
 			if ( context->address_info != NULL ) { _FreeAddrInfoW( context->address_info ); }
+			if ( context->proxy_address_info != NULL ) { _FreeAddrInfoW( context->proxy_address_info ); }
 
 			if ( context->decompressed_buf != NULL ) { GlobalFree( context->decompressed_buf ); }
 			if ( zlib1_state == ZLIB1_STATE_RUNNING ) { _inflateEnd( &context->stream ); }

@@ -217,6 +217,7 @@ void UpdateMenus( bool enable )
 				 IS_STATUS( di->status,
 					STATUS_CONNECTING |
 					STATUS_DOWNLOADING |
+					STATUS_RESTART |
 					STATUS_MOVING_FILE ) )
 			{
 				_EnableMenuItem( g_hMenuSub_download, MENU_STOP, MF_ENABLED );
@@ -236,6 +237,7 @@ void UpdateMenus( bool enable )
 
 			// Allow download restart if any of the following. Includes paused and queued.
 			if ( di != NULL &&
+				 IS_STATUS_NOT( di->status, STATUS_RESTART ) &&
 				 IS_STATUS( di->status,
 					STATUS_CONNECTING |
 					STATUS_DOWNLOADING |

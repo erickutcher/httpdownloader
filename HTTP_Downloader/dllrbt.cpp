@@ -38,7 +38,7 @@ typedef struct tag
 	unsigned int count;
 } tag_type;
 
-dllrbt_tree *dllrbt_create( int( *compare )( void *a, void *b ) )
+dllrbt_tree *dllrbt_create( int ( *compare )( void *a, void *b ) )
 {
 	tag_type *rbt;
 

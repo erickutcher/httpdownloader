@@ -19,6 +19,7 @@
 #include "globals.h"
 
 #include "lite_kernel32.h"
+#include "lite_pcre2.h"
 
 #include "connection.h"
 
@@ -1077,7 +1078,47 @@ THREAD_RETURN handle_connection( void *pArguments )
 								 STATUS_AUTH_REQUIRED |
 								 STATUS_PROXY_AUTH_REQUIRED ) )	// The download is currently stopped.
 					{
-						if ( IS_STATUS_NOT( status, STATUS_PAUSED | STATUS_STOPPED ) )
+						// If this is true, then we've attempted to restart before a connection operation has completed.
+						if ( IS_STATUS( di->status, STATUS_RESTART ) && status == STATUS_STOPPED )
+						{
+							di->status = status;
+
+							LeaveCriticalSection( &di->shared_cs );
+
+							while ( context_node != NULL )
+							{
+								context = ( SOCKET_CONTEXT * )context_node->data;
+
+								context_node = context_node->next;
+
+								if ( context != NULL )
+								{
+									EnterCriticalSection( &context->context_cs );
+
+									context->status = status;
+
+									if ( context->cleanup == 0 )
+									{
+										context->cleanup = 1;	// Auto cleanup.
+									}
+
+									// The operation is probably stuck (server isn't responding). Force close the socket it to release the operation.
+									if ( context->pending_operations > 0 )
+									{
+										if ( context->socket != INVALID_SOCKET )
+										{
+											SOCKET s = context->socket;
+											context->socket = INVALID_SOCKET;
+											_shutdown( s, SD_BOTH );
+											_closesocket( s );	// Saves us from having to post if there's already a pending IO operation. Should force the operation to complete.
+										}
+									}
+
+									LeaveCriticalSection( &context->context_cs );
+								}
+							}
+						}
+						else if ( IS_STATUS_NOT( status, STATUS_PAUSED | STATUS_STOPPED ) )
 						{
 							// Ensure that the download is actually stopped and that there are no active parts downloading.
 							if ( di->active_parts == 0 )
@@ -1086,9 +1127,13 @@ THREAD_RETURN handle_connection( void *pArguments )
 
 								ResetDownload( di, ( status == STATUS_RESTART ? true : false ), ( di->status == STATUS_SKIPPED ? true : false ) );
 							}
-						}
 
-						LeaveCriticalSection( &di->shared_cs );
+							LeaveCriticalSection( &di->shared_cs );
+						}
+						else
+						{
+							LeaveCriticalSection( &di->shared_cs );
+						}
 					}
 					else if ( di->status == STATUS_MOVING_FILE )
 					{
@@ -2162,32 +2207,62 @@ THREAD_RETURN search_list( void *pArguments )
 
 					wchar_t *text = ( si->type == 1 ? di->url : ( di->file_path + di->filename_offset ) );
 
-					if ( si->case_flag == ( 0x01 | 0x02 ) )	// Match case and whole word.
+					if ( si->search_flag == 0x04 )	// Regular expression search.
 					{
-						if ( lstrcmpW( text, si->text ) == 0 )
+						if ( g_use_regular_expressions )
 						{
-							found_match = true;
-						}
-					}
-					else if ( si->case_flag == 0x02 )	// Match whole word.
-					{
-						if ( lstrcmpiW( text, si->text ) == 0 )
-						{
-							found_match = true;
-						}
-					}
-					else if ( si->case_flag == 0x01 )	// Match case.
-					{
-						if ( _StrStrW( text, si->text ) != NULL )
-						{
-							found_match = true;
+							int error_code;
+							size_t error_offset;
+
+							pcre2_code *regex_code = _pcre2_compile_16( ( PCRE2_SPTR16 )si->text, PCRE2_ZERO_TERMINATED, 0, &error_code, &error_offset, NULL );
+
+							if ( regex_code != NULL )
+							{
+								pcre2_match_data *match = _pcre2_match_data_create_from_pattern_16( regex_code, NULL );
+
+								if ( match != NULL )
+								{
+									if ( _pcre2_match_16( regex_code, ( PCRE2_SPTR16 )text, lstrlenW( text ), 0, 0, match, NULL ) >= 0 )
+									{
+										found_match = true;
+									}
+
+									_pcre2_match_data_free_16( match );
+								}
+
+								_pcre2_code_free_16( regex_code );
+							}
 						}
 					}
 					else
 					{
-						if ( _StrStrIW( text, si->text ) != NULL )
+						if ( si->search_flag == ( 0x01 | 0x02 ) )	// Match case and whole word.
 						{
-							found_match = true;
+							if ( lstrcmpW( text, si->text ) == 0 )
+							{
+								found_match = true;
+							}
+						}
+						else if ( si->search_flag == 0x02 )	// Match whole word.
+						{
+							if ( lstrcmpiW( text, si->text ) == 0 )
+							{
+								found_match = true;
+							}
+						}
+						else if ( si->search_flag == 0x01 )	// Match case.
+						{
+							if ( _StrStrW( text, si->text ) != NULL )
+							{
+								found_match = true;
+							}
+						}
+						else
+						{
+							if ( _StrStrIW( text, si->text ) != NULL )
+							{
+								found_match = true;
+							}
 						}
 					}
 
@@ -2229,6 +2304,118 @@ THREAD_RETURN search_list( void *pArguments )
 	_SendMessageW( g_hWnd_search, WM_PROPAGATE, 1, 0 );
 
 	ProcessingList( false );
+
+	// Release the semaphore if we're killing the thread.
+	if ( worker_semaphore != NULL )
+	{
+		ReleaseSemaphore( worker_semaphore, 1, NULL );
+	}
+
+	in_worker_thread = false;
+
+	// We're done. Let other threads continue.
+	LeaveCriticalSection( &worker_cs );
+
+	_ExitThread( 0 );
+	return 0;
+}
+
+THREAD_RETURN filter_urls( void *pArguments )
+{
+	FILTER_INFO *fi = ( FILTER_INFO * )pArguments;
+
+	// This will block every other thread from entering until the first thread is complete.
+	EnterCriticalSection( &worker_cs );
+
+	in_worker_thread = true;
+
+	if ( fi != NULL )
+	{
+		if ( fi->text != NULL )
+		{
+			if ( fi->filter != NULL )
+			{
+				if ( g_use_regular_expressions )
+				{
+					int error_code;
+					size_t error_offset;
+
+					pcre2_code *regex_code = _pcre2_compile_16( ( PCRE2_SPTR16 )fi->filter, PCRE2_ZERO_TERMINATED, 0, &error_code, &error_offset, NULL );
+
+					if ( regex_code != NULL )
+					{
+						pcre2_match_data *match = _pcre2_match_data_create_from_pattern_16( regex_code, NULL );
+
+						if ( match != NULL )
+						{
+							wchar_t *text_start = fi->text;
+							wchar_t *text_end = fi->text;
+							wchar_t *last_end = fi->text;
+
+							while ( *text_start != NULL )
+							{
+								// Find the end of the URL (separated by \r\n).
+								while ( *text_end != NULL )
+								{
+									if ( *text_end == L'\r' && *( text_end + 1 ) == L'\n' )
+									{
+										break;
+									}
+
+									++text_end;
+								}
+
+								wchar_t tmp_end = *text_end;
+								*text_end = 0;
+								size_t text_length = ( size_t )( text_end - text_start );
+
+								int match_count = _pcre2_match_16( regex_code, ( PCRE2_SPTR16 )text_start, text_length, 0, 0, match, NULL );
+
+								*text_end = tmp_end;	// Restore.
+
+								if ( *text_end != NULL )
+								{
+									text_length += 2;	// Include the \r\n characters.
+
+									text_end += 2;
+								}
+
+								if ( match_count >= 0 )
+								{
+									if ( text_start > fi->text )
+									{
+										_wmemcpy_s( last_end, text_end - last_end, text_start, text_length );
+									}
+
+									last_end += text_length;
+								}
+
+								text_start = text_end;
+							}
+
+							*last_end = 0; // Sanity.
+
+							// fi->text is freed in WM_FILTER_TEXT.
+							_SendMessageW( g_hWnd_add_urls, WM_FILTER_TEXT, 0, ( LPARAM )fi->text );
+							fi->text = NULL;
+
+							_pcre2_match_data_free_16( match );
+						}
+
+						_pcre2_code_free_16( regex_code );
+					}
+				}
+
+				GlobalFree( fi->filter );
+			}
+
+			GlobalFree( fi->text );
+		}
+
+		GlobalFree( fi );
+	}
+
+	_SendMessageW( g_hWnd_search, WM_PROPAGATE, 1, 0 );
 
 	// Release the semaphore if we're killing the thread.
 	if ( worker_semaphore != NULL )

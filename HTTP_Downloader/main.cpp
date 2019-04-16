@@ -39,6 +39,7 @@
 #include "lite_winmm.h"
 #include "lite_zlib1.h"
 #include "lite_normaliz.h"
+#include "lite_pcre2.h"
 
 #include "cmessagebox.h"
 
@@ -72,6 +73,8 @@ HFONT g_hFont = NULL;			// Handle to our font object.
 
 UINT CF_HTML = 0;
 
+bool g_use_regular_expressions = false;
+
 int g_row_height = 0;
 
 wchar_t *base_directory = NULL;
@@ -79,7 +82,7 @@ unsigned int base_directory_length = 0;
 
 dllrbt_tree *icon_handles = NULL;
 
-bool can_fast_allocate = false;
+bool g_can_fast_allocate = false;
 
 #ifndef NTDLL_USE_STATIC_LIB
 int APIENTRY _WinMain()
@@ -150,6 +153,16 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 			UnInitializeNormaliz();
 		}
 	#endif
+	#ifndef PCRE2_USE_STATIC_LIB
+		if ( !InitializePCRE2() )
+		{
+			UnInitializePCRE2();
+		}
+		else
+		{
+			g_use_regular_expressions = true;
+		}
+	#endif
 	// Loaded only for SetFileInformationByHandle and GetUserDefaultLocaleName.
 	// If SetFileInformationByHandle doesn't exist (on Windows XP), then rename won't work when the file is in use.
 	// But at least the program will run.
@@ -197,7 +210,8 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 				wchar_t *arg_name = szArgList[ arg ] + 2;
 				int arg_name_length = lstrlenW( arg_name );
 
-				if ( arg_name_length == 14 && _StrCmpNIW( arg_name, L"base-directory", 14 ) == 0 )	// Set the base directory.
+				if ( ( arg + 1 ) < argCount &&
+					 arg_name_length == 14 && _StrCmpNIW( arg_name, L"base-directory", 14 ) == 0 )	// Set the base directory.
 				{
 					++arg;	// Move to the supplied directory.
 
@@ -224,7 +238,8 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 
 					default_directory = false;
 				}
-				else if ( arg_name_length == 5 && _StrCmpNIW( arg_name, L"parts", 5 ) == 0 )	// Split download into parts.
+				else if ( ( arg + 1 ) < argCount &&
+						  arg_name_length == 5 && _StrCmpNIW( arg_name, L"parts", 5 ) == 0 )	// Split download into parts.
 				{
 					++arg;
 
@@ -240,7 +255,8 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 
 					cla->parts = parts;
 				}
-				else if ( arg_name_length == 10 && _StrCmpNIW( arg_name, L"encryption", 10 ) == 0 )	// SSL / TLS version.
+				else if ( ( arg + 1 ) < argCount &&
+						  arg_name_length == 10 && _StrCmpNIW( arg_name, L"encryption", 10 ) == 0 )	// SSL / TLS version.
 				{
 					++arg;
 
@@ -260,7 +276,8 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 				{
 					cla->download_immediately = 1;
 				}
-				else if ( ( arg_name_length == 3 && _StrCmpNIW( arg_name, L"url", 3 ) == 0 ) ||
+				else if ( ( arg + 1 ) < argCount &&
+						  ( arg_name_length == 3 && _StrCmpNIW( arg_name, L"url", 3 ) == 0 ) ||
 						  ( arg_name_length == 12 && _StrCmpNIW( arg_name, L"header-field", 12 ) == 0 ) )	// A URL or header field was supplied.
 				{
 					wchar_t **cl_val = NULL;
@@ -307,7 +324,8 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 						( *cl_val )[ *cl_val_length ] = 0;	// Sanity.
 					}
 				}
-				else if ( ( arg_name_length == 13 && _StrCmpNIW( arg_name, L"cookie-string", 13 ) == 0 ) ||
+				else if ( ( arg + 1 ) < argCount &&
+						  ( arg_name_length == 13 && _StrCmpNIW( arg_name, L"cookie-string", 13 ) == 0 ) ||
 						  ( arg_name_length == 9 && _StrCmpNIW( arg_name, L"post-data", 9 ) == 0 ) ||
 						  ( arg_name_length == 16 && _StrCmpNIW( arg_name, L"output-directory", 16 ) == 0 ) ||
 						  ( arg_name_length == 8 && _StrCmpNIW( arg_name, L"url-list", 8 ) == 0 ) ||
@@ -401,7 +419,6 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 	// Use our default directory if none was supplied or check if there's a "portable" file in the same directory.
 	if ( default_directory )
 	{
-		//base_directory_length = GetCurrentDirectoryW( MAX_PATH, base_directory );
 		base_directory_length = GetModuleFileNameW( NULL, base_directory, MAX_PATH );
 		while ( base_directory_length != 0 && base_directory[ --base_directory_length ] != L'\\' );
 		base_directory[ base_directory_length ] = 0;	// Sanity.
@@ -687,7 +704,7 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 
 				if ( _AdjustTokenPrivileges( hToken, FALSE, &tp, sizeof( TOKEN_PRIVILEGES ), NULL, NULL ) )
 				{
-					can_fast_allocate = true;
+					g_can_fast_allocate = true;
 				}
 			}
 		}
@@ -799,6 +816,18 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 				_IdnToAscii( 0, cfg_hostname_s, hostname_length, g_punycode_hostname_s, punycode_length );
 			}
 		}
+
+		if ( cfg_address_type_socks == 0 )
+		{
+			hostname_length = lstrlenW( cfg_hostname_socks ) + 1;	// Include the NULL terminator.
+			punycode_length = _IdnToAscii( 0, cfg_hostname_socks, hostname_length, NULL, 0 );
+
+			if ( punycode_length > hostname_length )
+			{
+				g_punycode_hostname_socks = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * punycode_length );
+				_IdnToAscii( 0, cfg_hostname_socks, hostname_length, g_punycode_hostname_socks, punycode_length );
+			}
+		}
 	}
 
 	int auth_username_length = 0, auth_password_length = 0;
@@ -827,6 +856,27 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 		auth_password_length = WideCharToMultiByte( CP_UTF8, 0, cfg_proxy_auth_password_s, -1, g_proxy_auth_password_s, auth_password_length, NULL, NULL ) - 1;
 
 		CreateBasicAuthorizationKey( g_proxy_auth_username_s, auth_username_length, g_proxy_auth_password_s, auth_password_length, &g_proxy_auth_key_s, &g_proxy_auth_key_length_s );
+	}
+
+	if ( cfg_proxy_auth_username_socks != NULL )
+	{
+		auth_username_length = WideCharToMultiByte( CP_UTF8, 0, cfg_proxy_auth_username_socks, -1, NULL, 0, NULL, NULL );
+		g_proxy_auth_username_socks = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * auth_username_length ); // Size includes the null character.
+		auth_username_length = WideCharToMultiByte( CP_UTF8, 0, cfg_proxy_auth_username_socks, -1, g_proxy_auth_username_socks, auth_username_length, NULL, NULL ) - 1;
+	}
+
+	if ( cfg_proxy_auth_password_socks != NULL )
+	{
+		auth_password_length = WideCharToMultiByte( CP_UTF8, 0, cfg_proxy_auth_password_socks, -1, NULL, 0, NULL, NULL );
+		g_proxy_auth_password_socks = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * auth_password_length ); // Size includes the null character.
+		auth_password_length = WideCharToMultiByte( CP_UTF8, 0, cfg_proxy_auth_password_socks, -1, g_proxy_auth_password_socks, auth_password_length, NULL, NULL ) - 1;
+	}
+
+	if ( cfg_proxy_auth_ident_username_socks != NULL )
+	{
+		auth_username_length = WideCharToMultiByte( CP_UTF8, 0, cfg_proxy_auth_ident_username_socks, -1, NULL, 0, NULL, NULL );
+		g_proxy_auth_ident_username_socks = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * auth_username_length ); // Size includes the null character.
+		auth_username_length = WideCharToMultiByte( CP_UTF8, 0, cfg_proxy_auth_ident_username_socks, -1, g_proxy_auth_ident_username_socks, auth_username_length, NULL, NULL ) - 1;
 	}
 
 	icon_handles = dllrbt_create( dllrbt_compare_w );
@@ -903,7 +953,7 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 	}
 
 	wcex.hIcon			= NULL;
-	wcex.hbrBackground  = ( HBRUSH )( COLOR_WINDOWFRAME );
+	wcex.hbrBackground  = ( HBRUSH )( COLOR_WINDOW + 1 );
 
 	wcex.lpfnWndProc    = AdvancedTabWndProc;
 	wcex.lpszClassName  = L"advanced_tab";
@@ -1042,6 +1092,7 @@ CLEANUP:
 	if ( cfg_temp_download_directory != NULL ) { GlobalFree( cfg_temp_download_directory ); }
 	if ( cfg_sound_file_path != NULL ) { GlobalFree( cfg_sound_file_path ); }
 
+	// HTTP proxy
 	if ( cfg_hostname != NULL ) { GlobalFree( cfg_hostname ); }
 	if ( g_punycode_hostname != NULL ) { GlobalFree( g_punycode_hostname ); }
 
@@ -1051,6 +1102,7 @@ CLEANUP:
 	if ( g_proxy_auth_password != NULL ) { GlobalFree( g_proxy_auth_password ); }
 	if ( g_proxy_auth_key != NULL ) { GlobalFree( g_proxy_auth_key ); }
 
+	// HTTPS proxy
 	if ( cfg_hostname_s != NULL ) { GlobalFree( cfg_hostname_s ); }
 	if ( g_punycode_hostname_s != NULL ) { GlobalFree( g_punycode_hostname_s ); }
 
@@ -1059,6 +1111,16 @@ CLEANUP:
 	if ( g_proxy_auth_username_s != NULL ) { GlobalFree( g_proxy_auth_username_s ); }
 	if ( g_proxy_auth_password_s != NULL ) { GlobalFree( g_proxy_auth_password_s ); }
 	if ( g_proxy_auth_key_s != NULL ) { GlobalFree( g_proxy_auth_key_s ); }
+
+	// SOCKS5 proxy
+	if ( cfg_hostname_socks != NULL ) { GlobalFree( cfg_hostname_socks ); }
+	if ( g_punycode_hostname_socks != NULL ) { GlobalFree( g_punycode_hostname_socks ); }
+
+	if ( cfg_proxy_auth_username_socks != NULL ) { GlobalFree( cfg_proxy_auth_username_socks ); }
+	if ( cfg_proxy_auth_password_socks != NULL ) { GlobalFree( cfg_proxy_auth_password_socks ); }
+	if ( g_proxy_auth_username_socks != NULL ) { GlobalFree( g_proxy_auth_username_socks ); }
+	if ( g_proxy_auth_password_socks != NULL ) { GlobalFree( g_proxy_auth_password_socks ); }
+	if ( g_proxy_auth_ident_username_socks != NULL ) { GlobalFree( g_proxy_auth_ident_username_socks ); }
 
 	// Server
 
@@ -1148,6 +1210,9 @@ CLEANUP:
 
 UNLOAD_DLLS:
 
+	#ifndef PCRE2_USE_STATIC_LIB
+		UnInitializePCRE2();
+	#endif
 	#ifndef NORMALIZ_USE_STATIC_LIB
 		UnInitializeNormaliz();
 	#endif

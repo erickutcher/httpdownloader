@@ -83,5 +83,6 @@ void CreateDigestAuthorizationKey( char *username, char *password, char *method,
 void CreateBasicAuthorizationKey( char *username, int username_length, char *password, int password_length, char **auth_key, DWORD *auth_key_length );
 bool VerifyDigestAuthorization( char *username, unsigned long username_length, char *password, unsigned long password_length, char *nonce, unsigned long nonce_length, char *opaque, unsigned long opaque_length, char *method, unsigned long method_length, AUTH_INFO *auth_info );
 void ConstructRequest( SOCKET_CONTEXT *context, bool use_connect );
+void ConstructSOCKSRequest( SOCKET_CONTEXT *context, unsigned char request_type );
 
 #endif

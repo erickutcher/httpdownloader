@@ -55,7 +55,7 @@ typedef void dllrbt_iterator;
 typedef void dllrbt_tree;
 
 // Create a doubly-linked list red-black tree and set the comparison function.
-dllrbt_tree *dllrbt_create( int( *compare )( void *a, void *b ) );
+dllrbt_tree *dllrbt_create( int ( *compare )( void *a, void *b ) );
 
 // Insert a key/value pair.
 dllrbt_status dllrbt_insert( dllrbt_tree *tree, void *key, void *value );

@@ -33,6 +33,7 @@
 
 #define BTN_MATCH_CASE			1006
 #define BTN_MATCH_WHOLE_WORD	1007
+#define BTN_REGULAR_EXPRESSION	1008
 
 HWND g_hWnd_search = NULL;
 HWND g_hWnd_static_search_for = NULL;
@@ -41,6 +42,7 @@ HWND g_hWnd_chk_type_filename = NULL;
 HWND g_hWnd_chk_type_url = NULL;
 HWND g_hWnd_chk_match_case = NULL;
 HWND g_hWnd_chk_match_whole_word = NULL;
+HWND g_hWnd_chk_regular_expression = NULL;
 HWND g_hWnd_btn_search_all = NULL;
 HWND g_hWnd_btn_search = NULL;
 HWND g_hWnd_search_cancel = NULL;
@@ -55,14 +57,15 @@ LRESULT CALLBACK SearchWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 			_GetClientRect( hWnd, &rc );
 
 			g_hWnd_static_search_for = _CreateWindowW( WC_STATIC, ST_V_Search_for_, WS_CHILD | WS_VISIBLE, 20, 20, 60, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_search_for = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, L"", ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 20, 35, rc.right - 40, 20, hWnd, ( HMENU )EDIT_SEARCH_FOR, NULL, NULL );
+			g_hWnd_search_for = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, L"", ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 20, 35, rc.right - 40, 23, hWnd, ( HMENU )EDIT_SEARCH_FOR, NULL, NULL );
 
 			HWND hWnd_btn_search_type = _CreateWindowW( WC_BUTTON, ST_V_Search_Type, BS_GROUPBOX | WS_CHILD | WS_VISIBLE, 20, 65, 100, 60, hWnd, NULL, NULL, NULL );
 			g_hWnd_chk_type_filename = _CreateWindowW( WC_BUTTON, ST_V_Filename, BS_AUTORADIOBUTTON | WS_CHILD | WS_GROUP | WS_TABSTOP | WS_VISIBLE, 30, 80, 80, 20, hWnd, ( HMENU )BTN_TYPE_FILENAME, NULL, NULL );
 			g_hWnd_chk_type_url = _CreateWindowW( WC_BUTTON, ST_V_URL, BS_AUTORADIOBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 30, 100, 80, 20, hWnd, ( HMENU )BTN_TYPE_URL, NULL, NULL );
 
-			g_hWnd_chk_match_case = _CreateWindowW( WC_BUTTON, ST_V_Match_case, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 135, 80, 160, 20, hWnd, ( HMENU )BTN_MATCH_CASE, NULL, NULL );
-			g_hWnd_chk_match_whole_word = _CreateWindowW( WC_BUTTON, ST_V_Match_whole_word, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 135, 100, 160, 20, hWnd, ( HMENU )BTN_MATCH_WHOLE_WORD, NULL, NULL );
+			g_hWnd_chk_match_case = _CreateWindowW( WC_BUTTON, ST_V_Match_case, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 135, 65, 160, 20, hWnd, ( HMENU )BTN_MATCH_CASE, NULL, NULL );
+			g_hWnd_chk_match_whole_word = _CreateWindowW( WC_BUTTON, ST_V_Match_whole_word, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 135, 85, 160, 20, hWnd, ( HMENU )BTN_MATCH_WHOLE_WORD, NULL, NULL );
+			g_hWnd_chk_regular_expression = _CreateWindowW( WC_BUTTON, ST_V_Regular_expression, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE | ( g_use_regular_expressions ? 0 : WS_DISABLED ), 135, 105, 160, 20, hWnd, ( HMENU )BTN_REGULAR_EXPRESSION, NULL, NULL );
 
 			g_hWnd_btn_search_all = _CreateWindowW( WC_BUTTON, ST_V_Search_All, WS_CHILD | WS_TABSTOP | WS_VISIBLE | WS_DISABLED, rc.right - 280, rc.bottom - 32, 85, 23, hWnd, ( HMENU )BTN_SEARCH_ALL, NULL, NULL );
 			g_hWnd_btn_search = _CreateWindowW( WC_BUTTON, ST_V_Search_Next, BS_DEFPUSHBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE | WS_DISABLED, rc.right - 190, rc.bottom - 32, 95, 23, hWnd, ( HMENU )BTN_SEARCH, NULL, NULL );
@@ -75,6 +78,7 @@ LRESULT CALLBACK SearchWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 			_SendMessageW( g_hWnd_chk_type_url, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 			_SendMessageW( g_hWnd_chk_match_case, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 			_SendMessageW( g_hWnd_chk_match_whole_word, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_chk_regular_expression, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 			_SendMessageW( g_hWnd_btn_search_all, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 			_SendMessageW( g_hWnd_btn_search, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 			_SendMessageW( g_hWnd_search_cancel, WM_SETFONT, ( WPARAM )g_hFont, 0 );
@@ -155,8 +159,15 @@ LRESULT CALLBACK SearchWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 					SEARCH_INFO *si = ( SEARCH_INFO * )GlobalAlloc( GMEM_FIXED, sizeof( SEARCH_INFO ) );
 					si->search_all = ( LOWORD( wParam ) == BTN_SEARCH_ALL ? true : false );
 
-					si->case_flag = ( _SendMessageW( g_hWnd_chk_match_case, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? 0x01 : 0x00 );
-					si->case_flag |= ( _SendMessageW( g_hWnd_chk_match_whole_word, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? 0x02 : 0x00 );
+					if ( _SendMessageW( g_hWnd_chk_regular_expression, BM_GETCHECK, 0, 0 ) == BST_CHECKED )
+					{
+						si->search_flag = 0x04;	// Use regular expression.
+					}
+					else
+					{
+						si->search_flag = ( _SendMessageW( g_hWnd_chk_match_case, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? 0x01 : 0x00 );
+						si->search_flag |= ( _SendMessageW( g_hWnd_chk_match_whole_word, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? 0x02 : 0x00 );
+					}
 
 					si->type = ( _SendMessageW( g_hWnd_chk_type_url, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? 1 : 0 );
 
@@ -199,6 +210,21 @@ LRESULT CALLBACK SearchWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 							_EnableWindow( g_hWnd_btn_search_all, FALSE );
 							_EnableWindow( g_hWnd_btn_search, FALSE );
 						}
+					}
+				}
+				break;
+
+				case BTN_REGULAR_EXPRESSION:
+				{
+					if ( _SendMessageW( g_hWnd_chk_regular_expression, BM_GETCHECK, 0, 0 ) == BST_CHECKED )
+					{
+						_EnableWindow( g_hWnd_chk_match_case, FALSE );
+						_EnableWindow( g_hWnd_chk_match_whole_word, FALSE );
+					}
+					else
+					{
+						_EnableWindow( g_hWnd_chk_match_case, TRUE );
+						_EnableWindow( g_hWnd_chk_match_whole_word, TRUE );
 					}
 				}
 				break;

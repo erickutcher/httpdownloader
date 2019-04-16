@@ -45,6 +45,7 @@
 #define WM_DESTROY_ALT		WM_APP		// Allows non-window threads to call DestroyWindow.
 #define WM_PROPAGATE		WM_APP + 1
 #define WM_CHANGE_CURSOR	WM_APP + 2	// Updates the window cursor.
+#define WM_FILTER_TEXT		WM_APP + 3
 
 #define WM_TRAY_NOTIFY		WM_APP + 3
 #define WM_EXIT				WM_APP + 4
@@ -102,8 +103,14 @@ struct SEARCH_INFO
 {
 	wchar_t *text;
 	unsigned char type;			// 0 = Filename, 1 = URL
-	unsigned char case_flag;	// 0x00 = None, 0x01 = Match case, 0x02 = Match whole word.
+	unsigned char search_flag;	// 0x00 = None, 0x01 = Match case, 0x02 = Match whole word, 0x04 = Regular expression.
 	bool search_all;
+};
+
+struct FILTER_INFO
+{
+	wchar_t *text;
+	wchar_t *filter;
 };
 
 union QFILETIME
@@ -163,7 +170,9 @@ extern HFONT g_hFont;
 
 extern dllrbt_tree *icon_handles;
 
-extern bool	can_fast_allocate;			// Prevent the pre-allocation from zeroing the file.
+extern bool	g_can_fast_allocate;			// Prevent the pre-allocation from zeroing the file.
+
+extern bool g_use_regular_expressions;
 
 extern int g_row_height;
 
@@ -342,6 +351,29 @@ extern char *g_proxy_auth_username_s;
 extern char *g_proxy_auth_password_s;
 extern char *g_proxy_auth_key_s;
 extern unsigned long g_proxy_auth_key_length_s;
+
+// SOCKS proxy
+extern bool cfg_enable_proxy_socks;
+extern unsigned char cfg_socks_type;			// 0 = SOCKS 4, 1 = SOCKS 5
+extern unsigned char cfg_address_type_socks;	// 0 = Host name, 1 = IP address
+extern unsigned long cfg_ip_address_socks;
+extern wchar_t *cfg_hostname_socks;
+extern unsigned short cfg_port_socks;
+extern bool cfg_use_authentication_socks;
+extern bool cfg_resolve_domain_names_v4a;		// Proxy server resolves the domain names.
+extern bool cfg_resolve_domain_names;			// Proxy server resolves the domain names.
+
+extern wchar_t *cfg_proxy_auth_username_socks;
+extern wchar_t *cfg_proxy_auth_password_socks;
+
+extern wchar_t *cfg_proxy_auth_ident_username_socks;
+
+extern wchar_t *g_punycode_hostname_socks;
+
+extern char *g_proxy_auth_username_socks;
+extern char *g_proxy_auth_password_socks;
+
+extern char *g_proxy_auth_ident_username_socks;
 
 //
 

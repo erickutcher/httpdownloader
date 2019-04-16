@@ -281,7 +281,7 @@
 	extern pFrameRect				_FrameRect;
 	//extern pGetClassLongPtrW		_GetClassLongPtrW;
 	extern pGetClientRect			_GetClientRect;
-	//extern pGetClipboardData		_GetClipboardData
+	//extern pGetClipboardData		_GetClipboardData;
 	extern pGetCursorPos			_GetCursorPos;
 	extern pGetDC					_GetDC;
 	//extern pGetDlgItem				_GetDlgItem;

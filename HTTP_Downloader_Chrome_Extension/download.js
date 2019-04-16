@@ -200,18 +200,15 @@ function SetFliterPreset()
 
 	if ( filter_preset == "Images" )
 	{
-		//document.getElementById( "filter" ).value = "https?:\\/\\/[^\\/\\s]+\\/(?!\\S+\\.(jpe?g|jpe|gif|png|bmp|tiff?|dib|ico)(\\?|#|\\r?\\n)).*\\r?\\n";
-		document.getElementById( "filter" ).value = "^https?:\\/\\/[^\\/\\s]+\\/[^\\?#\\s]+\\.(jpe?g|jpe|gif|png|bmp|tiff?|dib|ico)(\\?|#|$)";
+		document.getElementById( "filter" ).value = "^https?:\\/\\/[^\\/\\s]+\\/[^\\?#\\s]+\\.(jpe?g?|gif|png|bmp|tiff?|dib|ico)(\\?|#|$)";
 	}
 	else if ( filter_preset == "Music" )
 	{
-		//document.getElementById( "filter" ).value = "https?:\\/\\/[^\\/\\s]+\\/(?!\\S+\\.(mp3|wave?|flac?|ogg|m4a|wma|aac|midi?|ape|shn|wv|aiff?|oga)(\\?|#|\\r?\\n)).*\\r?\\n";
 		document.getElementById( "filter" ).value = "^https?:\\/\\/[^\\/\\s]+\\/[^\\?#\\s]+\\.(mp3|wave?|flac?|ogg|m4a|wma|aac|midi?|ape|shn|wv|aiff?|oga)(\\?|#|$)";
 	}
 	else if ( filter_preset == "Videos" )
 	{
-		//document.getElementById( "filter" ).value = "https?:\\/\\/[^\\/\\s]+\\/(?!\\S+\\.(avi|mp4|m4v|mp2|mp1|mpe?g|mpe|mkv|webm|wmv|3gp|ogm|ogv|flv|vob)(\\?|#|\\r?\\n)).*\\r?\\n";
-		document.getElementById( "filter" ).value = "^https?:\\/\\/[^\\/\\s]+\\/[^\\?#\\s]+\\.(avi|mp4|m4v|mp2|mp1|mpe?g|mpe|mkv|webm|wmv|3gp|ogm|ogv|flv|vob)(\\?|#|$)";
+		document.getElementById( "filter" ).value = "^https?:\\/\\/[^\\/\\s]+\\/[^\\?#\\s]+\\.(avi|mp[124]|m4v|mpe?g?|mkv|webm|wmv|3gp|ogm|ogv|flv|vob)(\\?|#|$)";
 	}
 	else
 	{

@@ -77,7 +77,7 @@ char read_config()
 
 				if ( version <= MAGIC_ID_SETTINGS[ 3 ] )
 				{
-					reserved = 1024 - ( version == 0 ? 175 : 508 );
+					reserved = 1024 - ( version == 0 ? 175 : ( version == 1 ? 508 : 520 ) );
 
 					char *next = cfg_buf + 4;
 
@@ -363,6 +363,33 @@ char read_config()
 							_memcpy_s( progress_colors[ i ], sizeof( COLORREF ), next, sizeof( COLORREF ) );
 							next += sizeof( COLORREF );
 						}
+
+						if ( version >= 2 )
+						{
+							_memcpy_s( &cfg_enable_proxy_socks, sizeof( bool ), next, sizeof( bool ) );
+							next += sizeof( bool );
+
+							_memcpy_s( &cfg_socks_type, sizeof( unsigned char ), next, sizeof( unsigned char ) );
+							next += sizeof( unsigned char );
+
+							_memcpy_s( &cfg_address_type_socks, sizeof( unsigned char ), next, sizeof( unsigned char ) );
+							next += sizeof( unsigned char );
+
+							_memcpy_s( &cfg_ip_address_socks, sizeof( unsigned long ), next, sizeof( unsigned long ) );
+							next += sizeof( unsigned long );
+
+							_memcpy_s( &cfg_port_socks, sizeof( unsigned short ), next, sizeof( unsigned short ) );
+							next += sizeof( unsigned short );
+
+							_memcpy_s( &cfg_use_authentication_socks, sizeof( bool ), next, sizeof( bool ) );
+							next += sizeof( bool );
+
+							_memcpy_s( &cfg_resolve_domain_names_v4a, sizeof( bool ), next, sizeof( bool ) );
+							next += sizeof( bool );
+
+							_memcpy_s( &cfg_resolve_domain_names, sizeof( bool ), next, sizeof( bool ) );
+							next += sizeof( bool );
+						}
 					}
 
 					//
@@ -631,6 +658,102 @@ char read_config()
 						}
 					}
 
+					if ( version >= 2 )
+					{
+						if ( ( DWORD )( next - cfg_buf ) < read )
+						{
+							// Length of the string - not including the NULL character.
+							_memcpy_s( &string_length, sizeof( unsigned short ), next, sizeof( unsigned short ) );
+							next += sizeof( unsigned short );
+
+							if ( string_length > 0 )
+							{
+								if ( ( ( DWORD )( next - cfg_buf ) + string_length < read ) )
+								{
+									// string_length does not contain the NULL character of the string.
+									char *proxy_auth_ident_username_socks = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( string_length + 1 ) );
+									_memcpy_s( proxy_auth_ident_username_socks, string_length, next, string_length );
+									proxy_auth_ident_username_socks[ string_length ] = 0; // Sanity;
+
+									decode_cipher( proxy_auth_ident_username_socks, string_length );
+
+									// Read username.
+									cfg_proxy_auth_ident_username_socks = UTF8StringToWideString( proxy_auth_ident_username_socks, string_length + 1 );
+
+									GlobalFree( proxy_auth_ident_username_socks );
+
+									next += string_length;
+								}
+								else
+								{
+									read = 0;
+								}
+							}
+						}
+
+						if ( ( DWORD )( next - cfg_buf ) < read )
+						{
+							// Length of the string - not including the NULL character.
+							_memcpy_s( &string_length, sizeof( unsigned short ), next, sizeof( unsigned short ) );
+							next += sizeof( unsigned short );
+
+							if ( string_length > 0 )
+							{
+								if ( ( ( DWORD )( next - cfg_buf ) + string_length < read ) )
+								{
+									// string_length does not contain the NULL character of the string.
+									char *proxy_auth_username_socks = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( string_length + 1 ) );
+									_memcpy_s( proxy_auth_username_socks, string_length, next, string_length );
+									proxy_auth_username_socks[ string_length ] = 0; // Sanity;
+
+									decode_cipher( proxy_auth_username_socks, string_length );
+
+									// Read username.
+									cfg_proxy_auth_username_socks = UTF8StringToWideString( proxy_auth_username_socks, string_length + 1 );
+
+									GlobalFree( proxy_auth_username_socks );
+
+									next += string_length;
+								}
+								else
+								{
+									read = 0;
+								}
+							}
+						}
+
+						if ( ( DWORD )( next - cfg_buf ) < read )
+						{
+							// Length of the string - not including the NULL character.
+							_memcpy_s( &string_length, sizeof( unsigned short ), next, sizeof( unsigned short ) );
+							next += sizeof( unsigned short );
+
+							if ( string_length > 0 )
+							{
+								if ( ( ( DWORD )( next - cfg_buf ) + string_length < read ) )
+								{
+									// string_length does not contain the NULL character of the string.
+									char *proxy_auth_password_socks = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( string_length + 1 ) );
+									_memcpy_s( proxy_auth_password_socks, string_length, next, string_length );
+									proxy_auth_password_socks[ string_length ] = 0; // Sanity;
+
+									decode_cipher( proxy_auth_password_socks, string_length );
+
+									// Read password.
+									cfg_proxy_auth_password_socks = UTF8StringToWideString( proxy_auth_password_socks, string_length + 1 );
+
+									GlobalFree( proxy_auth_password_socks );
+
+									next += string_length;
+								}
+								else
+								{
+									read = 0;
+								}
+							}
+						}
+					}
+
 					if ( ( DWORD )( next - cfg_buf ) < read )
 					{
 						string_length = lstrlenA( next ) + 1;
@@ -663,6 +786,18 @@ char read_config()
 						cfg_hostname_s = UTF8StringToWideString( next, string_length );
 
 						next += string_length;
+					}
+
+					if ( version >= 2 )
+					{
+						if ( ( DWORD )( next - cfg_buf ) < read )
+						{
+							string_length = lstrlenA( next ) + 1;
+
+							cfg_hostname_socks = UTF8StringToWideString( next, string_length );
+
+							next += string_length;
+						}
 					}
 
 					if ( ( DWORD )( next - cfg_buf ) < read )
@@ -779,6 +914,7 @@ char read_config()
 
 					if ( cfg_port == 0 ) { cfg_port = 1; }
 					if ( cfg_port_s == 0 ) { cfg_port_s = 1; }
+					if ( cfg_port_socks == 0 ) { cfg_port_socks = 1; }
 
 					if ( cfg_max_file_size == 0 ) { cfg_max_file_size = MAX_FILE_SIZE; }
 				}
@@ -862,6 +998,13 @@ char read_config()
 		cfg_hostname_s[ 9 ] = 0;	// Sanity.
 	}
 
+	if ( cfg_hostname_socks == NULL )
+	{
+		cfg_hostname_socks = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * 10 );
+		_wmemcpy_s( cfg_hostname_socks, 10, L"localhost\0", 10 );
+		cfg_hostname_socks[ 9 ] = 0;	// Sanity.
+	}
+
 	if ( cfg_temp_download_directory == NULL )
 	{
 		cfg_temp_download_directory = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * MAX_PATH );
@@ -891,12 +1034,12 @@ char save_config()
 	HANDLE hFile_cfg = CreateFile( base_directory, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL );
 	if ( hFile_cfg != INVALID_HANDLE_VALUE )
 	{
-		int reserved = 1024 - 508;
+		int reserved = 1024 - 520;
 		int size = ( sizeof( int ) * 20 ) +
-				   ( sizeof( unsigned short ) * 4 ) +
-				   ( sizeof( char ) * 40 ) +
-				   ( sizeof( bool ) * 26 ) +
-				   ( sizeof( unsigned long ) * 4 ) +
+				   ( sizeof( unsigned short ) * 5 ) +
+				   ( sizeof( char ) * 42 ) +
+				   ( sizeof( bool ) * 30 ) +
+				   ( sizeof( unsigned long ) * 5 ) +
 				   ( sizeof( LONG ) * 4 ) +
 				   ( sizeof( BYTE ) * 6 ) +
 				   ( sizeof( COLORREF ) * ( NUM_COLORS + 2 ) ) +
@@ -1190,6 +1333,31 @@ char save_config()
 
 		//
 
+		_memcpy_s( write_buf + pos, size - pos, &cfg_enable_proxy_socks, sizeof( bool ) );
+		pos += sizeof( bool );
+
+		_memcpy_s( write_buf + pos, size - pos, &cfg_socks_type, sizeof( unsigned char ) );
+		pos += sizeof( unsigned char );
+
+		_memcpy_s( write_buf + pos, size - pos, &cfg_address_type_socks, sizeof( unsigned char ) );
+		pos += sizeof( unsigned char );
+
+		_memcpy_s( write_buf + pos, size - pos, &cfg_ip_address_socks, sizeof( unsigned long ) );
+		pos += sizeof( unsigned long );
+
+		_memcpy_s( write_buf + pos, size - pos, &cfg_port_socks, sizeof( unsigned short ) );
+		pos += sizeof( unsigned short );
+
+		_memcpy_s( write_buf + pos, size - pos, &cfg_use_authentication_socks, sizeof( bool ) );
+		pos += sizeof( bool );
+
+		_memcpy_s( write_buf + pos, size - pos, &cfg_resolve_domain_names_v4a, sizeof( bool ) );
+		pos += sizeof( bool );
+
+		_memcpy_s( write_buf + pos, size - pos, &cfg_resolve_domain_names, sizeof( bool ) );
+		pos += sizeof( bool );
+
+
 		// Write Reserved bytes.
 		_memzero( write_buf + pos, size - pos );
 
@@ -1368,6 +1536,57 @@ char save_config()
 			WriteFile( hFile_cfg, "\0\0", 2, &write, NULL );
 		}
 
+		if ( cfg_proxy_auth_ident_username_socks != NULL )
+		{
+			utf8_cfg_val = WideStringToUTF8String( cfg_proxy_auth_ident_username_socks, &cfg_val_length, sizeof( unsigned short ) );	// Add 2 bytes for our encoded length.
+
+			int length = cfg_val_length - 1;	// Exclude the NULL terminator.
+			_memcpy_s( utf8_cfg_val, cfg_val_length, &length, sizeof( unsigned short ) );
+
+			encode_cipher( utf8_cfg_val + sizeof( unsigned short ), length );
+
+			WriteFile( hFile_cfg, utf8_cfg_val, length + sizeof( unsigned short ), &write, NULL );	// Do not write the NULL terminator.
+			GlobalFree( utf8_cfg_val );
+		}
+		else
+		{
+			WriteFile( hFile_cfg, "\0\0", 2, &write, NULL );
+		}
+
+		if ( cfg_proxy_auth_username_socks != NULL )
+		{
+			utf8_cfg_val = WideStringToUTF8String( cfg_proxy_auth_username_socks, &cfg_val_length, sizeof( unsigned short ) );	// Add 2 bytes for our encoded length.
+
+			int length = cfg_val_length - 1;	// Exclude the NULL terminator.
+			_memcpy_s( utf8_cfg_val, cfg_val_length, &length, sizeof( unsigned short ) );
+
+			encode_cipher( utf8_cfg_val + sizeof( unsigned short ), length );
+
+			WriteFile( hFile_cfg, utf8_cfg_val, length + sizeof( unsigned short ), &write, NULL );	// Do not write the NULL terminator.
+			GlobalFree( utf8_cfg_val );
+		}
+		else
+		{
+			WriteFile( hFile_cfg, "\0\0", 2, &write, NULL );
+		}
+
+		if ( cfg_proxy_auth_password_socks != NULL )
+		{
+			utf8_cfg_val = WideStringToUTF8String( cfg_proxy_auth_password_socks, &cfg_val_length, sizeof( unsigned short ) );	// Add 2 bytes for our encoded length.
+
+			int length = cfg_val_length - 1;	// Exclude the NULL terminator.
+			_memcpy_s( utf8_cfg_val, cfg_val_length, &length, sizeof( unsigned short ) );
+
+			encode_cipher( utf8_cfg_val + sizeof( unsigned short ), length );
+
+			WriteFile( hFile_cfg, utf8_cfg_val, length + sizeof( unsigned short ), &write, NULL );	// Do not write the NULL terminator.
+			GlobalFree( utf8_cfg_val );
+		}
+		else
+		{
+			WriteFile( hFile_cfg, "\0\0", 2, &write, NULL );
+		}
+
 		if ( cfg_default_download_directory != NULL )
 		{
 			utf8_cfg_val = WideStringToUTF8String( cfg_default_download_directory, &cfg_val_length );
@@ -1393,6 +1612,17 @@ char save_config()
 		if ( cfg_hostname_s != NULL )
 		{
 			utf8_cfg_val = WideStringToUTF8String( cfg_hostname_s, &cfg_val_length );
+			WriteFile( hFile_cfg, utf8_cfg_val, cfg_val_length, &write, NULL );
+			GlobalFree( utf8_cfg_val );
+		}
+		else
+		{
+			WriteFile( hFile_cfg, "\0", 1, &write, NULL );
+		}
+
+		if ( cfg_hostname_socks != NULL )
+		{
+			utf8_cfg_val = WideStringToUTF8String( cfg_hostname_socks, &cfg_val_length );
 			WriteFile( hFile_cfg, utf8_cfg_val, cfg_val_length, &write, NULL );
 			GlobalFree( utf8_cfg_val );
 		}
@@ -1847,7 +2077,8 @@ char read_download_history( wchar_t *file_path )
 					}
 					else if ( IS_STATUS( di->status,
 								 STATUS_CONNECTING |
-								 STATUS_DOWNLOADING ) )	// Connecting, Downloading or Queued
+								 STATUS_DOWNLOADING |
+								 STATUS_RESTART ) )	// Connecting, Downloading, Queued, or Restarting
 					{
 						if ( cfg_resume_downloads )
 						{

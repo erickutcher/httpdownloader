@@ -514,8 +514,8 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			g_hWnd_general_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"general_tab", NULL, WS_CHILD | WS_TABSTOP | WS_VISIBLE, 15, ( rc_tab.bottom + rc_tab.top ) + 12, rc.right - 30, rc.bottom - ( ( rc_tab.bottom + rc_tab.top ) + 24 ), g_hWnd_options_tab, NULL, NULL, NULL );
 			g_hWnd_appearance_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"appearance_tab", NULL, WS_CHILD | WS_TABSTOP, 15, ( rc_tab.bottom + rc_tab.top ) + 12, rc.right - 30, rc.bottom - ( ( rc_tab.bottom + rc_tab.top ) + 24 ), g_hWnd_options_tab, NULL, NULL, NULL );
 			g_hWnd_connection_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"connection_tab", NULL, WS_CHILD | WS_VSCROLL | WS_TABSTOP, 15, ( rc_tab.bottom + rc_tab.top ) + 12, rc.right - 30, rc.bottom - ( ( rc_tab.bottom + rc_tab.top ) + 24 ), g_hWnd_options_tab, NULL, NULL, NULL );
-			g_hWnd_proxy_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"proxy_tab", NULL, WS_CHILD | WS_TABSTOP, 15, ( rc_tab.bottom + rc_tab.top ) + 12, rc.right - 30, rc.bottom - ( ( rc_tab.bottom + rc_tab.top ) + 24 ), g_hWnd_options_tab, NULL, NULL, NULL );
-			g_hWnd_advanced_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"advanced_tab", NULL, WS_CHILD | WS_TABSTOP, 15, ( rc_tab.bottom + rc_tab.top ) + 12, rc.right - 30, rc.bottom - ( ( rc_tab.bottom + rc_tab.top ) + 24 ), g_hWnd_options_tab, NULL, NULL, NULL );
+			g_hWnd_proxy_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"proxy_tab", NULL, WS_CHILD | WS_VSCROLL | WS_TABSTOP, 15, ( rc_tab.bottom + rc_tab.top ) + 12, rc.right - 30, rc.bottom - ( ( rc_tab.bottom + rc_tab.top ) + 24 ), g_hWnd_options_tab, NULL, NULL, NULL );
+			g_hWnd_advanced_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"advanced_tab", NULL, WS_CHILD | WS_VSCROLL | WS_TABSTOP, 15, ( rc_tab.bottom + rc_tab.top ) + 12, rc.right - 30, rc.bottom - ( ( rc_tab.bottom + rc_tab.top ) + 24 ), g_hWnd_options_tab, NULL, NULL, NULL );
 
 			_SendMessageW( g_hWnd_ok, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 			_SendMessageW( g_hWnd_cancel, WM_SETFONT, ( WPARAM )g_hFont, 0 );
@@ -991,6 +991,78 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 						}
 					}
 
+					//
+					// SOCKS5 proxy.
+					//
+					cfg_enable_proxy_socks = ( _SendMessageW( g_hWnd_chk_proxy_socks, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
+
+					cfg_socks_type = ( _SendMessageW( g_hWnd_chk_type_socks5, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? SOCKS_TYPE_V5 : SOCKS_TYPE_V4 );
+
+					cfg_address_type_socks = ( _SendMessageW( g_hWnd_chk_type_ip_address_socks, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? 1 : 0 );
+
+					hostname_length = ( unsigned int )_SendMessageW( g_hWnd_hostname_socks, WM_GETTEXTLENGTH, 0, 0 ) + 1;	// Include the NULL terminator.
+					if ( cfg_hostname_socks != NULL )
+					{
+						GlobalFree( cfg_hostname_socks );
+					}
+					cfg_hostname_socks = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * hostname_length );
+					_SendMessageW( g_hWnd_hostname_socks, WM_GETTEXT, hostname_length, ( LPARAM )cfg_hostname_socks );
+
+					_SendMessageW( g_hWnd_ip_address_socks, IPM_GETADDRESS, 0, ( LPARAM )&cfg_ip_address_socks );
+
+					_SendMessageA( g_hWnd_port_socks, WM_GETTEXT, 6, ( LPARAM )value );
+					cfg_port_socks = ( unsigned short )_strtoul( value, NULL, 10 );
+
+					cfg_use_authentication_socks = ( _SendMessageW( g_hWnd_chk_use_authentication_socks, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
+
+					cfg_resolve_domain_names_v4a = ( _SendMessageW( g_hWnd_chk_resolve_domain_names_v4a, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
+					cfg_resolve_domain_names = ( _SendMessageW( g_hWnd_chk_resolve_domain_names, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
+
+					auth_length = ( unsigned int )_SendMessageW( g_hWnd_auth_ident_username_socks, WM_GETTEXTLENGTH, 0, 0 ) + 1;	// Include the NULL terminator.
+					if ( cfg_proxy_auth_ident_username_socks != NULL )
+					{
+						GlobalFree( cfg_proxy_auth_ident_username_socks );
+					}
+					cfg_proxy_auth_ident_username_socks = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * auth_length );
+					_SendMessageW( g_hWnd_auth_ident_username_socks, WM_GETTEXT, auth_length, ( LPARAM )cfg_proxy_auth_ident_username_socks );
+
+					auth_length = ( unsigned int )_SendMessageW( g_hWnd_auth_username_socks, WM_GETTEXTLENGTH, 0, 0 ) + 1;	// Include the NULL terminator.
+					if ( cfg_proxy_auth_username_socks != NULL )
+					{
+						GlobalFree( cfg_proxy_auth_username_socks );
+					}
+					cfg_proxy_auth_username_socks = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * auth_length );
+					_SendMessageW( g_hWnd_auth_username_socks, WM_GETTEXT, auth_length, ( LPARAM )cfg_proxy_auth_username_socks );
+
+					auth_length = ( unsigned int )_SendMessageW( g_hWnd_auth_password_socks, WM_GETTEXTLENGTH, 0, 0 ) + 1;	// Include the NULL terminator.
+					if ( cfg_proxy_auth_password_socks != NULL )
+					{
+						GlobalFree( cfg_proxy_auth_password_socks );
+					}
+					cfg_proxy_auth_password_socks = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * auth_length );
+					_SendMessageW( g_hWnd_auth_password_socks, WM_GETTEXT, auth_length, ( LPARAM )cfg_proxy_auth_password_socks );
+
+					if ( normaliz_state == NORMALIZ_STATE_RUNNING )
+					{
+						if ( cfg_address_type_socks == 0 )
+						{
+							if ( g_punycode_hostname_socks != NULL )
+							{
+								GlobalFree( g_punycode_hostname_socks );
+								g_punycode_hostname_socks = NULL;
+							}
+
+							int punycode_length = _IdnToAscii( 0, cfg_hostname_socks, hostname_length, NULL, 0 );
+
+							if ( punycode_length > ( int )hostname_length )
+							{
+								g_punycode_hostname_socks = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * punycode_length );
+								_IdnToAscii( 0, cfg_hostname_socks, hostname_length, g_punycode_hostname_socks, punycode_length );
+							}
+						}
+					}
+
+
 					// Sets any new settings for the server and resets its state if they've changed.
 					SetServerSettings();
 
@@ -1052,6 +1124,39 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 						auth_password_length = WideCharToMultiByte( CP_UTF8, 0, cfg_proxy_auth_password_s, -1, g_proxy_auth_password_s, auth_password_length, NULL, NULL ) - 1;
 
 						CreateBasicAuthorizationKey( g_proxy_auth_username_s, auth_username_length, g_proxy_auth_password_s, auth_password_length, &g_proxy_auth_key_s, &g_proxy_auth_key_length_s );
+					}
+
+					if ( cfg_proxy_auth_username_socks != NULL )
+					{
+						if ( g_proxy_auth_username_socks != NULL )
+						{
+							GlobalFree( g_proxy_auth_username_socks );
+						}
+						auth_username_length = WideCharToMultiByte( CP_UTF8, 0, cfg_proxy_auth_username_socks, -1, NULL, 0, NULL, NULL );
+						g_proxy_auth_username_socks = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * auth_username_length ); // Size includes the null character.
+						auth_username_length = WideCharToMultiByte( CP_UTF8, 0, cfg_proxy_auth_username_socks, -1, g_proxy_auth_username_socks, auth_username_length, NULL, NULL ) - 1;
+					}
+
+					if ( cfg_proxy_auth_password_socks != NULL )
+					{
+						if ( g_proxy_auth_password_socks != NULL )
+						{
+							GlobalFree( g_proxy_auth_password_socks );
+						}
+						auth_password_length = WideCharToMultiByte( CP_UTF8, 0, cfg_proxy_auth_password_socks, -1, NULL, 0, NULL, NULL );
+						g_proxy_auth_password_socks = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * auth_password_length ); // Size includes the null character.
+						auth_password_length = WideCharToMultiByte( CP_UTF8, 0, cfg_proxy_auth_password_socks, -1, g_proxy_auth_password_socks, auth_password_length, NULL, NULL ) - 1;
+					}
+
+					if ( cfg_proxy_auth_ident_username_socks != NULL )
+					{
+						if ( g_proxy_auth_ident_username_socks != NULL )
+						{
+							GlobalFree( g_proxy_auth_ident_username_socks );
+						}
+						auth_username_length = WideCharToMultiByte( CP_UTF8, 0, cfg_proxy_auth_ident_username_socks, -1, NULL, 0, NULL, NULL );
+						g_proxy_auth_ident_username_socks = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * auth_username_length ); // Size includes the null character.
+						auth_username_length = WideCharToMultiByte( CP_UTF8, 0, cfg_proxy_auth_ident_username_socks, -1, g_proxy_auth_ident_username_socks, auth_username_length, NULL, NULL ) - 1;
 					}
 
 					if ( display_notice == 1 )

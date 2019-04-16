@@ -50,6 +50,7 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="0"
+				EnableIntrinsicFunctions="true"
 				PreprocessorDefinitions="WIN32;_DEBUG;_WINDOWS"
 				MinimalRebuild="true"
 				BasicRuntimeChecks="0"
@@ -130,6 +131,7 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="0"
+				EnableIntrinsicFunctions="true"
 				PreprocessorDefinitions="WIN32;_DEBUG;_WINDOWS"
 				MinimalRebuild="true"
 				BasicRuntimeChecks="0"
@@ -210,7 +212,7 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="3"
-				EnableIntrinsicFunctions="false"
+				EnableIntrinsicFunctions="true"
 				FavorSizeOrSpeed="2"
 				OmitFramePointers="true"
 				WholeProgramOptimization="false"
@@ -301,7 +303,7 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="3"
-				EnableIntrinsicFunctions="false"
+				EnableIntrinsicFunctions="true"
 				FavorSizeOrSpeed="2"
 				OmitFramePointers="true"
 				WholeProgramOptimization="false"
@@ -441,6 +443,10 @@
 			</File>
 			<File
 				RelativePath=".\lite_ole32.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\lite_pcre2.cpp"
 				>
 			</File>
 			<File
@@ -722,6 +728,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\lite_pcre2.h"
+				>
+			</File>
+			<File
 				RelativePath=".\lite_rpcrt4.h"
 				>
 			</File>
@@ -755,6 +765,10 @@
 			</File>
 			<File
 				RelativePath=".\options.h"
+				>
+			</File>
+			<File
+				RelativePath=".\pcre2.h"
 				>
 			</File>
 			<File

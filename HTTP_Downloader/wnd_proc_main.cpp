@@ -83,14 +83,14 @@ IDropTarget *List_DropTarget;
 bool use_taskbar_progress_main = true;	// Assumes OLE32_STATE_RUNNING is true.
 _ITaskbarList3 *g_taskbar = NULL;
 
-struct TASKBAR_INFO
+struct PROGRESS_INFO
 {
 	unsigned long long current_total_downloaded;
 	unsigned long long current_total_file_size;
 	unsigned char download_state;	// 0 = Downloading, 1 = Completed
 };
 
-TASKBAR_INFO g_taskbar_info;
+PROGRESS_INFO g_progress_info;
 
 UINT WM_TASKBARBUTTONCREATED = 0;
 
@@ -425,7 +425,7 @@ DWORD WINAPI UpdateWindow( LPVOID WorkThreadContext )
 				{
 					g_taskbar->lpVtbl->SetProgressState( g_taskbar, g_hWnd_main, TBPF_NORMAL );
 
-					g_taskbar_info.current_total_downloaded = g_taskbar_info.current_total_file_size = 0;
+					g_progress_info.current_total_downloaded = g_progress_info.current_total_file_size = 0;
 
 					all_paused = 0;
 				}
@@ -488,8 +488,8 @@ DWORD WINAPI UpdateWindow( LPVOID WorkThreadContext )
 
 								if ( g_taskbar != NULL )
 								{
-									g_taskbar_info.current_total_downloaded += di->downloaded;
-									g_taskbar_info.current_total_file_size += di->file_size;
+									g_progress_info.current_total_downloaded += di->downloaded;
+									g_progress_info.current_total_file_size += di->file_size;
 
 									all_paused = 2;
 								}
@@ -596,14 +596,14 @@ DWORD WINAPI UpdateWindow( LPVOID WorkThreadContext )
 
 				if ( cfg_enable_drop_window && cfg_show_drop_window_progress )
 				{
-					UpdateDropWindow( g_taskbar_info.current_total_downloaded, g_taskbar_info.current_total_file_size, border_color, progress_color );
+					UpdateDropWindow( g_progress_info.current_total_downloaded, g_progress_info.current_total_file_size, border_color, progress_color );
 				}
 
 				if ( cfg_tray_icon )
 				{
 					if ( cfg_show_tray_progress )
 					{
-						g_nid.hIcon = CreateSystemTrayIcon( g_taskbar_info.current_total_downloaded, g_taskbar_info.current_total_file_size, border_color, progress_color );
+						g_nid.hIcon = CreateSystemTrayIcon( g_progress_info.current_total_downloaded, g_progress_info.current_total_file_size, border_color, progress_color );
 					}
 					else
 					{
@@ -627,18 +627,18 @@ DWORD WINAPI UpdateWindow( LPVOID WorkThreadContext )
 				}
 			}
 
+			g_progress_info.download_state = 0;	// Downloading.
+
 			if ( g_taskbar != NULL )
 			{
-				g_taskbar_info.download_state = 0;	// Downloading.
-
 				if ( all_paused == 1 )
 				{
 					g_taskbar->lpVtbl->SetProgressState( g_taskbar, g_hWnd_main, TBPF_PAUSED );
 				}
 
-				if ( g_taskbar_info.current_total_file_size > 0 )
+				if ( g_progress_info.current_total_file_size > 0 )
 				{
-					g_taskbar->lpVtbl->SetProgressValue( g_taskbar, g_hWnd_main, g_taskbar_info.current_total_downloaded, g_taskbar_info.current_total_file_size );
+					g_taskbar->lpVtbl->SetProgressValue( g_taskbar, g_hWnd_main, g_progress_info.current_total_downloaded, g_progress_info.current_total_file_size );
 				}
 			}
 		}
@@ -646,10 +646,10 @@ DWORD WINAPI UpdateWindow( LPVOID WorkThreadContext )
 		{
 			_SendMessageW( g_hWnd_main, WM_SETTEXT, NULL, ( LPARAM )PROGRAM_CAPTION );
 
+			g_progress_info.download_state = 1;	// Completed.
+
 			if ( g_taskbar != NULL )
 			{
-				g_taskbar_info.download_state = 1;	// Completed.
-
 				// If Timed Out, Failed, or File IO Error
 				if ( g_session_status_count[ 2 ] > 0 || g_session_status_count[ 3 ] > 0 || g_session_status_count[ 4 ] > 0 )
 				{
@@ -762,7 +762,7 @@ LRESULT CALLBACK EditSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 
 wchar_t *GetDownloadInfoString( DOWNLOAD_INFO *di, int column, int item_index, wchar_t *tbuf, unsigned short tbuf_size )
 {
-	wchar_t *buf = tbuf;
+	wchar_t *buf = NULL;
 
 	// Save the appropriate text in our buffer for the current column.
 	switch ( column )
@@ -1174,7 +1174,7 @@ LRESULT CALLBACK ListViewSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPa
 									DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )lvi.lParam;
 									if ( di != NULL )
 									{
-										wchar_t *buf = GetDownloadInfoString( di, virtual_index, index, tbuf, 128 );
+										wchar_t *buf = GetDownloadInfoString( di, virtual_index, index + 1, tbuf, 128 );
 
 										if ( buf == NULL )
 										{
@@ -1479,7 +1479,7 @@ void HandleCommand( HWND hWnd, WPARAM wParam, LPARAM lParam )
 				{
 					if ( g_hWnd_update_download == NULL )
 					{
-						g_hWnd_update_download = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"update_download", ST_V_Update_Download, WS_OVERLAPPEDWINDOW, ( ( _GetSystemMetrics( SM_CXSCREEN ) - 525 ) / 2 ), ( ( _GetSystemMetrics( SM_CYSCREEN ) - 400 ) / 2 ), 525, 400, NULL, NULL, NULL, NULL );
+						g_hWnd_update_download = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"update_download", ST_V_Update_Download, WS_OVERLAPPEDWINDOW, ( ( _GetSystemMetrics( SM_CXSCREEN ) - 525 ) / 2 ), ( ( _GetSystemMetrics( SM_CYSCREEN ) - 403 ) / 2 ), 525, 403, NULL, NULL, NULL, NULL );
 					}
 					else if ( _IsIconic( g_hWnd_update_download ) )	// If minimized, then restore the window.
 					{
@@ -1606,7 +1606,7 @@ void HandleCommand( HWND hWnd, WPARAM wParam, LPARAM lParam )
 		{
 			if ( g_hWnd_add_urls == NULL )
 			{
-				g_hWnd_add_urls = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"add_urls", ST_V_Add_URL_s_, WS_OVERLAPPEDWINDOW, ( ( _GetSystemMetrics( SM_CXSCREEN ) - 525 ) / 2 ), ( ( _GetSystemMetrics( SM_CYSCREEN ) - 240 ) / 2 ), 525, 240, NULL, NULL, NULL, NULL );
+				g_hWnd_add_urls = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"add_urls", ST_V_Add_URL_s_, WS_OVERLAPPEDWINDOW, ( ( _GetSystemMetrics( SM_CXSCREEN ) - 600 ) / 2 ), ( ( _GetSystemMetrics( SM_CYSCREEN ) - 263 ) / 2 ), 600, 263, NULL, NULL, NULL, NULL );
 			}
 
 			_SendMessageW( g_hWnd_add_urls, WM_PROPAGATE, 0, 0 );
@@ -1736,7 +1736,7 @@ void HandleCommand( HWND hWnd, WPARAM wParam, LPARAM lParam )
 		{
 			wchar_t msg[ 512 ];
 			__snwprintf( msg, 512, L"HTTP Downloader is made free under the GPLv3 license.\r\n\r\n" \
-								   L"Version 1.0.2.0 (%u-bit)\r\n\r\n" \
+								   L"Version 1.0.2.1 (%u-bit)\r\n\r\n" \
 								   L"Built on %s, %s %d, %04d %d:%02d:%02d %s (UTC)\r\n\r\n" \
 								   L"Copyright \xA9 2015-2019 Eric Kutcher",
 #ifdef _WIN64
@@ -1827,13 +1827,13 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 
 			g_hWnd_tooltip = _CreateWindowExW( WS_EX_TOPMOST, TOOLTIPS_CLASS, NULL, WS_POPUP | TTS_NOPREFIX | TTS_ALWAYSTIP, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, g_hWnd_files, NULL, NULL, NULL );
 
-			TOOLINFO ti;
-			_memzero( &ti, sizeof( TOOLINFO ) );
-			ti.cbSize = sizeof( TOOLINFO );
-			ti.uFlags = TTF_SUBCLASS;
-			ti.hwnd = g_hWnd_files;
+			TOOLINFO tti;
+			_memzero( &tti, sizeof( TOOLINFO ) );
+			tti.cbSize = sizeof( TOOLINFO );
+			tti.uFlags = TTF_SUBCLASS;
+			tti.hwnd = g_hWnd_files;
 
-			_SendMessageW( g_hWnd_tooltip, TTM_ADDTOOL, 0, ( LPARAM )&ti );
+			_SendMessageW( g_hWnd_tooltip, TTM_ADDTOOL, 0, ( LPARAM )&tti );
 			_SendMessageW( g_hWnd_tooltip, TTM_SETMAXTIPWIDTH, 0, sizeof( wchar_t ) * ( 2 * MAX_PATH ) );
 			_SendMessageW( g_hWnd_tooltip, TTM_SETDELAYTIME, TTDT_AUTOPOP, 32767 );
 			_SendMessageW( g_hWnd_tooltip, TTM_SETDELAYTIME, TTDT_INITIAL, 2000 );
@@ -1967,6 +1967,10 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 			}
 
 			tooltip_buffer = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * 512 );
+
+			//g_progress_info.current_total_downloaded = g_progress_info.current_total_file_size = 0;
+			//g_progress_info.download_state = 0;
+			_memzero( &g_progress_info, sizeof( PROGRESS_INFO ) );
 
 			WM_TASKBARBUTTONCREATED = _RegisterWindowMessageW( L"TaskbarButtonCreated" );
 
@@ -2117,8 +2121,6 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 							_SendMessageW( g_hWnd_files, LVM_CANCELEDITLABEL, 0, 0 );
 						}
 					}
-
-					return FALSE;
 				}
 				break;
 
@@ -2137,8 +2139,6 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 							return TRUE;
 						}
 					}
-
-					return FALSE;
 				}
 				break;
 
@@ -2227,8 +2227,6 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 							// Sort down
 							lvc.fmt = lvc.fmt & ( ~HDF_SORTUP ) | HDF_SORTDOWN;
 							_SendMessageW( nmlv->hdr.hwndFrom, LVM_SETCOLUMN, ( WPARAM )nmlv->iSubItem, ( LPARAM )&lvc );
-
-							_SendMessageW( nmlv->hdr.hwndFrom, LVM_SORTITEMS, ( WPARAM )&si, ( LPARAM )( PFNLVCOMPARE )DMCompareFunc );
 						}
 						else if ( HDF_SORTDOWN & lvc.fmt )	// Column is sorted downward.
 						{
@@ -2237,8 +2235,6 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 							// Sort up
 							lvc.fmt = lvc.fmt & ( ~HDF_SORTDOWN ) | HDF_SORTUP;
 							_SendMessageW( nmlv->hdr.hwndFrom, LVM_SETCOLUMN, nmlv->iSubItem, ( LPARAM )&lvc );
-
-							_SendMessageW( nmlv->hdr.hwndFrom, LVM_SORTITEMS, ( WPARAM )&si, ( LPARAM )( PFNLVCOMPARE )DMCompareFunc );
 						}
 						else	// Column has no sorting set.
 						{
@@ -2260,9 +2256,9 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 							// Sort down to start.
 							lvc.fmt = lvc.fmt | HDF_SORTDOWN;
 							_SendMessageW( nmlv->hdr.hwndFrom, LVM_SETCOLUMN, nmlv->iSubItem, ( LPARAM )&lvc );
-
-							_SendMessageW( nmlv->hdr.hwndFrom, LVM_SORTITEMS, ( WPARAM )&si, ( LPARAM )( PFNLVCOMPARE )DMCompareFunc );
 						}
+
+						_SendMessageW( nmlv->hdr.hwndFrom, LVM_SORTITEMS, ( WPARAM )&si, ( LPARAM )( PFNLVCOMPARE )DMCompareFunc );
 					}
 				}
 				break;
@@ -2452,8 +2448,6 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 
 						_SendMessageW( g_hWnd_tooltip, TTM_UPDATETIPTEXT, 0, ( LPARAM )&ti );
 					}
-
-					return 0;
 				}
 				break;
 
@@ -2526,7 +2520,6 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 					}
 
 					// Allow the edit to proceed.
-					return FALSE;
 				}
 				break;
 
@@ -2535,49 +2528,45 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 					NMLVDISPINFO *pdi = ( NMLVDISPINFO * )lParam;
 
 					// Prevent the edit if there's no text.
-					if ( pdi->item.pszText == NULL )
+					if ( pdi->item.pszText != NULL )
 					{
-						return FALSE;
-					}
-
-					// Prevent the edit if the text length is 0.
-					unsigned int filename_length = lstrlenW( pdi->item.pszText );
-					if ( filename_length == 0 )
-					{
-						return FALSE;
-					}
-
-					// Get the current list item text from its lParam.
-					LVITEM lvi;
-					_memzero( &lvi, sizeof( LVITEM ) );
-					lvi.iItem = pdi->item.iItem;
-					lvi.mask = LVIF_PARAM;
-					_SendMessageW( pdi->hdr.hwndFrom, LVM_GETITEM, 0, ( LPARAM )&lvi );
-
-					DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )lvi.lParam;
-					if ( di != NULL )
-					{
-						RENAME_INFO *ri = ( RENAME_INFO * )GlobalAlloc( GPTR, sizeof( RENAME_INFO ) );
-						ri->di = di;
-						ri->filename_length = filename_length;
-						ri->filename = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( ri->filename_length + 1 ) );
-						_wmemcpy_s( ri->filename, ri->filename_length + 1, pdi->item.pszText, ri->filename_length );
-						ri->filename[ ri->filename_length ] = 0;	// Sanity.
-
-						// ri is freed in rename_file.
-						HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, rename_file, ( void * )ri, 0, NULL );
-						if ( thread != NULL )
+						// Prevent the edit if the text length is 0.
+						unsigned int filename_length = lstrlenW( pdi->item.pszText );
+						if ( filename_length > 0 )
 						{
-							CloseHandle( thread );
-						}
-						else
-						{
-							GlobalFree( ri->filename );
-							GlobalFree( ri );
+							// Get the current list item text from its lParam.
+							LVITEM lvi;
+							_memzero( &lvi, sizeof( LVITEM ) );
+							lvi.iItem = pdi->item.iItem;
+							lvi.mask = LVIF_PARAM;
+							_SendMessageW( pdi->hdr.hwndFrom, LVM_GETITEM, 0, ( LPARAM )&lvi );
+
+							DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )lvi.lParam;
+							if ( di != NULL )
+							{
+								RENAME_INFO *ri = ( RENAME_INFO * )GlobalAlloc( GPTR, sizeof( RENAME_INFO ) );
+								ri->di = di;
+								ri->filename_length = filename_length;
+								ri->filename = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( ri->filename_length + 1 ) );
+								_wmemcpy_s( ri->filename, ri->filename_length + 1, pdi->item.pszText, ri->filename_length );
+								ri->filename[ ri->filename_length ] = 0;	// Sanity.
+
+								// ri is freed in rename_file.
+								HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, rename_file, ( void * )ri, 0, NULL );
+								if ( thread != NULL )
+								{
+									CloseHandle( thread );
+								}
+								else
+								{
+									GlobalFree( ri->filename );
+									GlobalFree( ri );
+								}
+							}
+
+							return TRUE;
 						}
 					}
-
-					return TRUE;
 				}
 				break;
 			}
@@ -2687,7 +2676,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 
 			// Allow our main window to attach to the desktop edge.
 			_SystemParametersInfoW( SPI_GETWORKAREA, 0, &wa, 0 );			
-			if( is_close( rc->left, wa.left ) )				// Attach to left side of the desktop.
+			if ( is_close( rc->left, wa.left ) )				// Attach to left side of the desktop.
 			{
 				_OffsetRect( rc, wa.left - rc->left, 0 );
 			}
@@ -2696,7 +2685,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 				_OffsetRect( rc, wa.right - rc->right, 0 );
 			}
 
-			if( is_close( rc->top, wa.top ) )				// Attach to top of the desktop.
+			if ( is_close( rc->top, wa.top ) )				// Attach to top of the desktop.
 			{
 				_OffsetRect( rc, 0, wa.top - rc->top );
 			}
@@ -3243,7 +3232,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 			{
 				if ( g_hWnd_add_urls == NULL )
 				{
-					g_hWnd_add_urls = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"add_urls", ST_V_Add_URL_s_, WS_OVERLAPPEDWINDOW, ( ( _GetSystemMetrics( SM_CXSCREEN ) - 525 ) / 2 ), ( ( _GetSystemMetrics( SM_CYSCREEN ) - 240 ) / 2 ), 525, 240, NULL, NULL, NULL, NULL );
+					g_hWnd_add_urls = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"add_urls", ST_V_Add_URL_s_, WS_OVERLAPPEDWINDOW, ( ( _GetSystemMetrics( SM_CXSCREEN ) - 600 ) / 2 ), ( ( _GetSystemMetrics( SM_CYSCREEN ) - 263 ) / 2 ), 600, 263, NULL, NULL, NULL, NULL );
 				}
 
 				_SendMessageW( g_hWnd_add_urls, WM_PROPAGATE, wParam, lParam );
@@ -3269,9 +3258,9 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 
 		case WM_ACTIVATE:
 		{
-			if ( g_taskbar_info.download_state == 1 )
+			if ( g_progress_info.download_state == 1 )
 			{
-				g_taskbar_info.download_state = 0;
+				g_progress_info.download_state = 0;
 
 				if ( g_taskbar != NULL )
 				{
@@ -3283,9 +3272,12 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 					UpdateDropWindow( 0, 0, 0, 0, false );
 				}
 
-				g_nid.uFlags &= ~NIF_INFO;
-				g_nid.hIcon = g_default_tray_icon;
-				_Shell_NotifyIconW( NIM_MODIFY, &g_nid );
+				if ( cfg_tray_icon )
+				{
+					g_nid.uFlags &= ~NIF_INFO;
+					g_nid.hIcon = g_default_tray_icon;
+					_Shell_NotifyIconW( NIM_MODIFY, &g_nid );
+				}
 			}
 
 			_SetFocus( g_hWnd_files );
@@ -3553,12 +3545,6 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 					_CoInitializeEx( NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE );
 
 					_CoCreateInstance( _CLSID_TaskbarList, NULL, CLSCTX_INPROC_SERVER, _IID_ITaskbarList3, ( void ** )&g_taskbar );
-
-					if ( g_taskbar != NULL )
-					{
-						g_taskbar_info.current_total_downloaded = g_taskbar_info.current_total_file_size = 0;
-						g_taskbar_info.download_state = 0;
-					}
 				}
 			}
 

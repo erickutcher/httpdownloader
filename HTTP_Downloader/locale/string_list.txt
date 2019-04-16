@@ -177,8 +177,15 @@ Play sound when all downloads finish:
 Show notification when all downloads finish
 Show progress bar
 Transparency:
-Enable HTTP proxy
-Enable HTTPS proxy
+Allow proxy to resolve domain names
+Allow proxy to resolve domain names (use SOCKS v4a)
+Hostname:
+SOCKS v4
+SOCKS v5
+Use authentication:
+Use HTTP proxy:
+Use HTTPS proxy:
+Use SOCKS proxy:
 Continue
 No
 Overwrite
@@ -191,20 +198,26 @@ Advanced \xBB
 Authentication
 Cookies
 Cookies:
+Custom
 Download
 Download directory:
 Download parts:
 Headers
 Headers:
+Images
+Music
 Password:
 POST Data
+RegEx filter:
 Send POST Data:
 Simulate download
 SSL / TLS version:
 URL(s):
 Username:
+Videos
 Match case
 Match whole word
+Regular expression
 Search
 Search All
 Search for:

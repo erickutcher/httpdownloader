@@ -137,7 +137,7 @@ unsigned char cfg_authentication_type = AUTH_TYPE_BASIC;
 
 // HTTP proxy
 bool cfg_enable_proxy = false;
-unsigned char cfg_address_type = 0;	// 0 = Host name, 1 = IP address
+unsigned char cfg_address_type = 0;			// 0 = Host name, 1 = IP address
 unsigned long cfg_ip_address = 2130706433;	// 127.0.0.1
 wchar_t *cfg_hostname = NULL;
 unsigned short cfg_port = 80;
@@ -147,13 +147,29 @@ wchar_t *cfg_proxy_auth_password = NULL;
 
 // HTTPS proxy
 bool cfg_enable_proxy_s = false;
-unsigned char cfg_address_type_s = 0;	// 0 = Host name, 1 = IP address
+unsigned char cfg_address_type_s = 0;			// 0 = Host name, 1 = IP address
 unsigned long cfg_ip_address_s = 2130706433;	// 127.0.0.1
 wchar_t *cfg_hostname_s = NULL;
 unsigned short cfg_port_s = 443;
 
 wchar_t *cfg_proxy_auth_username_s = NULL;
 wchar_t *cfg_proxy_auth_password_s = NULL;
+
+// SOCKS proxy
+bool cfg_enable_proxy_socks = false;
+unsigned char cfg_socks_type = SOCKS_TYPE_V4;		// 0 = SOCKS 4, 1 = SOCKS 5
+unsigned char cfg_address_type_socks = 0;			// 0 = Host name, 1 = IP address
+unsigned long cfg_ip_address_socks = 2130706433;	// 127.0.0.1
+wchar_t *cfg_hostname_socks = NULL;
+unsigned short cfg_port_socks = 1080;
+bool cfg_use_authentication_socks = false;
+bool cfg_resolve_domain_names_v4a = false;		// Proxy server resolves the domain names.
+bool cfg_resolve_domain_names = false;		// Proxy server resolves the domain names.
+
+wchar_t *cfg_proxy_auth_username_socks = NULL;
+wchar_t *cfg_proxy_auth_password_socks = NULL;
+
+wchar_t *cfg_proxy_auth_ident_username_socks = NULL;
 
 //
 
@@ -1844,16 +1860,72 @@ void ConstructRequest( SOCKET_CONTEXT *context, bool use_connect )
 		request_length += __snprintf( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length,
 				"CONNECT %s:%lu " \
 				"HTTP/1.1\r\n" \
-				"Host: %s:%lu\r\n"/* \
-				"Cache-Control: no-cache\r\n"*/, context->request_info.host, context->request_info.port, context->request_info.host, context->request_info.port );
+				"Host: %s:%lu\r\n",
+				context->request_info.host, context->request_info.port, context->request_info.host, context->request_info.port );
 	}
 	else
 	{
-		request_length += __snprintf( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length,
-				"%s %s " \
-				"HTTP/1.1\r\n" \
-				"Host: %s\r\n"/* \
-				"Cache-Control: no-cache\r\n"*/, ( context->download_info != NULL && context->download_info->method == METHOD_POST ? "POST" : "GET" ), context->request_info.resource, context->request_info.host );
+		if ( context->download_info != NULL && context->download_info->method == METHOD_POST )
+		{
+			_memcpy_s( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length, "POST ", 5 );
+			request_length += 5;
+		}
+		else
+		{
+			_memcpy_s( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length, "GET ", 4 );
+			request_length += 4;
+		}
+
+		if ( cfg_enable_proxy || cfg_enable_proxy_s )
+		{
+			if ( context->request_info.protocol == PROTOCOL_HTTPS )
+			{
+				_memcpy_s( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length, "https:", 6 );
+				request_length += 6;
+			}
+			else if ( context->request_info.protocol == PROTOCOL_HTTP )
+			{
+				_memcpy_s( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length, "http:", 5 );
+				request_length += 5;
+			}
+
+			_memcpy_s( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length, "//", 2 );	// Could be protocol-relative.
+			request_length += 2;
+
+			int host_length = lstrlenA( context->request_info.host );
+			_memcpy_s( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length, context->request_info.host, host_length );
+			request_length += host_length;
+
+			// Non-standard port for the protocol.
+			if ( ( context->request_info.protocol == PROTOCOL_HTTP && context->request_info.port != 80 ) ||
+				 ( context->request_info.protocol == PROTOCOL_HTTPS && context->request_info.port != 443 ) )
+			{
+				request_length += __snprintf( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length,
+						":%lu",
+						context->request_info.port );
+			}
+		}
+
+		// Non-standard port for the protocol.
+		if ( ( context->request_info.protocol == PROTOCOL_HTTP && context->request_info.port != 80 ) ||
+			 ( context->request_info.protocol == PROTOCOL_HTTPS && context->request_info.port != 443 ) )
+		{
+			request_length += __snprintf( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length,
+					"%s " \
+					"HTTP/1.1\r\n" \
+					"Host: %s:%lu\r\n",
+					context->request_info.resource,
+					context->request_info.host, context->request_info.port );
+		}
+		else	// No need for the port if it's the default for the protocol.
+		{
+			request_length += __snprintf( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length,
+					"%s " \
+					"HTTP/1.1\r\n" \
+					"Host: %s\r\n",
+					context->request_info.resource,
+					context->request_info.host );
+		}
 
 		//_memcpy_s( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length, "Accept-Encoding: gzip, deflate\r\n\0", 33 );
 		//request_length += 32;
@@ -2067,6 +2139,187 @@ void ConstructRequest( SOCKET_CONTEXT *context, bool use_connect )
 	{
 		_memcpy_s( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length, context->download_info->data, post_data_length );
 		request_length += post_data_length;
+	}
+
+	context->wsabuf.len = request_length;
+}
+
+void ConstructSOCKSRequest( SOCKET_CONTEXT *context, unsigned char request_type )
+{
+	unsigned int request_length = 0;
+
+	unsigned int dstip = 0x01000000;	// Last byte needs to be non-zero. IP should be invalid so it doesn't get handled.
+
+	if ( cfg_socks_type == SOCKS_TYPE_V4 )	// SOCKS 4
+	{
+		if ( request_type == 0 )	// Handshake
+		{
+			context->wsabuf.buf[ request_length++ ] = 0x04;	// Version
+			context->wsabuf.buf[ request_length++ ] = 0x01;	// TCP/IP stream connection
+
+			unsigned short nb_port = ( ( context->request_info.port & 0x00FF ) << 8 ) | ( ( context->request_info.port & 0xFF00 ) >> 8 );
+			_memcpy_s( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length, &nb_port, sizeof( unsigned short ) );
+			request_length += sizeof( unsigned short );
+
+			if ( cfg_resolve_domain_names_v4a )
+			{
+				// The last byte needs to be non-zero for the domain resolve to occur: 0.0.0.x 
+				_memcpy_s( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length, &dstip, sizeof( unsigned int ) );
+				request_length += sizeof( unsigned int );
+			}
+			else
+			{
+				if ( context->proxy_address_info != NULL )
+				{
+					struct sockaddr_in *ipv4_addr = ( struct sockaddr_in * )context->proxy_address_info->ai_addr;
+					if ( ipv4_addr != NULL )
+					{
+						_memcpy_s( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length, &ipv4_addr->sin_addr, sizeof( ipv4_addr->sin_addr ) );
+						request_length += sizeof( ipv4_addr->sin_addr );
+					}
+					else
+					{
+						_memcpy_s( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length, &dstip, sizeof( unsigned int ) );
+						request_length += sizeof( unsigned int );
+					}
+				}
+				else
+				{
+					_memcpy_s( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length, &dstip, sizeof( unsigned int ) );
+					request_length += sizeof( unsigned int );
+				}
+			}
+
+			unsigned char username_length = ( unsigned char )lstrlenA( g_proxy_auth_ident_username_socks ) + 1;	// Include the NULL character.
+
+			_memcpy_s( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length, g_proxy_auth_ident_username_socks, username_length );
+			request_length += username_length;
+
+			if ( cfg_resolve_domain_names_v4a )
+			{
+				int host_length = ( int )lstrlenA( context->request_info.host ) + 1;	// Include the NULL character.
+
+				_memcpy_s( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length, context->request_info.host, host_length );
+				request_length += host_length;
+			}
+		}
+	}
+	else if ( cfg_socks_type == SOCKS_TYPE_V5 )	// SOCKS 5
+	{
+
+		if ( request_type == 0 )		// Authentication request.
+		{
+			context->wsabuf.buf[ request_length++ ] = 0x05;	// Version
+
+			if ( cfg_use_authentication_socks )
+			{
+				context->wsabuf.buf[ request_length++ ] = 0x02;	// Number of methods
+			}
+			else
+			{
+				context->wsabuf.buf[ request_length++ ] = 0x01;	// Number of methods
+			}
+
+			context->wsabuf.buf[ request_length++ ] = 0x00;	// Method: None
+
+			if ( cfg_use_authentication_socks )
+			{
+				context->wsabuf.buf[ request_length++ ] = 0x02;	// Method: Username and Password
+			}
+		}
+		else if ( request_type == 1 )	// Connection request.
+		{
+			context->wsabuf.buf[ request_length++ ] = 0x05;	// Version
+			context->wsabuf.buf[ request_length++ ] = 0x01;	// TCP/IP stream connection
+			context->wsabuf.buf[ request_length++ ] = 0x00;	// Reserved
+
+			if ( cfg_resolve_domain_names )
+			{
+				context->wsabuf.buf[ request_length++ ] = 0x03;	// Domain name.
+
+				unsigned char host_length = ( unsigned char )lstrlenA( context->request_info.host );
+
+				// The proxy doesn't like the brackets in the host name, so we'll exclude them in the request.
+				bool is_ipv6_address = ( host_length >= 2 &&
+										 context->request_info.host != NULL &&
+										 context->request_info.host[ 0 ] == '[' &&
+										 context->request_info.host[ host_length - 1 ] == ']' ? true : false );
+
+				if ( is_ipv6_address )
+				{
+					host_length -= 2;
+				}
+
+				context->wsabuf.buf[ request_length++ ] = host_length;
+
+				_memcpy_s( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length, context->request_info.host + ( is_ipv6_address ? 1 : 0 ), host_length );
+
+				request_length += host_length;
+
+				unsigned short nb_port = ( ( context->request_info.port & 0x00FF ) << 8 ) | ( ( context->request_info.port & 0xFF00 ) >> 8 );
+				_memcpy_s( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length, &nb_port, sizeof( unsigned short ) );
+				request_length += sizeof( unsigned short );
+			}
+			else if ( context->proxy_address_info != NULL )
+			{
+				bool use_ipv6 = ( context->proxy_address_info->ai_family == AF_INET6 ? true : false );
+
+				context->wsabuf.buf[ request_length++ ] = ( use_ipv6 ? 0x04 : 0x01 );	// IPV6 or IPV4.
+
+				if ( use_ipv6 )	// IPV6
+				{
+					struct sockaddr_in6 *ipv6_addr = ( struct sockaddr_in6 * )context->proxy_address_info->ai_addr;
+					if ( ipv6_addr != NULL )
+					{
+						_memcpy_s( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length, &ipv6_addr->sin6_addr, sizeof( ipv6_addr->sin6_addr ) );
+						request_length += sizeof( ipv6_addr->sin6_addr );
+
+						_memcpy_s( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length, &ipv6_addr->sin6_port, sizeof( ipv6_addr->sin6_port ) );
+						request_length += sizeof( ipv6_addr->sin6_port );
+					}
+					else
+					{
+						_memcpy_s( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length, &dstip, sizeof( unsigned int ) );
+						request_length += sizeof( unsigned int );
+					}
+				}
+				else
+				{
+					struct sockaddr_in *ipv4_addr = ( struct sockaddr_in * )context->proxy_address_info->ai_addr;
+					if ( ipv4_addr != NULL )
+					{
+						_memcpy_s( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length, &ipv4_addr->sin_addr, sizeof( ipv4_addr->sin_addr ) );
+						request_length += sizeof( ipv4_addr->sin_addr );
+
+						_memcpy_s( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length, &ipv4_addr->sin_port, sizeof( ipv4_addr->sin_port ) );
+						request_length += sizeof( ipv4_addr->sin_port );
+					}
+					else
+					{
+						_memcpy_s( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length, &dstip, sizeof( unsigned int ) );
+						request_length += sizeof( unsigned int );
+					}
+				}
+			}
+			else
+			{
+				_memcpy_s( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length, &dstip, sizeof( unsigned int ) );
+				request_length += sizeof( unsigned int );
+			}
+		}
+		else if ( request_type == 2 )
+		{
+			unsigned char username_length = ( unsigned char )lstrlenA( g_proxy_auth_username_socks );
+			unsigned char password_length = ( unsigned char )lstrlenA( g_proxy_auth_password_socks );
+
+			context->wsabuf.buf[ request_length++ ] = 0x01;	// Username/Password version
+			context->wsabuf.buf[ request_length++ ] = username_length;
+			_memcpy_s( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length, g_proxy_auth_username_socks, username_length );
+			request_length += username_length;
+			context->wsabuf.buf[ request_length++ ] = password_length;
+			_memcpy_s( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length, g_proxy_auth_password_socks, password_length );
+			request_length += password_length;
+		}
 	}
 
 	context->wsabuf.len = request_length;

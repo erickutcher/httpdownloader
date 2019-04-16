@@ -139,11 +139,11 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 			g_hWnd_edit_update_url = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, L"", ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 
 			// Owner draw the static control. It causes the entire window to flicker when it's disabled.
-			g_hWnd_static_update_download_parts = _CreateWindowW( WC_STATIC, ST_V_Download_parts_, SS_OWNERDRAW | WS_CHILD | WS_VISIBLE, 20, 65, 115, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_update_download_parts = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 20, 80, 85, 20, hWnd, ( HMENU )EDIT_UPDATE_DOWNLOAD_PARTS, NULL, NULL );
+			g_hWnd_static_update_download_parts = _CreateWindowW( WC_STATIC, ST_V_Download_parts_, SS_OWNERDRAW | WS_CHILD | WS_VISIBLE, 20, 68, 115, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_update_download_parts = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 20, 83, 85, 23, hWnd, ( HMENU )EDIT_UPDATE_DOWNLOAD_PARTS, NULL, NULL );
 
 			// Keep this unattached. Looks ugly inside the text box.
-			g_hWnd_ud_update_download_parts = _CreateWindowW( UPDOWN_CLASS, NULL, /*UDS_ALIGNRIGHT |*/ UDS_ARROWKEYS | UDS_NOTHOUSANDS | UDS_SETBUDDYINT | WS_CHILD | WS_VISIBLE, 105, 79, _GetSystemMetrics( SM_CXVSCROLL ), 22, hWnd, NULL, NULL, NULL );
+			g_hWnd_ud_update_download_parts = _CreateWindowW( UPDOWN_CLASS, NULL, /*UDS_ALIGNRIGHT |*/ UDS_ARROWKEYS | UDS_NOTHOUSANDS | UDS_SETBUDDYINT | WS_CHILD | WS_VISIBLE, 105, 82, _GetSystemMetrics( SM_CXVSCROLL ), 25, hWnd, NULL, NULL, NULL );
 
 			_SendMessageW( g_hWnd_update_download_parts, EM_LIMITTEXT, 3, 0 );
 			_SendMessageW( g_hWnd_ud_update_download_parts, UDM_SETBUDDY, ( WPARAM )g_hWnd_update_download_parts, 0 );
@@ -151,8 +151,8 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 			_SendMessageW( g_hWnd_ud_update_download_parts, UDM_SETRANGE32, 1, 100 );
 			_SendMessageW( g_hWnd_ud_update_download_parts, UDM_SETPOS, 0, 1 );
 
-			g_hWnd_static_update_ssl_version = _CreateWindowW( WC_STATIC, ST_V_SSL___TLS_version_, WS_CHILD | WS_VISIBLE, 140, 65, 115, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_update_ssl_version = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_COMBOBOX, NULL, CBS_AUTOHSCROLL | CBS_DROPDOWNLIST | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE, 140, 80, 100, 20, hWnd, NULL, NULL, NULL );
+			g_hWnd_static_update_ssl_version = _CreateWindowW( WC_STATIC, ST_V_SSL___TLS_version_, WS_CHILD | WS_VISIBLE, 140, 68, 115, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_update_ssl_version = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_COMBOBOX, NULL, CBS_AUTOHSCROLL | CBS_DROPDOWNLIST | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE, 140, 83, 100, 23, hWnd, NULL, NULL, NULL );
 			_SendMessageW( g_hWnd_update_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_V_SSL_2_0 );
 			_SendMessageW( g_hWnd_update_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_V_SSL_3_0 );
 			_SendMessageW( g_hWnd_update_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_V_TLS_1_0 );
@@ -161,13 +161,13 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 
 			_SendMessageW( g_hWnd_update_ssl_version, CB_SETCURSEL, cfg_default_ssl_version, 0 );
 
-			g_hWnd_btn_update_authentication = _CreateWindowW( WC_BUTTON, ST_V_Authentication, BS_GROUPBOX | WS_CHILD | WS_VISIBLE, 260, 65, 230, 65, hWnd, NULL, NULL, NULL );
+			g_hWnd_btn_update_authentication = _CreateWindowW( WC_BUTTON, ST_V_Authentication, BS_GROUPBOX | WS_CHILD | WS_VISIBLE, 260, 68, 230, 65, hWnd, NULL, NULL, NULL );
 
-			g_hWnd_static_update_username = _CreateWindowW( WC_STATIC, ST_V_Username_, WS_CHILD | WS_VISIBLE, 270, 80, 100, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_edit_update_username = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 270, 95, 100, 20, hWnd, NULL, NULL, NULL );
+			g_hWnd_static_update_username = _CreateWindowW( WC_STATIC, ST_V_Username_, WS_CHILD | WS_VISIBLE, 270, 83, 100, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_edit_update_username = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 270, 98, 100, 23, hWnd, NULL, NULL, NULL );
 
-			g_hWnd_static_update_password = _CreateWindowW( WC_STATIC, ST_V_Password_, WS_CHILD | WS_VISIBLE, 380, 80, 100, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_edit_update_password = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_PASSWORD | ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 380, 95, 100, 20, hWnd, NULL, NULL, NULL );
+			g_hWnd_static_update_password = _CreateWindowW( WC_STATIC, ST_V_Password_, WS_CHILD | WS_VISIBLE, 380, 83, 100, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_edit_update_password = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_PASSWORD | ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 380, 98, 100, 23, hWnd, NULL, NULL, NULL );
 
 			g_hWnd_update_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, WC_TABCONTROL, NULL, WS_CHILD | /*WS_CLIPCHILDREN |*/ WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 
@@ -325,23 +325,23 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 			// Allow our controls to move in relation to the parent window.
 			HDWP hdwp = _BeginDeferWindowPos( 11 );
 
-			_DeferWindowPos( hdwp, g_hWnd_edit_update_url, HWND_TOP, 20, 35, rc.right - 40, 20, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_edit_update_url, HWND_TOP, 20, 35, rc.right - 40, 23, SWP_NOZORDER );
 
-			_DeferWindowPos( hdwp, g_hWnd_update_tab, HWND_TOP, 20, 130, rc.right - 40, rc.bottom - 180, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_update_tab, HWND_TOP, 20, 133, rc.right - 40, rc.bottom - 183, SWP_NOZORDER );
 
 			//
 
 			RECT rc_tab;
 			_SendMessageW( g_hWnd_update_tab, TCM_GETITEMRECT, 0, ( LPARAM )&rc_tab );
 
-			_DeferWindowPos( hdwp, g_hWnd_static_update_cookies, HWND_TOP, 30, 140 + rc_tab.bottom, rc.right - 60, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_edit_update_cookies, HWND_TOP, 30, 155 + rc_tab.bottom, rc.right - 60, rc.bottom - 235, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_static_update_cookies, HWND_TOP, 30, 143 + rc_tab.bottom, rc.right - 60, 15, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_edit_update_cookies, HWND_TOP, 30, 158 + rc_tab.bottom, rc.right - 60, rc.bottom - 238, SWP_NOZORDER );
 
-			_DeferWindowPos( hdwp, g_hWnd_static_update_headers, HWND_TOP, 30, 140 + rc_tab.bottom, rc.right - 60, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_edit_update_headers, HWND_TOP, 30, 155 + rc_tab.bottom, rc.right - 60, rc.bottom - 235, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_static_update_headers, HWND_TOP, 30, 143 + rc_tab.bottom, rc.right - 60, 15, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_edit_update_headers, HWND_TOP, 30, 158 + rc_tab.bottom, rc.right - 60, rc.bottom - 238, SWP_NOZORDER );
 
-			_DeferWindowPos( hdwp, g_hWnd_chk_update_send_data, HWND_TOP, 30, 140 + rc_tab.bottom, rc.right - 60, 20, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_edit_update_data, HWND_TOP, 30, 160 + rc_tab.bottom, rc.right - 60, rc.bottom - 240, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_chk_update_send_data, HWND_TOP, 30, 143 + rc_tab.bottom, rc.right - 60, 20, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_edit_update_data, HWND_TOP, 30, 163 + rc_tab.bottom, rc.right - 60, rc.bottom - 243, SWP_NOZORDER );
 
 			//
 
@@ -359,7 +359,7 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 		{
 			// Set the minimum dimensions that the window can be sized to.
 			( ( MINMAXINFO * )lParam )->ptMinTrackSize.x = 525;
-			( ( MINMAXINFO * )lParam )->ptMinTrackSize.y = 400;
+			( ( MINMAXINFO * )lParam )->ptMinTrackSize.y = 403;
 
 			return 0;
 		}

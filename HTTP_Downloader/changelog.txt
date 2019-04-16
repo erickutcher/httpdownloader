@@ -1,3 +1,16 @@
+Version:	1.0.2.1
+Released:	2019-04-16
+
+Added regular expression filter in Add URL(s) window.
+Added SOCKS 4/4a/5 proxy support.
+Fixed HTTP proxy requests.
+Fixed requests on non standard ports.
+Fixed notification counts increasing from retries.
+Prevented incomplete command-line arguments from being processed.
+Allowed restarting state to be stopped after connect is posted.
+Compiled latest zlib for 32-bit and 64-bit releases.
+Updated extensions layout and regular expression filters.
+
 Version:	1.0.2.0
 Released:	2019-03-10
 

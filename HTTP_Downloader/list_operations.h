@@ -48,6 +48,7 @@ THREAD_RETURN import_list( void *pArguments );
 THREAD_RETURN process_command_line_args( void *pArguments );
 
 THREAD_RETURN search_list( void *pArguments );
+THREAD_RETURN filter_urls( void *pArguments );
 
 THREAD_RETURN save_session( void *pArguments );
 

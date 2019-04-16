@@ -93,6 +93,16 @@
 #define CONTENT_STATUS_HANDLE_RESPONSE		9	// Deals with HTTP status 206 and 401 responses.
 #define CONTENT_STATUS_HANDLE_REQUEST		10
 
+#define SOCKS_STATUS_FAILED				   -1
+#define SOCKS_STATUS_NONE					0
+#define SOCKS_STATUS_REQUEST_AUTH			1
+#define SOCKS_STATUS_AUTH_SENT				2
+#define SOCKS_STATUS_REQUEST_CONNECTION		3
+#define SOCKS_STATUS_HANDLE_CONNECTION		4
+
+#define SOCKS_TYPE_V4		0
+#define SOCKS_TYPE_V5		1
+
 #define TIME_OUT_FALSE		0
 #define TIME_OUT_TRUE		1
 #define TIME_OUT_RETRY		2
@@ -123,6 +133,7 @@ enum IO_OPERATION
 	IO_ServerHandshakeResponse,
 	IO_ServerHandshakeReply,
 	IO_GetCONNECTResponse,
+	IO_SOCKSResponse,
 	IO_GetRequest,
 	IO_GetContent,
 	IO_ResumeGetContent,
@@ -248,7 +259,8 @@ struct SOCKET_CONTEXT
 
 	DoublyLinkedList	*range_node;	// Self reference to the range_list of this context's download_info.
 
-	addrinfoW			*address_info;
+	addrinfoW			*address_info;			// Address info of the server we're connecting to.
+	addrinfoW			*proxy_address_info;	// Address info of the server that we want to proxy.
 
 	char				*decompressed_buf;
 
@@ -258,9 +270,6 @@ struct SOCKET_CONTEXT
 
 	SSL					*ssl;
     SOCKET				socket;
-
-	//IO_OPERATION		current_operation;
-	//IO_OPERATION		next_operation;
 
 	DWORD				current_bytes_read;
 

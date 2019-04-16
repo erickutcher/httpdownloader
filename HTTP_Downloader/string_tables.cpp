@@ -243,8 +243,15 @@ STRING_TABLE_DATA options_general_string_table[] =
 
 STRING_TABLE_DATA options_proxy_string_table[] =
 {
-	{ L"Enable HTTP proxy", 17 },
-	{ L"Enable HTTPS proxy", 18 }
+	{ L"Allow proxy to resolve domain names", 35 },
+	{ L"Allow proxy to resolve domain names (use SOCKS v4a)", 51 },
+	{ L"Hostname:", 9 },
+	{ L"SOCKS v4", 8 },
+	{ L"SOCKS v5", 8 },
+	{ L"Use authentication:", 19 },
+	{ L"Use HTTP proxy:", 15 },
+	{ L"Use HTTPS proxy:", 16 },
+	{ L"Use SOCKS proxy:", 16 }
 };
 
 STRING_TABLE_DATA cmessagebox_string_table[] =
@@ -265,24 +272,30 @@ STRING_TABLE_DATA add_urls_string_table[] =
 	{ L"Authentication", 14 },
 	{ L"Cookies", 7 },
 	{ L"Cookies:", 8 },
+	{ L"Custom", 6 },
 	{ L"Download", 8 },
 	{ L"Download directory:", 19 },
 	{ L"Download parts:", 15 },
 	{ L"Headers", 7 },
 	{ L"Headers:", 8 },
+	{ L"Images", 6 },
+	{ L"Music", 5 },
 	{ L"Password:", 9 },
 	{ L"POST Data", 9 },
+	{ L"RegEx filter:", 13 },
 	{ L"Send POST Data:", 15 },
 	{ L"Simulate download", 17 },
 	{ L"SSL / TLS version:", 18 },
 	{ L"URL(s):", 7 },
-	{ L"Username:", 9 }
+	{ L"Username:", 9 },
+	{ L"Videos", 6 }
 };
 
 STRING_TABLE_DATA search_string_table[] =
 {
 	{ L"Match case", 10 },
 	{ L"Match whole word", 16 },
+	{ L"Regular expression", 18 },
 	{ L"Search", 6 },
 	{ L"Search All", 10 },
 	{ L"Search for:", 11 },

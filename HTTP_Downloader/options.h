@@ -152,6 +152,35 @@ extern HWND g_hWnd_auth_username_s;
 extern HWND g_hWnd_static_auth_password_s;
 extern HWND g_hWnd_auth_password_s;
 
+// SOCKS proxy
+extern HWND g_hWnd_chk_proxy_socks;
+
+extern HWND g_hWnd_chk_type_socks4;
+extern HWND g_hWnd_chk_type_socks5;
+
+extern HWND g_hWnd_ip_address_socks;
+extern HWND g_hWnd_hostname_socks;
+extern HWND g_hWnd_port_socks;
+
+extern HWND g_hWnd_static_port_socks;
+extern HWND g_hWnd_static_colon_socks;
+
+extern HWND g_hWnd_chk_type_hostname_socks;
+extern HWND g_hWnd_chk_type_ip_address_socks;
+
+extern HWND g_hWnd_auth_ident_username_socks;
+
+extern HWND g_hWnd_chk_resolve_domain_names_v4a;
+
+extern HWND g_hWnd_chk_use_authentication_socks;
+
+extern HWND g_hWnd_static_auth_username_socks;
+extern HWND g_hWnd_auth_username_socks;
+extern HWND g_hWnd_static_auth_password_socks;
+extern HWND g_hWnd_auth_password_socks;
+
+extern HWND g_hWnd_chk_resolve_domain_names;
+
 // General Tab
 extern HWND g_hWnd_chk_tray_icon;
 extern HWND g_hWnd_chk_minimize;
