@@ -57,6 +57,8 @@
 
 #define NUM_COLORS			75
 
+#define MAX_DOMAIN_LENGTH	253
+
 #define _wcsicmp_s( a, b ) ( ( a == NULL && b == NULL ) ? 0 : ( a != NULL && b == NULL ) ? 1 : ( a == NULL && b != NULL ) ? -1 : lstrcmpiW( a, b ) )
 #define _stricmp_s( a, b ) ( ( a == NULL && b == NULL ) ? 0 : ( a != NULL && b == NULL ) ? 1 : ( a == NULL && b != NULL ) ? -1 : lstrcmpiA( a, b ) )
 
@@ -85,7 +87,16 @@
 #define SIZE_FORMAT_GIGABYTE	3
 #define SIZE_FORMAT_AUTO		4
 
-struct sortinfo
+#define SHUTDOWN_ACTION_NONE				0
+#define SHUTDOWN_ACTION_LOG_OFF				1
+#define SHUTDOWN_ACTION_LOCK				2
+#define SHUTDOWN_ACTION_RESTART				3
+#define SHUTDOWN_ACTION_SLEEP				4
+#define SHUTDOWN_ACTION_HIBERNATE			5
+#define SHUTDOWN_ACTION_SHUT_DOWN			6
+#define SHUTDOWN_ACTION_HYBRID_SHUT_DOWN	7
+
+struct SORT_INFO
 {
 	HWND hWnd;
 	int column;
@@ -160,6 +171,9 @@ extern HWND g_hWnd_update_download;
 extern HWND g_hWnd_search;
 extern HWND g_hWnd_url_drop_window;
 
+extern HWND g_hWnd_login_manager;
+extern HWND g_hWnd_login_list;
+
 extern HWND g_hWnd_toolbar;
 extern HWND g_hWnd_files;
 
@@ -168,13 +182,16 @@ extern HWND g_hWnd_active;				// Handle to the active window. Used to handle tab
 extern LOGFONT g_default_log_font;
 extern HFONT g_hFont;
 
-extern dllrbt_tree *icon_handles;
+extern dllrbt_tree *g_icon_handles;
+
+extern dllrbt_tree *g_login_info;
 
 extern bool	g_can_fast_allocate;			// Prevent the pre-allocation from zeroing the file.
 
 extern bool g_use_regular_expressions;
 
 extern int g_row_height;
+extern int g_default_row_height;
 
 extern bool skip_list_draw;
 
@@ -274,6 +291,8 @@ extern bool cfg_use_one_instance;
 extern bool cfg_enable_drop_window;
 extern bool cfg_download_immediately;
 extern bool cfg_prevent_standby;
+
+extern unsigned char cfg_shutdown_action;
 
 extern bool cfg_play_sound;
 extern wchar_t *cfg_sound_file_path;
@@ -448,5 +467,10 @@ extern unsigned int g_session_status_count[ 8 ];	// 8 states that can be conside
 extern bool g_timers_running;
 
 extern SYSTEMTIME g_compile_time;
+
+extern bool g_is_windows_8_or_higher;
+
+extern bool g_can_perform_shutdown_action;
+extern bool g_perform_shutdown_action;
 
 #endif

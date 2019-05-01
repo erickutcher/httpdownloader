@@ -2475,7 +2475,7 @@ char ParseHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int
 
 					EnterCriticalSection( &icon_cache_cs );
 					// Find the icon info
-					dllrbt_iterator *itr = dllrbt_find( icon_handles, ( void * )( context->download_info->file_path + context->download_info->file_extension_offset ), false );
+					dllrbt_iterator *itr = dllrbt_find( g_icon_handles, ( void * )( context->download_info->file_path + context->download_info->file_extension_offset ), false );
 
 					// Free its values and remove it from the tree if there are no other items using it.
 					if ( itr != NULL )
@@ -2489,12 +2489,12 @@ char ParseHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int
 								GlobalFree( ii->file_extension );
 								GlobalFree( ii );
 
-								dllrbt_remove( icon_handles, itr );
+								dllrbt_remove( g_icon_handles, itr );
 							}
 						}
 						else
 						{
-							dllrbt_remove( icon_handles, itr );
+							dllrbt_remove( g_icon_handles, itr );
 						}
 					}
 					LeaveCriticalSection( &icon_cache_cs );
@@ -2749,7 +2749,7 @@ char GetHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int h
 
 						EnterCriticalSection( &icon_cache_cs );
 						// Find the icon info
-						dllrbt_iterator *itr = dllrbt_find( icon_handles, ( void * )( context->download_info->file_path + context->download_info->file_extension_offset ), false );
+						dllrbt_iterator *itr = dllrbt_find( g_icon_handles, ( void * )( context->download_info->file_path + context->download_info->file_extension_offset ), false );
 
 						// Free its values and remove it from the tree if there are no other items using it.
 						if ( itr != NULL )
@@ -2763,12 +2763,12 @@ char GetHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int h
 									GlobalFree( ii->file_extension );
 									GlobalFree( ii );
 
-									dllrbt_remove( icon_handles, itr );
+									dllrbt_remove( g_icon_handles, itr );
 								}
 							}
 							else
 							{
-								dllrbt_remove( icon_handles, itr );
+								dllrbt_remove( g_icon_handles, itr );
 							}
 						}
 						LeaveCriticalSection( &icon_cache_cs );
@@ -3700,7 +3700,7 @@ char AllocateFile( SOCKET_CONTEXT *context )
 							SetFilePointerEx( context->download_info->hFile, li, NULL, FILE_BEGIN );
 							SetEndOfFile( context->download_info->hFile );
 
-							if ( g_can_fast_allocate )	// Fast disk allocation if we're an administrator.
+							if ( cfg_enable_quick_allocation && g_can_fast_allocate )	// Fast disk allocation if we're an administrator.
 							{
 								if ( SetFileValidData( context->download_info->hFile, li.QuadPart ) == FALSE )
 								{
@@ -4782,14 +4782,17 @@ char GetHTTPRequestContent( SOCKET_CONTEXT *context, char *request_buffer, unsig
 
 		if ( context->post_info != NULL )
 		{
-			unsigned int dec_len = lstrlenA( context->post_info->urls );
+			// If we decode anything, then it should only be the resource and not the parameters.
+			/*unsigned int dec_len = lstrlenA( context->post_info->urls );
 			char *decoded_urls = url_decode_a( context->post_info->urls, dec_len, &dec_len );
 			if ( decoded_urls != NULL )
 			{
 				GlobalFree( context->post_info->urls );
 				context->post_info->urls = decoded_urls;
 			}
-			int urls_length = MultiByteToWideChar( CP_UTF8, 0, context->post_info->urls, dec_len + 1, NULL, 0 );	// Include the NULL terminator.
+			int urls_length = MultiByteToWideChar( CP_UTF8, 0, context->post_info->urls, dec_len + 1, NULL, 0 );	// Include the NULL terminator.*/
+
+			int urls_length = MultiByteToWideChar( CP_UTF8, 0, context->post_info->urls, -1, NULL, 0 );	// Include the NULL terminator.
 
 			// http://a.b + NULL
 			if ( urls_length >= 11 )
@@ -4806,7 +4809,7 @@ char GetHTTPRequestContent( SOCKET_CONTEXT *context, char *request_buffer, unsig
 					MultiByteToWideChar( CP_UTF8, 0, context->post_info->directory, -1, t_download_directory, directory_length );
 
 					// See if the directory exits. If not, then we'll use the program's default.
-					if ( GetFileAttributesW( t_download_directory ) != FILE_ATTRIBUTE_DIRECTORY )
+					if ( !( GetFileAttributesW( t_download_directory ) & FILE_ATTRIBUTE_DIRECTORY ) )
 					{
 						GlobalFree( t_download_directory );
 						t_download_directory = NULL;

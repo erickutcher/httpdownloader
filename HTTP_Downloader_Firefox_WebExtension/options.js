@@ -29,9 +29,9 @@ function SaveOptions()
 	} );
 }
 
-function DisableCheckbox()
+function DisableCheckbox( event )
 {
-	document.getElementById( "show_add_window" ).disabled = !document.getElementById( "override" ).checked;
+	document.getElementById( "show_add_window" ).disabled = !event.target.checked;
 }
 
 function RestoreOptions()

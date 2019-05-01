@@ -212,6 +212,8 @@ extern HWND g_hWnd_prompt_rename;
 extern HWND g_hWnd_max_file_size;
 extern HWND g_hWnd_prompt_file_size;
 
+extern HWND g_hWnd_shutdown_action;
+
 extern HWND g_hWnd_default_download_directory;
 extern HWND g_hWnd_btn_default_download_directory;
 

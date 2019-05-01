@@ -16,24 +16,37 @@
 	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef _FILE_OPERATIONS_H
-#define _FILE_OPERATIONS_H
+#ifndef _LITE_POWRPROF_H
+#define _LITE_POWRPROF_H
 
-#define MAGIC_ID_SETTINGS		"HDM\x02"	// Version 3
-#define MAGIC_ID_DOWNLOADS		"HDM\x13"	// Version 4
-#define MAGIC_ID_LOGINS			"HDM\x20"	// Version 1
+#define STRICT
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
 
-char read_config();
-char save_config();
+#include <powrprof.h>
 
-char read_download_history( wchar_t *file_path );
-char save_download_history( wchar_t *file_path );
+//#define POWRPROF_USE_STATIC_LIB
 
-char save_download_history_csv_file( wchar_t *file_path );
+#ifdef POWRPROF_USE_STATIC_LIB
 
-wchar_t *read_url_list_file( wchar_t *file_path, unsigned int &url_list_length );
+	//__pragma( comment( lib, "powrprof.lib" ) )
 
-wchar_t *UTF8StringToWideString( char *utf8_string, int string_length );
-char *WideStringToUTF8String( wchar_t *wide_string, int *utf8_string_length, int buffer_offset = 0 );
+	#define _SetSuspendState		SetSuspendState
+
+#else
+
+	#define POWRPROF_STATE_SHUTDOWN	0
+	#define POWRPROF_STATE_RUNNING	1
+
+	typedef BOOLEAN ( WINAPI *pSetSuspendState )( BOOLEAN bHibernate, BOOLEAN bForce, BOOLEAN bWakeupEventsDisabled );
+
+	extern pSetSuspendState		_SetSuspendState;
+
+	extern unsigned char powrprof_state;
+
+	bool InitializePowrProf();
+	bool UnInitializePowrProf();
+
+#endif
 
 #endif

@@ -1,3 +1,13 @@
+Version:	1.0.2.2
+Released:	2019-05-01
+
+Added shutdown actions to the Advanced options.
+Added login manager to the Connection options.
+Made Add URL(s) window expand and contract when checking Advanced options.
+Reverted URL encoding for URL(s) from extensions.
+Fixed directory not being set from command-line and extensions.
+Fixed Chrome extension not getting last redirected URL.
+
 Version:	1.0.2.1
 Released:	2019-04-16
 

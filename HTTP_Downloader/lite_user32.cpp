@@ -51,6 +51,7 @@
 	//pEndMenu				_EndMenu;
 	pEndPaint				_EndPaint;
 	//pEnumChildWindows		_EnumChildWindows;
+	pExitWindowsEx			_ExitWindowsEx;
 	pFillRect				_FillRect;
 	pFlashWindow			_FlashWindow;
 	pFrameRect				_FrameRect;
@@ -86,6 +87,7 @@
 	pLoadCursorW				_LoadCursorW;
 	pLoadIconW				_LoadIconW;
 	pLoadImageW				_LoadImageW;
+	pLockWorkStation		_LockWorkStation;
 	//pMapWindowPoints			_MapWindowPoints;
 	//pMessageBoxA			_MessageBoxA;
 	pMessageBoxW			_MessageBoxW;
@@ -174,6 +176,7 @@
 		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_EndMenu, "EndMenu" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_EndPaint, "EndPaint" ) )
 		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_EnumChildWindows, "EnumChildWindows" ) )
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_ExitWindowsEx, "ExitWindowsEx" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_FillRect, "FillRect" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_FlashWindow, "FlashWindow" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_FrameRect, "FrameRect" ) )
@@ -209,6 +212,7 @@
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_LoadCursorW, "LoadCursorW" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_LoadIconW, "LoadIconW" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_LoadImageW, "LoadImageW" ) )
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_LockWorkStation, "LockWorkStation" ) )
 		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_MapWindowPoints, "MapWindowPoints" ) )
 		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_MessageBoxA, "MessageBoxA" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_MessageBoxW, "MessageBoxW" ) )

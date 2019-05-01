@@ -89,6 +89,8 @@ bool cfg_enable_drop_window = false;
 bool cfg_download_immediately = false;
 bool cfg_prevent_standby = true;
 
+unsigned char cfg_shutdown_action = SHUTDOWN_ACTION_NONE;
+
 bool cfg_play_sound = false;
 wchar_t *cfg_sound_file_path = NULL;
 
@@ -278,6 +280,20 @@ bool in_worker_thread = false;
 bool kill_worker_thread_flag = false;	// Allow for a clean shutdown.
 
 bool download_history_changed = false;
+
+bool IsWindowsVersionOrGreater( WORD wMajorVersion, WORD wMinorVersion, WORD wServicePackMajor )
+{
+	OSVERSIONINFOEXW osvi;
+	_memzero( &osvi, sizeof( OSVERSIONINFOEXW ) );
+	osvi.dwOSVersionInfoSize = sizeof( OSVERSIONINFOEXW );
+	osvi.dwMajorVersion = wMajorVersion;
+	osvi.dwMinorVersion = wMinorVersion;
+	osvi.wServicePackMajor = wServicePackMajor;
+
+	DWORDLONG const dwlConditionMask = VerSetConditionMask( VerSetConditionMask( VerSetConditionMask( 0, VER_MAJORVERSION, VER_GREATER_EQUAL ), VER_MINORVERSION, VER_GREATER_EQUAL ), VER_SERVICEPACKMAJOR, VER_GREATER_EQUAL );
+
+	return VerifyVersionInfoW( &osvi, VER_MAJORVERSION | VER_MINORVERSION | VER_SERVICEPACKMAJOR, dwlConditionMask ) != FALSE;
+}
 
 int dllrbt_compare_a( void *a, void *b )
 {

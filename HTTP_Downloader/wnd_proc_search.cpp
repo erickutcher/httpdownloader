@@ -238,6 +238,7 @@ LRESULT CALLBACK SearchWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 
 			return 0;
 		}
+		break;
 
 		case WM_PROPAGATE:
 		{

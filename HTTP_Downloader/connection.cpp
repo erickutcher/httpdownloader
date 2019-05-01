@@ -28,6 +28,7 @@
 #include "http_parsing.h"
 
 #include "utilities.h"
+#include "login_manager_utilities.h"
 #include "list_operations.h"
 
 #include "cmessagebox.h"
@@ -3737,7 +3738,7 @@ ICON_INFO *CacheIcon( DOWNLOAD_INFO *di, SHFILEINFO *sfi )
 	{
 		// Cache our file's icon.
 		EnterCriticalSection( &icon_cache_cs );
-		ii = ( ICON_INFO * )dllrbt_find( icon_handles, ( void * )( di->file_path + di->file_extension_offset ), true );
+		ii = ( ICON_INFO * )dllrbt_find( g_icon_handles, ( void * )( di->file_path + di->file_extension_offset ), true );
 		if ( ii == NULL )
 		{
 			bool destroy = true;
@@ -3768,7 +3769,7 @@ ICON_INFO *CacheIcon( DOWNLOAD_INFO *di, SHFILEINFO *sfi )
 
 			ii->count = 1;
 
-			if ( dllrbt_insert( icon_handles, ( void * )ii->file_extension, ( void * )ii ) != DLLRBT_STATUS_OK )
+			if ( dllrbt_insert( g_icon_handles, ( void * )ii->file_extension, ( void * )ii ) != DLLRBT_STATUS_OK )
 			{
 				DestroyIcon( ii->icon );
 				GlobalFree( ii->file_extension );
@@ -4102,18 +4103,48 @@ DWORD WINAPI AddURL( void *add_info )
 
 			di->method = ai->method;
 
-			if ( ai->auth_info.username != NULL && username_length > 0 )
+			if ( ai->auth_info.username == NULL && ai->auth_info.password == NULL )
 			{
-				di->auth_info.username = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( username_length + 1 ) );
-				_memcpy_s( di->auth_info.username, username_length + 1, ai->auth_info.username, username_length );
-				di->auth_info.username[ username_length ] = 0;	// Sanity.
-			}
+				LOGIN_INFO tli;
+				tli.host = host;
+				tli.protocol = protocol;
+				tli.port = port;
+				LOGIN_INFO *li = ( LOGIN_INFO * )dllrbt_find( g_login_info, ( void * )&tli, true );
 
-			if ( ai->auth_info.password != NULL && password_length > 0 )
+				if ( li != NULL )
+				{
+					username_length = lstrlenA( li->username );
+					if ( username_length > 0 )
+					{
+						di->auth_info.username = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( username_length + 1 ) );
+						_memcpy_s( di->auth_info.username, username_length + 1, li->username, username_length );
+						di->auth_info.username[ username_length ] = 0;	// Sanity.
+					}
+
+					password_length = lstrlenA( li->password );
+					if ( password_length > 0 )
+					{
+						di->auth_info.password = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( password_length + 1 ) );
+						_memcpy_s( di->auth_info.password, password_length + 1, li->password, password_length );
+						di->auth_info.password[ password_length ] = 0;	// Sanity.
+					}
+				}
+			}
+			else
 			{
-				di->auth_info.password = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( password_length + 1 ) );
-				_memcpy_s( di->auth_info.password, password_length + 1, ai->auth_info.password, password_length );
-				di->auth_info.password[ password_length ] = 0;	// Sanity.
+				if ( ai->auth_info.username != NULL && username_length > 0 )
+				{
+					di->auth_info.username = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( username_length + 1 ) );
+					_memcpy_s( di->auth_info.username, username_length + 1, ai->auth_info.username, username_length );
+					di->auth_info.username[ username_length ] = 0;	// Sanity.
+				}
+
+				if ( ai->auth_info.password != NULL && password_length > 0 )
+				{
+					di->auth_info.password = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( password_length + 1 ) );
+					_memcpy_s( di->auth_info.password, password_length + 1, ai->auth_info.password, password_length );
+					di->auth_info.password[ password_length ] = 0;	// Sanity.
+				}
 			}
 
 			if ( ai->utf8_cookies != NULL && cookies_length > 0 )
@@ -4894,7 +4925,7 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 							{
 								// Find the icon info
 								EnterCriticalSection( &icon_cache_cs );
-								dllrbt_iterator *itr = dllrbt_find( icon_handles, ( void * )( context->download_info->file_path + context->download_info->file_extension_offset ), false );
+								dllrbt_iterator *itr = dllrbt_find( g_icon_handles, ( void * )( context->download_info->file_path + context->download_info->file_extension_offset ), false );
 								// Free its values and remove it from the tree if there are no other items using it.
 								if ( itr != NULL )
 								{
@@ -4908,12 +4939,12 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 											GlobalFree( ii->file_extension );
 											GlobalFree( ii );
 
-											dllrbt_remove( icon_handles, itr );
+											dllrbt_remove( g_icon_handles, itr );
 										}
 									}
 									else
 									{
-										dllrbt_remove( icon_handles, itr );
+										dllrbt_remove( g_icon_handles, itr );
 									}
 								}
 								LeaveCriticalSection( &icon_cache_cs );

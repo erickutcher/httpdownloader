@@ -59,6 +59,7 @@
 	//#define _EndMenu				EndMenu
 	#define _EndPaint				EndPaint
 	//#define _EnumChildWindows		EnumChildWindows
+	#define _ExitWindowsEx			ExitWindowsEx
 	#define _FillRect				FillRect
 	#define _FlashWindow			FlashWindow
 	#define _FrameRect				FrameRect
@@ -94,6 +95,7 @@
 	#define _LoadCursorW			LoadCursorW
 	#define _LoadIconW				LoadIconW
 	#define _LoadImageW				LoadImageW
+	#define _LockWorkStation		LockWorkStation
 	//#define _MapWindowPoints		MapWindowPoints
 	//#define _MessageBoxA			MessageBoxA
 	#define _MessageBoxW			MessageBoxW
@@ -171,6 +173,7 @@
 	//typedef BOOL ( WINAPI *pEndMenu )();
 	typedef BOOL ( WINAPI *pEndPaint )( HWND hWnd, const PAINTSTRUCT *lpPaint );
 	//typedef BOOL ( WINAPI *pEnumChildWindows )( HWND hWndParent, WNDENUMPROC lpEnumFunc, LPARAM lParam );
+	typedef BOOL ( WINAPI *pExitWindowsEx )( UINT uFlags, DWORD dwReason );
 	typedef int ( WINAPI *pFillRect )( HDC hDC, const RECT *lprc, HBRUSH hbr );
 	typedef BOOL ( WINAPI *pFlashWindow )( HWND hWnd, BOOL bInvert );
 	typedef int ( WINAPI *pFrameRect )( HDC hDC, const RECT *lprc, HBRUSH hbr );
@@ -206,6 +209,7 @@
 	typedef HCURSOR ( WINAPI *pLoadCursorW )( HINSTANCE hInstance, LPCTSTR lpCursorName );
 	typedef HICON ( WINAPI *pLoadIconW )( HINSTANCE hInstance, LPCTSTR lpIconName );
 	typedef HANDLE ( WINAPI *pLoadImageW )( HINSTANCE hinst, LPCTSTR lpszName, UINT uType, int cxDesired, int cyDesired, UINT fuLoad );
+	typedef BOOL ( WINAPI *pLockWorkStation )();
 	//typedef int ( WINAPI *pMapWindowPoints )( HWND hWndFrom, HWND hWndTo, LPPOINT lpPoints, UINT cPoints );
 	//typedef int ( WINAPI *pMessageBoxA )( HWND hWnd, LPCSTR lpText, LPCSTR lpCaption, UINT uType );
 	typedef int ( WINAPI *pMessageBoxW )( HWND hWnd, LPCTSTR lpText, LPCTSTR lpCaption, UINT uType );
@@ -276,6 +280,7 @@
 	//extern pEndMenu					_EndMenu;
 	extern pEndPaint				_EndPaint;
 	//extern pEnumChildWindows		_EnumChildWindows;
+	extern pExitWindowsEx			_ExitWindowsEx;
 	extern pFillRect				_FillRect;
 	extern pFlashWindow				_FlashWindow;
 	extern pFrameRect				_FrameRect;
@@ -311,6 +316,7 @@
 	extern pLoadCursorW				_LoadCursorW;
 	extern pLoadIconW				_LoadIconW;
 	extern pLoadImageW				_LoadImageW;
+	extern pLockWorkStation			_LockWorkStation;
 	//extern pMapWindowPoints			_MapWindowPoints;
 	//extern pMessageBoxA				_MessageBoxA;
 	extern pMessageBoxW				_MessageBoxW;

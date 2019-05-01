@@ -280,11 +280,11 @@ THREAD_RETURN remove_items( void *pArguments )
 
 				LeaveCriticalSection( &di->shared_cs );
 
-				// di->icon is stored in the icon_handles tree. We'll destory it in the tree.
+				// di->icon is stored in the g_icon_handles tree. We'll destory it in the tree.
 
 				EnterCriticalSection( &icon_cache_cs );
 				// Find the icon info
-				dllrbt_iterator *itr = dllrbt_find( icon_handles, ( void * )( di->file_path + di->file_extension_offset ), false );
+				dllrbt_iterator *itr = dllrbt_find( g_icon_handles, ( void * )( di->file_path + di->file_extension_offset ), false );
 
 				// Free its values and remove it from the tree if there are no other items using it.
 				if ( itr != NULL )
@@ -298,12 +298,12 @@ THREAD_RETURN remove_items( void *pArguments )
 							GlobalFree( ii->file_extension );
 							GlobalFree( ii );
 
-							dllrbt_remove( icon_handles, itr );
+							dllrbt_remove( g_icon_handles, itr );
 						}
 					}
 					else
 					{
-						dllrbt_remove( icon_handles, itr );
+						dllrbt_remove( g_icon_handles, itr );
 					}
 				}
 				LeaveCriticalSection( &icon_cache_cs );
@@ -659,7 +659,7 @@ THREAD_RETURN handle_download_list( void *pArguments )
 
 					EnterCriticalSection( &icon_cache_cs );
 					// Find the icon info
-					dllrbt_iterator *itr = dllrbt_find( icon_handles, ( void * )( di->file_path + di->file_extension_offset ), false );
+					dllrbt_iterator *itr = dllrbt_find( g_icon_handles, ( void * )( di->file_path + di->file_extension_offset ), false );
 
 					// Free its values and remove it from the tree if there are no other items using it.
 					if ( itr != NULL )
@@ -673,12 +673,12 @@ THREAD_RETURN handle_download_list( void *pArguments )
 								GlobalFree( ii->file_extension );
 								GlobalFree( ii );
 
-								dllrbt_remove( icon_handles, itr );
+								dllrbt_remove( g_icon_handles, itr );
 							}
 						}
 						else
 						{
-							dllrbt_remove( icon_handles, itr );
+							dllrbt_remove( g_icon_handles, itr );
 						}
 					}
 					LeaveCriticalSection( &icon_cache_cs );
@@ -1741,7 +1741,7 @@ THREAD_RETURN rename_file( void *pArguments )
 
 						EnterCriticalSection( &icon_cache_cs );
 						// Find the icon info
-						dllrbt_iterator *itr = dllrbt_find( icon_handles, ( void * )( di->file_path + di->file_extension_offset ), false );
+						dllrbt_iterator *itr = dllrbt_find( g_icon_handles, ( void * )( di->file_path + di->file_extension_offset ), false );
 
 						// Free its values and remove it from the tree if there are no other items using it.
 						if ( itr != NULL )
@@ -1755,12 +1755,12 @@ THREAD_RETURN rename_file( void *pArguments )
 									GlobalFree( ii->file_extension );
 									GlobalFree( ii );
 
-									dllrbt_remove( icon_handles, itr );
+									dllrbt_remove( g_icon_handles, itr );
 								}
 							}
 							else
 							{
-								dllrbt_remove( icon_handles, itr );
+								dllrbt_remove( g_icon_handles, itr );
 							}
 						}
 						LeaveCriticalSection( &icon_cache_cs );

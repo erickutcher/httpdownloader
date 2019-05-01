@@ -54,6 +54,8 @@
 #define BTN_CERTIFICATE_KEY				1027
 #define CB_SERVER_SSL_VERSION			1028
 
+#define BTN_LOGIN_MANAGER				1029
+
 // Connection Tab
 HWND g_hWnd_max_downloads = NULL;
 
@@ -101,6 +103,8 @@ HWND g_hWnd_certificate_key_location = NULL;
 HWND g_hWnd_btn_certificate_key_location = NULL;
 HWND g_hWnd_static_server_ssl_version = NULL;
 HWND g_hWnd_server_ssl_version = NULL;
+
+HWND g_hWnd_btn_login_manager = NULL;
 
 
 // Free these when done.
@@ -395,6 +399,10 @@ LRESULT CALLBACK ConnectionTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 
 			//
 
+			g_hWnd_btn_login_manager = _CreateWindowW( WC_BUTTON, ST_V_Login_Manager___, WS_CHILD | WS_TABSTOP | WS_VISIBLE, 200, 138, 120, 23, hWnd, ( HMENU )BTN_LOGIN_MANAGER, NULL, NULL );
+
+			//
+
 			g_hWnd_chk_enable_server = _CreateWindowW( WC_BUTTON, ST_V_Enable_server_, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 183, rc.right - 10, 20, hWnd, ( HMENU )BTN_ENABLE_SERVER, NULL, NULL );
 
 			g_hWnd_static_hoz1 = _CreateWindowW( WC_STATIC, NULL, SS_ETCHEDHORZ | WS_CHILD | WS_VISIBLE, 0, 208, rc.right - 10, 5, hWnd, NULL, NULL, NULL );
@@ -456,7 +464,7 @@ LRESULT CALLBACK ConnectionTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 			_SendMessageW( g_hWnd_server_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_V_TLS_1_1 );
 			_SendMessageW( g_hWnd_server_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_V_TLS_1_2 );
 
-			_SendMessageW( g_hWnd_server_hostname, EM_LIMITTEXT, 254, 0 );
+			_SendMessageW( g_hWnd_server_hostname, EM_LIMITTEXT, MAX_DOMAIN_LENGTH, 0 );
 			_SendMessageW( g_hWnd_server_port, EM_LIMITTEXT, 5, 0 );
 			_SendMessageW( g_hWnd_certificate_pkcs_password, EM_LIMITTEXT, 1024, 0 );	// 1024 characters + 1 NULL
 
@@ -538,6 +546,8 @@ LRESULT CALLBACK ConnectionTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 
 			_SendMessageW( hWnd_static_max_redirects, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 			_SendMessageW( g_hWnd_max_redirects, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+
+			_SendMessageW( g_hWnd_btn_login_manager, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 
 			// Stupid control likes to delete the font object. :-/
 			// We'll make a copy.
@@ -1163,6 +1173,17 @@ LRESULT CALLBACK ConnectionTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 						options_state_changed = true;
 						_EnableWindow( g_hWnd_apply, TRUE );
 					}
+				}
+				break;
+
+				case BTN_LOGIN_MANAGER:
+				{
+					if ( g_hWnd_login_manager == NULL )
+					{
+						g_hWnd_login_manager = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"login_manager", ST_V_Login_Manager, WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN, ( ( _GetSystemMetrics( SM_CXSCREEN ) - MIN_WIDTH ) / 2 ), ( ( _GetSystemMetrics( SM_CYSCREEN ) - MIN_HEIGHT ) / 2 ), MIN_WIDTH, MIN_HEIGHT, NULL, NULL, NULL, NULL );
+						_ShowWindow( g_hWnd_login_manager, SW_SHOWNORMAL );
+					}
+					_SetForegroundWindow( g_hWnd_login_manager );
 				}
 				break;
 			}

@@ -25,6 +25,12 @@
 
 #define MD5_LENGTH	16
 
+//#define _WIN32_WINNT_WIN7		0x0601
+#define _WIN32_WINNT_WIN8		0x0602
+//#define _WIN32_WINNT_WINBLUE	0x0603
+
+bool IsWindowsVersionOrGreater( WORD wMajorVersion, WORD wMinorVersion, WORD wServicePackMajor );
+
 int dllrbt_compare_a( void *a, void *b );
 int dllrbt_compare_w( void *a, void *b );
 

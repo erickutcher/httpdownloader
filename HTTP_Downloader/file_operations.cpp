@@ -36,7 +36,7 @@ wchar_t *UTF8StringToWideString( char *utf8_string, int string_length )
 	return wide_val;
 }
 
-char *WideStringToUTF8String( wchar_t *wide_string, int *utf8_string_length, int buffer_offset = 0 )
+char *WideStringToUTF8String( wchar_t *wide_string, int *utf8_string_length, int buffer_offset )
 {
 	*utf8_string_length = WideCharToMultiByte( CP_UTF8, 0, wide_string, -1, NULL, 0, NULL, NULL ) + buffer_offset;
 	char *utf8_val = ( char * )GlobalAlloc( GPTR, sizeof( char ) * *utf8_string_length ); // Size includes the NULL character.
@@ -77,7 +77,7 @@ char read_config()
 
 				if ( version <= MAGIC_ID_SETTINGS[ 3 ] )
 				{
-					reserved = 1024 - ( version == 0 ? 175 : ( version == 1 ? 508 : 520 ) );
+					reserved = 1024 - ( version == 0 ? 175 : ( version == 1 ? 508 : 521 ) );
 
 					char *next = cfg_buf + 4;
 
@@ -389,6 +389,9 @@ char read_config()
 
 							_memcpy_s( &cfg_resolve_domain_names, sizeof( bool ), next, sizeof( bool ) );
 							next += sizeof( bool );
+
+							_memcpy_s( &cfg_shutdown_action, sizeof( unsigned char ), next, sizeof( unsigned char ) );
+							next += sizeof( unsigned char );
 						}
 					}
 
@@ -917,6 +920,11 @@ char read_config()
 					if ( cfg_port_socks == 0 ) { cfg_port_socks = 1; }
 
 					if ( cfg_max_file_size == 0 ) { cfg_max_file_size = MAX_FILE_SIZE; }
+
+					if ( cfg_shutdown_action == SHUTDOWN_ACTION_HYBRID_SHUT_DOWN && !g_is_windows_8_or_higher )
+					{
+						cfg_shutdown_action = SHUTDOWN_ACTION_NONE;
+					}
 				}
 				else
 				{
@@ -1034,10 +1042,10 @@ char save_config()
 	HANDLE hFile_cfg = CreateFile( base_directory, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL );
 	if ( hFile_cfg != INVALID_HANDLE_VALUE )
 	{
-		int reserved = 1024 - 520;
+		int reserved = 1024 - 521;
 		int size = ( sizeof( int ) * 20 ) +
 				   ( sizeof( unsigned short ) * 5 ) +
-				   ( sizeof( char ) * 42 ) +
+				   ( sizeof( char ) * 43 ) +
 				   ( sizeof( bool ) * 30 ) +
 				   ( sizeof( unsigned long ) * 5 ) +
 				   ( sizeof( LONG ) * 4 ) +
@@ -1356,6 +1364,9 @@ char save_config()
 
 		_memcpy_s( write_buf + pos, size - pos, &cfg_resolve_domain_names, sizeof( bool ) );
 		pos += sizeof( bool );
+
+		_memcpy_s( write_buf + pos, size - pos, &cfg_shutdown_action, sizeof( unsigned char ) );
+		pos += sizeof( unsigned char );
 
 
 		// Write Reserved bytes.
@@ -2144,8 +2155,6 @@ char read_download_history( wchar_t *file_path )
 
 	return ret_status;
 }
-
-
 
 char save_download_history( wchar_t *file_path )
 {

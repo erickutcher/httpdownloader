@@ -33,12 +33,14 @@
 #define CB_PROMPT_FILE_SIZE			1009
 #define EDIT_MAX_FILE_SIZE			1010
 
-#define BTN_DEFAULT_DOWNLOAD_DIRECTORY	1011
+#define CB_SHUTDOWN_ACTION			1011
 
-#define BTN_USE_TEMP_DOWNLOAD_DIRECTORY	1012
-#define BTN_TEMP_DOWNLOAD_DIRECTORY		1013
+#define BTN_DEFAULT_DOWNLOAD_DIRECTORY	1012
 
-#define EDIT_THREAD_COUNT			1014
+#define BTN_USE_TEMP_DOWNLOAD_DIRECTORY	1013
+#define BTN_TEMP_DOWNLOAD_DIRECTORY		1014
+
+#define EDIT_THREAD_COUNT			1015
 
 // Advanced Tab
 HWND g_hWnd_chk_download_history = NULL;
@@ -53,6 +55,8 @@ HWND g_hWnd_prompt_last_modified = NULL;
 HWND g_hWnd_prompt_rename = NULL;
 HWND g_hWnd_max_file_size = NULL;
 HWND g_hWnd_prompt_file_size = NULL;
+
+HWND g_hWnd_shutdown_action = NULL;
 
 HWND g_hWnd_default_download_directory = NULL;
 HWND g_hWnd_btn_default_download_directory = NULL;
@@ -122,21 +126,40 @@ LRESULT CALLBACK AdvancedTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 			_SendMessageW( g_hWnd_prompt_file_size, CB_SETCURSEL, cfg_prompt_file_size, 0 );
 
 
-			HWND hWnd_static_default_download_directory = _CreateWindowW( WC_STATIC, ST_V_Default_download_directory_, WS_CHILD | WS_VISIBLE, 0, 283, rc.right - 10, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_default_download_directory = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, cfg_default_download_directory, ES_AUTOHSCROLL | ES_READONLY | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 298, rc.right - 65, 23, hWnd, NULL, NULL, NULL );
-			g_hWnd_btn_default_download_directory = _CreateWindowW( WC_BUTTON, ST_V_BTN___, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 60, 298, 35, 23, hWnd, ( HMENU )BTN_DEFAULT_DOWNLOAD_DIRECTORY, NULL, NULL );
+			HWND hWnd_static_shutdown_action = _CreateWindowW( WC_STATIC, ST_V_System_shutdown_action_, WS_CHILD | WS_VISIBLE, 0, 283, rc.right - 10, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_shutdown_action = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_COMBOBOX, NULL, CBS_AUTOHSCROLL | CBS_DROPDOWNLIST | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE, 0, 298, 135, 23, hWnd, ( HMENU )CB_SHUTDOWN_ACTION, NULL, NULL );
+
+			_SendMessageW( g_hWnd_shutdown_action, CB_ADDSTRING, 0, ( LPARAM )ST_V_None );
+			_SendMessageW( g_hWnd_shutdown_action, CB_ADDSTRING, 0, ( LPARAM )ST_V_Log_off );
+			_SendMessageW( g_hWnd_shutdown_action, CB_ADDSTRING, 0, ( LPARAM )ST_V_Lock );
+			_SendMessageW( g_hWnd_shutdown_action, CB_ADDSTRING, 0, ( LPARAM )ST_V_Restart_system );
+			_SendMessageW( g_hWnd_shutdown_action, CB_ADDSTRING, 0, ( LPARAM )ST_V_Sleep );
+			_SendMessageW( g_hWnd_shutdown_action, CB_ADDSTRING, 0, ( LPARAM )ST_V_Hibernate );
+			_SendMessageW( g_hWnd_shutdown_action, CB_ADDSTRING, 0, ( LPARAM )ST_V_Shut_down );
+			if ( g_is_windows_8_or_higher )
+			{
+				_SendMessageW( g_hWnd_shutdown_action, CB_ADDSTRING, 0, ( LPARAM )ST_V_Hybrid_shut_down );
+			}
+
+			_SendMessageW( g_hWnd_shutdown_action, CB_SETCURSEL, cfg_shutdown_action, 0 );
 
 
-			g_hWnd_chk_temp_download_directory = _CreateWindowW( WC_BUTTON, ST_V_Use_temporary_download_directory_, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 326, rc.right - 10, 20, hWnd, ( HMENU )BTN_USE_TEMP_DOWNLOAD_DIRECTORY, NULL, NULL );
-			g_hWnd_temp_download_directory = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, cfg_temp_download_directory, ES_AUTOHSCROLL | ES_READONLY | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 346, rc.right - 65, 23, hWnd, NULL, NULL, NULL );
-			g_hWnd_btn_temp_download_directory = _CreateWindowW( WC_BUTTON, ST_V_BTN___, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 60, 346, 35, 23, hWnd, ( HMENU )BTN_TEMP_DOWNLOAD_DIRECTORY, NULL, NULL );
+
+			HWND hWnd_static_default_download_directory = _CreateWindowW( WC_STATIC, ST_V_Default_download_directory_, WS_CHILD | WS_VISIBLE, 0, 331, rc.right - 10, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_default_download_directory = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, cfg_default_download_directory, ES_AUTOHSCROLL | ES_READONLY | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 346, rc.right - 65, 23, hWnd, NULL, NULL, NULL );
+			g_hWnd_btn_default_download_directory = _CreateWindowW( WC_BUTTON, ST_V_BTN___, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 60, 346, 35, 23, hWnd, ( HMENU )BTN_DEFAULT_DOWNLOAD_DIRECTORY, NULL, NULL );
 
 
-			HWND hWnd_static_thread_count = _CreateWindowW( WC_STATIC, ST_V_Thread_pool_count_, WS_CHILD | WS_VISIBLE, 0, 379, rc.right - 10, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_thread_count = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 394, 100, 23, hWnd, ( HMENU )EDIT_THREAD_COUNT, NULL, NULL );
+			g_hWnd_chk_temp_download_directory = _CreateWindowW( WC_BUTTON, ST_V_Use_temporary_download_directory_, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 374, rc.right - 10, 20, hWnd, ( HMENU )BTN_USE_TEMP_DOWNLOAD_DIRECTORY, NULL, NULL );
+			g_hWnd_temp_download_directory = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, cfg_temp_download_directory, ES_AUTOHSCROLL | ES_READONLY | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 394, rc.right - 65, 23, hWnd, NULL, NULL, NULL );
+			g_hWnd_btn_temp_download_directory = _CreateWindowW( WC_BUTTON, ST_V_BTN___, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 60, 394, 35, 23, hWnd, ( HMENU )BTN_TEMP_DOWNLOAD_DIRECTORY, NULL, NULL );
+
+
+			HWND hWnd_static_thread_count = _CreateWindowW( WC_STATIC, ST_V_Thread_pool_count_, WS_CHILD | WS_VISIBLE, 0, 427, rc.right - 10, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_thread_count = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 442, 100, 23, hWnd, ( HMENU )EDIT_THREAD_COUNT, NULL, NULL );
 
 			// Keep this unattached. Looks ugly inside the text box.
-			HWND hWnd_ud_thread_count = _CreateWindowW( UPDOWN_CLASS, NULL, /*UDS_ALIGNRIGHT |*/ UDS_ARROWKEYS | UDS_NOTHOUSANDS | UDS_SETBUDDYINT | WS_CHILD | WS_VISIBLE, 100, 393, _GetSystemMetrics( SM_CXVSCROLL ), 25, hWnd, NULL, NULL, NULL );
+			HWND hWnd_ud_thread_count = _CreateWindowW( UPDOWN_CLASS, NULL, /*UDS_ALIGNRIGHT |*/ UDS_ARROWKEYS | UDS_NOTHOUSANDS | UDS_SETBUDDYINT | WS_CHILD | WS_VISIBLE, 100, 441, _GetSystemMetrics( SM_CXVSCROLL ), 25, hWnd, NULL, NULL, NULL );
 
 			_SendMessageW( g_hWnd_thread_count, EM_LIMITTEXT, 10, 0 );
 			_SendMessageW( hWnd_ud_thread_count, UDM_SETBUDDY, ( WPARAM )g_hWnd_thread_count, 0 );
@@ -151,7 +174,7 @@ LRESULT CALLBACK AdvancedTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 			si.cbSize = sizeof( SCROLLINFO );
 			si.fMask = SIF_ALL;
 			si.nMin = 0;
-			si.nMax = 417 + 13;	// Value is the position and height of the bottom most control. Needs 13px more padding for Windows 10.
+			si.nMax = 465 + 13;	// Value is the position and height of the bottom most control. Needs 13px more padding for Windows 10.
 			si.nPage = ( rc.bottom - rc.top );
 			si.nPos = 0;
 			_SetScrollInfo( hWnd, SB_VERT, &si, TRUE );
@@ -176,6 +199,9 @@ LRESULT CALLBACK AdvancedTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 			_SendMessageW( hWnd_static_prompt_file_size, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 			_SendMessageW( g_hWnd_max_file_size, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 			_SendMessageW( g_hWnd_prompt_file_size, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+
+			_SendMessageW( hWnd_static_shutdown_action, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_shutdown_action, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 
 			_SendMessageW( hWnd_static_default_download_directory, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 			_SendMessageW( g_hWnd_default_download_directory, WM_SETFONT, ( WPARAM )g_hFont, 0 );
@@ -350,6 +376,7 @@ LRESULT CALLBACK AdvancedTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 				case CB_PROMPT_RENAME:
 				case CB_PROMPT_FILE_SIZE:
 				case CB_PROMPT_LAST_MODIFIED:
+				case CB_SHUTDOWN_ACTION:
 				{
 					if ( HIWORD( wParam ) == CBN_SELCHANGE )
 					{

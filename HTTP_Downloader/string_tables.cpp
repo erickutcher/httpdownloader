@@ -161,13 +161,22 @@ STRING_TABLE_DATA options_advanced_string_table[] =
 	{ L"Download drag and drop URL(s) immediately", 41 },
 	{ L"Enable download history", 23 },
 	{ L"Enable quick file allocation (administrator access required)", 60 },
+	{ L"Hibernate", 9 },
+	{ L"Hybrid shut down", 16 },
+	{ L"Lock", 4 },
+	{ L"Log off", 7 },
+	{ L"None", 4 },
 	{ L"Overwrite File", 14 },
 	{ L"Prevent system standby while downloads are active", 49 },
 	{ L"Rename File", 11 },
+	{ L"Restart", 7 },
 	{ L"Restart Download", 16 },
 	{ L"Resume previously downloading files upon startup", 48 },
 	{ L"Set date and time of file from server response", 46 },
+	{ L"Shut down", 9 },
 	{ L"Skip Download", 13 },
+	{ L"Sleep", 5 },
+	{ L"System shutdown action when all downloads finish:", 49 },
 	{ L"Thread pool count:", 18 },
 	{ L"Use temporary download directory:", 33 },
 	{ L"When a file already exists:", 27 },
@@ -214,6 +223,7 @@ STRING_TABLE_DATA options_connection_string_table[] =
 	{ L"Load PKCS #12 File", 18 },
 	{ L"Load Private Key File", 21 },
 	{ L"Load X.509 Certificate File", 27 },
+	{ L"Login Manager...", 16 },
 	{ L"Maximum redirects:", 18 },
 	{ L"PKCS #12:", 9 },
 	{ L"PKCS #12 file:", 14 },
@@ -267,8 +277,7 @@ STRING_TABLE_DATA cmessagebox_string_table[] =
 
 STRING_TABLE_DATA add_urls_string_table[] =
 {
-	{ L"Advanced \xAB", 10 },
-	{ L"Advanced \xBB", 10 },
+	{ L"Advanced options", 16 },
 	{ L"Authentication", 14 },
 	{ L"Cookies", 7 },
 	{ L"Cookies:", 8 },
@@ -303,6 +312,18 @@ STRING_TABLE_DATA search_string_table[] =
 	{ L"Search Type", 11 }
 };
 
+STRING_TABLE_DATA login_manager_string_table[] =
+{
+	{ L"Add", 3 },
+	{ L"Close", 5 },
+	{ L"Password", 8 },
+	{ L"Remove", 6 },
+	{ L"Show passwords", 14 },
+	{ L"Site", 4 },
+	{ L"Site:", 5 },
+	{ L"Username", 8 }
+};
+
 STRING_TABLE_DATA common_string_table[] =
 {
 	{ L"...", 3 },
@@ -325,6 +346,7 @@ STRING_TABLE_DATA common_string_table[] =
 	{ L"Failed", 6 },
 	{ L"File IO Error", 13 },
 	{ L"Import Download History", 23 },
+	{ L"Login Manager", 13 },
 	{ L"Moving File", 11 },
 	{ L"Options", 7 },
 	{ L"Paused", 6 },
@@ -352,8 +374,10 @@ STRING_TABLE_DATA common_string_table[] =
 
 STRING_TABLE_DATA common_message_string_table[] =
 {
+	{ L"A protocol (HTTP or HTTPS) must be supplied.", 44 },
 	{ L"A restart is required for these changes to take effect.", 55 },
 	{ L"A restart is required to enable quick file allocation.", 54 },
+	{ L"A restart is required to perform the system shutdown action.", 60 },
 	{ L"A restart is required to update the thread pool count.", 54 },
 	{ L"Are you sure you want to delete the selected files?", 51 },
 	{ L"Are you sure you want to remove the completed entries?", 54 },
@@ -371,6 +395,8 @@ STRING_TABLE_DATA common_message_string_table[] =
 	{ L"The file(s) could not be imported because the format is incorrect.", 66 },
 	{ L"The specified file was not found.\r\n\r\nDo you want to download the file again?", 76 },
 	{ L"The specified path was not found.", 33 },
+	{ L"The specified site already exists.", 34 },
+	{ L"The specified site is invalid.", 30 },
 	{ L"There is already a file with the same name in this location.", 60 },
 	{ L"You must supply a download directory.", 37 }
 };
@@ -490,6 +516,7 @@ void InitializeLocaleValues()
 		for ( i = 0; i < CMESSAGEBOX_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = cmessagebox_string_table[ i ]; }
 		for ( i = 0; i < ADD_URLS_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = add_urls_string_table[ i ]; }
 		for ( i = 0; i < SEARCH_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = search_string_table[ i ]; }
+		for ( i = 0; i < LOGIN_MANAGER_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = login_manager_string_table[ i ]; }
 		for ( i = 0; i < COMMON_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = common_string_table[ i ]; }
 		for ( i = 0; i < COMMON_MESSAGE_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = common_message_string_table[ i ]; }
 

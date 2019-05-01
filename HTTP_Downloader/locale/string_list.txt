@@ -111,13 +111,22 @@ Display Prompt
 Download drag and drop URL(s) immediately
 Enable download history
 Enable quick file allocation (administrator access required)
+Hibernate
+Hybrid shut down
+Lock
+Log off
+None
 Overwrite File
 Prevent system standby while downloads are active
 Rename File
+Restart
 Restart Download
 Resume previously downloading files upon startup
 Set date and time of file from server response
+Shut down
 Skip Download
+Sleep
+System shutdown action when all downloads finish:
 Thread pool count:
 Use temporary download directory:
 When a file already exists:
@@ -156,6 +165,7 @@ Key file:
 Load PKCS #12 File
 Load Private Key File
 Load X.509 Certificate File
+Login Manager...
 Maximum redirects:
 PKCS #12:
 PKCS #12 file:
@@ -193,8 +203,7 @@ Remember choice
 Skip
 Skip remaining messages
 Yes
-Advanced \xAB
-Advanced \xBB
+Advanced options
 Authentication
 Cookies
 Cookies:
@@ -223,6 +232,14 @@ Search All
 Search for:
 Search Next
 Search Type
+Add
+Close
+Password
+Remove
+Show passwords
+Site
+Site:
+Username
 ...
 [Simulated]
 Add URL(s)
@@ -243,6 +260,7 @@ Export Download History
 Failed
 File IO Error
 Import Download History
+Login Manager
 Moving File
 Options
 Paused
@@ -266,8 +284,10 @@ Total downloaded: 0.00 MB
 URL:
 Update
 Update Download
+A protocol (HTTP or HTTPS) must be supplied.
 A restart is required for these changes to take effect.
 A restart is required to enable quick file allocation.
+A restart is required to perform the system shutdown action.
 A restart is required to update the thread pool count.
 Are you sure you want to delete the selected files?
 Are you sure you want to remove the completed entries?
@@ -285,5 +305,7 @@ The file is currently in use and cannot be renamed.
 The file(s) could not be imported because the format is incorrect.
 The specified file was not found.\r\n\r\nDo you want to download the file again?
 The specified path was not found.
+The specified site already exists.
+The specified site is invalid.
 There is already a file with the same name in this location.
 You must supply a download directory.

@@ -256,41 +256,51 @@ function RevertFliter()
 	document.getElementById( "urls" ).value = document.getElementById( "last_urls" ).value;
 }
 
-function AdvancedOptions()
+function AdvancedOptions( event )
 {
-	var advanced = document.getElementById( "advanced" );
-	var advanced_info = document.getElementById( "advanced_info" );
-
-	if ( advanced_info.style.display == "block" )
+	chrome.windows.getCurrent( function( window_info )
 	{
-		advanced.value = "Advanced \xBB";
-		advanced_info.style.display = "none";	// Hide.
-		document.body.style.minHeight = g_initial_height + "px";
-	}
-	else
-	{
-		advanced.value = "Advanced \xAB";
-		advanced_info.style.display = "block";	// Show.
+		var advanced_info = document.getElementById( "advanced_info" );
 
-		chrome.windows.getCurrent( function( window_info )
+		if ( event.target.checked )
 		{
-			// The URL and Directory fields + Advanced fields + 15 px top margin for the Advanced fields.
-			var new_height = ( g_initial_height + advanced_info.clientHeight + 15 );
+			advanced_info.style.display = "block";	// Show.
 
-			if ( window_info.height < new_height )
+			// The URL and Directory fields + Advanced fields + 15 px top margin for the Advanced fields.
+			document.body.style.minHeight = ( g_initial_height + advanced_info.clientHeight + 15 ) + "px";
+
+			if ( window_info.state != "maximized" )
 			{
 				// The height of the toolbars and borders + the height of all fields.
-				var height = ( window_info.height - document.body.clientHeight ) + new_height;
+				var height = ( window_info.height + advanced_info.clientHeight ) + 15;
 
 				chrome.windows.update( window_info.id,
 				{
 					height: height
 				} );
 			}
+		}
+		else
+		{
+			// Need to save the height before we hide the Advanced fields.
+			var advanced_info_height = advanced_info.clientHeight;
 
-			document.body.style.minHeight = new_height + "px";
-		} );
-	}
+			advanced_info.style.display = "none";	// Hide.
+			
+			document.body.style.minHeight = g_initial_height + "px";
+
+			if ( window_info.state != "maximized" )
+			{
+				// Exclude the Advanced fields + 15 px top margin from the current window height.
+				var height = ( window_info.height - advanced_info_height ) - 15;
+
+				chrome.windows.update( window_info.id,
+				{
+					height: height
+				} );
+			}
+		}
+	} );
 }
 
 function CloseWindow()

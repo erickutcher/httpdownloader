@@ -24,6 +24,8 @@
 
 #include "file_operations.h"
 
+#include "login_manager_utilities.h"
+
 #include "utilities.h"
 
 #include "string_tables.h"
@@ -729,12 +731,12 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 					bool enable_quick_allocation = ( _SendMessageW( g_hWnd_chk_quick_allocation, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
 
-					unsigned char display_notice = 0;
+					unsigned char display_notice = 0x00;
 					if ( enable_quick_allocation != cfg_enable_quick_allocation )
 					{
 						cfg_enable_quick_allocation = enable_quick_allocation;
 
-						display_notice += 1;
+						display_notice = 0x01;
 					}
 
 					cfg_set_filetime = ( _SendMessageW( g_hWnd_chk_set_filetime, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
@@ -856,7 +858,7 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 					{
 						cfg_thread_count = thread_count;
 
-						display_notice += 2;
+						display_notice |= 0x02;
 					}
 
 					//
@@ -866,6 +868,23 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 					_SendMessageA( g_hWnd_max_file_size, WM_GETTEXT, 21, ( LPARAM )value );
 					cfg_max_file_size = strtoull( value );
 					cfg_prompt_last_modified = ( unsigned char )_SendMessageW( g_hWnd_prompt_last_modified, CB_GETCURSEL, 0, 0 );
+
+					unsigned char shutdown_action = ( unsigned char )_SendMessageW( g_hWnd_shutdown_action, CB_GETCURSEL, 0, 0 );
+
+					if ( shutdown_action != cfg_shutdown_action )
+					{
+						cfg_shutdown_action = shutdown_action;
+
+						if ( cfg_shutdown_action == SHUTDOWN_ACTION_RESTART ||
+							 cfg_shutdown_action == SHUTDOWN_ACTION_SLEEP ||
+							 cfg_shutdown_action == SHUTDOWN_ACTION_HIBERNATE ||
+							 cfg_shutdown_action == SHUTDOWN_ACTION_SHUT_DOWN ||
+							 cfg_shutdown_action == SHUTDOWN_ACTION_HYBRID_SHUT_DOWN )
+						{
+							display_notice |= 0x04;
+						}
+					}
+
 					cfg_use_temp_download_directory = ( _SendMessageW( g_hWnd_chk_temp_download_directory, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
 
 					if ( cfg_temp_download_directory != NULL )
@@ -1068,6 +1087,13 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 					save_config();
 
+					if ( login_list_changed )
+					{
+						save_login_info();
+
+						login_list_changed = false;
+					}
+
 					int auth_username_length = 0, auth_password_length = 0;
 
 					g_proxy_auth_key_length = 0;
@@ -1159,15 +1185,19 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 						auth_username_length = WideCharToMultiByte( CP_UTF8, 0, cfg_proxy_auth_ident_username_socks, -1, g_proxy_auth_ident_username_socks, auth_username_length, NULL, NULL ) - 1;
 					}
 
-					if ( display_notice == 1 )
+					if ( display_notice == 0x01 )
 					{
 						_MessageBoxW( hWnd, ST_V_A_restart_is_required_allocation, PROGRAM_CAPTION, MB_APPLMODAL | MB_ICONINFORMATION );
 					}
-					else if ( display_notice == 2 )
+					else if ( display_notice == 0x02 )
 					{
 						_MessageBoxW( hWnd, ST_V_A_restart_is_required_threads, PROGRAM_CAPTION, MB_APPLMODAL | MB_ICONINFORMATION );
 					}
-					else if ( display_notice > 2 )	// Multiple settings changed.
+					else if ( display_notice == 0x04 )	
+					{
+						_MessageBoxW( hWnd, ST_V_A_restart_is_required_shutdown, PROGRAM_CAPTION, MB_APPLMODAL | MB_ICONINFORMATION );
+					}
+					else if ( display_notice & ( 0x01 | 0x02 | 0x04 ) )	// Multiple settings changed.
 					{
 						_MessageBoxW( hWnd, ST_V_A_restart_is_required, PROGRAM_CAPTION, MB_APPLMODAL | MB_ICONINFORMATION );
 					}

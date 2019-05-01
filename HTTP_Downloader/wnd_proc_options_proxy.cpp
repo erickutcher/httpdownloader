@@ -168,7 +168,7 @@ LRESULT CALLBACK ProxyTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPa
 			g_hWnd_auth_password = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_PASSWORD | ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 160, 83, 150, 23, hWnd, ( HMENU )( HMENU )EDIT_AUTH_PASSWORD, NULL, NULL );
 
 
-			_SendMessageW( g_hWnd_hostname, EM_LIMITTEXT, 254, 0 );
+			_SendMessageW( g_hWnd_hostname, EM_LIMITTEXT, MAX_DOMAIN_LENGTH, 0 );
 			_SendMessageW( g_hWnd_port, EM_LIMITTEXT, 5, 0 );
 
 
@@ -202,7 +202,7 @@ LRESULT CALLBACK ProxyTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPa
 			g_hWnd_auth_password_s = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_PASSWORD | ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 160, 209, 150, 23, hWnd, ( HMENU )( HMENU )EDIT_AUTH_PASSWORD_S, NULL, NULL );
 
 
-			_SendMessageW( g_hWnd_hostname_s, EM_LIMITTEXT, 254, 0 );
+			_SendMessageW( g_hWnd_hostname_s, EM_LIMITTEXT, MAX_DOMAIN_LENGTH, 0 );
 			_SendMessageW( g_hWnd_port_s, EM_LIMITTEXT, 5, 0 );
 
 
@@ -247,7 +247,7 @@ LRESULT CALLBACK ProxyTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPa
 
 			g_hWnd_chk_resolve_domain_names = _CreateWindowW( WC_BUTTON, ST_V_Allow_proxy_to_resolve_domain_names, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 383, rc.right - 10, 20, hWnd, ( HMENU )BTN_RESOLVE_DOMAIN_NAMES, NULL, NULL );
 
-			_SendMessageW( g_hWnd_hostname_socks, EM_LIMITTEXT, 254, 0 );
+			_SendMessageW( g_hWnd_hostname_socks, EM_LIMITTEXT, MAX_DOMAIN_LENGTH, 0 );
 			_SendMessageW( g_hWnd_port_socks, EM_LIMITTEXT, 5, 0 );
 
 			_SendMessageW( g_hWnd_auth_username_socks, EM_LIMITTEXT, 255, 0 );

@@ -450,6 +450,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\lite_powrprof.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\lite_rpcrt4.cpp"
 				>
 			</File>
@@ -475,6 +479,10 @@
 			</File>
 			<File
 				RelativePath=".\lite_zlib1.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\login_manager_utilities.cpp"
 				>
 			</File>
 			<File
@@ -507,6 +515,10 @@
 			</File>
 			<File
 				RelativePath=".\wnd_proc_cmessagebox.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\wnd_proc_login_manager.cpp"
 				>
 			</File>
 			<File
@@ -732,6 +744,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\lite_powrprof.h"
+				>
+			</File>
+			<File
 				RelativePath=".\lite_rpcrt4.h"
 				>
 			</File>
@@ -757,6 +773,10 @@
 			</File>
 			<File
 				RelativePath=".\lite_zlib1.h"
+				>
+			</File>
+			<File
+				RelativePath=".\login_manager_utilities.h"
 				>
 			</File>
 			<File

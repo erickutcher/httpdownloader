@@ -45,7 +45,7 @@ void HandleFileList( HDROP hdrop )
 		int file_path_length = _DragQueryFileW( hdrop, i, file_path, MAX_PATH ) + 1;	// Include the NULL terminator.
 
 		// Skip any folders that were dropped.
-		if ( ( GetFileAttributesW( file_path ) & FILE_ATTRIBUTE_DIRECTORY ) == 0 )
+		if ( !( GetFileAttributesW( file_path ) & FILE_ATTRIBUTE_DIRECTORY ) )
 		{
 			if ( iei->file_paths == NULL )
 			{

@@ -38,12 +38,15 @@
 #include "lite_ole32.h"
 #include "lite_winmm.h"
 #include "lite_zlib1.h"
+#include "lite_powrprof.h"
 #include "lite_normaliz.h"
 #include "lite_pcre2.h"
 
 #include "cmessagebox.h"
 
 #include "connection.h"
+
+#include "login_manager_utilities.h"
 
 //#define USE_DEBUG_DIRECTORY
 
@@ -76,13 +79,21 @@ UINT CF_HTML = 0;
 bool g_use_regular_expressions = false;
 
 int g_row_height = 0;
+int g_default_row_height = 0;
 
 wchar_t *base_directory = NULL;
 unsigned int base_directory_length = 0;
 
-dllrbt_tree *icon_handles = NULL;
+dllrbt_tree *g_icon_handles = NULL;
+
+dllrbt_tree *g_login_info = NULL;
 
 bool g_can_fast_allocate = false;
+
+bool g_is_windows_8_or_higher = false;
+
+bool g_can_perform_shutdown_action = false;
+bool g_perform_shutdown_action = false;
 
 #ifndef NTDLL_USE_STATIC_LIB
 int APIENTRY _WinMain()
@@ -147,6 +158,12 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 			}
 		}
 	#endif
+	#ifndef POWRPROF_USE_STATIC_LIB
+		if ( !InitializePowrProf() )
+		{
+			UnInitializePowrProf();
+		}
+	#endif
 	#ifndef NORMALIZ_USE_STATIC_LIB
 		if ( !InitializeNormaliz() )
 		{
@@ -182,6 +199,8 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 		UnixTimeToSystemTime( inth->FileHeader.TimeDateStamp, &g_compile_time );
 	}
 
+	g_is_windows_8_or_higher = IsWindowsVersionOrGreater( HIBYTE( _WIN32_WINNT_WIN8 ), LOBYTE( _WIN32_WINNT_WIN8 ), 0 );
+
 	unsigned char fail_type = 0;
 	MSG msg;
 	_memzero( &msg, sizeof( MSG ) );
@@ -215,7 +234,7 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 				{
 					++arg;	// Move to the supplied directory.
 
-					if ( GetFileAttributesW( szArgList[ arg ] ) == FILE_ATTRIBUTE_DIRECTORY )
+					if ( GetFileAttributesW( szArgList[ arg ] ) & FILE_ATTRIBUTE_DIRECTORY )
 					{
 						base_directory_length = lstrlenW( szArgList[ arg ] );
 						if ( base_directory_length >= MAX_PATH )
@@ -357,7 +376,7 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 						}
 						else if ( *arg_name == L'o' )
 						{
-							if ( GetFileAttributesW( szArgList[ arg + 1 ] ) == FILE_ATTRIBUTE_DIRECTORY )
+							if ( GetFileAttributesW( szArgList[ arg + 1 ] ) & FILE_ATTRIBUTE_DIRECTORY )
 							{
 								// Remove any trailing slash.
 								while ( length != 0 )
@@ -482,20 +501,20 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 	g_hFont = _CreateFontIndirectW( &ncm.lfMessageFont );
 
 	// Get the row height for our listview control.
-	/*TEXTMETRIC tm;
+	TEXTMETRIC tm;
 	HDC hDC = _GetDC( NULL );
 	HFONT ohf = ( HFONT )_SelectObject( hDC, g_hFont );
 	_GetTextMetricsW( hDC, &tm );
 	_SelectObject( hDC, ohf );	// Reset old font.
 	_ReleaseDC( NULL, hDC );
 
-	g_row_height = tm.tmHeight + tm.tmExternalLeading + 5;
+	g_default_row_height = tm.tmHeight + tm.tmExternalLeading + 5;
 
 	int icon_height = _GetSystemMetrics( SM_CYSMICON ) + 2;
-	if ( g_row_height < icon_height )
+	if ( g_default_row_height < icon_height )
 	{
-		g_row_height = icon_height;
-	}*/
+		g_default_row_height = icon_height;
+	}
 
 	SetDefaultAppearance();
 
@@ -635,7 +654,12 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 		}
 	}
 
-	if ( cfg_enable_quick_allocation )
+	if ( cfg_enable_quick_allocation ||
+		 cfg_shutdown_action == SHUTDOWN_ACTION_RESTART ||
+		 cfg_shutdown_action == SHUTDOWN_ACTION_SLEEP ||
+		 cfg_shutdown_action == SHUTDOWN_ACTION_HIBERNATE ||
+		 cfg_shutdown_action == SHUTDOWN_ACTION_SHUT_DOWN ||
+		 cfg_shutdown_action == SHUTDOWN_ACTION_HYBRID_SHUT_DOWN )
 	{
 		// Check if we're an admin or have elevated privileges. Allow us to pre-allocate a file without zeroing it.
 		HANDLE hToken, hLinkedToken;
@@ -696,16 +720,37 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 				}
 			}
 
-			if ( is_privileged == TRUE && _LookupPrivilegeValueW( NULL, SE_MANAGE_VOLUME_NAME, &luid ) )
+			if ( is_privileged == TRUE )
 			{
-				tp.PrivilegeCount = 1;
-				tp.Privileges[ 0 ].Luid = luid;
-				tp.Privileges[ 0 ].Attributes = SE_PRIVILEGE_ENABLED;
-
-				if ( _AdjustTokenPrivileges( hToken, FALSE, &tp, sizeof( TOKEN_PRIVILEGES ), NULL, NULL ) )
+				if ( cfg_enable_quick_allocation && _LookupPrivilegeValueW( NULL, SE_MANAGE_VOLUME_NAME, &luid ) )
 				{
-					g_can_fast_allocate = true;
+					tp.PrivilegeCount = 1;
+					tp.Privileges[ 0 ].Luid = luid;
+					tp.Privileges[ 0 ].Attributes = SE_PRIVILEGE_ENABLED;
+
+					if ( _AdjustTokenPrivileges( hToken, FALSE, &tp, sizeof( TOKEN_PRIVILEGES ), NULL, NULL ) )
+					{
+						g_can_fast_allocate = true;
+					}
 				}
+
+				if ( cfg_shutdown_action == SHUTDOWN_ACTION_RESTART ||
+					 cfg_shutdown_action == SHUTDOWN_ACTION_SLEEP ||
+					 cfg_shutdown_action == SHUTDOWN_ACTION_HIBERNATE ||
+					 cfg_shutdown_action == SHUTDOWN_ACTION_SHUT_DOWN ||
+					 cfg_shutdown_action == SHUTDOWN_ACTION_HYBRID_SHUT_DOWN &&
+					 _LookupPrivilegeValueW( NULL, SE_SHUTDOWN_NAME, &luid ) )
+				{
+					tp.PrivilegeCount = 1;
+					tp.Privileges[ 0 ].Luid = luid;
+					tp.Privileges[ 0 ].Attributes = SE_PRIVILEGE_ENABLED;
+
+					if ( _AdjustTokenPrivileges( hToken, FALSE, &tp, sizeof( TOKEN_PRIVILEGES ), NULL, NULL ) )
+					{
+						g_can_perform_shutdown_action = true;
+					}
+				}
+
 			}
 		}
 
@@ -879,7 +924,11 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 		auth_username_length = WideCharToMultiByte( CP_UTF8, 0, cfg_proxy_auth_ident_username_socks, -1, g_proxy_auth_ident_username_socks, auth_username_length, NULL, NULL ) - 1;
 	}
 
-	icon_handles = dllrbt_create( dllrbt_compare_w );
+	g_icon_handles = dllrbt_create( dllrbt_compare_w );
+
+	g_login_info = dllrbt_create( dllrbt_compare_login_info );
+
+	read_login_info();
 
 	downloader_ready_semaphore = CreateSemaphore( NULL, 0, 1, NULL );
 
@@ -945,6 +994,15 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 
 	wcex.lpfnWndProc    = SearchWndProc;
 	wcex.lpszClassName  = L"search";
+
+	if ( !_RegisterClassExW( &wcex ) )
+	{
+		fail_type = 1;
+		goto CLEANUP;
+	}
+
+	wcex.lpfnWndProc    = LoginManagerWndProc;
+	wcex.lpszClassName  = L"login_manager";
 
 	if ( !_RegisterClassExW( &wcex ) )
 	{
@@ -1074,6 +1132,11 @@ CLEANUP:
 
 	save_config();
 
+	if ( login_list_changed )
+	{
+		save_login_info();
+	}
+
 	if ( cla != NULL )
 	{
 		if ( cla->download_directory != NULL ) { GlobalFree( cla->download_directory ); }
@@ -1137,7 +1200,7 @@ CLEANUP:
 	if ( cfg_authentication_username != NULL ) { GlobalFree( cfg_authentication_username ); }
 	if ( cfg_authentication_password != NULL ) { GlobalFree( cfg_authentication_password ); }
 
-	node_type *node = dllrbt_get_head( icon_handles );
+	node_type *node = dllrbt_get_head( g_icon_handles );
 	while ( node != NULL )
 	{
 		ICON_INFO *ii = ( ICON_INFO * )node->val;
@@ -1152,7 +1215,28 @@ CLEANUP:
 		node = node->next;
 	}
 
-	dllrbt_delete_recursively( icon_handles );
+	dllrbt_delete_recursively( g_icon_handles );
+
+	node = dllrbt_get_head( g_login_info );
+	while ( node != NULL )
+	{
+		LOGIN_INFO *li = ( LOGIN_INFO * )node->val;
+
+		if ( li != NULL )
+		{
+			GlobalFree( li->w_host );
+			GlobalFree( li->w_username );
+			GlobalFree( li->w_password );
+			GlobalFree( li->host );
+			GlobalFree( li->username );
+			GlobalFree( li->password );
+			GlobalFree( li );
+		}
+
+		node = node->next;
+	}
+
+	dllrbt_delete_recursively( g_login_info );
 
 	if ( cfg_even_row_font_settings.font != NULL ){ _DeleteObject( cfg_even_row_font_settings.font ); }
 	if ( cfg_odd_row_font_settings.font != NULL ){ _DeleteObject( cfg_odd_row_font_settings.font ); }
@@ -1190,6 +1274,42 @@ CLEANUP:
 	ReleaseMutex( app_instance_mutex );
 	CloseHandle( app_instance_mutex );
 
+	if ( cfg_shutdown_action != SHUTDOWN_ACTION_NONE && g_perform_shutdown_action )
+	{
+		// SHTDN_REASON_FLAG_PLANNED = SHTDN_REASON_MAJOR_OTHER | SHTDN_REASON_MINOR_OTHER | SHTDN_REASON_FLAG_PLANNED
+		if ( cfg_shutdown_action == SHUTDOWN_ACTION_LOG_OFF )
+		{
+			_ExitWindowsEx( EWX_LOGOFF, SHTDN_REASON_FLAG_PLANNED );
+		}
+		else if ( g_can_perform_shutdown_action )
+		{
+			if ( cfg_shutdown_action == SHUTDOWN_ACTION_RESTART )
+			{
+				_ExitWindowsEx( EWX_REBOOT, SHTDN_REASON_FLAG_PLANNED );
+			}
+			else if ( cfg_shutdown_action == SHUTDOWN_ACTION_SLEEP )
+			{
+				_SetSuspendState( FALSE, FALSE, FALSE );
+			}
+			else if ( cfg_shutdown_action == SHUTDOWN_ACTION_HIBERNATE )
+			{
+				_SetSuspendState( TRUE, FALSE, FALSE );
+			}
+			else if ( cfg_shutdown_action == SHUTDOWN_ACTION_SHUT_DOWN )
+			{
+				if ( _ExitWindowsEx( EWX_POWEROFF, SHTDN_REASON_FLAG_PLANNED ) == 0 )
+				{
+					_ExitWindowsEx( EWX_SHUTDOWN, SHTDN_REASON_FLAG_PLANNED );
+				}
+			}
+			else if ( cfg_shutdown_action == SHUTDOWN_ACTION_HYBRID_SHUT_DOWN )
+			{
+				#define EWX_HYBRID_SHUTDOWN	0x00400000
+				_ExitWindowsEx( EWX_SHUTDOWN | EWX_HYBRID_SHUTDOWN, SHTDN_REASON_FLAG_PLANNED );
+			}
+		}
+	}
+
 	// Delay loaded DLLs
 	SSL_library_uninit();
 
@@ -1215,6 +1335,9 @@ UNLOAD_DLLS:
 	#endif
 	#ifndef NORMALIZ_USE_STATIC_LIB
 		UnInitializeNormaliz();
+	#endif
+	#ifndef POWRPROF_USE_STATIC_LIB
+		UnInitializePowrProf();
 	#endif
 	#ifndef ZLIB1_USE_STATIC_LIB
 		UnInitializeZLib1();

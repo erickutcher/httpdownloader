@@ -16,24 +16,39 @@
 	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef _FILE_OPERATIONS_H
-#define _FILE_OPERATIONS_H
+#ifndef _LOGIN_MANAGER_UTILITIES_H
+#define _LOGIN_MANAGER_UTILITIES_H
 
-#define MAGIC_ID_SETTINGS		"HDM\x02"	// Version 3
-#define MAGIC_ID_DOWNLOADS		"HDM\x13"	// Version 4
-#define MAGIC_ID_LOGINS			"HDM\x20"	// Version 1
+#include "globals.h"
+#include "connection.h"
 
-char read_config();
-char save_config();
+struct LOGIN_INFO
+{
+	wchar_t				*w_username;
+	wchar_t				*w_password;
+	wchar_t				*w_host;
+	wchar_t				*host;
+	char				*username;
+	char				*password;
+	PROTOCOL			protocol;
+	unsigned short		port;
+};
 
-char read_download_history( wchar_t *file_path );
-char save_download_history( wchar_t *file_path );
+struct LOGIN_UPDATE_INFO
+{
+	LOGIN_INFO *li;
+	unsigned char update_type;	// 0 == Add, 1 = Remove
+};
 
-char save_download_history_csv_file( wchar_t *file_path );
+int dllrbt_compare_login_info( void *a, void *b );
 
-wchar_t *read_url_list_file( wchar_t *file_path, unsigned int &url_list_length );
+char read_login_info();
+char save_login_info();
 
-wchar_t *UTF8StringToWideString( char *utf8_string, int string_length );
-char *WideStringToUTF8String( wchar_t *wide_string, int *utf8_string_length, int buffer_offset = 0 );
+THREAD_RETURN load_login_list( void *pArguments );
+THREAD_RETURN handle_login_list( void *pArguments );
+
+extern bool login_list_changed;
+extern bool skip_login_list_draw;
 
 #endif

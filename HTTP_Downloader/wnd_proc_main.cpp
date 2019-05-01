@@ -27,6 +27,8 @@
 #include "list_operations.h"
 #include "file_operations.h"
 
+#include "login_manager_utilities.h"
+
 #include "connection.h"
 #include "menus.h"
 
@@ -94,6 +96,31 @@ PROGRESS_INFO g_progress_info;
 
 UINT WM_TASKBARBUTTONCREATED = 0;
 
+void ClearProgressBars()
+{
+	if ( g_progress_info.download_state == 1 )
+	{
+		g_progress_info.download_state = 0;
+
+		if ( g_taskbar != NULL )
+		{
+			g_taskbar->lpVtbl->SetProgressState( g_taskbar, g_hWnd_main, TBPF_NOPROGRESS );
+		}
+
+		if ( cfg_enable_drop_window )
+		{
+			UpdateDropWindow( 0, 0, 0, 0, false );
+		}
+
+		if ( cfg_tray_icon )
+		{
+			g_nid.uFlags &= ~NIF_INFO;
+			g_nid.hIcon = g_default_tray_icon;
+			_Shell_NotifyIconW( NIM_MODIFY, &g_nid );
+		}
+	}
+}
+
 void ResetSessionStatus()
 {
 	// Reset.
@@ -131,7 +158,7 @@ int CALLBACK DMCompareFunc( LPARAM lParam1, LPARAM lParam2, LPARAM lParamSort )
 {
 	int arr[ NUM_COLUMNS ];
 
-	sortinfo *si = ( sortinfo * )lParamSort;
+	SORT_INFO *si = ( SORT_INFO * )lParamSort;
 
 	if ( si->hWnd == g_hWnd_files )
 	{
@@ -715,9 +742,47 @@ DWORD WINAPI UpdateWindow( LPVOID WorkThreadContext )
 				if ( play ) { _PlaySoundW( cfg_sound_file_path, NULL, SND_ASYNC | SND_FILENAME ); }
 			}
 
+			HANDLE save_session_handle = NULL;
 			if ( cfg_enable_download_history && download_history_changed )
 			{
-				CloseHandle( ( HANDLE )_CreateThread( NULL, 0, save_session, ( void * )NULL, 0, NULL ) );
+				save_session_handle = ( HANDLE )_CreateThread( NULL, 0, save_session, ( void * )NULL, 0, NULL );
+			}
+
+			if ( cfg_shutdown_action != SHUTDOWN_ACTION_NONE )
+			{
+				if ( save_session_handle != NULL )
+				{
+					WaitForSingleObject( save_session_handle, 30000 );
+					CloseHandle( save_session_handle );
+				}
+
+				switch ( cfg_shutdown_action )
+				{
+					case SHUTDOWN_ACTION_LOG_OFF:
+					case SHUTDOWN_ACTION_RESTART:
+					case SHUTDOWN_ACTION_SLEEP:
+					case SHUTDOWN_ACTION_HIBERNATE:
+					case SHUTDOWN_ACTION_SHUT_DOWN:
+					case SHUTDOWN_ACTION_HYBRID_SHUT_DOWN:
+					{
+						g_perform_shutdown_action = true;
+
+						// We need to exit the program cleanly and then perform the operation.
+						// Don't wait for the message to send.
+						_PostMessageW( g_hWnd_main, WM_EXIT, 0, 0 );
+					}
+					break;
+
+					case SHUTDOWN_ACTION_LOCK:
+					{
+						_LockWorkStation();
+					}
+					break;
+				}
+			}
+			else if ( save_session_handle != NULL )
+			{
+				CloseHandle( save_session_handle );
 			}
 		}
 
@@ -1736,7 +1801,7 @@ void HandleCommand( HWND hWnd, WPARAM wParam, LPARAM lParam )
 		{
 			wchar_t msg[ 512 ];
 			__snwprintf( msg, 512, L"HTTP Downloader is made free under the GPLv3 license.\r\n\r\n" \
-								   L"Version 1.0.2.1 (%u-bit)\r\n\r\n" \
+								   L"Version 1.0.2.2 (%u-bit)\r\n\r\n" \
 								   L"Built on %s, %s %d, %04d %d:%02d:%02d %s (UTC)\r\n\r\n" \
 								   L"Copyright \xA9 2015-2019 Eric Kutcher",
 #ifdef _WIN64
@@ -1968,8 +2033,6 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 
 			tooltip_buffer = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * 512 );
 
-			//g_progress_info.current_total_downloaded = g_progress_info.current_total_file_size = 0;
-			//g_progress_info.download_state = 0;
 			_memzero( &g_progress_info, sizeof( PROGRESS_INFO ) );
 
 			WM_TASKBARBUTTONCREATED = _RegisterWindowMessageW( L"TaskbarButtonCreated" );
@@ -2216,7 +2279,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 						lvc.mask = LVCF_FMT | LVCF_ORDER;
 						_SendMessageW( nmlv->hdr.hwndFrom, LVM_GETCOLUMN, nmlv->iSubItem, ( LPARAM )&lvc );
 
-						sortinfo si;
+						SORT_INFO si;
 						si.column = lvc.iOrder;
 						si.hWnd = nmlv->hdr.hwndFrom;
 
@@ -2648,6 +2711,11 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 			}
 
 			_EndDeferWindowPos( hdwp );
+
+			if ( wParam == SIZE_MAXIMIZED || wParam == SIZE_RESTORED )
+			{
+				ClearProgressBars();
+			}
 
 			return 0;
 		}
@@ -3258,27 +3326,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 
 		case WM_ACTIVATE:
 		{
-			if ( g_progress_info.download_state == 1 )
-			{
-				g_progress_info.download_state = 0;
-
-				if ( g_taskbar != NULL )
-				{
-					g_taskbar->lpVtbl->SetProgressState( g_taskbar, g_hWnd_main, TBPF_NOPROGRESS );
-				}
-
-				if ( cfg_enable_drop_window )
-				{
-					UpdateDropWindow( 0, 0, 0, 0, false );
-				}
-
-				if ( cfg_tray_icon )
-				{
-					g_nid.uFlags &= ~NIF_INFO;
-					g_nid.hIcon = g_default_tray_icon;
-					_Shell_NotifyIconW( NIM_MODIFY, &g_nid );
-				}
-			}
+			ClearProgressBars();
 
 			_SetFocus( g_hWnd_files );
 
@@ -3515,6 +3563,13 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 		{
 			// Save before we shut down/restart/log off of Windows.
 			save_config();
+
+			if ( login_list_changed )
+			{
+				save_login_info();
+
+				login_list_changed = false;
+			}
 
 			if ( cfg_enable_download_history && download_history_changed )
 			{

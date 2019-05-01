@@ -375,14 +375,15 @@ function OnDownloadItemCreated( item )
 	// Do we want to handle the download management?
 	if ( g_options.override )
 	{
-		var protocol = item.url.substring( 0, 8 ).toLowerCase();
+		var url = ( item.hasOwnProperty( "finalUrl" ) ? item.finalUrl : item.url );
+		var protocol = url.substring( 0, 8 ).toLowerCase();
 
 		if ( protocol.startsWith( "http:" ) || protocol.startsWith( "https:" ) )
 		{
 			var method = 1; // GET
 			var post_data = "";
 
-			if ( last_request != null && last_request.url == item.url )
+			if ( last_request != null && last_request.url == url )
 			{
 				method = 2; // POST
 
@@ -402,7 +403,6 @@ function OnDownloadItemCreated( item )
 			last_request = null;
 
 			var id = item.id;
-			var url = item.url;
 			var directory = g_options.default_directory;
 			var show_add_window = g_options.show_add_window;
 
