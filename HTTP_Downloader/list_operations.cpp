@@ -722,6 +722,7 @@ THREAD_RETURN handle_download_list( void *pArguments )
 			}
 		}
 
+		download_history_changed = true;
 	}
 	else if ( handle_type == 3 )	// Restart selected download (from the beginning).
 	{

@@ -79,6 +79,8 @@ wchar_t *url_decode_w( wchar_t *str, unsigned int str_len, unsigned int *dec_len
 
 char *html_entity_decode_a( char *str, unsigned int str_len, unsigned int *dec_len );
 
+wchar_t *ParseHTMLClipboard( char *data );
+
 THREAD_RETURN cleanup( void *pArguments );
 
 char *CreateMD5( BYTE *input, DWORD input_len );

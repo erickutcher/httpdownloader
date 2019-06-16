@@ -57,7 +57,7 @@
 	pFrameRect				_FrameRect;
 	//pGetClassLongPtrW		_GetClassLongPtrW;
 	pGetClientRect			_GetClientRect;
-	//pGetClipboardData		_GetClipboardData;
+	pGetClipboardData		_GetClipboardData;
 	pGetCursorPos			_GetCursorPos;
 	pGetDC					_GetDC;
 	//pGetDlgItem				_GetDlgItem;
@@ -78,6 +78,7 @@
 	pInsertMenuItemW		_InsertMenuItemW;
 	pInvalidateRect			_InvalidateRect;
 	//pIsCharAlphaNumericA		_IsCharAlphaNumericA;
+	pIsClipboardFormatAvailable _IsClipboardFormatAvailable;
 	pIsDialogMessageW		_IsDialogMessageW;
 	pIsIconic				_IsIconic;
 	pIsWindowEnabled		_IsWindowEnabled;
@@ -182,7 +183,7 @@
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_FrameRect, "FrameRect" ) )
 		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_GetClassLongPtrW, "GetClassLongPtrW" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_GetClientRect, "GetClientRect" ) )
-		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_GetClipboardData, "GetClipboardData" ) )
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_GetClipboardData, "GetClipboardData" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_GetCursorPos, "GetCursorPos" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_GetDC, "GetDC" ) )
 		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_GetDlgItem, "GetDlgItem" ) )
@@ -203,6 +204,7 @@
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_InsertMenuItemW, "InsertMenuItemW" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_InvalidateRect, "InvalidateRect" ) )
 		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_IsCharAlphaNumericA, "IsCharAlphaNumericA" ) )
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_IsClipboardFormatAvailable, "IsClipboardFormatAvailable" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_IsDialogMessageW, "IsDialogMessageW" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_IsIconic, "IsIconic" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_IsWindowEnabled, "IsWindowEnabled" ) )

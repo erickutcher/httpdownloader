@@ -1,3 +1,11 @@
+Version:	1.0.2.3
+Released:	2019-06-16
+
+Fixed download history not being saved when selecting Remove Completed.
+Fixed tab control theme not drawing.
+Add URL(s) window will now automatically paste any URLs that are on the clipboard.
+Program will load a custom toolbar.bmp if found in the same directory.
+
 Version:	1.0.2.2
 Released:	2019-05-01
 

@@ -126,6 +126,32 @@ LRESULT CALLBACK URLSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
 			}
 		}
 		break;
+
+		case WM_KEYDOWN:
+		{
+			// Make sure the control key is down and that we're not already in a worker thread. Prevents threads from queuing in case the user falls asleep on their keyboard.
+			if ( _GetKeyState( VK_CONTROL ) & 0x8000 )
+			{
+				if ( _GetKeyState( VK_SHIFT ) & 0x8000 && wParam == VK_RETURN )
+				{
+					// http://a.b
+					if ( _SendMessageW( g_hWnd_edit_add, WM_GETTEXTLENGTH, 0, 0 ) >= 10 )
+					{
+						_SendMessageW( _GetParent( hWnd ), WM_COMMAND, BTN_DOWNLOAD, 0 );
+					}
+				}
+				else
+				{
+					if ( wParam == 'A' )	// Select all text.
+					{
+						_SendMessageW( hWnd, EM_SETSEL, 0, -1 );
+					}
+				}
+			}
+
+			return 0;
+		}
+		break;
 	}
 
 	return _CallWindowProcW( URLProc, hWnd, msg, wParam, lParam );
@@ -252,7 +278,7 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 			g_hWnd_chk_show_advanced_options = _CreateWindowW( WC_BUTTON, ST_V_Advanced_options, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, ( HMENU )BTN_ADVANCED, NULL, NULL );
 
-			g_hWnd_btn_download = _CreateWindowW( WC_BUTTON, ST_V_Download, WS_CHILD | WS_DISABLED | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, ( HMENU )BTN_DOWNLOAD, NULL, NULL );
+			g_hWnd_btn_download = _CreateWindowW( WC_BUTTON, ST_V_Download, BS_DEFPUSHBUTTON | WS_CHILD | WS_DISABLED | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, ( HMENU )BTN_DOWNLOAD, NULL, NULL );
 			g_hWnd_cancel = _CreateWindowW( WC_BUTTON, ST_V_Cancel, WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, ( HMENU )BTN_ADD_CANCEL, NULL, NULL );
 
 			_SetFocus( g_hWnd_edit_add );
@@ -482,6 +508,7 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 		{
 			switch ( LOWORD( wParam ) )
 			{
+				case IDOK:
 				case BTN_DOWNLOAD:
 				{
 					unsigned char download_operations = ( _SendMessageW( g_hWnd_chk_simulate_download, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? DOWNLOAD_OPERATION_SIMULATE : DOWNLOAD_OPERATION_NONE );
@@ -947,27 +974,129 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 						_EnableWindow( g_hWnd_download_directory, FALSE );
 						_EnableWindow( g_hWnd_btn_download_directory, FALSE );
 					}
+
+					// http://a.b + \r\n
+					_SetFocus( ( cla->urls_length >= 12 ? g_hWnd_btn_download : g_hWnd_edit_add ) );
 				}
 			}
 			else if ( wParam != 0 )
 			{
+				char length = 0;
+
 				if ( wParam == CF_UNICODETEXT || wParam == CF_HTML )
 				{
+					wchar_t *data = ( wchar_t * )lParam;
+					if ( data != NULL ) { for ( ; length < 10 && *data != NULL; ++length, ++data ); }
+
 					_SendMessageW( g_hWnd_edit_add, EM_REPLACESEL, 0, lParam );
 				}
 				else// if ( wParam == CF_TEXT )
 				{
+					char *data = ( char * )lParam;
+					if ( data != NULL ) { for ( ; length < 10 && *data != NULL; ++length, ++data ); }
+
 					_SendMessageA( g_hWnd_edit_add, EM_REPLACESEL, 0, lParam );
 				}
 
 				// Append a newline after our dropped text.
 				_SendMessageW( g_hWnd_edit_add, EM_REPLACESEL, 0, ( LPARAM )L"\r\n" );
+
+				// http://a.b
+				_SetFocus( ( length == 10 ? g_hWnd_btn_download : g_hWnd_edit_add ) );
+			}
+			else
+			{
+				bool got_data = false;
+
+				if ( _IsWindowVisible( hWnd ) == FALSE )
+				{
+					// If there's any HTML conent on the clipboard, then parse out any URLs.
+					if ( _IsClipboardFormatAvailable( CF_HTML ) == TRUE )
+					{
+						if ( _OpenClipboard( g_hWnd_add_urls ) )
+						{
+							HANDLE cbh = _GetClipboardData( CF_HTML );
+
+							char *data = ( char * )GlobalLock( cbh );
+							if ( data != NULL )
+							{
+								wchar_t *wdata = ParseHTMLClipboard( data );
+								if ( wdata != NULL )
+								{
+									_SendMessageW( g_hWnd_edit_add, EM_REPLACESEL, 0, ( LPARAM )wdata );
+
+									// Append a newline after our pasted text.
+									_SendMessageW( g_hWnd_edit_add, EM_REPLACESEL, 0, ( LPARAM )L"\r\n" );
+
+									GlobalFree( wdata );
+
+									got_data = true;
+								}
+
+								GlobalUnlock( cbh );
+							}
+
+							_CloseClipboard();
+						}
+					}
+
+					// There were no URLs in the HTML content, or it's just regular text.
+					if ( _IsClipboardFormatAvailable( CF_UNICODETEXT ) == TRUE && !got_data )
+					{
+						if ( _OpenClipboard( g_hWnd_add_urls ) )
+						{
+							HANDLE cbh = _GetClipboardData( CF_UNICODETEXT );
+
+							wchar_t *data = ( wchar_t * )GlobalLock( cbh );
+							if ( data != NULL )
+							{
+								// Make sure the text starts with http(s) protocol.
+								char offset = 0;
+								if ( _StrCmpNIW( data, L"http://", 7 ) == 0 )
+								{
+									offset = 7;
+								}
+								else if ( _StrCmpNIW( data, L"https://", 8 ) == 0 )
+								{
+									offset = 8;
+								}
+
+								// Make sure there's at least 3 characters after http(s)://
+								if ( offset > 0 )
+								{
+									for ( char i = 0; i < 3; ++i, ++offset )
+									{
+										if ( *( data + offset ) == NULL )
+										{
+											offset = 0;
+											break;
+										}
+									}
+								}
+
+								if ( offset != 0 )
+								{
+									_SendMessageW( g_hWnd_edit_add, EM_REPLACESEL, 0, ( LPARAM )data );
+
+									// Append a newline after our pasted text.
+									_SendMessageW( g_hWnd_edit_add, EM_REPLACESEL, 0, ( LPARAM )L"\r\n" );
+
+									got_data = true;
+								}
+
+								GlobalUnlock( cbh );
+							}
+
+							_CloseClipboard();
+						}
+					}
+				}
+
+				_SetFocus( ( got_data ? g_hWnd_btn_download : g_hWnd_edit_add ) );
 			}
 
 			_ShowWindow( hWnd, SW_SHOWNORMAL );
 			_SetForegroundWindow( hWnd );
-
-			_SetFocus( g_hWnd_edit_add );
 		}
 		break;
 
@@ -997,6 +1126,12 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 			_SendMessageW( g_hWnd_edit_add, WM_SETTEXT, 0, NULL );
 			_EnableWindow( g_hWnd_btn_download, FALSE );
+
+			_SendMessageW( g_hWnd_btn_download, BM_SETSTYLE, BS_DEFPUSHBUTTON, TRUE );
+			_SendMessageW( g_hWnd_cancel, BM_SETSTYLE, 0, TRUE );
+			_SendMessageW( g_hWnd_btn_download_directory, BM_SETSTYLE, 0, TRUE );
+			_SendMessageW( g_hWnd_btn_apply_filter, BM_SETSTYLE, 0, TRUE );
+
 			// Let's retain the last directory.
 			//_SendMessageW( g_hWnd_download_directory, WM_SETTEXT, 0, ( LPARAM )cfg_default_download_directory );
 

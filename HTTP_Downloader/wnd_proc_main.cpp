@@ -1801,7 +1801,7 @@ void HandleCommand( HWND hWnd, WPARAM wParam, LPARAM lParam )
 		{
 			wchar_t msg[ 512 ];
 			__snwprintf( msg, 512, L"HTTP Downloader is made free under the GPLv3 license.\r\n\r\n" \
-								   L"Version 1.0.2.2 (%u-bit)\r\n\r\n" \
+								   L"Version 1.0.2.3 (%u-bit)\r\n\r\n" \
 								   L"Built on %s, %s %d, %04d %d:%02d:%02d %s (UTC)\r\n\r\n" \
 								   L"Copyright \xA9 2015-2019 Eric Kutcher",
 #ifdef _WIN64
@@ -1858,7 +1858,15 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 			HWND hWnd_toolbar_tooltip = _CreateWindowExW( WS_EX_TOPMOST, TOOLTIPS_CLASS, NULL, WS_POPUP | TTS_NOPREFIX | TTS_ALWAYSTIP, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, g_hWnd_toolbar, NULL, NULL, NULL );
 			_SendMessageW( g_hWnd_toolbar, TB_SETTOOLTIPS, ( WPARAM )hWnd_toolbar_tooltip, 0 );
 
-			g_toolbar_imagelist = _ImageList_LoadImageW( GetModuleHandle( NULL ), MAKEINTRESOURCE( IDB_BITMAP_TOOLBAR ), 24, 0, ( COLORREF )RGB( 0xFF, 0x00, 0xFF ), IMAGE_BITMAP, LR_CREATEDIBSECTION );
+			_wmemcpy_s( base_directory + base_directory_length, MAX_PATH - base_directory_length, L"\\toolbar.bmp\0", 13 );
+			if ( GetFileAttributesW( base_directory ) != INVALID_FILE_ATTRIBUTES )
+			{
+				g_toolbar_imagelist = _ImageList_LoadImageW( NULL, base_directory, 24, 0, ( COLORREF )RGB( 0xFF, 0x00, 0xFF ), IMAGE_BITMAP, LR_LOADFROMFILE | LR_CREATEDIBSECTION );
+			}
+			else
+			{
+				g_toolbar_imagelist = _ImageList_LoadImageW( GetModuleHandle( NULL ), MAKEINTRESOURCE( IDB_BITMAP_TOOLBAR ), 24, 0, ( COLORREF )RGB( 0xFF, 0x00, 0xFF ), IMAGE_BITMAP, LR_CREATEDIBSECTION );
+			}
 			_SendMessageW( g_hWnd_toolbar, TB_SETIMAGELIST, 0, ( LPARAM )g_toolbar_imagelist );
 
 			_SendMessageW( g_hWnd_toolbar, TB_BUTTONSTRUCTSIZE, ( WPARAM )sizeof( TBBUTTON ), 0 );

@@ -65,7 +65,7 @@
 	#define _FrameRect				FrameRect
 	//#define _GetClassLongPtrW		GetClassLongPtrW
 	#define _GetClientRect			GetClientRect
-	//#define _GetClipboardData		GetClipboardData
+	#define _GetClipboardData		GetClipboardData
 	#define _GetCursorPos			GetCursorPos
 	#define _GetDC					GetDC
 	//#define _GetDlgItem				GetDlgItem
@@ -86,6 +86,7 @@
 	#define _InsertMenuItemW		InsertMenuItemW
 	#define _InvalidateRect			InvalidateRect
 	//#define _IsCharAlphaNumericA	IsCharAlphaNumericA
+	#define _IsClipboardFormatAvailable	IsClipboardFormatAvailable
 	#define _IsDialogMessageW		IsDialogMessageW
 	#define _IsIconic				IsIconic
 	#define _IsWindowEnabled		IsWindowEnabled
@@ -179,7 +180,7 @@
 	typedef int ( WINAPI *pFrameRect )( HDC hDC, const RECT *lprc, HBRUSH hbr );
 	//typedef ULONG_PTR WINAPI ( WINAPI *pGetClassLongPtrW )( HWND hWnd, int nIndex );
 	typedef BOOL ( WINAPI *pGetClientRect )( HWND hWnd, LPRECT lpRect );
-	//typedef HANDLE ( WINAPI *pGetClipboardData )( UINT uFormat );
+	typedef HANDLE ( WINAPI *pGetClipboardData )( UINT uFormat );
 	typedef BOOL ( WINAPI *pGetCursorPos )( LPPOINT lpPoint );
 	typedef HDC ( WINAPI *pGetDC )( HWND hWnd );
 	//typedef HWND ( WINAPI *pGetDlgItem )( HWND hDlg, int nIDDlgItem );
@@ -200,6 +201,7 @@
 	typedef BOOL ( WINAPI *pInsertMenuItemW )( HMENU hMenu, UINT uItem, BOOL fByPosition, LPCMENUITEMINFO lpmii );
 	typedef BOOL ( WINAPI *pInvalidateRect )( HWND hWnd, const RECT *lpRect, BOOL bErase );
 	//typedef BOOL ( WINAPI *pIsCharAlphaNumericA )( CHAR ch );
+	typedef BOOL ( WINAPI *pIsClipboardFormatAvailable )( UINT format );
 	typedef BOOL ( WINAPI *pIsDialogMessageW )( HWND hDlg, LPMSG lpMsg );
 	typedef BOOL ( WINAPI *pIsIconic )( HWND hWnd );
 	typedef BOOL ( WINAPI *pIsWindowEnabled )( HWND hWnd );
@@ -286,7 +288,7 @@
 	extern pFrameRect				_FrameRect;
 	//extern pGetClassLongPtrW		_GetClassLongPtrW;
 	extern pGetClientRect			_GetClientRect;
-	//extern pGetClipboardData		_GetClipboardData;
+	extern pGetClipboardData		_GetClipboardData;
 	extern pGetCursorPos			_GetCursorPos;
 	extern pGetDC					_GetDC;
 	//extern pGetDlgItem				_GetDlgItem;
@@ -307,6 +309,7 @@
 	extern pInsertMenuItemW			_InsertMenuItemW;
 	extern pInvalidateRect			_InvalidateRect;
 	//extern pIsCharAlphaNumericA		_IsCharAlphaNumericA;
+	extern pIsClipboardFormatAvailable _IsClipboardFormatAvailable;
 	extern pIsDialogMessageW		_IsDialogMessageW;
 	extern pIsIconic				_IsIconic;
 	extern pIsWindowEnabled			_IsWindowEnabled;

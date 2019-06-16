@@ -242,6 +242,7 @@ LRESULT CALLBACK TabSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
 				if ( hTheme != NULL )
 				{
 					_CloseThemeData( hTheme );
+					hTheme = NULL;
 				}
 			}
 		}
