@@ -1,5 +1,5 @@
 var g_open_windows = [];
-var last_request = null;
+var g_last_requests = [];
 var g_options = null;
 
 const g_width = 600;
@@ -303,14 +303,16 @@ function OnDownloadItemCreated( item )
 			var method = 1; // GET
 			var post_data = "";
 
-			if ( last_request != null && last_request.url == item.url )
+			var request_body = GetPOSTRequestBody( item.url );
+
+			if ( request_body != null )
 			{
 				method = 2; // POST
 
 				// Format the POST data as a URL encoded string.
-				if ( last_request.requestBody != null && last_request.requestBody.formData != null )
+				if ( request_body.formData != null )
 				{
-					var values = Object.entries( last_request.requestBody.formData );
+					var values = Object.entries( request_body.formData );
 					post_data = values[ 0 ][ 0 ] + "=" + values[ 0 ][ 1 ];
 
 					for ( var i = 1; i < values.length; ++i )
@@ -319,8 +321,6 @@ function OnDownloadItemCreated( item )
 					}
 				}
 			}
-
-			last_request = null;
 
 			// Cancel the download before it begins.
 			browser.downloads.cancel( item.id )
@@ -372,15 +372,33 @@ function OnDownloadItemCreated( item )
 	}
 }
 
+function GetPOSTRequestBody( url )
+{
+	var request = null;
+
+	for ( var i = 0; i < g_last_requests.length; ++i )
+	{
+		if ( g_last_requests[ i ][ 0 ] == url )
+		{
+			request = g_last_requests[ i ][ 1 ];
+		}
+	}
+
+	g_last_requests.length = 0;	// Clear the array of requests.
+
+	return request;
+}
+
 function GetURLRequest( request )
 {
 	if ( request.method == "POST" )
 	{
-		last_request = request;
-	}
-	else
-	{
-		last_request = null;
+		g_last_requests.unshift( [ request.url, request.requestBody ] );
+
+		if ( g_last_requests.length > 10 )
+		{
+			g_last_requests.pop();
+		}
 	}
 }
 

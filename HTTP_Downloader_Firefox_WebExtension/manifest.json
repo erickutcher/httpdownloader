@@ -2,7 +2,7 @@
 	"description": "Download files with HTTP Downloader.",
 	"manifest_version": 2,
 	"name": "HTTP Downloader",
-	"version": "1.0.0.7",
+	"version": "1.0.0.8",
 	"homepage_url": "https://erickutcher.github.io/#HTTP_Downloader",
 
 	"applications":
