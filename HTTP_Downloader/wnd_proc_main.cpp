@@ -675,36 +675,40 @@ DWORD WINAPI UpdateWindow( LPVOID WorkThreadContext )
 
 			g_progress_info.download_state = 1;	// Completed.
 
+			bool error = ( ( g_session_status_count[ 2 ] > 0 || g_session_status_count[ 3 ] > 0 || g_session_status_count[ 4 ] > 0 ) ? true : false );
+			border_color = RGB( 0x40, 0x00, 0x00 );
+			progress_color = RGB( 0xFF, 0x00, 0x00 );
+
 			if ( g_taskbar != NULL )
 			{
 				// If Timed Out, Failed, or File IO Error
-				if ( g_session_status_count[ 2 ] > 0 || g_session_status_count[ 3 ] > 0 || g_session_status_count[ 4 ] > 0 )
+				if ( error )
 				{
 					g_taskbar->lpVtbl->SetProgressState( g_taskbar, g_hWnd_main, TBPF_ERROR );
+
+					g_taskbar->lpVtbl->SetProgressValue( g_taskbar, g_hWnd_main, 1, 1 );
 				}
-
-				g_taskbar->lpVtbl->SetProgressValue( g_taskbar, g_hWnd_main, 1, 1 );
-			}
-
-			if ( g_session_status_count[ 2 ] > 0 || g_session_status_count[ 3 ] > 0 || g_session_status_count[ 4 ] > 0 )
-			{
-				border_color = RGB( 0x40, 0x00, 0x00 );
-				progress_color = RGB( 0xFF, 0x00, 0x00 );
-			}
-			else
-			{
-				border_color = RGB( 0x00, 0x40, 0x00 );
-				progress_color = RGB( 0x00, 0xFF, 0x00 );
+				else
+				{
+					g_taskbar->lpVtbl->SetProgressState( g_taskbar, g_hWnd_main, TBPF_NOPROGRESS );
+				}
 			}
 
 			if ( cfg_enable_drop_window && cfg_show_drop_window_progress )
 			{
-				UpdateDropWindow( 1, 1, border_color, progress_color );
+				if ( error )
+				{
+					UpdateDropWindow( 1, 1, border_color, progress_color );
+				}
+				else
+				{
+					UpdateDropWindow( 0, 0, 0, 0, false );
+				}
 			}
 
 			if ( cfg_tray_icon )
 			{
-				if ( cfg_show_tray_progress )
+				if ( cfg_show_tray_progress && error )
 				{
 					g_nid.hIcon = CreateSystemTrayIcon( 1, 1, border_color, progress_color );
 				}
@@ -1801,7 +1805,7 @@ void HandleCommand( HWND hWnd, WPARAM wParam, LPARAM lParam )
 		{
 			wchar_t msg[ 512 ];
 			__snwprintf( msg, 512, L"HTTP Downloader is made free under the GPLv3 license.\r\n\r\n" \
-								   L"Version 1.0.2.3 (%u-bit)\r\n\r\n" \
+								   L"Version 1.0.2.4 (%u-bit)\r\n\r\n" \
 								   L"Built on %s, %s %d, %04d %d:%02d:%02d %s (UTC)\r\n\r\n" \
 								   L"Copyright \xA9 2015-2019 Eric Kutcher",
 #ifdef _WIN64

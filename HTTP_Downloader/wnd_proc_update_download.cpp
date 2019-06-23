@@ -81,6 +81,17 @@ LRESULT CALLBACK UpdateSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 
 				return 0;
 			}
+			else
+			{
+				// Ctrl is down and 'a' has been pressed.
+				// Prevents the annoying beep that would happen if we use WM_KEYDOWN.
+				if ( wParam == 1 )
+				{
+					_SendMessageW( hWnd, EM_SETSEL, 0, -1 );	// Select all text.
+
+					return 0;
+				}
+			}
 		}
 		break;
 

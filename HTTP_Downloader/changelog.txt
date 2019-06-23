@@ -1,3 +1,13 @@
+Version:	1.0.2.4
+Released:	2019-06-23
+
+Prevented redownload prompt when renaming a download that hasn't started.
+Fixed various keyboard keys not working Add URL(s) window.
+Cleared taskbar, system tray, and drop window progress bars after all downloads finish successfully.
+Ignored UTF-16 BOM in locale files.
+Ignored UTF-8 BOM in string_list.txt for locale_generator.
+Fixed the retrieval of Media type URLs in browser extensions.
+
 Version:	1.0.2.3
 Released:	2019-06-16
 

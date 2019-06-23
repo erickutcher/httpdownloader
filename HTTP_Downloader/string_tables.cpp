@@ -443,15 +443,23 @@ void InitializeLocaleValues()
 		HANDLE hFile_locale = CreateFile( directory, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL );
 		if ( hFile_locale != INVALID_HANDLE_VALUE )
 		{
-			char *locale_buf = NULL;
-			DWORD read = 0, pos = 0;
+			unsigned char *locale_buf = NULL;
+			DWORD read = 0;
 			DWORD fz = GetFileSize( hFile_locale, NULL );
 
 			if ( fz > sizeof( wchar_t ) && fz < 131072 )
 			{
-				locale_buf = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * fz + 2 );
+				locale_buf = ( unsigned char * )GlobalAlloc( GMEM_FIXED, sizeof( unsigned char ) * fz + 2 );
 
-				ReadFile( hFile_locale, locale_buf, sizeof( char ) * fz, &read, NULL );
+				// Look for a UTF-16 BOM (little endian or big endian) and ignore it.
+				ReadFile( hFile_locale, locale_buf, sizeof( unsigned char ) * 2, &read, NULL );
+				if ( read == 2 && ( ( locale_buf[ 0 ] == 0xFF && locale_buf[ 1 ] == 0xFE ) ||
+									( locale_buf[ 0 ] == 0xFE && locale_buf[ 1 ] == 0xFF ) ) )
+				{
+					read = 0;
+					fz -= 2;
+				}
+				ReadFile( hFile_locale, locale_buf + read, ( sizeof( unsigned char ) * fz ) - read, &read, NULL );
 
 				// Guarantee a NULL terminated (wide character) buffer.
 				locale_buf[ fz ] = 0;
@@ -464,11 +472,11 @@ void InitializeLocaleValues()
 
 			CloseHandle( hFile_locale );
 
-			if ( read > sizeof( wchar_t ) )
+			if ( fz > sizeof( wchar_t ) )
 			{
 				wchar_t *ptr = ( wchar_t * )locale_buf;
 				wchar_t *last_ptr = ptr;
-				wchar_t *ptr_end = ( wchar_t * )( ( char * )( locale_buf + read ) );
+				wchar_t *ptr_end = ( wchar_t * )( ( unsigned char * )( locale_buf + fz ) );
 
 				while ( string_count < TOTAL_LOCALE_STRINGS && ++ptr < ptr_end )
 				{

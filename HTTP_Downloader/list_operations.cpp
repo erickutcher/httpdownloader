@@ -1702,7 +1702,10 @@ THREAD_RETURN rename_file( void *pArguments )
 
 							if ( MoveFileW( old_file_path, new_file_path ) == FALSE )
 							{
-								renamed = false;
+								if ( GetLastError() != ERROR_FILE_NOT_FOUND )
+								{
+									renamed = false;
+								}
 							}
 						}
 					}

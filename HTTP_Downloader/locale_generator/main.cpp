@@ -112,21 +112,29 @@ int main()
 	HANDLE hFile_input = CreateFile( L"string_list.txt", GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL );
 	if ( hFile_input != INVALID_HANDLE_VALUE )
 	{
-		char *input_buf = NULL;
+		unsigned char *input_buf = NULL;
 		DWORD read = 0;
 		DWORD fz = GetFileSize( hFile_input, NULL );
 
 		// The input string list shouldn't be that large.
 		if ( fz < 131072 )
 		{
-			input_buf = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( fz + 1 ) );
-			ReadFile( hFile_input, input_buf, sizeof( char ) * fz, &read, NULL );
+			input_buf = ( unsigned char * )GlobalAlloc( GMEM_FIXED, sizeof( unsigned char ) * ( fz + 1 ) );
+			ReadFile( hFile_input, input_buf, sizeof( unsigned char ) * fz, &read, NULL );
 			input_buf[ fz ] = 0;	// Make sure it's NULL terminated.
 
+			unsigned char *ptr_input_buf = input_buf;
+
+			// Look for a UTF-8 BOM and ignore it.
+			if ( read >= 3 && ( ptr_input_buf[ 0 ] == 0xEF && ptr_input_buf[ 1 ] == 0xBB && ptr_input_buf[ 2 ] == 0xBF ) )
+			{
+				ptr_input_buf += 3;
+			}
+
 			// Convert our strings to a wide character version.
-			int strings_length = MultiByteToWideChar( CP_UTF8, 0, input_buf, -1, NULL, 0 );	// Include the NULL character.
+			int strings_length = MultiByteToWideChar( CP_UTF8, 0, ( char * )ptr_input_buf, -1, NULL, 0 );	// Include the NULL character.
 			wchar_t *strings = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * strings_length );
-			MultiByteToWideChar( CP_UTF8, 0, input_buf, -1, strings, strings_length );
+			MultiByteToWideChar( CP_UTF8, 0, ( char * )ptr_input_buf, -1, strings, strings_length );
 
 			GlobalFree( input_buf );
 
