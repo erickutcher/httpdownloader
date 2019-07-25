@@ -2449,6 +2449,43 @@ THREAD_RETURN process_command_line_args( void *pArguments )
 
 	if ( cla != NULL )
 	{
+		if ( cla->download_history_file != NULL )
+		{
+			importexportinfo *iei = ( importexportinfo * )GlobalAlloc( GMEM_FIXED, sizeof( importexportinfo ) );
+
+			// Include an empty string.
+			iei->file_paths = ( wchar_t * )GlobalAlloc( GPTR, sizeof( wchar_t ) * ( MAX_PATH + 1 ) );
+			_wmemcpy_s( iei->file_paths, MAX_PATH, cla->download_history_file, cla->download_history_file_length );
+			iei->file_paths[ cla->download_history_file_length ] = 0;	// Sanity.
+
+			iei->file_offset = ( unsigned short )( cla->download_history_file_length );
+
+			// Find the last occurance of "\" in the string.
+			while ( iei->file_offset != 0 )
+			{
+				if ( iei->file_paths[ --iei->file_offset ] == L'\\' )
+				{
+					iei->file_paths[ iei->file_offset++ ] = 0;	// Sanity.
+
+					break;
+				}
+			}
+
+			iei->type = 1;	// Import from menu.
+
+			// iei will be freed in the import_list thread.
+			HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, import_list, ( void * )iei, 0, NULL );
+			if ( thread != NULL )
+			{
+				CloseHandle( thread );
+			}
+			else
+			{
+				GlobalFree( iei->file_paths );
+				GlobalFree( iei );
+			}
+		}
+
 		wchar_t *url_list = NULL;
 		unsigned int url_list_length = 0;
 
@@ -2568,12 +2605,13 @@ THREAD_RETURN process_command_line_args( void *pArguments )
 				GlobalFree( ai );
 			}
 		}
-		else
+		else if ( cla->urls != NULL )
 		{
 			_SendMessageW( g_hWnd_main, WM_PROPAGATE, -1, ( LPARAM )cla );
 		}
 
 		GlobalFree( cla->download_directory );
+		GlobalFree( cla->download_history_file );
 		GlobalFree( cla->url_list_file );
 		GlobalFree( cla->urls );
 		GlobalFree( cla->cookies );

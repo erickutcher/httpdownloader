@@ -347,6 +347,7 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 						  ( arg_name_length == 13 && _StrCmpNIW( arg_name, L"cookie-string", 13 ) == 0 ) ||
 						  ( arg_name_length == 9 && _StrCmpNIW( arg_name, L"post-data", 9 ) == 0 ) ||
 						  ( arg_name_length == 16 && _StrCmpNIW( arg_name, L"output-directory", 16 ) == 0 ) ||
+						  ( arg_name_length == 16 && _StrCmpNIW( arg_name, L"download-history", 16 ) == 0 ) ||
 						  ( arg_name_length == 8 && _StrCmpNIW( arg_name, L"url-list", 8 ) == 0 ) ||
 						  ( arg_name_length == 8 && _StrCmpNIW( arg_name, L"username", 8 ) == 0 ) ||
 						  ( arg_name_length == 8 && _StrCmpNIW( arg_name, L"password", 8 ) == 0 ) )	// A cookie string, form (POST) data, URL list file, output (download) directory, username, and or password was supplied.
@@ -400,6 +401,11 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 
 								continue;
 							}
+						}
+						else if ( *arg_name == L'd' )
+						{
+							cl_val = &cla->download_history_file;
+							cla->download_history_file_length = length;
 						}
 						else if ( arg_name[ 0 ] == L'u' )
 						{
@@ -567,6 +573,7 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 					unsigned int data_offset = 0;
 					unsigned int data_size = sizeof( CL_ARGS );
 					if ( cla->download_directory > 0 ) { data_size += ( sizeof( wchar_t ) * ( cla->download_directory_length + 1 ) ); }
+					if ( cla->download_history_file > 0 ) { data_size += ( sizeof( wchar_t ) * ( cla->download_history_file_length + 1 ) ); }
 					if ( cla->cookies_length > 0 ) { data_size += ( sizeof( wchar_t ) * ( cla->cookies_length + 1 ) ); }
 					if ( cla->data_length > 0 ) { data_size += ( sizeof( wchar_t ) * ( cla->data_length + 1 ) ); }
 					if ( cla->headers_length > 0 ) { data_size += ( sizeof( wchar_t ) * ( cla->headers_length + 1 ) ); }
@@ -586,6 +593,13 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 					{
 						_wmemcpy_s( wbyte_buf + data_offset, data_size - data_offset, cla->download_directory, cla->download_directory_length + 1 );
 						data_offset += ( cla->download_directory_length + 1 );
+					}
+
+					cla_data->download_history_file = ( wchar_t * )data_offset;
+					if ( cla->download_history_file_length > 0 )
+					{
+						_wmemcpy_s( wbyte_buf + data_offset, data_size - data_offset, cla->download_history_file, cla->download_history_file_length + 1 );
+						data_offset += ( cla->download_history_file_length + 1 );
 					}
 
 					cla_data->url_list_file = ( wchar_t * )data_offset;
@@ -1087,7 +1101,7 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 	if ( cla != NULL )
 	{
 		// Only load if there's URLs that have been supplied.
-		if ( cla->url_list_file != NULL || cla->urls != NULL )
+		if ( cla->url_list_file != NULL || cla->urls != NULL || cla->download_history_file != NULL )
 		{
 			// cla values will be freed here.
 			_SendMessageW( g_hWnd_main, WM_PROPAGATE, -2, ( LPARAM )cla );
@@ -1095,6 +1109,7 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 		else
 		{
 			if ( cla->download_directory != NULL ) { GlobalFree( cla->download_directory ); }
+			if ( cla->download_history_file != NULL ) { GlobalFree( cla->download_history_file ); }
 			if ( cla->url_list_file != NULL ) { GlobalFree( cla->url_list_file ); }
 			if ( cla->urls != NULL ) { GlobalFree( cla->urls ); }
 			if ( cla->cookies != NULL ) { GlobalFree( cla->cookies ); }
@@ -1140,6 +1155,7 @@ CLEANUP:
 	if ( cla != NULL )
 	{
 		if ( cla->download_directory != NULL ) { GlobalFree( cla->download_directory ); }
+		if ( cla->download_history_file != NULL ) { GlobalFree( cla->download_history_file ); }
 		if ( cla->cookies != NULL ) { GlobalFree( cla->cookies ); }
 		if ( cla->data != NULL ) { GlobalFree( cla->data ); }
 		if ( cla->headers != NULL ) { GlobalFree( cla->headers ); }

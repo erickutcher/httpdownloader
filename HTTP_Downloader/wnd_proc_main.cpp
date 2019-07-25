@@ -1805,7 +1805,7 @@ void HandleCommand( HWND hWnd, WPARAM wParam, LPARAM lParam )
 		{
 			wchar_t msg[ 512 ];
 			__snwprintf( msg, 512, L"HTTP Downloader is made free under the GPLv3 license.\r\n\r\n" \
-								   L"Version 1.0.2.4 (%u-bit)\r\n\r\n" \
+								   L"Version 1.0.2.5 (%u-bit)\r\n\r\n" \
 								   L"Built on %s, %s %d, %04d %d:%02d:%02d %s (UTC)\r\n\r\n" \
 								   L"Copyright \xA9 2015-2019 Eric Kutcher",
 #ifdef _WIN64
@@ -3206,6 +3206,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 				// Our pointers were used to store each string's offset past the CL_ARGS struct.
 				// We're reverting them back to point to their respective string.
 				cla->download_directory = ( cla->download_directory_length > 0 ? cl_val + ( unsigned int )cla->download_directory : NULL );
+				cla->download_history_file = ( cla->download_history_file_length > 0 ? cl_val + ( unsigned int )cla->download_history_file : NULL );
 				cla->url_list_file = ( cla->url_list_file_length > 0 ? cl_val + ( unsigned int )cla->url_list_file : NULL );
 				cla->urls = ( cla->urls_length > 0 ? cl_val + ( unsigned int )cla->urls : NULL );
 				cla->cookies = ( cla->cookies_length > 0 ? cl_val + ( unsigned int )cla->cookies : NULL );
@@ -3222,6 +3223,13 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 					new_cla->download_directory = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( cla->download_directory_length + 1 ) );
 					_wmemcpy_s( new_cla->download_directory, cla->download_directory_length + 1, cla->download_directory, cla->download_directory_length );
 					new_cla->download_directory[ cla->download_directory_length ] = 0;	// Sanity.
+				}
+
+				if ( cla->download_history_file != NULL )
+				{
+					new_cla->download_history_file = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( cla->download_history_file_length + 1 ) );
+					_wmemcpy_s( new_cla->download_history_file, cla->download_history_file_length + 1, cla->download_history_file, cla->download_history_file_length );
+					new_cla->download_history_file[ cla->download_history_file_length ] = 0;	// Sanity.
 				}
 
 				if ( cla->url_list_file != NULL )
@@ -3297,6 +3305,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 					else
 					{
 						GlobalFree( cla->download_directory );
+						GlobalFree( cla->download_history_file );
 						GlobalFree( cla->url_list_file );
 						GlobalFree( cla->urls );
 						GlobalFree( cla->cookies );

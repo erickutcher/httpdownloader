@@ -2013,7 +2013,7 @@ char read_download_history( wchar_t *file_path )
 
 					di->hFile = INVALID_HANDLE_VALUE;
 
-					di->add_time = add_time;
+					di->add_time.QuadPart = add_time.QuadPart;
 					di->downloaded = downloaded;
 					di->last_downloaded = downloaded;
 					di->file_size = file_size;
@@ -2024,7 +2024,7 @@ char read_download_history( wchar_t *file_path )
 					di->processed_header = processed_header;
 					di->download_operations = download_operations;
 					di->method = method;
-					di->last_modified = last_modified;
+					di->last_modified.QuadPart = last_modified.QuadPart;
 					di->url = url;
 					di->cookies = cookies;
 					di->headers = headers;
