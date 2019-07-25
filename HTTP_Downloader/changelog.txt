@@ -1,3 +1,8 @@
+Version:	1.0.2.6
+Released:	2019-07-25
+
+Fixed tray icon and URL drop window progress bars not updating in Administrator mode.
+
 Version:	1.0.2.5
 Released:	2019-07-24
 

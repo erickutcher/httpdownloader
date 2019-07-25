@@ -451,11 +451,11 @@ DWORD WINAPI UpdateWindow( LPVOID WorkThreadContext )
 				if ( g_taskbar != NULL )
 				{
 					g_taskbar->lpVtbl->SetProgressState( g_taskbar, g_hWnd_main, TBPF_NORMAL );
-
-					g_progress_info.current_total_downloaded = g_progress_info.current_total_file_size = 0;
-
-					all_paused = 0;
 				}
+
+				g_progress_info.current_total_downloaded = g_progress_info.current_total_file_size = 0;
+
+				all_paused = 0;
 
 				GetSystemTimeAsFileTime( &current_time.ft );
 
@@ -513,20 +513,17 @@ DWORD WINAPI UpdateWindow( LPVOID WorkThreadContext )
 									di->last_downloaded = di->downloaded;
 								}
 
-								if ( g_taskbar != NULL )
-								{
-									g_progress_info.current_total_downloaded += di->downloaded;
-									g_progress_info.current_total_file_size += di->file_size;
+								g_progress_info.current_total_downloaded += di->downloaded;
+								g_progress_info.current_total_file_size += di->file_size;
 
-									all_paused = 2;
-								}
+								all_paused = 2;
 							}
 							else if ( IS_STATUS( di->status, STATUS_PAUSED | STATUS_QUEUED ) )
 							{
 								di->time_remaining = 0;
 								di->speed = 0;
 
-								if ( g_taskbar != NULL && all_paused == 0 )
+								if ( all_paused == 0 )
 								{
 									all_paused = 1;
 								}
@@ -1805,7 +1802,7 @@ void HandleCommand( HWND hWnd, WPARAM wParam, LPARAM lParam )
 		{
 			wchar_t msg[ 512 ];
 			__snwprintf( msg, 512, L"HTTP Downloader is made free under the GPLv3 license.\r\n\r\n" \
-								   L"Version 1.0.2.5 (%u-bit)\r\n\r\n" \
+								   L"Version 1.0.2.6 (%u-bit)\r\n\r\n" \
 								   L"Built on %s, %s %d, %04d %d:%02d:%02d %s (UTC)\r\n\r\n" \
 								   L"Copyright \xA9 2015-2019 Eric Kutcher",
 #ifdef _WIN64
