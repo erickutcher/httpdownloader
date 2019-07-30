@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<style>
+			body
+			{
+				padding: 10px;
+			}
+
+			fieldset
+			{
+				border: 1px solid grey;
+				display: inline-block;
+			}
+		</style>
+		<script src="options.js"></script>
+	</head>
+	<body>
+		<div class="browser-style">
+			<div><label for="server">Server:</label></div>
+			<input type="text" id="server" size="50" value="">
+		</div>
+		<div style="padding-top: 10px;">
+			<fieldset>
+				<legend>Authentifikation</legend>
+				<div class="browser-style" style="float: left; margin-right: 10px;">
+					<div><label for="username">Benutzer:</label></div>
+					<input type="text" id="username" value="">
+				</div>
+				<div class="browser-style" style="float: left;">
+					<div><label for="password">Passwort:</label></div>
+					<input type="password" id="password" value="">
+				</div>
+			</fieldset>
+		</div>
+		<div class="browser-style" style="padding-top: 10px;">
+			<div><label for="parts">Standard Teile:</label></div>
+			<input type="number" id="parts" value="" min="0" max="100" style="text-align: center;">
+		</div>
+		<div class="browser-style" style="padding-top: 10px;">
+			<div><label for="default_directory">Standard Downloadverzeichnis:</label></div>
+			<input type="text" id="default_directory" size="50" value="" placeholder="[Programmstandard]">
+		</div>
+		<div class="browser-style" style="padding-top: 10px;">
+			<input type="checkbox" id="user_agent"><label for="user_agent">User-Agent übertragen</label>
+		</div>
+		<div class="browser-style">
+			<input type="checkbox" id="referer"><label for="referer">Referer übertragen</label>
+		</div>
+		<div class="browser-style">
+			<input type="checkbox" id="override"><label for="override">Downloadmanager des Browsers überschreiben</label>
+		</div>
+		<div class="browser-style" style="margin-left: 20px;">
+			<input type="checkbox" id="show_add_window"><label for="show_add_window">Vor dem Download URL(s) hinzufügen anzeigen</label>
+		</div>
+		<div class="panel-section-separator"></div>
+		<div style="padding-top: 20px;">
+			<button type="button" id="save" class="browser-style">Speichern</button>
+		</div>
+	</body>
+</html>
