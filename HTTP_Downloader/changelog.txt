@@ -1,3 +1,24 @@
+Version:	1.0.2.6
+Released:	2019-07-25
+
+Fixed tray icon and URL drop window progress bars not updating in Administrator mode.
+
+Version:	1.0.2.5
+Released:	2019-07-24
+
+Added --download-history switch to import history files from the command-line.
+
+Version:	1.0.2.4
+Released:	2019-06-23
+
+Prevented redownload prompt when renaming a download that hasn't started.
+Fixed various keyboard keys not working Add URL(s) window.
+Cleared taskbar, system tray, and drop window progress bars after all downloads finish successfully.
+Ignored UTF-16 BOM in locale files.
+Ignored UTF-8 BOM in string_list.txt for locale_generator.
+Fixed the retrieval of Media type URLs in browser extensions.
+Added German translation language file (thanks to uDEV2019)
+
 Version:	1.0.2.3
 Released:	2019-06-16
 

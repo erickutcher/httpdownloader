@@ -2,9 +2,8 @@ function GetImages()
 {
 	var urls_string = "";
 	var urls = document.body.getElementsByTagName( "img" );
-	var num_urls = urls.length;
 
-	for ( var i = 0; i < num_urls; ++i )
+	for ( var i = 0; i < urls.length; ++i )
 	{
 		if ( urls[ i ].src != "" )
 		{

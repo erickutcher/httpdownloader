@@ -114,6 +114,17 @@ LRESULT CALLBACK URLSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
 
 				return 0;
 			}
+			else
+			{
+				// Ctrl is down and 'a' has been pressed.
+				// Prevents the annoying beep that would happen if we use WM_KEYDOWN.
+				if ( wParam == 1 )
+				{
+					_SendMessageW( hWnd, EM_SETSEL, 0, -1 );	// Select all text.
+
+					return 0;
+				}
+			}
 		}
 		break;
 
@@ -129,27 +140,22 @@ LRESULT CALLBACK URLSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
 
 		case WM_KEYDOWN:
 		{
-			// Make sure the control key is down and that we're not already in a worker thread. Prevents threads from queuing in case the user falls asleep on their keyboard.
-			if ( _GetKeyState( VK_CONTROL ) & 0x8000 )
+			if ( hWnd == g_hWnd_edit_add )
 			{
-				if ( _GetKeyState( VK_SHIFT ) & 0x8000 && wParam == VK_RETURN )
+				if ( _GetKeyState( VK_CONTROL ) & 0x8000 )
 				{
-					// http://a.b
-					if ( _SendMessageW( g_hWnd_edit_add, WM_GETTEXTLENGTH, 0, 0 ) >= 10 )
+					if ( _GetKeyState( VK_SHIFT ) & 0x8000 && wParam == VK_RETURN )
 					{
-						_SendMessageW( _GetParent( hWnd ), WM_COMMAND, BTN_DOWNLOAD, 0 );
-					}
-				}
-				else
-				{
-					if ( wParam == 'A' )	// Select all text.
-					{
-						_SendMessageW( hWnd, EM_SETSEL, 0, -1 );
+						// http://a.b
+						if ( _SendMessageW( g_hWnd_edit_add, WM_GETTEXTLENGTH, 0, 0 ) >= 10 )
+						{
+							_SendMessageW( _GetParent( hWnd ), WM_COMMAND, BTN_DOWNLOAD, 0 );
+						}
+
+						return 0;
 					}
 				}
 			}
-
-			return 0;
 		}
 		break;
 	}

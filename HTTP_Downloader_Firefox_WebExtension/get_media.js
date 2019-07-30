@@ -1,14 +1,18 @@
 function GetMedia()
 {
 	var urls_string = "";
-	var urls = document.body.getElementsByTagName( "source" );
-	var num_urls = urls.length;
+	var tags = [ "audio", "video", "source" ];
 
-	for ( var i = 0; i < num_urls; ++i )
+	for ( var t = 0; t < 3; ++t )
 	{
-		if ( urls[ i ].href != "" )
+		var urls = document.body.getElementsByTagName( tags[ t ] );
+
+		for ( var i = 0; i < urls.length; ++i )
 		{
-			urls_string += urls[ i ].href + "\r\n";
+			if ( urls[ i ].src != "" )
+			{
+				urls_string += urls[ i ].src + "\r\n";
+			}
 		}
 	}
 

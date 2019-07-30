@@ -133,6 +133,7 @@ union QFILETIME
 struct CL_ARGS
 {
 	wchar_t *download_directory;
+	wchar_t *download_history_file;
 	wchar_t *url_list_file;
 	wchar_t *urls;
 	wchar_t *cookies;
@@ -141,6 +142,7 @@ struct CL_ARGS
 	wchar_t *username;
 	wchar_t *password;
 	int download_directory_length;
+	int download_history_file_length;
 	int url_list_file_length;
 	int urls_length;
 	int cookies_length;
