@@ -1,5 +1,5 @@
 /*
-	HTTP Downloader can download files through HTTP and HTTPS connections.
+	HTTP Downloader can download files through HTTP(S) and FTP(S) connections.
 	Copyright (C) 2015-2019 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
@@ -26,6 +26,7 @@
 #include "lite_normaliz.h"
 
 #include "http_parsing.h"
+#include "ftp_parsing.h"
 
 #include "utilities.h"
 #include "login_manager_utilities.h"
@@ -207,7 +208,7 @@ DWORD WINAPI Timeout( LPVOID WorkThreadContext )
 			DoublyLinkedList *context_node = g_context_list;
 
 			// Go through the list of active connections.
-			while ( context_node != NULL )
+			while ( context_node != NULL && context_node->data != NULL )
 			{
 				if ( g_end_program )
 				{
@@ -216,40 +217,55 @@ DWORD WINAPI Timeout( LPVOID WorkThreadContext )
 
 				SOCKET_CONTEXT *context = ( SOCKET_CONTEXT * )context_node->data;
 
-				if ( context->cleanup == 0 && context->status != STATUS_ALLOCATING_FILE )
+				if ( TryEnterCriticalSection( &context->context_cs ) == TRUE )
 				{
-					// See if we've reached the timeout limit.
-					if ( ( context->timeout >= cfg_timeout ) && ( cfg_timeout > 0 ) )
+					if ( context->cleanup == 0 && context->status != STATUS_ALLOCATING_FILE )
 					{
-						// Ignore paused and queued downloads.
-						if ( IS_STATUS( context->status, STATUS_PAUSED | STATUS_QUEUED ) )
+						// Don't increment the Control connection's timeout value.
+						// It'll be forced to time out if the Data connection times out.
+						if ( context->ftp_context != NULL && context->ftp_connection_type & FTP_CONNECTION_TYPE_CONTROL )
 						{
-							InterlockedExchange( &context->timeout, 0 );	// Reset timeout counter.
+							if ( cfg_ftp_send_keep_alive && context->ftp_connection_type == FTP_CONNECTION_TYPE_CONTROL )
+							{
+								InterlockedIncrement( &context->keep_alive_timeout );	// Increment the timeout counter.
+
+								if ( context->keep_alive_timeout >= 30 )
+								{
+									InterlockedExchange( &context->keep_alive_timeout, 0 );	// Reset timeout counter.
+
+									SendFTPKeepAlive( context );
+								}
+							}
 						}
 						else
 						{
-							EnterCriticalSection( &context->context_cs );
+							InterlockedIncrement( &context->timeout );	// Increment the timeout counter.
 
-							context->timed_out = TIME_OUT_TRUE;
-
-							if ( context->cleanup == 0 )
+							// See if we've reached the timeout limit.
+							if ( ( context->timeout >= cfg_timeout ) && ( cfg_timeout > 0 ) )
 							{
-								context->cleanup = 2;	// Force the cleanup.
+								// Ignore paused and queued downloads.
+								if ( IS_STATUS( context->status, STATUS_PAUSED | STATUS_QUEUED ) )
+								{
+									InterlockedExchange( &context->timeout, 0 );	// Reset timeout counter.
+								}
+								else
+								{
+									context->timed_out = TIME_OUT_TRUE;
 
-								InterlockedIncrement( &context->pending_operations );
+									context->cleanup = 2;	// Force the cleanup.
 
-								context->overlapped_close.current_operation = ( context->ssl != NULL ? IO_Shutdown : IO_Close );
+									InterlockedIncrement( &context->pending_operations );
 
-								PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped_close );
+									context->overlapped_close.current_operation = ( context->ssl != NULL ? IO_Shutdown : IO_Close );
+
+									PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped_close );
+								}
 							}
-
-							LeaveCriticalSection( &context->context_cs );
 						}
 					}
-					else	// Increment the timeout counter.
-					{
-						InterlockedIncrement( &context->timeout );
-					}
+
+					LeaveCriticalSection( &context->context_cs );
 				}
 
 				context_node = context_node->next;
@@ -603,7 +619,7 @@ bool LoadConnectEx()
 	return ret;
 }
 
-SOCKET_CONTEXT *UpdateCompletionPort( SOCKET socket, bool is_listen_socket )
+SOCKET_CONTEXT *UpdateCompletionPort( SOCKET socket, bool use_ssl, unsigned char ssl_version, bool add_context, bool is_server )
 {
 	SOCKET_CONTEXT *context = CreateSocketContext();
 	if ( context )
@@ -613,22 +629,24 @@ SOCKET_CONTEXT *UpdateCompletionPort( SOCKET socket, bool is_listen_socket )
 		context->overlapped.current_operation = IO_Accept;
 
 		// Create an SSL/TLS object for incoming SSL/TLS connections, but not for SSL/TLS tunnel connections.
-		if ( !is_listen_socket && cfg_server_enable_ssl )
+		if ( use_ssl )
 		{
 			DWORD protocol = 0;
-			switch ( cfg_server_ssl_version )
+			switch ( ssl_version )
 			{
 				case 4:	protocol |= SP_PROT_TLS1_2;
 				case 3:	protocol |= SP_PROT_TLS1_1;
 				case 2:	protocol |= SP_PROT_TLS1;
 				case 1:	protocol |= SP_PROT_SSL3;
-				case 0:	{ if ( cfg_server_ssl_version < 4 ) { protocol |= SP_PROT_SSL2; } }
+				case 0:	{ if ( ssl_version < 4 ) { protocol |= SP_PROT_SSL2; } }
 			}
 
-			SSL *ssl = SSL_new( protocol, true );
+			SSL *ssl = SSL_new( protocol, is_server );
 			if ( ssl == NULL )
 			{
 				DeleteCriticalSection( &context->context_cs );
+
+				if ( context->buffer != NULL ) { GlobalFree( context->buffer ); }
 
 				GlobalFree( context );
 				context = NULL;
@@ -642,26 +660,33 @@ SOCKET_CONTEXT *UpdateCompletionPort( SOCKET socket, bool is_listen_socket )
 		}
 
 		g_hIOCP = CreateIoCompletionPort( ( HANDLE )socket, g_hIOCP, ( DWORD_PTR )context, 0 );
-		if ( g_hIOCP == NULL )
+		if ( g_hIOCP != NULL )
 		{
+			if ( add_context )
+			{
+				RANGE_INFO *ri = ( RANGE_INFO * )GlobalAlloc( GPTR, sizeof( RANGE_INFO ) );
+				context->header_info.range_info = ri;
+
+				context->context_node.data = context;
+
+				EnterCriticalSection( &context_list_cs );
+
+				// Add to the global download list.
+				DLL_AddNode( &g_context_list, &context->context_node, 0 );
+
+				LeaveCriticalSection( &context_list_cs );
+			}
+		}
+		else
+		{
+			if ( context->ssl != NULL ) { SSL_free( context->ssl ); }
+
 			DeleteCriticalSection( &context->context_cs );
+
+			if ( context->buffer != NULL ) { GlobalFree( context->buffer ); }
 
 			GlobalFree( context );
 			context = NULL;
-		}
-		else if ( !is_listen_socket )
-		{
-			RANGE_INFO *ri = ( RANGE_INFO * )GlobalAlloc( GPTR, sizeof( RANGE_INFO ) );
-			context->header_info.range_info = ri;
-
-			context->context_node.data = context;
-
-			EnterCriticalSection( &context_list_cs );
-
-			// Add to the global download list.
-			DLL_AddNode( &g_context_list, &context->context_node, 0 );
-
-			LeaveCriticalSection( &context_list_cs );
 		}
 	}
 
@@ -819,7 +844,7 @@ char CreateAcceptSocket( SOCKET listen_socket, bool use_ipv6 )
 
 	if ( g_listen_context == NULL )
 	{
-		g_listen_context = UpdateCompletionPort( listen_socket, true );
+		g_listen_context = UpdateCompletionPort( listen_socket, cfg_server_enable_ssl, cfg_server_ssl_version, false, true );
 		if ( g_listen_context == NULL )
 		{
 			return LA_STATUS_FAILED;
@@ -833,10 +858,14 @@ char CreateAcceptSocket( SOCKET listen_socket, bool use_ipv6 )
 		return LA_STATUS_FAILED;
 	}
 
+	InterlockedIncrement( &g_listen_context->pending_operations );
+
 	// Accept a connection without waiting for any data. (dwReceiveDataLength = 0)
 	nRet = _AcceptEx( listen_socket, g_listen_context->socket, ( LPVOID )( g_listen_context->buffer ), 0, sizeof( SOCKADDR_STORAGE ) + 16, sizeof( SOCKADDR_STORAGE ) + 16, &dwRecvNumBytes, ( OVERLAPPED * )&g_listen_context->overlapped );
 	if ( nRet == SOCKET_ERROR && ( _WSAGetLastError() != ERROR_IO_PENDING ) )
 	{
+		InterlockedDecrement( &g_listen_context->pending_operations );
+
 		return LA_STATUS_FAILED;
 	}
 
@@ -1393,16 +1422,9 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 
 		InterlockedExchange( &context->timeout, 0 );	// Reset timeout counter.
 
+		InterlockedDecrement( &context->pending_operations );
+
 		use_ssl = ( context->ssl != NULL ? true : false );
-
-		if ( *current_operation != IO_Accept )
-		{
-			EnterCriticalSection( &context->context_cs );
-
-			InterlockedDecrement( &context->pending_operations );
-
-			LeaveCriticalSection( &context->context_cs );
-		}
 
 		if ( completion_status == FALSE )
 		{
@@ -1516,47 +1538,148 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 		{
 			case IO_Accept:
 			{
+				bool free_context = false;
+
 				EnterCriticalSection( &context->context_cs );
 
 				if ( context->cleanup == 0 )
 				{
-					// Allow the accept socket to inherit the properties of the listen socket.
-					// The context here is actually from listen_context->data or listen_context_s->data.
-					nRet = _setsockopt( context->socket, SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT, ( char * )&g_listen_socket, sizeof( g_listen_socket ) );
-					if ( nRet != SOCKET_ERROR )
+					SOCKET_CONTEXT *new_context = NULL;
+
+					SOCKET_CONTEXT *ftp_control_context = context->ftp_context;
+					bool is_ftp_data_connection;
+					SOCKET listen_socket;
+
+					if ( ftp_control_context != NULL )
 					{
-						// Create a new socket context with the inherited socket.
-						SOCKET_CONTEXT *new_context = UpdateCompletionPort( context->socket, false );
-						if ( new_context != NULL )
+						EnterCriticalSection( &ftp_control_context->context_cs );
+
+						// The Listen context points to the Control context and its download info and vice versa.
+						// Set the pointers to NULL so that when it's freed it doesn't have access to the Control context anymore.
+						context->ftp_context = NULL;
+						context->download_info = NULL;
+
+						// Make sure the Control context no longer has access to the Listen context.
+						ftp_control_context->ftp_context = NULL;
+
+						is_ftp_data_connection = true;
+
+						listen_socket = ftp_control_context->listen_socket;
+
+						//////////////////
+
+						// Allow the accept socket to inherit the properties of the listen socket.
+						if ( _setsockopt( context->socket, SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT, ( char * )&listen_socket, sizeof( SOCKET ) ) != SOCKET_ERROR )
 						{
-							EnterCriticalSection( &cleanup_cs );
+							// Create a new socket context with the inherited socket.
+							new_context = UpdateCompletionPort( context->socket,
+															  ( ftp_control_context->request_info.protocol == PROTOCOL_FTPS || ftp_control_context->request_info.protocol == PROTOCOL_FTPES ? true : false ),
+															  ( ftp_control_context->download_info != NULL ? ftp_control_context->download_info->ssl_version : 0 ),
+																true,
+																false );
 
-							EnableTimers( true );
+							// The Data context's socket has inherited the properties (and handle) of the Listen context's socket.
+							// Invalidate the Listen context's socket so it doesn't shutdown/close the Data context's socket.
+							context->socket = INVALID_SOCKET;
 
-							LeaveCriticalSection( &cleanup_cs );
+							SetDataContextValues( ftp_control_context, new_context );
+						}
+						else
+						{
+							InterlockedIncrement( &ftp_control_context->pending_operations );
 
+							ftp_control_context->overlapped.current_operation = IO_Close;
+
+							PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )ftp_control_context, ( WSAOVERLAPPED * )&ftp_control_context->overlapped );
+						}
+
+						LeaveCriticalSection( &ftp_control_context->context_cs );
+					}
+					else
+					{
+						is_ftp_data_connection = false;
+
+						listen_socket = g_listen_socket;
+
+						//////////////////
+
+						// Allow the accept socket to inherit the properties of the listen socket.
+						if ( _setsockopt( context->socket, SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT, ( char * )&listen_socket, sizeof( SOCKET ) ) != SOCKET_ERROR )
+						{
+							// Create a new socket context with the inherited socket.
+							new_context = UpdateCompletionPort( context->socket, false, 0, true, true );
+
+							// The Data context's socket has inherited the properties (and handle) of the Listen context's socket.
+							// Invalidate the Listen context's socket so it doesn't shutdown/close the Data context's socket.
+							context->socket = INVALID_SOCKET;
+
+							// Post another outstanding AcceptEx for our web server to listen on.
+							CreateAcceptSocket( g_listen_socket, g_server_use_ipv6 );
+						}
+					}
+
+					if ( new_context != NULL )
+					{
+						EnterCriticalSection( &cleanup_cs );
+
+						EnableTimers( true );
+
+						LeaveCriticalSection( &cleanup_cs );
+
+						EnterCriticalSection( &new_context->context_cs );
+
+						if ( new_context->cleanup == 0 )
+						{
 							InterlockedIncrement( &new_context->pending_operations );
 
-							// Accept incoming SSL/TLS connections.
-							if ( cfg_server_enable_ssl )
+							if ( is_ftp_data_connection )
 							{
-								new_context->overlapped.current_operation = IO_ServerHandshakeReply;
-
-								SSL_WSAAccept( new_context, &new_context->overlapped, sent );
-							}
-							else	// Non-encrypted connections.
-							{
-								sent = true;
-
-								new_context->overlapped.current_operation = IO_GetRequest;
-
-								new_context->wsabuf.buf = new_context->buffer;
-								new_context->wsabuf.len = BUFFER_SIZE;
-
-								nRet = _WSARecv( new_context->socket, &new_context->wsabuf, 1, NULL, &dwFlags, ( WSAOVERLAPPED * )&new_context->overlapped, NULL );
-								if ( nRet == SOCKET_ERROR && ( _WSAGetLastError() != ERROR_IO_PENDING ) )
+								if ( new_context->request_info.protocol == PROTOCOL_FTPS )	// Encrypted Data connections will always be FTPS (implicit).
 								{
-									sent = false;
+									new_context->overlapped.next_operation = IO_ClientHandshakeResponse;
+
+									SSL_WSAConnect( new_context, &new_context->overlapped, new_context->request_info.host, sent );
+								}
+								else	// Non-encrypted connections.
+								{
+									sent = true;
+
+									new_context->overlapped.current_operation = IO_GetContent;
+
+									new_context->wsabuf.buf = new_context->buffer;
+									new_context->wsabuf.len = new_context->buffer_size;
+
+									nRet = _WSARecv( new_context->socket, &new_context->wsabuf, 1, NULL, &dwFlags, ( WSAOVERLAPPED * )&new_context->overlapped, NULL );
+									if ( nRet == SOCKET_ERROR && ( _WSAGetLastError() != ERROR_IO_PENDING ) )
+									{
+										sent = false;
+									}
+								}
+
+								free_context = true;	// The listen context can be freed.
+							}
+							else	// A connection has been made to our web server.
+							{
+								if ( cfg_server_enable_ssl )	// Accept incoming SSL/TLS connections.
+								{
+									new_context->overlapped.current_operation = IO_ServerHandshakeReply;
+
+									SSL_WSAAccept( new_context, &new_context->overlapped, sent );
+								}
+								else	// Non-encrypted connections.
+								{
+									sent = true;
+
+									new_context->overlapped.current_operation = IO_GetRequest;
+
+									new_context->wsabuf.buf = new_context->buffer;
+									new_context->wsabuf.len = new_context->buffer_size;
+
+									nRet = _WSARecv( new_context->socket, &new_context->wsabuf, 1, NULL, &dwFlags, ( WSAOVERLAPPED * )&new_context->overlapped, NULL );
+									if ( nRet == SOCKET_ERROR && ( _WSAGetLastError() != ERROR_IO_PENDING ) )
+									{
+										sent = false;
+									}
 								}
 							}
 
@@ -1567,34 +1690,25 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 								PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )new_context, ( WSAOVERLAPPED * )&new_context->overlapped );
 							}
 						}
-						else	// Clean up the listen context.
+						else if ( new_context->cleanup == 2 )	// If we've forced the cleanup, then allow it to continue its steps.
 						{
-							if ( context->socket != INVALID_SOCKET )
-							{
-								_shutdown( context->socket, SD_BOTH );
-								_closesocket( context->socket );
-								context->socket = INVALID_SOCKET;
-							}
-
-							GlobalFree( context );
-							context = NULL;
+							new_context->cleanup = 1;	// Auto cleanup.
 						}
+						else	// We've already shutdown and/or closed the connection.
+						{
+							InterlockedIncrement( &new_context->pending_operations );
+
+							new_context->overlapped.current_operation = IO_Close;
+
+							PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )new_context, ( WSAOVERLAPPED * )&new_context->overlapped );
+						}
+
+						LeaveCriticalSection( &new_context->context_cs );
 					}
 					else	// Clean up the listen context.
 					{
-						if ( context->socket != INVALID_SOCKET )
-						{
-							_shutdown( context->socket, SD_BOTH );
-							_closesocket( context->socket );
-							context->socket = INVALID_SOCKET;
-						}
-
-						GlobalFree( context );
-						context = NULL;
+						free_context = true;
 					}
-
-					// Post another outstanding AcceptEx.
-					CreateAcceptSocket( g_listen_socket, g_server_use_ipv6 );
 				}
 				else if ( context->cleanup == 2 )	// If we've forced the cleanup, then allow it to continue its steps.
 				{
@@ -1610,6 +1724,11 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 				}
 
 				LeaveCriticalSection( &context->context_cs );
+
+				if ( free_context )
+				{
+					CleanupConnection( context );
+				}
 			}
 			break;
 
@@ -1626,7 +1745,8 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 					nRet = _setsockopt( context->socket, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, NULL, 0 );
 					if ( nRet != SOCKET_ERROR )
 					{
-						if ( context->request_info.protocol == PROTOCOL_HTTPS )
+						if ( context->request_info.protocol == PROTOCOL_HTTPS ||
+							 context->request_info.protocol == PROTOCOL_FTPS )	// FTPES starts out unencrypted and is upgraded later.
 						{
 							char shared_protocol = ( context->download_info != NULL ? context->download_info->ssl_version : 0 );
 							DWORD protocol = 0;
@@ -1636,7 +1756,7 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 								case 3:	protocol |= SP_PROT_TLS1_1_CLIENT;
 								case 2:	protocol |= SP_PROT_TLS1_CLIENT;
 								case 1:	protocol |= SP_PROT_SSL3_CLIENT;
-								case 0:	{ if ( shared_protocol < 4 ) { protocol |= SP_PROT_SSL2_CLIENT; } }
+								case 0:	{ if ( shared_protocol < 2 ) { protocol |= SP_PROT_SSL2_CLIENT; } }
 							}
 
 							SSL *ssl = SSL_new( protocol, false );
@@ -1681,8 +1801,10 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 						{
 							InterlockedIncrement( &context->pending_operations );
 
-							// If it's an HTTPS request and we're not going through a SSL/TLS proxy, then begin the SSL/TLS handshake.
-							if ( context->request_info.protocol == PROTOCOL_HTTPS && !cfg_enable_proxy_s && !cfg_enable_proxy_socks )
+							// If it's an HTTPS or FTPS (not FTPES) request and we're not going through a SSL/TLS proxy, then begin the SSL/TLS handshake.
+							if ( ( context->request_info.protocol == PROTOCOL_HTTPS ||
+								   context->request_info.protocol == PROTOCOL_FTPS ) &&
+								   !cfg_enable_proxy_s && !cfg_enable_proxy_socks )
 							{
 								*next_operation = IO_ClientHandshakeResponse;
 
@@ -1694,12 +1816,48 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 									connection_failed = true;
 								}
 							}
+							else if ( context->request_info.protocol == PROTOCOL_FTP ||
+									  context->request_info.protocol == PROTOCOL_FTPES )	// FTPES starts out unencrypted and is upgraded later.
+							{
+								context->wsabuf.buf = context->buffer;
+								context->wsabuf.len = context->buffer_size;
+
+								if ( cfg_enable_proxy_socks )	// SOCKS5 request.
+								{
+									*current_operation = IO_Write;
+									*next_operation = IO_SOCKSResponse;
+
+									context->content_status = SOCKS_STATUS_REQUEST_AUTH;
+
+									ConstructSOCKSRequest( context, 0 );
+
+									nRet = _WSASend( context->socket, &context->wsabuf, 1, NULL, dwFlags, ( WSAOVERLAPPED * )overlapped, NULL );
+									if ( nRet == SOCKET_ERROR && ( _WSAGetLastError() != ERROR_IO_PENDING ) )
+									{
+										InterlockedDecrement( &context->pending_operations );
+
+										connection_failed = true;
+									}
+								}
+								else
+								{
+									*current_operation = IO_GetContent;
+
+									nRet = _WSARecv( context->socket, &context->wsabuf, 1, NULL, &dwFlags, ( WSAOVERLAPPED * )overlapped, NULL );
+									if ( nRet == SOCKET_ERROR && ( _WSAGetLastError() != ERROR_IO_PENDING ) )
+									{
+										InterlockedDecrement( &context->pending_operations );
+
+										connection_failed = true;
+									}
+								}
+							}
 							else	// HTTP and tunneled HTTPS requests send/recv data normally.
 							{
 								*current_operation = IO_Write;
 
 								context->wsabuf.buf = context->buffer;
-								context->wsabuf.len = BUFFER_SIZE;
+								context->wsabuf.len = context->buffer_size;
 
 								// Tunneled HTTPS requests need to send a CONNECT response before sending/receiving data.
 								if ( context->request_info.protocol == PROTOCOL_HTTPS && cfg_enable_proxy_s )
@@ -1768,7 +1926,7 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 				if ( context->cleanup == 0 )
 				{
 					context->wsabuf.buf = context->buffer;
-					context->wsabuf.len = BUFFER_SIZE;
+					context->wsabuf.len = context->buffer_size;
 
 					InterlockedIncrement( &context->pending_operations );
 
@@ -1785,6 +1943,7 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 						}
 						else
 						{
+							sent = false;
 							scRet = SEC_E_INTERNAL_ERROR;
 						}
 					}
@@ -1804,21 +1963,53 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 					{
 						// Post request.
 
-						InterlockedIncrement( &context->pending_operations );
-
 						context->wsabuf.buf = context->buffer;
-						context->wsabuf.len = BUFFER_SIZE;
+						context->wsabuf.len = context->buffer_size;
 
 						*next_operation = IO_GetContent;
 
-						ConstructRequest( context, false );
-
-						SSL_WSASend( context, overlapped, &context->wsabuf, sent );
-						if ( !sent )
+						if ( context->request_info.protocol == PROTOCOL_FTPS ||
+							 context->request_info.protocol == PROTOCOL_FTPES )
 						{
-							*current_operation = IO_Shutdown;
+							*current_operation = IO_GetContent;
 
-							PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
+							if ( context->request_info.protocol == PROTOCOL_FTPES )
+							{
+								if ( MakeFTPResponse( context ) == FTP_CONTENT_STATUS_FAILED )
+								{
+									InterlockedIncrement( &context->pending_operations );
+
+									*current_operation = IO_Shutdown;
+
+									PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
+								}
+							}
+							else
+							{
+								InterlockedIncrement( &context->pending_operations );
+
+								SSL_WSARecv( context, overlapped, sent );
+								if ( !sent )
+								{
+									*current_operation = IO_Shutdown;
+
+									PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
+								}
+							}
+						}
+						else	// HTTP
+						{
+							InterlockedIncrement( &context->pending_operations );
+
+							ConstructRequest( context, false );
+
+							SSL_WSASend( context, overlapped, &context->wsabuf, sent );
+							if ( !sent )
+							{
+								*current_operation = IO_Shutdown;
+
+								PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
+							}
 						}
 					}
 					else if ( scRet != SEC_I_CONTINUE_NEEDED && scRet != SEC_E_INCOMPLETE_MESSAGE && scRet != SEC_I_INCOMPLETE_CREDENTIALS )
@@ -1894,7 +2085,7 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 						else
 						{
 							context->wsabuf.buf = context->buffer;
-							context->wsabuf.len = BUFFER_SIZE;
+							context->wsabuf.len = context->buffer_size;
 
 							/*scRet =*/ SSL_WSARecv( context, overlapped, sent );
 							if ( /*scRet != SEC_E_OK ||*/ !sent )
@@ -1912,11 +2103,11 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 						/*InterlockedIncrement( &context->pending_operations );
 
 						context->wsabuf.buf = context->buffer;
-						context->wsabuf.len = BUFFER_SIZE;
+						context->wsabuf.len = context->buffer_size;
 
-						DWORD bytes_read = min( BUFFER_SIZE, context->ssl->cbIoBuffer );
+						DWORD bytes_read = min( context->buffer_size, context->ssl->cbIoBuffer );
 
-						_memcpy_s( context->wsabuf.buf, BUFFER_SIZE, context->ssl->pbIoBuffer, bytes_read );
+						_memcpy_s( context->wsabuf.buf, context->buffer_size, context->ssl->pbIoBuffer, bytes_read );
 						*current_operation = IO_GetRequest;
 
 						SSL_free( context->ssl );
@@ -1931,7 +2122,7 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 
 						context->wsabuf.buf = context->buffer;
 
-						context->wsabuf.len = __snprintf( context->wsabuf.buf, BUFFER_SIZE,
+						context->wsabuf.len = __snprintf( context->wsabuf.buf, context->buffer_size,
 							"HTTP/1.1 301 Moved Permanently\r\n" \
 							"Location: https://%s:%hu/\r\n"
 							"Content-Type: text/html\r\n" \
@@ -1983,7 +2174,7 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 					context->current_bytes_read = io_size + ( DWORD )( context->wsabuf.buf - context->buffer );
 
 					context->wsabuf.buf = context->buffer;
-					context->wsabuf.len = BUFFER_SIZE;
+					context->wsabuf.len = context->buffer_size;
 
 					context->wsabuf.buf[ context->current_bytes_read ] = 0;	// Sanity.
 
@@ -2149,7 +2340,7 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 					context->current_bytes_read = io_size + ( DWORD )( context->wsabuf.buf - context->buffer );
 
 					context->wsabuf.buf = context->buffer;
-					context->wsabuf.len = BUFFER_SIZE;
+					context->wsabuf.len = context->buffer_size;
 
 					context->wsabuf.buf[ context->current_bytes_read ] = 0;	// Sanity.
 
@@ -2243,9 +2434,17 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 						}
 						else if ( context->content_status == SOCKS_STATUS_HANDLE_CONNECTION )
 						{
-							context->content_status = CONTENT_STATUS_NONE;	// Reset.
+							if ( context->ftp_connection_type == FTP_CONNECTION_TYPE_DATA )
+							{
+								context->content_status = CONTENT_STATUS_GET_CONTENT;	// This is the data connection and we want to start downloading from it.
+							}
+							else
+							{
+								context->content_status = CONTENT_STATUS_NONE;	// Reset.
+							}
 
-							if ( context->request_info.protocol == PROTOCOL_HTTPS )
+							if ( context->request_info.protocol == PROTOCOL_HTTPS ||
+								 context->request_info.protocol == PROTOCOL_FTPS )	// FTPES starts out unencrypted and is upgraded later.
 							{
 								*next_operation = IO_ClientHandshakeResponse;
 
@@ -2257,15 +2456,32 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 							}
 							else
 							{
-								*current_operation = IO_Write;
 								*next_operation = IO_GetContent;
 
-								ConstructRequest( context, false );
-
-								nRet = _WSASend( context->socket, &context->wsabuf, 1, NULL, dwFlags, ( WSAOVERLAPPED * )overlapped, NULL );
-								if ( nRet == SOCKET_ERROR && ( _WSAGetLastError() != ERROR_IO_PENDING ) )
+								if ( context->request_info.protocol == PROTOCOL_FTP ||
+									 context->request_info.protocol == PROTOCOL_FTPES )	// FTPES starts out unencrypted and is upgraded later.
 								{
-									connection_status = 1;
+									*current_operation = IO_GetContent;
+
+									nRet = _WSARecv( context->socket, &context->wsabuf, 1, NULL, &dwFlags, ( WSAOVERLAPPED * )overlapped, NULL );
+									if ( nRet == SOCKET_ERROR && ( _WSAGetLastError() != ERROR_IO_PENDING ) )
+									{
+										*current_operation = IO_Close;
+
+										PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
+									}
+								}
+								else	// HTTP
+								{
+									*current_operation = IO_Write;
+
+									ConstructRequest( context, false );
+
+									nRet = _WSASend( context->socket, &context->wsabuf, 1, NULL, dwFlags, ( WSAOVERLAPPED * )overlapped, NULL );
+									if ( nRet == SOCKET_ERROR && ( _WSAGetLastError() != ERROR_IO_PENDING ) )
+									{
+										connection_status = 1;
+									}
 								}
 							}
 						}
@@ -2337,7 +2553,7 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 							context->current_bytes_read = bytes_decrypted + ( DWORD )( context->wsabuf.buf - context->buffer );
 
 							context->wsabuf.buf = context->buffer;
-							context->wsabuf.len = BUFFER_SIZE;
+							context->wsabuf.len = context->buffer_size;
 
 							context->wsabuf.buf[ context->current_bytes_read ] = 0;	// Sanity.
 						}
@@ -2348,11 +2564,25 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 
 						if ( *current_operation == IO_GetContent )
 						{
-							content_status = GetHTTPResponseContent( context, context->wsabuf.buf, context->current_bytes_read );
+							if ( context->request_info.protocol == PROTOCOL_FTP ||
+								 context->request_info.protocol == PROTOCOL_FTPS ||
+								 context->request_info.protocol == PROTOCOL_FTPES )
+							{
+								content_status = GetFTPResponseContent( context, context->wsabuf.buf, context->current_bytes_read );
+							}
+							else
+							{
+								content_status = GetHTTPResponseContent( context, context->wsabuf.buf, context->current_bytes_read );
+							}
 						}
 						else// if ( *current_operation == IO_GetRequest )
 						{
-							content_status = GetHTTPRequestContent( context, context->wsabuf.buf, context->current_bytes_read );
+							if ( context->request_info.protocol != PROTOCOL_FTP &&
+								 context->request_info.protocol != PROTOCOL_FTPS &&
+								 context->request_info.protocol != PROTOCOL_FTPES )
+							{
+								content_status = GetHTTPRequestContent( context, context->wsabuf.buf, context->current_bytes_read );
+							}
 						}
 					}
 					else if ( use_ssl )
@@ -2404,6 +2634,17 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 						context->content_status = CONTENT_STATUS_GET_CONTENT;
 
 						if ( MakeResponse( context ) == CONTENT_STATUS_FAILED )
+						{
+							InterlockedIncrement( &context->pending_operations );
+
+							*current_operation = ( use_ssl ? IO_Shutdown : IO_Close );
+
+							PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
+						}
+					}
+					else if ( content_status == FTP_CONTENT_STATUS_HANDLE_REQUEST )
+					{
+						if ( MakeFTPResponse( context ) == FTP_CONTENT_STATUS_FAILED )
 						{
 							InterlockedIncrement( &context->pending_operations );
 
@@ -2534,9 +2775,12 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 						else
 						{
 							// We need to force the keep-alive connections closed since the server will just keep it open after we've gotten all the data.
-							if ( context->header_info.connection == CONNECTION_KEEP_ALIVE &&
-							   ( context->header_info.range_info->content_length == 0 ||
-							   ( context->header_info.range_info->content_offset >= ( ( context->header_info.range_info->range_end - context->header_info.range_info->range_start ) + 1 ) ) ) )
+							if ( ( ( ( context->request_info.protocol == PROTOCOL_FTP ||
+									   context->request_info.protocol == PROTOCOL_FTPS ||
+									   context->request_info.protocol == PROTOCOL_FTPES ) && context->parts > 1 ) ||
+								   context->header_info.connection == CONNECTION_KEEP_ALIVE ) &&
+								 ( context->header_info.range_info->content_length == 0 ||
+								 ( context->header_info.range_info->content_offset >= ( ( context->header_info.range_info->range_end - context->header_info.range_info->range_start ) + 1 ) ) ) )
 							{
 								InterlockedIncrement( &context->pending_operations );
 
@@ -2569,7 +2813,7 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 								PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
 							}
 						}
-						else if ( content_status == CONTENT_STATUS_READ_MORE_CONTENT || content_status == CONTENT_STATUS_READ_MORE_HEADER ) // Read more header information, or continue to read more content. Do not reset context->wsabuf since may have been offset to handle partial data.
+						else if ( content_status == CONTENT_STATUS_READ_MORE_CONTENT || content_status == CONTENT_STATUS_READ_MORE_HEADER ) // Read more header information, or continue to read more content. Do not reset context->wsabuf since it may have been offset to handle partial data.
 						{
 							InterlockedIncrement( &context->pending_operations );
 
@@ -2657,7 +2901,7 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 						*current_operation = *next_operation;
 
 						context->wsabuf.buf = context->buffer;
-						context->wsabuf.len = BUFFER_SIZE;
+						context->wsabuf.len = context->buffer_size;
 
 						if ( *current_operation == IO_ServerHandshakeResponse ||
 							 *current_operation == IO_ClientHandshakeResponse ||
@@ -2710,6 +2954,47 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 			}
 			break;
 
+			case IO_KeepAlive:	// For FTP keep-alive requests.
+			{
+				EnterCriticalSection( &context->context_cs );
+
+				if ( context->cleanup == 0 )
+				{
+					// Make sure we've sent everything before we do anything else.
+					if ( io_size < context->keep_alive_wsabuf.len )
+					{
+						context->keep_alive_wsabuf.buf += io_size;
+						context->keep_alive_wsabuf.len -= io_size;
+
+						InterlockedIncrement( &context->pending_operations );
+
+						// We do a regular WSASend here since that's what we last did in SSL_WSASend.
+						nRet = _WSASend( context->socket, &context->keep_alive_wsabuf, 1, NULL, dwFlags, ( WSAOVERLAPPED * )overlapped, NULL );
+						if ( nRet == SOCKET_ERROR && ( _WSAGetLastError() != ERROR_IO_PENDING ) )
+						{
+							*current_operation = IO_Close;
+
+							PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
+						}
+					}
+				}
+				else if ( context->cleanup == 2 )	// If we've forced the cleanup, then allow it to continue its steps.
+				{
+					context->cleanup = 1;	// Auto cleanup.
+				}
+				else	// We've already shutdown and/or closed the connection.
+				{
+					InterlockedIncrement( &context->pending_operations );
+
+					*current_operation = IO_Close;
+
+					PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
+				}
+
+				LeaveCriticalSection( &context->context_cs );
+			}
+			break;
+
 			case IO_Shutdown:
 			{
 				bool fall_through = true;
@@ -2725,7 +3010,7 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 					InterlockedIncrement( &context->pending_operations );
 
 					context->wsabuf.buf = context->buffer;
-					context->wsabuf.len = BUFFER_SIZE;
+					context->wsabuf.len = context->buffer_size;
 
 					SSL_WSAShutdown( context, overlapped, sent );
 
@@ -2801,17 +3086,30 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 SOCKET_CONTEXT *CreateSocketContext()
 {
 	SOCKET_CONTEXT *context = ( SOCKET_CONTEXT * )GlobalAlloc( GPTR, sizeof( SOCKET_CONTEXT ) );
-	if ( context )
+	if ( context != NULL )
 	{
-		context->wsabuf.buf = context->buffer;
-		context->wsabuf.len = BUFFER_SIZE;
+		context->buffer = ( char * )GlobalAlloc( GPTR, sizeof( char ) * ( BUFFER_SIZE + 1 ) );
+		if ( context->buffer != NULL )
+		{
+			context->buffer_size = BUFFER_SIZE;
 
-		context->socket = INVALID_SOCKET;
+			context->wsabuf.buf = context->buffer;
+			context->wsabuf.len = context->buffer_size;
 
-		context->overlapped.context = context;
-		context->overlapped_close.context = context;
+			context->socket = INVALID_SOCKET;
+			context->listen_socket = INVALID_SOCKET;
 
-		InitializeCriticalSection( &context->context_cs );
+			context->overlapped.context = context;
+			context->overlapped_close.context = context;
+			context->overlapped_keep_alive.context = context;
+
+			InitializeCriticalSection( &context->context_cs );
+		}
+		else
+		{
+			GlobalFree( context );
+			context = NULL;
+		}
 	}
 
 	return context;
@@ -3321,22 +3619,41 @@ void StartDownload( DOWNLOAD_INFO *di, bool check_if_file_exists )
 	unsigned int host_length = 0;
 	unsigned int resource_length = 0;
 
-	ParseURL_W( di->url, NULL, protocol, &host, host_length, port, &resource, resource_length );
+	ParseURL_W( di->url, NULL, protocol, &host, host_length, port, &resource, resource_length, NULL, NULL, NULL, NULL );
 
-	wchar_t *w_resource = resource;
-	unsigned int w_resource_length = 0;
+	wchar_t *w_resource;
 
-	while ( *w_resource != NULL )
+	if ( protocol == PROTOCOL_FTP ||
+		 protocol == PROTOCOL_FTPS ||
+		 protocol == PROTOCOL_FTPES )
 	{
-		if ( *w_resource == L'#' )
+		w_resource = url_decode_w( resource, resource_length, &resource_length );
+
+		if ( w_resource != NULL )
 		{
-			*w_resource = 0;
-			resource_length = ( unsigned int )( w_resource - resource );
-
-			break;
+			GlobalFree( resource );
+			resource = w_resource;
 		}
+	}
 
-		++w_resource;
+	w_resource = resource;
+
+	if ( protocol != PROTOCOL_FTP &&
+		 protocol != PROTOCOL_FTPS &&
+		 protocol != PROTOCOL_FTPES )
+	{
+		while ( *w_resource != NULL )
+		{
+			if ( *w_resource == L'#' )
+			{
+				*w_resource = 0;
+				resource_length = ( unsigned int )( w_resource - resource );
+
+				break;
+			}
+
+			++w_resource;
+		}
 	}
 
 	/*w_resource = url_encode_w( resource, resource_length, &w_resource_length );
@@ -3485,6 +3802,13 @@ void StartDownload( DOWNLOAD_INFO *di, bool check_if_file_exists )
 			{
 				// Save the request information, the header information (if we got any), and create a new connection.
 				SOCKET_CONTEXT *context = CreateSocketContext();
+
+				if ( protocol == PROTOCOL_FTP ||
+					 protocol == PROTOCOL_FTPS ||
+					 protocol == PROTOCOL_FTPES )
+				{
+					context->ftp_connection_type = FTP_CONNECTION_TYPE_CONTROL;
+				}
 
 				context->processed_header = di->processed_header;
 
@@ -3814,6 +4138,18 @@ DWORD WINAPI AddURL( void *add_info )
 	unsigned int host_length = 0;
 	unsigned int resource_length = 0;
 
+	wchar_t *url_username = NULL;
+	wchar_t *url_password = NULL;
+
+	unsigned int url_username_length = 0;
+	unsigned int url_password_length = 0;
+
+	int ai_username_length = 0;	// The original length from our auth_info struct.
+	int ai_password_length = 0;
+
+	char *username = NULL;
+	char *password = NULL;
+
 	int username_length = 0;
 	int password_length = 0;
 	int cookies_length = 0;
@@ -3822,12 +4158,14 @@ DWORD WINAPI AddURL( void *add_info )
 
 	if ( ai->auth_info.username != NULL )
 	{
-		username_length = lstrlenA( ai->auth_info.username );
+		username = ai->auth_info.username;
+		username_length = ai_username_length = lstrlenA( username );
 	}
 
 	if ( ai->auth_info.password != NULL )
 	{
-		password_length = lstrlenA( ai->auth_info.password );
+		password = ai->auth_info.password;
+		password_length = ai_password_length = lstrlenA( password );
 	}
 
 	if ( ai->utf8_cookies != NULL )
@@ -3867,7 +4205,7 @@ DWORD WINAPI AddURL( void *add_info )
 		wchar_t *current_url = url_list;
 
 		// Remove anything before our URL (spaces, tabs, newlines, etc.)
-		while ( *current_url != 0 && ( *current_url != L'h' && *current_url != L'H' ) )
+		while ( *current_url != 0 && ( ( *current_url != L'h' && *current_url != L'H' ) && ( *current_url != L'f' && *current_url != L'F' ) ) )
 		{
 			++current_url;
 		}
@@ -3929,7 +4267,8 @@ DWORD WINAPI AddURL( void *add_info )
 		}
 
 		wchar_t *current_url_encoded = NULL;
-		if ( white_space_count > 0 )
+
+		if ( white_space_count > 0 && *current_url != L'f' && *current_url != L'F' )
 		{
 			wchar_t *pstr = current_url;
 			current_url_encoded = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( current_url_length + ( white_space_count * 2 ) + 1 ) );
@@ -3965,9 +4304,48 @@ DWORD WINAPI AddURL( void *add_info )
 		host_length = 0;
 		resource_length = 0;
 
-		ParseURL_W( ( current_url_encoded != NULL ? current_url_encoded : current_url ), NULL, protocol, &host, host_length, port, &resource, resource_length );
+		url_username = NULL;
+		url_password = NULL;
 
-		if ( ( protocol == PROTOCOL_HTTP || protocol == PROTOCOL_HTTPS ) && host != NULL && resource != NULL && port != 0 )
+		url_username_length = 0;
+		url_password_length = 0;
+
+		ParseURL_W( ( current_url_encoded != NULL ? current_url_encoded : current_url ), NULL, protocol, &host, host_length, port, &resource, resource_length, &url_username, &url_username_length, &url_password, &url_password_length );
+
+		// The username and password could be encoded.
+		if ( url_username != NULL )
+		{
+			int val_length = WideCharToMultiByte( CP_UTF8, 0, url_username, url_username_length + 1, NULL, 0, NULL, NULL );
+			char *utf8_val = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * val_length ); // Size includes the null character.
+			WideCharToMultiByte( CP_UTF8, 0, url_username, url_username_length + 1, utf8_val, val_length, NULL, NULL );
+
+			url_username_length = 0;
+			username = url_decode_a( utf8_val, val_length - 1, &url_username_length );
+			username_length = url_username_length;
+			GlobalFree( utf8_val );
+
+			//
+
+			if ( url_password != NULL )
+			{
+				val_length = WideCharToMultiByte( CP_UTF8, 0, url_password, url_password_length + 1, NULL, 0, NULL, NULL );
+				utf8_val = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * val_length ); // Size includes the null character.
+				WideCharToMultiByte( CP_UTF8, 0, url_password, url_password_length + 1, utf8_val, val_length, NULL, NULL );
+
+				url_password_length = 0;
+				password = url_decode_a( utf8_val, val_length - 1, &url_password_length );
+				password_length = url_password_length;
+				GlobalFree( utf8_val );
+			}
+			else
+			{
+				password = NULL;
+				password_length = 0;
+			}
+		}
+
+		if ( ( protocol != PROTOCOL_UNKNOWN && protocol != PROTOCOL_RELATIVE ) &&
+			   host != NULL && resource != NULL && port != 0 )
 		{
 			DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )GlobalAlloc( GPTR, sizeof( DOWNLOAD_INFO ) );
 
@@ -4101,9 +4479,15 @@ DWORD WINAPI AddURL( void *add_info )
 
 			di->download_operations = ai->download_operations;
 
+			if ( ai->download_operations & DOWNLOAD_OPERATION_ADD_STOPPED )
+			{
+				di->status = STATUS_STOPPED;
+				di->download_operations &= ~DOWNLOAD_OPERATION_ADD_STOPPED;
+			}
+
 			di->method = ai->method;
 
-			if ( ai->auth_info.username == NULL && ai->auth_info.password == NULL )
+			if ( username == NULL && password == NULL )
 			{
 				LOGIN_INFO tli;
 				tli.host = host;
@@ -4132,17 +4516,17 @@ DWORD WINAPI AddURL( void *add_info )
 			}
 			else
 			{
-				if ( ai->auth_info.username != NULL && username_length > 0 )
+				if ( username != NULL && username_length > 0 )
 				{
 					di->auth_info.username = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( username_length + 1 ) );
-					_memcpy_s( di->auth_info.username, username_length + 1, ai->auth_info.username, username_length );
+					_memcpy_s( di->auth_info.username, username_length + 1, username, username_length );
 					di->auth_info.username[ username_length ] = 0;	// Sanity.
 				}
 
-				if ( ai->auth_info.password != NULL && password_length > 0 )
+				if ( password != NULL && password_length > 0 )
 				{
 					di->auth_info.password = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( password_length + 1 ) );
-					_memcpy_s( di->auth_info.password, password_length + 1, ai->auth_info.password, password_length );
+					_memcpy_s( di->auth_info.password, password_length + 1, password, password_length );
 					di->auth_info.password[ password_length ] = 0;	// Sanity.
 				}
 			}
@@ -4205,7 +4589,10 @@ DWORD WINAPI AddURL( void *add_info )
 			lvi.pszText = di->file_path + di->filename_offset;
 			_SendMessageW( g_hWnd_files, LVM_INSERTITEM, 0, ( LPARAM )&lvi );
 
-			StartDownload( di, !( di->download_operations & DOWNLOAD_OPERATION_SIMULATE ) );
+			if ( !( ai->download_operations & DOWNLOAD_OPERATION_ADD_STOPPED ) )
+			{
+				StartDownload( di, !( di->download_operations & DOWNLOAD_OPERATION_SIMULATE ) );
+			}
 
 			download_history_changed = true;
 
@@ -4215,6 +4602,17 @@ DWORD WINAPI AddURL( void *add_info )
 		GlobalFree( current_url_encoded );
 		GlobalFree( host );
 		GlobalFree( resource );
+
+		// If we got a username and password from the URL, then the username and password character strings were allocated and we need to free them.
+		if ( url_username != NULL ) { GlobalFree( username ); GlobalFree( url_username ); }
+		if ( url_password != NULL ) { GlobalFree( password ); GlobalFree( url_password ); }
+
+		// Reset our username and password character strings.
+		username = ai->auth_info.username;
+		username_length = ai_username_length;
+
+		password = ai->auth_info.password;
+		password_length = ai_password_length;
 	}
 
 	// The tree is only used to determine duplicate filenames.
@@ -4230,6 +4628,17 @@ DWORD WINAPI AddURL( void *add_info )
 	GlobalFree( ai->download_directory );
 	GlobalFree( ai->urls );
 	GlobalFree( ai );
+
+	if ( cfg_sort_added_and_updating_items &&
+		 cfg_sorted_column_index != 0 )	// #
+	{
+		SORT_INFO si;
+		si.column = GetColumnIndexFromVirtualIndex( cfg_sorted_column_index, download_columns, NUM_COLUMNS );
+		si.hWnd = g_hWnd_files;
+		si.direction = cfg_sorted_direction;
+
+		_SendMessageW( g_hWnd_files, LVM_SORTITEMS, ( WPARAM )&si, ( LPARAM )( PFNLVCOMPARE )DMCompareFunc );
+	}
 
 	ProcessingList( false );
 
@@ -4571,12 +4980,87 @@ void AddToMoveFileQueue( DOWNLOAD_INFO *di )
 	}
 }
 
-void CleanupConnection( SOCKET_CONTEXT *context )
+bool CleanupFTPContexts( SOCKET_CONTEXT *context )
 {
+	bool skip_cleanup = false;
+
 	if ( context != NULL )
 	{
-		bool skip_cleanup = false;
+		EnterCriticalSection( &cleanup_cs );
 
+		// This forces the FTP control context to cleanup everything.
+		if ( context->download_info != NULL )
+		{
+			DOWNLOAD_INFO *di = context->download_info;
+
+			EnterCriticalSection( &di->shared_cs );
+
+			EnterCriticalSection( &context->context_cs );
+
+			// We want the control port to handle everything.
+			if ( context->ftp_context != NULL )
+			{
+				if ( context->ftp_connection_type & ( FTP_CONNECTION_TYPE_CONTROL | FTP_CONNECTION_TYPE_CONTROL_SUCCESS ) )	// Control context.
+				{
+					context->cleanup = 0;	// Reset.
+
+					// Force the listen context to complete if it's still waiting.
+					// This will have been set to INVALID_SOCKET if the AcceptEx completed.
+					if ( context->ftp_connection_type == FTP_CONNECTION_TYPE_CONTROL &&
+						 context->listen_socket != INVALID_SOCKET )
+					{
+						_shutdown( context->listen_socket, SD_BOTH );
+						_closesocket( context->listen_socket );
+						context->listen_socket = INVALID_SOCKET;
+					}
+
+					context->ftp_connection_type = ( FTP_CONNECTION_TYPE_CONTROL | FTP_CONNECTION_TYPE_CONTROL_WAIT );	// Wait for Data to finish.
+
+					skip_cleanup = true;
+				}
+				else	// Data context.
+				{
+					if ( context->timed_out != TIME_OUT_FALSE )
+					{
+						// Force the Control connection to time out.
+						// Make sure it's larger than 300 and less than LONG_MAX.
+						InterlockedExchange( &context->ftp_context->timeout, SHRT_MAX );
+					}
+
+					if ( context->ftp_context->ftp_connection_type & FTP_CONNECTION_TYPE_CONTROL_WAIT )	// Control is waiting.
+					{
+						InterlockedIncrement( &context->ftp_context->pending_operations );
+
+						context->ftp_context->overlapped_close.current_operation = IO_Close;	// No need to shutdown.
+
+						PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )context->ftp_context, ( OVERLAPPED * )&context->ftp_context->overlapped_close );
+					}
+
+					context->ftp_context->ftp_context = NULL;
+
+					DLL_RemoveNode( &context->download_info->parts_list, &context->parts_node );
+
+					context->download_info = NULL;
+				}
+			}
+
+			LeaveCriticalSection( &context->context_cs );
+
+			LeaveCriticalSection( &di->shared_cs );
+		}
+
+		LeaveCriticalSection( &cleanup_cs );
+	}
+
+	return skip_cleanup;
+}
+
+bool SetCleanupState( SOCKET_CONTEXT *context )
+{
+	bool skip_cleanup = false;
+
+	if ( context != NULL )
+	{
 		EnterCriticalSection( &context->context_cs );
 
 		// If we've forced the cleanup, then skip everything below and wait for the pending operation to enter CleanupConnection to clean things up.
@@ -4602,8 +5086,23 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 		}
 
 		LeaveCriticalSection( &context->context_cs );
+	}
 
-		if ( skip_cleanup )
+	return skip_cleanup;
+}
+
+void CleanupConnection( SOCKET_CONTEXT *context )
+{
+	if ( context != NULL )
+	{
+		// Returns true if there's pending operations that need to complete first.
+		if ( SetCleanupState( context ) )
+		{
+			return;
+		}
+
+		// Returns true if we need to wait for the Data context to complete.
+		if ( CleanupFTPContexts( context ) )
 		{
 			return;
 		}
@@ -5138,6 +5637,13 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 				context->socket = INVALID_SOCKET;
 			}
 
+			if ( context->listen_socket != INVALID_SOCKET )
+			{
+				_shutdown( context->listen_socket, SD_BOTH );
+				_closesocket( context->listen_socket );
+				context->listen_socket = INVALID_SOCKET;
+			}
+
 			if ( context->ssl != NULL ) { SSL_free( context->ssl ); }
 
 			if ( context->address_info != NULL ) { _FreeAddrInfoW( context->address_info ); }
@@ -5150,6 +5656,11 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 
 			FreeAuthInfo( &context->header_info.digest_info );
 			FreeAuthInfo( &context->header_info.proxy_digest_info );
+
+			if ( context->header_info.url_location.host != NULL ) { GlobalFree( context->header_info.url_location.host ); }
+			if ( context->header_info.url_location.resource != NULL ) { GlobalFree( context->header_info.url_location.resource ); }
+			if ( context->header_info.url_location.auth_info.username != NULL ) { GlobalFree( context->header_info.url_location.auth_info.username ); }
+			if ( context->header_info.url_location.auth_info.password != NULL ) { GlobalFree( context->header_info.url_location.auth_info.password ); }
 
 			if ( context->header_info.chunk_buffer != NULL ) { GlobalFree( context->header_info.chunk_buffer ); }
 
@@ -5176,9 +5687,14 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 			if ( context->request_info.host != NULL ) { GlobalFree( context->request_info.host ); }
 			if ( context->request_info.resource != NULL ) { GlobalFree( context->request_info.resource ); }
 
+			if ( context->request_info.auth_info.username != NULL ) { GlobalFree( context->request_info.auth_info.username ); }
+			if ( context->request_info.auth_info.password != NULL ) { GlobalFree( context->request_info.auth_info.password ); }
+
 			// context->download_info is freed in WM_DESTROY.
 
 			DeleteCriticalSection( &context->context_cs );
+
+			if ( context->buffer != NULL ){ GlobalFree( context->buffer ); }
 
 			GlobalFree( context );
 		}
@@ -5200,7 +5716,7 @@ void FreePOSTInfo( POST_INFO **post_info )
 		if ( ( *post_info )->data != NULL ) { GlobalFree( ( *post_info )->data ); }
 		if ( ( *post_info )->parts != NULL ) { GlobalFree( ( *post_info )->parts ); }
 		if ( ( *post_info )->directory != NULL ) { GlobalFree( ( *post_info )->directory ); }
-		if ( ( *post_info )->simulate_download != NULL ) { GlobalFree( ( *post_info )->simulate_download ); }
+		if ( ( *post_info )->download_operations != NULL ) { GlobalFree( ( *post_info )->download_operations ); }
 
 		GlobalFree( *post_info );
 
@@ -5251,7 +5767,6 @@ void FreeListenContext()
 	if ( g_listen_context != NULL )
 	{
 		CleanupConnection( g_listen_context );
-
 		g_listen_context = NULL;
 	}
 }

@@ -1,5 +1,5 @@
 /*
-	HTTP Downloader can download files through HTTP and HTTPS connections.
+	HTTP Downloader can download files through HTTP(S) and FTP(S) connections.
 	Copyright (C) 2015-2019 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
@@ -48,10 +48,12 @@
 	#define _WSASocketW		WSASocketW
 	#define _WSAConnect		WSAConnect
 
+	#define _WSAAddressToStringA	WSAAddressToStringA
 	#define _WSAAddressToStringW	WSAAddressToStringW
 	#define _FreeAddrInfoW	FreeAddrInfoW
 	#define _GetAddrInfoW	GetAddrInfoW
-	#define _GetNameInfoW	GetNameInfoW
+	//#define _GetNameInfoW	GetNameInfoW
+	//#define _GetHostNameW	GetHostNameW
 
 	#define _WSAGetLastError	WSAGetLastError
 
@@ -70,14 +72,16 @@
 
 	#define _setsockopt		setsockopt
 
-	#define _send			send
-	#define _recv			recv
+	//#define _send			send
+	//#define _recv			recv
 
 	#define _getaddrinfo	getaddrinfo
 	#define _freeaddrinfo	freeaddrinfo
-	#define _getpeername	getpeername
+	//#define _getpeername	getpeername
+	#define _getsockname	getsockname
+	#define _gethostname	gethostname
 
-	#define _inet_ntoa		inet_ntoa
+	//#define _inet_ntoa	inet_ntoa
 
 	#define _htonl			htonl
 
@@ -96,10 +100,12 @@
 	typedef SOCKET ( WSAAPI *pWSASocketW )( int af, int type, int protocol, LPWSAPROTOCOL_INFO lpProtocolInfo, GROUP g, DWORD dwFlags );
 	typedef int ( WSAAPI *pWSAConnect )( SOCKET s, const struct sockaddr *name, int namelen, LPWSABUF lpCallerData, LPWSABUF lpCalleeData, LPQOS lpSQOS, LPQOS lpGQOS );
 
-	typedef INT ( WSAAPI *pWSAAddressToStringW )( LPSOCKADDR lpsaAddress, DWORD dwAddressLength, LPWSAPROTOCOL_INFO lpProtocolInfo, LPTSTR lpszAddressString, LPDWORD lpdwAddressStringLength );
+	typedef INT ( WSAAPI *pWSAAddressToStringA )( LPSOCKADDR lpsaAddress, DWORD dwAddressLength, LPWSAPROTOCOL_INFOA lpProtocolInfo, LPSTR lpszAddressString, LPDWORD lpdwAddressStringLength );
+	typedef INT ( WSAAPI *pWSAAddressToStringW )( LPSOCKADDR lpsaAddress, DWORD dwAddressLength, LPWSAPROTOCOL_INFOW lpProtocolInfo, LPWSTR lpszAddressString, LPDWORD lpdwAddressStringLength );
 	typedef void ( WSAAPI *pFreeAddrInfoW )( PADDRINFOW pAddrInfo );
 	typedef int ( WSAAPI *pGetAddrInfoW )( PCWSTR pNodeName, PCWSTR pServiceName, const ADDRINFOW *pHints, PADDRINFOW *ppResult );
-	typedef int ( WSAAPI *pGetNameInfoW )( const SOCKADDR *pSockaddr, socklen_t SockaddrLength, PWCHAR pNodeBuffer, DWORD NodeBufferSize, PWCHAR pServiceBuffer, DWORD ServiceBufferSize, INT Flags );
+	//typedef int ( WSAAPI *pGetNameInfoW )( const SOCKADDR *pSockaddr, socklen_t SockaddrLength, PWCHAR pNodeBuffer, DWORD NodeBufferSize, PWCHAR pServiceBuffer, DWORD ServiceBufferSize, INT Flags );
+	//typedef int ( WSAAPI *pGetHostNameW )( PWSTR name, int namelen );
 
 	typedef int ( WSAAPI *pWSAGetLastError )( void );
 
@@ -118,14 +124,16 @@
 
 	typedef int ( WSAAPI *psetsockopt )( SOCKET s, int level, int optname, const char *optval, int optlen );
 
-	typedef int ( WSAAPI *psend )( SOCKET s, const char *buf, int len, int flags );
-	typedef int ( WSAAPI *precv )( SOCKET s, const char *buf, int len, int flags );
+	//typedef int ( WSAAPI *psend )( SOCKET s, const char *buf, int len, int flags );
+	//typedef int ( WSAAPI *precv )( SOCKET s, const char *buf, int len, int flags );
 
 	typedef int ( WSAAPI *pgetaddrinfo )( PCSTR pNodeName, PCSTR pServiceName, const ADDRINFOA *pHints, PADDRINFOA *ppResult );
 	typedef void ( WSAAPI *pfreeaddrinfo )( struct addrinfo *ai );
-	typedef int ( WSAAPI *pgetpeername )( SOCKET s, struct sockaddr *name, int *namelen );
+	//typedef int ( WSAAPI *pgetpeername )( SOCKET s, struct sockaddr *name, int *namelen );
+	typedef int ( WSAAPI *pgetsockname )( SOCKET s, struct sockaddr *name, int *namelen );
+	typedef int ( WSAAPI *pgethostname )( char *name, int namelen );
 
-	typedef char *FAR ( WSAAPI *pinet_ntoa )( struct in_addr in );
+	//typedef char *FAR ( WSAAPI *pinet_ntoa )( struct in_addr in );
 
 	typedef u_long ( WSAAPI *phtonl )( u_long hostlong );
 
@@ -142,10 +150,12 @@
 	extern pWSASocketW		_WSASocketW;
 	extern pWSAConnect		_WSAConnect;
 
+	extern pWSAAddressToStringA		_WSAAddressToStringA;
 	extern pWSAAddressToStringW		_WSAAddressToStringW;
 	extern pFreeAddrInfoW	_FreeAddrInfoW;
 	extern pGetAddrInfoW	_GetAddrInfoW;
-	extern pGetNameInfoW	_GetNameInfoW;
+	//extern pGetNameInfoW	_GetNameInfoW;
+	//extern pGetHostNameW	_GetHostNameW;
 
 	extern pWSAGetLastError	_WSAGetLastError;
 
@@ -164,14 +174,16 @@
 
 	extern psetsockopt		_setsockopt;
 
-	extern psend			_send;
-	extern precv			_recv;
+	//extern psend			_send;
+	//extern precv			_recv;
 
-	extern pgetaddrinfo		_getaddrinfo;
+	extern pgetaddrinfo	_getaddrinfo;
 	extern pfreeaddrinfo	_freeaddrinfo;
-	extern pgetpeername		_getpeername;
+	//extern pgetpeername	_getpeername;
+	extern pgetsockname		_getsockname;
+	extern pgethostname	_gethostname;
 
-	extern pinet_ntoa		_inet_ntoa;
+	//extern pinet_ntoa		_inet_ntoa;
 
 	extern phtonl			_htonl;
 

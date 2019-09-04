@@ -2,7 +2,7 @@ var refresh_server_info = false;
 
 var g_initial_height = 0;
 
-function SendDownloadToClient()
+function SendDownloadToClient( add_type )
 {
 	var request = new XMLHttpRequest();
 	if ( request )
@@ -41,18 +41,22 @@ function SendDownloadToClient()
 		var password = document.getElementById( "password" ).value;
 		var parts = document.getElementById( "parts" ).value;
 		var directory = document.getElementById( "directory" ).value;
-		var simulate_download = ( document.getElementById( "simulate_download" ).checked ? "1" : "0" );
+		var download_operations = add_type | ( document.getElementById( "simulate_download" ).checked ? 1 : 0 );
 
 		var download = document.getElementById( "download" );
 		download.disabled = true;
+
+		var add = document.getElementById( "add" );
+		add.disabled = true;
 
 		request.onerror = function( e )
 		{
 			refresh_server_info = true;
 
 			download.disabled = false;
+			add.disabled = false;
 
-			window.alert( "An error occurred while sending the download request." );
+			window.alert( chrome.i18n.getMessage( "SEND_FAILED" ) );
 		};
 
 		request.ontimeout = function( e )
@@ -60,8 +64,9 @@ function SendDownloadToClient()
 			refresh_server_info = true;
 
 			download.disabled = false;
+			add.disabled = false;
 
-			window.alert( "The connection has timed out while sending the download request." );
+			window.alert( chrome.i18n.getMessage( "CONNECTION_TIMEOUT" ) );
 		};
 
 		request.onload = function( e )
@@ -77,8 +82,9 @@ function SendDownloadToClient()
 				refresh_server_info = true;
 
 				download.disabled = false;
+				add.disabled = false;
 
-				window.alert( "The server returned an invalid response to our download request." );
+				window.alert( chrome.i18n.getMessage( "INVALID_RESPONSE" ) );
 			}
 		};
 
@@ -99,7 +105,7 @@ function SendDownloadToClient()
 					  password + "\x1f" +
 					  parts + "\x1f" +
 					  directory + "\x1f" +
-					  simulate_download + "\x1f" +
+					  download_operations + "\x1f" +
 					  cookies + "\x1f" +
 					  headers + "\x1f" +
 					  post_data + "\x1f" );
@@ -110,8 +116,14 @@ function SendDownloadToClient()
 	}
 }
 
-function DownloadURLS()
+function DownloadURLS( event )
 {
+	var add_type = 0;	// Download.
+	if ( event.target.id == "add" )
+	{
+		add_type = 4;	// Add Stopped.
+	}
+
 	if ( refresh_server_info )
 	{
 		chrome.runtime.sendMessage(
@@ -123,12 +135,12 @@ function DownloadURLS()
 			document.getElementById( "server_username" ).value = atob( info.username );
 			document.getElementById( "server_password" ).value = atob( info.password );
 
-			SendDownloadToClient();
+			SendDownloadToClient( add_type );
 		} );
 	}
 	else
 	{
-		SendDownloadToClient();
+		SendDownloadToClient( add_type );
 	}
 }
 
@@ -182,12 +194,25 @@ document.addEventListener( "DOMContentLoaded", function()
 		GetDownloadInfo( window_info.id );
 	} );
 
+	document.querySelectorAll( "[data-i18n]" ).forEach( el =>
+	{
+		if ( el.id == "directory" )
+		{
+			el.placeholder = chrome.i18n.getMessage( el.dataset.i18n );
+		}
+		else
+		{
+			el.innerText = chrome.i18n.getMessage( el.dataset.i18n );
+		}
+	} );
+
 	document.getElementById( "filter_presets" ).addEventListener( "change", SetFliterPreset );
 	document.getElementById( "apply_filter" ).addEventListener( "click", ApplyFliter );
 	document.getElementById( "revert_filter" ).addEventListener( "click", RevertFliter );
 	document.getElementById( "method" ).addEventListener( "click", SendPOSTData );
 	document.getElementById( "advanced" ).addEventListener( "click", AdvancedOptions );
 	document.getElementById( "download" ).addEventListener( "click", DownloadURLS );
+	document.getElementById( "add" ).addEventListener( "click", DownloadURLS );
 	document.getElementById( "cancel" ).addEventListener( "click", CloseWindow );
 
 	g_initial_height = document.body.clientHeight;
@@ -200,15 +225,15 @@ function SetFliterPreset()
 
 	if ( filter_preset == "Images" )
 	{
-		document.getElementById( "filter" ).value = "^https?:\\/\\/[^\\/\\s]+\\/[^\\?#\\s]+\\.(jpe?g?|gif|png|bmp|tiff?|dib|ico)(\\?|#|$)";
+		document.getElementById( "filter" ).value = "^(http|ftpe?)s?:\\/\\/[^\\/\\s]+\\/[^\\?#\\s]+\\.(jp(e?g|e)|gif|png|bmp|tiff?|dib|ico)(\\?|#|$)";
 	}
 	else if ( filter_preset == "Music" )
 	{
-		document.getElementById( "filter" ).value = "^https?:\\/\\/[^\\/\\s]+\\/[^\\?#\\s]+\\.(mp3|wave?|flac?|ogg|m4a|wma|aac|midi?|ape|shn|wv|aiff?|oga)(\\?|#|$)";
+		document.getElementById( "filter" ).value = "^(http|ftpe?)s?:\\/\\/[^\\/\\s]+\\/[^\\?#\\s]+\\.(mp3|wave?|flac?|ogg|m4a|wma|aac|midi?|ape|shn|wv|aiff?|oga)(\\?|#|$)";
 	}
 	else if ( filter_preset == "Videos" )
 	{
-		document.getElementById( "filter" ).value = "^https?:\\/\\/[^\\/\\s]+\\/[^\\?#\\s]+\\.(avi|mp[124]|m4v|mpe?g?|mkv|webm|wmv|3gp|ogm|ogv|flv|vob)(\\?|#|$)";
+		document.getElementById( "filter" ).value = "^(http|ftpe?)s?:\\/\\/[^\\/\\s]+\\/[^\\?#\\s]+\\.(avi|mp[124]|m4v|mp(e?g|e)|mkv|webm|wmv|3gp|ogm|ogv|flv|vob)(\\?|#|$)";
 	}
 	else
 	{

@@ -1,5 +1,5 @@
 /*
-	HTTP Downloader can download files through HTTP and HTTPS connections.
+	HTTP Downloader can download files through HTTP(S) and FTP(S) connections.
 	Copyright (C) 2015-2019 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
@@ -25,6 +25,7 @@
 #include "file_operations.h"
 #include "utilities.h"
 
+#include "ftp_parsing.h"
 #include "connection.h"
 
 wchar_t *UTF8StringToWideString( char *utf8_string, int string_length )
@@ -77,7 +78,7 @@ char read_config()
 
 				if ( version <= MAGIC_ID_SETTINGS[ 3 ] )
 				{
-					reserved = 1024 - ( version == 0 ? 175 : ( version == 1 ? 508 : 521 ) );
+					reserved = 1024 - ( version == 0 ? 175 : ( version == 1 ? 508 : ( version == 2 ? 521 : 563 ) ) );
 
 					char *next = cfg_buf + 4;
 
@@ -280,8 +281,8 @@ char read_config()
 					_memcpy_s( &cfg_min_max, sizeof( unsigned char ), next, sizeof( unsigned char ) );
 					next += sizeof( unsigned char );
 
-					_memcpy_s( &cfg_download_immediately, sizeof( bool ), next, sizeof( bool ) );
-					next += sizeof( bool );
+					_memcpy_s( &cfg_drag_and_drop_action, sizeof( unsigned char ), next, sizeof( unsigned char ) );
+					next += sizeof( unsigned char );
 
 					_memcpy_s( &cfg_play_sound, sizeof( bool ), next, sizeof( bool ) );
 					next += sizeof( bool );
@@ -345,6 +346,16 @@ char read_config()
 						_memcpy_s( &cfg_odd_row_font_settings.lf.lfStrikeOut, sizeof( BYTE ), next, sizeof( BYTE ) );
 						next += sizeof( BYTE );
 
+						if ( version >= 3 )
+						{
+							_memcpy_s( &cfg_odd_row_background_color, sizeof( COLORREF ), next, sizeof( COLORREF ) );
+							next += sizeof( COLORREF );
+							_memcpy_s( &cfg_odd_row_highlight_color, sizeof( COLORREF ), next, sizeof( COLORREF ) );
+							next += sizeof( COLORREF );
+							_memcpy_s( &cfg_odd_row_highlight_font_color, sizeof( COLORREF ), next, sizeof( COLORREF ) );
+							next += sizeof( COLORREF );
+						}
+
 						_memcpy_s( &cfg_even_row_font_settings.font_color, sizeof( COLORREF ), next, sizeof( COLORREF ) );
 						next += sizeof( COLORREF );
 						_memcpy_s( &cfg_even_row_font_settings.lf.lfHeight, sizeof( LONG ), next, sizeof( LONG ) );
@@ -358,41 +369,86 @@ char read_config()
 						_memcpy_s( &cfg_even_row_font_settings.lf.lfStrikeOut, sizeof( BYTE ), next, sizeof( BYTE ) );
 						next += sizeof( BYTE );
 
+						if ( version >= 3 )
+						{
+							_memcpy_s( &cfg_even_row_background_color, sizeof( COLORREF ), next, sizeof( COLORREF ) );
+							next += sizeof( COLORREF );
+							_memcpy_s( &cfg_even_row_highlight_color, sizeof( COLORREF ), next, sizeof( COLORREF ) );
+							next += sizeof( COLORREF );
+							_memcpy_s( &cfg_even_row_highlight_font_color, sizeof( COLORREF ), next, sizeof( COLORREF ) );
+							next += sizeof( COLORREF );
+						}
+
 						for ( unsigned char i = 0; i < NUM_COLORS; ++i )
 						{
 							_memcpy_s( progress_colors[ i ], sizeof( COLORREF ), next, sizeof( COLORREF ) );
 							next += sizeof( COLORREF );
 						}
+					}
 
-						if ( version >= 2 )
-						{
-							_memcpy_s( &cfg_enable_proxy_socks, sizeof( bool ), next, sizeof( bool ) );
-							next += sizeof( bool );
+					if ( version >= 2 )
+					{
+						_memcpy_s( &cfg_enable_proxy_socks, sizeof( bool ), next, sizeof( bool ) );
+						next += sizeof( bool );
 
-							_memcpy_s( &cfg_socks_type, sizeof( unsigned char ), next, sizeof( unsigned char ) );
-							next += sizeof( unsigned char );
+						_memcpy_s( &cfg_socks_type, sizeof( unsigned char ), next, sizeof( unsigned char ) );
+						next += sizeof( unsigned char );
 
-							_memcpy_s( &cfg_address_type_socks, sizeof( unsigned char ), next, sizeof( unsigned char ) );
-							next += sizeof( unsigned char );
+						_memcpy_s( &cfg_address_type_socks, sizeof( unsigned char ), next, sizeof( unsigned char ) );
+						next += sizeof( unsigned char );
 
-							_memcpy_s( &cfg_ip_address_socks, sizeof( unsigned long ), next, sizeof( unsigned long ) );
-							next += sizeof( unsigned long );
+						_memcpy_s( &cfg_ip_address_socks, sizeof( unsigned long ), next, sizeof( unsigned long ) );
+						next += sizeof( unsigned long );
 
-							_memcpy_s( &cfg_port_socks, sizeof( unsigned short ), next, sizeof( unsigned short ) );
-							next += sizeof( unsigned short );
+						_memcpy_s( &cfg_port_socks, sizeof( unsigned short ), next, sizeof( unsigned short ) );
+						next += sizeof( unsigned short );
 
-							_memcpy_s( &cfg_use_authentication_socks, sizeof( bool ), next, sizeof( bool ) );
-							next += sizeof( bool );
+						_memcpy_s( &cfg_use_authentication_socks, sizeof( bool ), next, sizeof( bool ) );
+						next += sizeof( bool );
 
-							_memcpy_s( &cfg_resolve_domain_names_v4a, sizeof( bool ), next, sizeof( bool ) );
-							next += sizeof( bool );
+						_memcpy_s( &cfg_resolve_domain_names_v4a, sizeof( bool ), next, sizeof( bool ) );
+						next += sizeof( bool );
 
-							_memcpy_s( &cfg_resolve_domain_names, sizeof( bool ), next, sizeof( bool ) );
-							next += sizeof( bool );
+						_memcpy_s( &cfg_resolve_domain_names, sizeof( bool ), next, sizeof( bool ) );
+						next += sizeof( bool );
 
-							_memcpy_s( &cfg_shutdown_action, sizeof( unsigned char ), next, sizeof( unsigned char ) );
-							next += sizeof( unsigned char );
-						}
+						_memcpy_s( &cfg_shutdown_action, sizeof( unsigned char ), next, sizeof( unsigned char ) );
+						next += sizeof( unsigned char );
+					}
+
+					if ( version >= 3 )
+					{
+						_memcpy_s( &cfg_ftp_mode_type, sizeof( unsigned char ), next, sizeof( unsigned char ) );
+						next += sizeof( unsigned char );
+
+						_memcpy_s( &cfg_ftp_enable_fallback_mode, sizeof( bool ), next, sizeof( bool ) );
+						next += sizeof( bool );
+
+						_memcpy_s( &cfg_ftp_address_type, sizeof( unsigned char ), next, sizeof( unsigned char ) );
+						next += sizeof( unsigned char );
+
+						_memcpy_s( &cfg_ftp_ip_address, sizeof( unsigned long ), next, sizeof( unsigned long ) );
+						next += sizeof( unsigned long );
+
+						_memcpy_s( &cfg_ftp_port_start, sizeof( unsigned short ), next, sizeof( unsigned short ) );
+						next += sizeof( unsigned short );
+
+						_memcpy_s( &cfg_ftp_port_end, sizeof( unsigned short ), next, sizeof( unsigned short ) );
+						next += sizeof( unsigned short );
+
+						_memcpy_s( &cfg_ftp_send_keep_alive, sizeof( bool ), next, sizeof( bool ) );
+						next += sizeof( bool );
+
+						//
+
+						_memcpy_s( &cfg_sorted_column_index, sizeof( int ), next, sizeof( int ) );
+						next += sizeof( int );
+
+						_memcpy_s( &cfg_sorted_direction, sizeof( unsigned char ), next, sizeof( unsigned char ) );
+						next += sizeof( unsigned char );
+
+						_memcpy_s( &cfg_sort_added_and_updating_items, sizeof( bool ), next, sizeof( bool ) );
+						next += sizeof( bool );
 					}
 
 					//
@@ -860,6 +916,15 @@ char read_config()
 						}
 					}
 
+					if ( ( DWORD )( next - cfg_buf ) < read )
+					{
+						string_length = lstrlenA( next ) + 1;
+
+						cfg_ftp_hostname = UTF8StringToWideString( next, string_length );
+
+						next += string_length;
+					}
+
 					// Set the default values for bad configuration values.
 
 					CheckColumnOrders( download_columns, NUM_COLUMNS );
@@ -1013,6 +1078,13 @@ char read_config()
 		cfg_hostname_socks[ 9 ] = 0;	// Sanity.
 	}
 
+	if ( cfg_ftp_hostname == NULL )
+	{
+		cfg_ftp_hostname = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * 10 );
+		_wmemcpy_s( cfg_ftp_hostname, 10, L"localhost\0", 10 );
+		cfg_ftp_hostname[ 9 ] = 0;	// Sanity.
+	}
+
 	if ( cfg_temp_download_directory == NULL )
 	{
 		cfg_temp_download_directory = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * MAX_PATH );
@@ -1042,15 +1114,15 @@ char save_config()
 	HANDLE hFile_cfg = CreateFile( base_directory, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL );
 	if ( hFile_cfg != INVALID_HANDLE_VALUE )
 	{
-		int reserved = 1024 - 521;
-		int size = ( sizeof( int ) * 20 ) +
-				   ( sizeof( unsigned short ) * 5 ) +
-				   ( sizeof( char ) * 43 ) +
-				   ( sizeof( bool ) * 30 ) +
-				   ( sizeof( unsigned long ) * 5 ) +
+		int reserved = 1024 - 563;
+		int size = ( sizeof( int ) * 21 ) +
+				   ( sizeof( unsigned short ) * 7 ) +
+				   ( sizeof( char ) * 47 ) +
+				   ( sizeof( bool ) * 32 ) +
+				   ( sizeof( unsigned long ) * 6 ) +
 				   ( sizeof( LONG ) * 4 ) +
 				   ( sizeof( BYTE ) * 6 ) +
-				   ( sizeof( COLORREF ) * ( NUM_COLORS + 2 ) ) +
+				   ( sizeof( COLORREF ) * ( NUM_COLORS + 8 ) ) +
 					 sizeof( unsigned long long ) + reserved;
 		int pos = 0;
 
@@ -1258,8 +1330,8 @@ char save_config()
 		_memcpy_s( write_buf + pos, size - pos, &cfg_min_max, sizeof( unsigned char ) );
 		pos += sizeof( unsigned char );
 
-		_memcpy_s( write_buf + pos, size - pos, &cfg_download_immediately, sizeof( bool ) );
-		pos += sizeof( bool );
+		_memcpy_s( write_buf + pos, size - pos, &cfg_drag_and_drop_action, sizeof( unsigned char ) );
+		pos += sizeof( unsigned char );
 
 		_memcpy_s( write_buf + pos, size - pos, &cfg_play_sound, sizeof( bool ) );
 		pos += sizeof( bool );
@@ -1320,6 +1392,13 @@ char save_config()
 		_memcpy_s( write_buf + pos, size - pos, &cfg_odd_row_font_settings.lf.lfStrikeOut, sizeof( BYTE ) );
 		pos += sizeof( BYTE );
 
+		_memcpy_s( write_buf + pos, size - pos, &cfg_odd_row_background_color, sizeof( COLORREF ) );
+		pos += sizeof( COLORREF );
+		_memcpy_s( write_buf + pos, size - pos, &cfg_odd_row_highlight_color, sizeof( COLORREF ) );
+		pos += sizeof( COLORREF );
+		_memcpy_s( write_buf + pos, size - pos, &cfg_odd_row_highlight_font_color, sizeof( COLORREF ) );
+		pos += sizeof( COLORREF );
+
 		_memcpy_s( write_buf + pos, size - pos, &cfg_even_row_font_settings.font_color, sizeof( COLORREF ) );
 		pos += sizeof( COLORREF );
 		_memcpy_s( write_buf + pos, size - pos, &cfg_even_row_font_settings.lf.lfHeight, sizeof( LONG ) );
@@ -1332,6 +1411,13 @@ char save_config()
 		pos += sizeof( BYTE );
 		_memcpy_s( write_buf + pos, size - pos, &cfg_even_row_font_settings.lf.lfStrikeOut, sizeof( BYTE ) );
 		pos += sizeof( BYTE );
+
+		_memcpy_s( write_buf + pos, size - pos, &cfg_even_row_background_color, sizeof( COLORREF ) );
+		pos += sizeof( COLORREF );
+		_memcpy_s( write_buf + pos, size - pos, &cfg_even_row_highlight_color, sizeof( COLORREF ) );
+		pos += sizeof( COLORREF );
+		_memcpy_s( write_buf + pos, size - pos, &cfg_even_row_highlight_font_color, sizeof( COLORREF ) );
+		pos += sizeof( COLORREF );
 
 		for ( unsigned char i = 0; i < NUM_COLORS; ++i )
 		{
@@ -1367,6 +1453,43 @@ char save_config()
 
 		_memcpy_s( write_buf + pos, size - pos, &cfg_shutdown_action, sizeof( unsigned char ) );
 		pos += sizeof( unsigned char );
+
+		//
+
+		_memcpy_s( write_buf + pos, size - pos, &cfg_ftp_mode_type, sizeof( unsigned char ) );
+		pos += sizeof( unsigned char );
+
+		_memcpy_s( write_buf + pos, size - pos, &cfg_ftp_enable_fallback_mode, sizeof( bool ) );
+		pos += sizeof( bool );
+
+		_memcpy_s( write_buf + pos, size - pos, &cfg_ftp_address_type, sizeof( unsigned char ) );
+		pos += sizeof( unsigned char );
+
+		_memcpy_s( write_buf + pos, size - pos, &cfg_ftp_ip_address, sizeof( unsigned long ) );
+		pos += sizeof( unsigned long );
+
+		_memcpy_s( write_buf + pos, size - pos, &cfg_ftp_port_start, sizeof( unsigned short ) );
+		pos += sizeof( unsigned short );
+
+		_memcpy_s( write_buf + pos, size - pos, &cfg_ftp_port_end, sizeof( unsigned short ) );
+		pos += sizeof( unsigned short );
+
+		_memcpy_s( write_buf + pos, size - pos, &cfg_ftp_send_keep_alive, sizeof( bool ) );
+		pos += sizeof( bool );
+
+		//
+
+		_memcpy_s( write_buf + pos, size - pos, &cfg_sorted_column_index, sizeof( int ) );
+		pos += sizeof( int );
+
+		_memcpy_s( write_buf + pos, size - pos, &cfg_sorted_direction, sizeof( unsigned char ) );
+		pos += sizeof( unsigned char );
+
+		_memcpy_s( write_buf + pos, size - pos, &cfg_sort_added_and_updating_items, sizeof( bool ) );
+		pos += sizeof( bool );
+
+
+		//
 
 
 		// Write Reserved bytes.
@@ -1671,6 +1794,17 @@ char save_config()
 		utf8_cfg_val = WideStringToUTF8String( cfg_even_row_font_settings.lf.lfFaceName, &cfg_val_length );
 		WriteFile( hFile_cfg, utf8_cfg_val, cfg_val_length, &write, NULL );
 		GlobalFree( utf8_cfg_val );
+
+		if ( cfg_ftp_hostname != NULL )
+		{
+			utf8_cfg_val = WideStringToUTF8String( cfg_ftp_hostname, &cfg_val_length );
+			WriteFile( hFile_cfg, utf8_cfg_val, cfg_val_length, &write, NULL );
+			GlobalFree( utf8_cfg_val );
+		}
+		else
+		{
+			WriteFile( hFile_cfg, "\0", 1, &write, NULL );
+		}
 
 		CloseHandle( hFile_cfg );
 	}
@@ -2140,6 +2274,16 @@ char read_download_history( wchar_t *file_path )
 			GlobalFree( sfi );
 
 			GlobalFree( history_buf );
+
+			if ( cfg_sorted_column_index != 0 )		// #
+			{
+				SORT_INFO si;
+				si.column = GetColumnIndexFromVirtualIndex( cfg_sorted_column_index, download_columns, NUM_COLUMNS );
+				si.hWnd = g_hWnd_files;
+				si.direction = cfg_sorted_direction;
+
+				_SendMessageW( g_hWnd_files, LVM_SORTITEMS, ( WPARAM )&si, ( LPARAM )( PFNLVCOMPARE )DMCompareFunc );
+			}
 		}
 		else
 		{

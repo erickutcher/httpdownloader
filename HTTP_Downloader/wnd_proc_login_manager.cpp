@@ -1,5 +1,5 @@
 /*
-	HTTP Downloader can download files through HTTP and HTTPS connections.
+	HTTP Downloader can download files through HTTP(S) and FTP(S) connections.
 	Copyright (C) 2015-2019 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
@@ -217,7 +217,7 @@ LRESULT CALLBACK LoginManagerWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 			g_hWnd_static_lm_password = _CreateWindowW( WC_STATIC, ST_V_Password_, WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 			g_hWnd_edit_lm_password = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_PASSWORD | ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, ( HMENU )EDIT_PASSWORD_LOGIN, NULL, NULL );
 
-			g_hWnd_add_login = _CreateWindowW( WC_BUTTON, ST_V_Add_login, WS_CHILD | WS_DISABLED | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, ( HMENU )BTN_ADD_LOGIN, NULL, NULL );
+			g_hWnd_add_login = _CreateWindowW( WC_BUTTON, ST_V_Add, WS_CHILD | WS_DISABLED | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, ( HMENU )BTN_ADD_LOGIN, NULL, NULL );
 			g_hWnd_remove_login = _CreateWindowW( WC_BUTTON, ST_V_Remove_login, WS_CHILD | WS_DISABLED | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, ( HMENU )BTN_REMOVE_LOGIN, NULL, NULL );
 			g_hWnd_chk_show_passwords = _CreateWindowW( WC_BUTTON, ST_V_Show_passwords, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, ( HMENU )CHK_SHOW_PASSWORDS, NULL, NULL );
 			g_hWnd_close_lm_wnd = _CreateWindowW( WC_BUTTON, ST_V_Close, BS_DEFPUSHBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, ( HMENU )BTN_CLOSE_LOGIN_MANAGER_WND, NULL, NULL );
@@ -465,10 +465,8 @@ LRESULT CALLBACK LoginManagerWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 					else	// Column has no sorting set.
 					{
 						// Remove the sort format for all columns.
-						for ( unsigned char i = 0; i < 4; ++i )
+						for ( unsigned char i = 0; _SendMessageW( nmlv->hdr.hwndFrom, LVM_GETCOLUMN, i, ( LPARAM )&lvc ) == TRUE; ++i )
 						{
-							// Get the current format
-							_SendMessageW( nmlv->hdr.hwndFrom, LVM_GETCOLUMN, i, ( LPARAM )&lvc );
 							// Remove sort up and sort down
 							lvc.fmt = lvc.fmt & ( ~HDF_SORTUP ) & ( ~HDF_SORTDOWN );
 							_SendMessageW( nmlv->hdr.hwndFrom, LVM_SETCOLUMN, i, ( LPARAM )&lvc );
@@ -500,8 +498,8 @@ LRESULT CALLBACK LoginManagerWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 						int item_count = ( int )_SendMessageW( nmitem->hdr.hwndFrom, LVM_GETITEMCOUNT, 0, 0 );
 						int sel_count = ( int )_SendMessageW( nmitem->hdr.hwndFrom, LVM_GETSELECTEDCOUNT, 0, 0 );
 						
-						_EnableMenuItem( g_hMenuSub_login_manager, MENU_LM_REMOVE_SEL, ( sel_count > 0 ? MF_ENABLED : MF_DISABLED ) );
-						_EnableMenuItem( g_hMenuSub_login_manager, MENU_LM_SELECT_ALL, ( sel_count == item_count ? MF_DISABLED : MF_ENABLED ) );
+						_EnableMenuItem( g_hMenuSub_login_manager, MENU_LM_REMOVE_SEL, ( sel_count > 0 ? MF_ENABLED : MF_GRAYED ) );
+						_EnableMenuItem( g_hMenuSub_login_manager, MENU_LM_SELECT_ALL, ( sel_count == item_count ? MF_GRAYED : MF_ENABLED ) );
 
 						_TrackPopupMenu( g_hMenuSub_login_manager, 0, p.x, p.y, 0, hWnd, NULL );
 					}

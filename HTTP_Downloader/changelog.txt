@@ -1,3 +1,16 @@
+Version:	1.0.2.7
+Released:	2019-09-03
+
+Added FTP support.
+Added Add button to Add URL(s) window.
+Better handling of large HTTP headers.
+Fixed listview custom colors not being saved.
+Fixed TLS 1.2 not working for certain sites on older systems.
+Fixed crash on Windows XP when hovering over items in 32-bit version.
+Fixed various other issues related to Windows XP. (Wine should work well now.)
+Added localization support for extensions.
+Updated extensions to reflect added changes above.
+
 Version:	1.0.2.6
 Released:	2019-07-25
 

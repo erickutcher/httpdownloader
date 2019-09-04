@@ -1,0 +1,161 @@
+{
+	"extension_description": {
+		"message": "Download files with HTTP Downloader."
+	},
+
+	"title": {
+		"message": "HTTP Downloader - Add URL(s)"
+	},
+
+	"url_s__": {
+		"message": "URL(s)"
+	},
+
+	"regex_filter_": {
+		"message": "RegEx filter:"
+	},
+
+	"custom": {
+		"message": "Custom"
+	},
+
+	"images": {
+		"message": "Images"
+	},
+
+	"music": {
+		"message": "Music"
+	},
+
+	"videos": {
+		"message": "Videos"
+	},
+
+	"apply": {
+		"message": "Apply"
+	},
+
+	"revert": {
+		"message": "Revert"
+	},
+
+	"download_directory_": {
+		"message": "Download directory:"
+	},
+
+	"_use_program_default_": {
+		"message": "[Use Program Default]"
+	},
+
+	"download_parts_": {
+		"message": "Download parts:"
+	},
+
+	"authentication": {
+		"message": "Authentication"
+	},
+
+	"username_": {
+		"message": "Username:"
+	},
+
+	"password_": {
+		"message": "Password:"
+	},
+
+	"cookies": {
+		"message": "Cookies"
+	},
+
+	"headers": {
+		"message": "Headers"
+	},
+
+	"post_data": {
+		"message": "POST Data"
+	},
+
+	"cookies_": {
+		"message": "Cookies:"
+	},
+
+	"headers_": {
+		"message": "Headers:"
+	},
+
+	"send_post_data_": {
+		"message": "Send POST Data:"
+	},
+
+	"simulate_download": {
+		"message": "Simulate download"
+	},
+
+	"advanced_options": {
+		"message": "Advanced options"
+	},
+
+	"download": {
+		"message": "Download"
+	},
+
+	"add": {
+		"message": "Add"
+	},
+
+	"cancel": {
+		"message": "Cancel"
+	},
+
+	"server_": {
+		"message": "Server:"
+	},
+
+	"server_authentication": {
+		"message": "Server Authentication"
+	},
+
+	"default_download_parts_": {
+		"message": "Default download parts:"
+	},
+
+	"default_download_directory_": {
+		"message": "Default download directory:"
+	},
+
+	"send_user_agent_header": {
+		"message": "Send User-Agent header"
+	},
+
+	"send_referer_header": {
+		"message": "Send Referer header"
+	},
+
+	"override_browsers_download_manager": {
+		"message": "Override browser's download manager"
+	},
+
+	"show_add_urls_window_before_download": {
+		"message": "Show Add URL(s) window before download"
+	},
+
+	"ok": {
+		"message": "OK"
+	},
+
+	"apply": {
+		"message": "Apply"
+	},
+
+	"SEND_FAILED": {
+		"message": "An error occurred while sending the download request."
+	},
+
+	"CONNECTION_TIMEOUT": {
+		"message": "The connection has timed out while sending the download request."
+	},
+
+	"INVALID_RESPONSE": {
+		"message": "The server returned an invalid response to our download request."
+	}
+}

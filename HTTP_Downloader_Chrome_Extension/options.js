@@ -62,6 +62,18 @@ function RestoreOptions()
 
 document.addEventListener( "DOMContentLoaded", function()
 {
+	document.querySelectorAll( "[data-i18n]" ).forEach( el =>
+	{
+		if ( el.id == "default_directory" )
+		{
+			el.placeholder = chrome.i18n.getMessage( el.dataset.i18n );
+		}
+		else
+		{
+			el.innerText = chrome.i18n.getMessage( el.dataset.i18n );
+		}
+	} );
+
 	document.getElementById( "ok" ).addEventListener( "click", function(){ SaveOptions(); window.close(); } );
 	document.getElementById( "cancel" ).addEventListener( "click", function(){ window.close(); } );
 	document.getElementById( "apply" ).addEventListener( "click", SaveOptions );

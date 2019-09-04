@@ -1,5 +1,5 @@
 /*
-	HTTP Downloader can download files through HTTP and HTTPS connections.
+	HTTP Downloader can download files through HTTP(S) and FTP(S) connections.
 	Copyright (C) 2015-2019 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
@@ -19,7 +19,7 @@
 #ifndef _FILE_OPERATIONS_H
 #define _FILE_OPERATIONS_H
 
-#define MAGIC_ID_SETTINGS		"HDM\x02"	// Version 3
+#define MAGIC_ID_SETTINGS		"HDM\x03"	// Version 4
 #define MAGIC_ID_DOWNLOADS		"HDM\x13"	// Version 4
 #define MAGIC_ID_LOGINS			"HDM\x20"	// Version 1
 

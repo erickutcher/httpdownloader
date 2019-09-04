@@ -1,5 +1,5 @@
 /*
-	HTTP Downloader can download files through HTTP and HTTPS connections.
+	HTTP Downloader can download files through HTTP(S) and FTP(S) connections.
 	Copyright (C) 2015-2019 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
@@ -198,7 +198,7 @@ int CALLBACK DMCompareFunc( LPARAM lParam1, LPARAM lParam2, LPARAM lParamSort )
 					}
 					else if ( di1->last_downloaded == 0 && di2->last_downloaded == 0 )
 					{
-						return 1;
+						return 0;
 					}
 					else
 					{
@@ -212,7 +212,7 @@ int CALLBACK DMCompareFunc( LPARAM lParam1, LPARAM lParam2, LPARAM lParamSort )
 						}
 						else if ( di1->file_size == 0 && di2->file_size == 0 )
 						{
-							return 1;
+							return 0;
 						}
 #ifdef _WIN64
 						int i_percentage1 = ( int )( 1000.f * ( ( float )di1->last_downloaded / ( float )di1->file_size ) );
@@ -665,6 +665,21 @@ DWORD WINAPI UpdateWindow( LPVOID WorkThreadContext )
 					g_taskbar->lpVtbl->SetProgressValue( g_taskbar, g_hWnd_main, g_progress_info.current_total_downloaded, g_progress_info.current_total_file_size );
 				}
 			}
+
+			// Sort all values that can change during a download.
+			if ( cfg_sort_added_and_updating_items &&
+				 cfg_sorted_column_index != 0 &&	// #
+				 cfg_sorted_column_index != 2 &&	// Date and Time Added
+				 cfg_sorted_column_index != 3 &&	// Download Directory
+				 cfg_sorted_column_index != 13 )	// URL
+			{
+				SORT_INFO si;
+				si.column = GetColumnIndexFromVirtualIndex( cfg_sorted_column_index, download_columns, NUM_COLUMNS );
+				si.hWnd = g_hWnd_files;
+				si.direction = cfg_sorted_direction;
+
+				_SendMessageW( g_hWnd_files, LVM_SORTITEMS, ( WPARAM )&si, ( LPARAM )( PFNLVCOMPARE )DMCompareFunc );
+			}
 		}
 		else
 		{
@@ -729,6 +744,21 @@ DWORD WINAPI UpdateWindow( LPVOID WorkThreadContext )
 			}
 
 			ResetSessionStatus();
+
+			// Sort all values that can change during a download.
+			if ( cfg_sort_added_and_updating_items &&
+				 cfg_sorted_column_index != 0 &&	// #
+				 cfg_sorted_column_index != 2 &&	// Date and Time Added
+				 cfg_sorted_column_index != 3 &&	// Download Directory
+				 cfg_sorted_column_index != 13 )	// URL
+			{
+				SORT_INFO si;
+				si.column = GetColumnIndexFromVirtualIndex( cfg_sorted_column_index, download_columns, NUM_COLUMNS );
+				si.hWnd = g_hWnd_files;
+				si.direction = cfg_sorted_direction;
+
+				_SendMessageW( g_hWnd_files, LVM_SORTITEMS, ( WPARAM )&si, ( LPARAM )( PFNLVCOMPARE )DMCompareFunc );
+			}
 
 			if ( cfg_play_sound && cfg_sound_file_path != NULL )
 			{
@@ -1802,7 +1832,7 @@ void HandleCommand( HWND hWnd, WPARAM wParam, LPARAM lParam )
 		{
 			wchar_t msg[ 512 ];
 			__snwprintf( msg, 512, L"HTTP Downloader is made free under the GPLv3 license.\r\n\r\n" \
-								   L"Version 1.0.2.6 (%u-bit)\r\n\r\n" \
+								   L"Version 1.0.2.7 (%u-bit)\r\n\r\n" \
 								   L"Built on %s, %s %d, %04d %d:%02d:%02d %s (UTC)\r\n\r\n" \
 								   L"Copyright \xA9 2015-2019 Eric Kutcher",
 #ifdef _WIN64
@@ -1971,6 +2001,11 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 					lvc.fmt = LVCFMT_LEFT;
 				}
 
+				if ( i != 0 && i == cfg_sorted_column_index )
+				{
+					lvc.fmt = lvc.fmt | ( cfg_sorted_direction == 1 ? HDF_SORTUP : HDF_SORTDOWN );
+				}
+
 				if ( *download_columns[ i ] != -1 )
 				{
 					//lvc.pszText = download_string_table[ i ].value;
@@ -2064,7 +2099,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 				}
 
 				// Allow us to save the download history if there are any entries in the files listview.
-				_EnableMenuItem( g_hMenu, MENU_SAVE_DOWNLOAD_HISTORY, ( _SendMessageW( g_hWnd_files, LVM_GETITEMCOUNT, 0, 0 ) > 0 ? MF_ENABLED : MF_DISABLED ) );
+				_EnableMenuItem( g_hMenu, MENU_SAVE_DOWNLOAD_HISTORY, ( _SendMessageW( g_hWnd_files, LVM_GETITEMCOUNT, 0, 0 ) > 0 ? MF_ENABLED : MF_GRAYED ) );
 			}
 			else if ( ( BOOL )wParam == TRUE )
 			{
@@ -2235,11 +2270,11 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 				{
 					NMLISTVIEW *nmlv = ( NMLISTVIEW * )lParam;
 
+					int index = GetVirtualIndexFromColumnIndex( nmlv->iSubItem, download_columns, NUM_COLUMNS );
+
 					// Change the format of the items in the column if Ctrl is held while clicking the column.
 					if ( GetKeyState( VK_CONTROL ) & 0x8000 )
 					{
-						int index = GetVirtualIndexFromColumnIndex( nmlv->iSubItem, download_columns, NUM_COLUMNS );
-
 						// Change the size column info.
 						if ( index != -1 )
 						{
@@ -2288,6 +2323,29 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 						lvc.mask = LVCF_FMT | LVCF_ORDER;
 						_SendMessageW( nmlv->hdr.hwndFrom, LVM_GETCOLUMN, nmlv->iSubItem, ( LPARAM )&lvc );
 
+						if ( cfg_sorted_column_index != index )
+						{
+							cfg_sorted_column_index = index;
+
+							download_history_changed = true;
+						}
+
+						// The number column doesn't get sorted and its iOrder is always 0, so let's remove any sort arrows that are active.
+						if ( lvc.iOrder == 0 && *download_columns[ 0 ] != -1 )
+						{
+							// Remove the sort format for all columns.
+							for ( unsigned char i = 1; _SendMessageW( nmlv->hdr.hwndFrom, LVM_GETCOLUMN, i, ( LPARAM )&lvc ) == TRUE; ++i )
+							{
+								// Remove sort up and sort down
+								lvc.fmt = lvc.fmt & ( ~HDF_SORTUP ) & ( ~HDF_SORTDOWN );
+								_SendMessageW( nmlv->hdr.hwndFrom, LVM_SETCOLUMN, i, ( LPARAM )&lvc );
+							}
+
+							cfg_sorted_direction = 0;
+
+							break;
+						}
+
 						SORT_INFO si;
 						si.column = lvc.iOrder;
 						si.hWnd = nmlv->hdr.hwndFrom;
@@ -2311,10 +2369,8 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 						else	// Column has no sorting set.
 						{
 							// Remove the sort format for all columns.
-							for ( unsigned char i = 0; i < NUM_COLUMNS; ++i )
+							for ( unsigned char i = 0; _SendMessageW( nmlv->hdr.hwndFrom, LVM_GETCOLUMN, i, ( LPARAM )&lvc ) == TRUE; ++i )
 							{
-								// Get the current format
-								_SendMessageW( nmlv->hdr.hwndFrom, LVM_GETCOLUMN, i, ( LPARAM )&lvc );
 								// Remove sort up and sort down
 								lvc.fmt = lvc.fmt & ( ~HDF_SORTUP ) & ( ~HDF_SORTDOWN );
 								_SendMessageW( nmlv->hdr.hwndFrom, LVM_SETCOLUMN, i, ( LPARAM )&lvc );
@@ -2328,6 +2384,13 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 							// Sort down to start.
 							lvc.fmt = lvc.fmt | HDF_SORTDOWN;
 							_SendMessageW( nmlv->hdr.hwndFrom, LVM_SETCOLUMN, nmlv->iSubItem, ( LPARAM )&lvc );
+						}
+
+						if ( cfg_sorted_direction != si.direction )
+						{
+							cfg_sorted_direction = si.direction;
+
+							download_history_changed = true;
 						}
 
 						_SendMessageW( nmlv->hdr.hwndFrom, LVM_SORTITEMS, ( WPARAM )&si, ( LPARAM )( PFNLVCOMPARE )DMCompareFunc );
@@ -2500,14 +2563,28 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 
 							if ( di != NULL )
 							{
+								// The 32-bit version of _snwprintf in ntdll.dll on Windows XP crashes when a %s proceeds two %llu.
+								int tooltip_buffer_offset = __snwprintf( tooltip_buffer, 512, L"%s: %s\r\n%s: %llu / ", ST_V_Filename, di->file_path + di->filename_offset, ST_V_Downloaded, di->downloaded );
+
 								if ( di->file_size > 0 )
+								{
+									tooltip_buffer_offset += __snwprintf( tooltip_buffer + tooltip_buffer_offset, 512 - tooltip_buffer_offset, L"%llu", di->file_size );
+								}
+								else
+								{
+									tooltip_buffer[ tooltip_buffer_offset++ ] = L'?';
+								}
+
+								__snwprintf( tooltip_buffer + tooltip_buffer_offset, 512 - tooltip_buffer_offset, L" bytes\r\n%s: %s", ST_V_Added, di->w_add_time );
+
+								/*if ( di->file_size > 0 )
 								{
 									__snwprintf( tooltip_buffer, 512, L"%s: %s\r\n%s: %llu / %llu bytes\r\n%s: %s", ST_V_Filename, di->file_path + di->filename_offset, ST_V_Downloaded, di->downloaded, di->file_size, ST_V_Added, di->w_add_time );
 								}
 								else
 								{
 									__snwprintf( tooltip_buffer, 512, L"%s: %s\r\n%s: %llu / ? bytes\r\n%s: %s", ST_V_Filename, di->file_path + di->filename_offset, ST_V_Downloaded, di->downloaded, ST_V_Added, di->w_add_time );
-								}
+								}*/
 
 								ti.lpszText = tooltip_buffer;
 

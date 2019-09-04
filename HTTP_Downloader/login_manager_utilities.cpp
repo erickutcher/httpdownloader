@@ -1,5 +1,5 @@
 /*
-	HTTP Downloader can download files through HTTP and HTTPS connections.
+	HTTP Downloader can download files through HTTP(S) and FTP(S) connections.
 	Copyright (C) 2015-2019 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
@@ -272,7 +272,7 @@ char read_login_info()
 
 					LOGIN_INFO *li = ( LOGIN_INFO * )GlobalAlloc( GPTR, sizeof( LOGIN_INFO ) );
 
-					ParseURL_W( site, NULL, li->protocol, &li->host, host_length, li->port, &resource, resource_length );
+					ParseURL_W( site, NULL, li->protocol, &li->host, host_length, li->port, &resource, resource_length, NULL, NULL, NULL, NULL );
 					GlobalFree( resource );
 
 					li->username = username;
@@ -489,17 +489,33 @@ THREAD_RETURN handle_login_list( void *pArguments )
 			unsigned int host_length = 0;
 			unsigned int resource_length = 0;
 
-			ParseURL_W( li->w_host, NULL, li->protocol, &host, host_length, li->port, &resource, resource_length );
+			ParseURL_W( li->w_host, NULL, li->protocol, &host, host_length, li->port, &resource, resource_length, NULL, NULL, NULL, NULL );
 
-			if ( li->protocol == PROTOCOL_HTTP || li->protocol == PROTOCOL_HTTPS )
+			if ( li->protocol == PROTOCOL_HTTP ||
+				 li->protocol == PROTOCOL_HTTPS ||
+				 li->protocol == PROTOCOL_FTP ||
+				 li->protocol == PROTOCOL_FTPS ||
+				 li->protocol == PROTOCOL_FTPES )
 			{
 				if ( li->protocol == PROTOCOL_HTTP )
 				{
 					host_length += 7;	// http://
 				}
-				else
+				else if ( li->protocol == PROTOCOL_HTTPS )
 				{
 					host_length += 8;	// https://
+				}
+				else if ( li->protocol == PROTOCOL_FTP )
+				{
+					host_length += 6;	// ftp://
+				}
+				else if ( li->protocol == PROTOCOL_FTPS )
+				{
+					host_length += 7;	// ftps://
+				}
+				else if ( li->protocol == PROTOCOL_FTPES )
+				{
+					host_length += 8;	// ftpes://
 				}
 
 				// See if there's a resource at the end of our host. We don't want it.

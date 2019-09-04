@@ -1,5 +1,5 @@
 /*
-	HTTP Downloader can download files through HTTP and HTTPS connections.
+	HTTP Downloader can download files through HTTP(S) and FTP(S) connections.
 	Copyright (C) 2015-2019 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
@@ -112,16 +112,20 @@
 #define LA_STATUS_UNKNOWN				0
 #define LA_STATUS_OK					1
 
-#define DOWNLOAD_OPERATION_NONE				0
-#define DOWNLOAD_OPERATION_SIMULATE			1
-#define DOWNLOAD_OPERATION_OVERRIDE_PROMPTS	2
+#define DOWNLOAD_OPERATION_NONE				0x00
+#define DOWNLOAD_OPERATION_SIMULATE			0x01
+#define DOWNLOAD_OPERATION_OVERRIDE_PROMPTS	0x02
+#define DOWNLOAD_OPERATION_ADD_STOPPED		0x04
 
 enum PROTOCOL
 {
 	PROTOCOL_UNKNOWN,
 	PROTOCOL_HTTP,
 	PROTOCOL_HTTPS,
-	PROTOCOL_RELATIVE
+	PROTOCOL_RELATIVE,
+	PROTOCOL_FTP,
+	PROTOCOL_FTPS,
+	PROTOCOL_FTPES
 };
 
 enum IO_OPERATION
@@ -140,11 +144,19 @@ enum IO_OPERATION
 	IO_WriteFile,
 	IO_Write,
 	IO_Shutdown,
-	IO_Close
+	IO_Close,
+	IO_KeepAlive
+};
+
+struct AUTH_CREDENTIALS
+{
+	char				*username;
+	char				*password;
 };
 
 struct URL_LOCATION
 {
+	AUTH_CREDENTIALS	auth_info;
 	char				*host;
 	char				*resource;
 	PROTOCOL			protocol;
@@ -202,12 +214,6 @@ struct HEADER_INFO
 	bool				got_chunk_terminator;
 };
 
-struct AUTH_CREDENTIALS
-{
-	char				*username;
-	char				*password;
-};
-
 struct POST_INFO
 {
 	char				*method;	// 1 = GET, 2 = POST
@@ -216,7 +222,7 @@ struct POST_INFO
 	char				*password;
 	char				*parts;
 	char				*directory;
-	char				*simulate_download;
+	char				*download_operations;
 	char				*cookies;
 	char				*headers;
 	char				*data;		// For POST payloads.
@@ -236,8 +242,6 @@ struct DOWNLOAD_INFO;
 
 struct SOCKET_CONTEXT
 {
-	char				buffer[ BUFFER_SIZE + 1 ];
-
 	HEADER_INFO			header_info;
 
 	z_stream			stream;
@@ -248,20 +252,27 @@ struct SOCKET_CONTEXT
 
 	OVERLAPPEDEX		overlapped;
 	OVERLAPPEDEX		overlapped_close;
+	OVERLAPPEDEX		overlapped_keep_alive;
 
 	DoublyLinkedList	context_node;	// Self reference to the g_context_list.
 	DoublyLinkedList	parts_node;		// Self reference to the parts_list of this context's download_info.
 
 	WSABUF				wsabuf;
 	WSABUF				write_wsabuf;
+	WSABUF				keep_alive_wsabuf;
 
 	unsigned long long	content_offset;
+
+	char				keep_alive_buffer[ 8 ];
+
+	SOCKET_CONTEXT		*ftp_context;
 
 	DoublyLinkedList	*range_node;	// Self reference to the range_list of this context's download_info.
 
 	addrinfoW			*address_info;			// Address info of the server we're connecting to.
 	addrinfoW			*proxy_address_info;	// Address info of the server that we want to proxy.
 
+	char				*buffer;
 	char				*decompressed_buf;
 
 	DOWNLOAD_INFO		*download_info;
@@ -270,17 +281,22 @@ struct SOCKET_CONTEXT
 
 	SSL					*ssl;
     SOCKET				socket;
+	SOCKET				listen_socket;	// Used for active (EPRT/PORT) FTP connections.
 
 	DWORD				current_bytes_read;
 
+	unsigned int		buffer_size;
 	unsigned int		decompressed_buf_size;
 
 	unsigned int		status;
 
 	volatile LONG		pending_operations;
 	volatile LONG		timeout;
+	volatile LONG		keep_alive_timeout;
 
 	char				content_status;
+
+	unsigned char		ftp_connection_type;
 
 	unsigned char		part;
 	unsigned char		parts;
@@ -385,7 +401,7 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext );
 
 SOCKET CreateListenSocket();
 char CreateAcceptSocket( SOCKET listen_socket, bool use_ipv6 );
-SOCKET_CONTEXT *UpdateCompletionPort( SOCKET socket, bool is_listen_socket );
+SOCKET_CONTEXT *UpdateCompletionPort( SOCKET socket, bool use_ssl, unsigned char ssl_version, bool add_context, bool is_server );
 
 SOCKET_CONTEXT *CreateSocketContext();
 bool CreateConnection( SOCKET_CONTEXT *context, char *host, unsigned short port );
@@ -435,6 +451,9 @@ extern CRITICAL_SECTION rename_file_prompt_list_cs;		// Guard access to the rena
 extern CRITICAL_SECTION last_modified_prompt_list_cs;	// Guard access to the last modified prompt list.
 extern CRITICAL_SECTION move_file_queue_cs;				// Guard access to the move file queue.
 extern CRITICAL_SECTION cleanup_cs;
+
+extern LPFN_ACCEPTEX _AcceptEx;
+extern LPFN_CONNECTEX _ConnectEx;
 
 extern DoublyLinkedList *g_context_list;
 

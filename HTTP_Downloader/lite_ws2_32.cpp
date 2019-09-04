@@ -1,5 +1,5 @@
 /*
-	HTTP Downloader can download files through HTTP and HTTPS connections.
+	HTTP Downloader can download files through HTTP(S) and FTP(S) connections.
 	Copyright (C) 2015-2019 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
@@ -36,10 +36,12 @@ unsigned char ws2_32_state = 0;	// 0 = Not running, 1 = running.
 	pWSASocketW		_WSASocketW;
 	pWSAConnect		_WSAConnect;
 
+	pWSAAddressToStringA		_WSAAddressToStringA;
 	pWSAAddressToStringW		_WSAAddressToStringW;
 	pFreeAddrInfoW	_FreeAddrInfoW;
 	pGetAddrInfoW	_GetAddrInfoW;
-	pGetNameInfoW	_GetNameInfoW;
+	//pGetNameInfoW	_GetNameInfoW;
+	//pGetHostNameW	_GetHostNameW;
 
 	pWSAGetLastError	_WSAGetLastError;
 
@@ -58,14 +60,16 @@ unsigned char ws2_32_state = 0;	// 0 = Not running, 1 = running.
 
 	psetsockopt		_setsockopt;
 
-	psend			_send;
-	precv			_recv;
+	//psend			_send;
+	//precv			_recv;
 
 	pgetaddrinfo	_getaddrinfo;
 	pfreeaddrinfo	_freeaddrinfo;
-	pgetpeername	_getpeername;
+	//pgetpeername	_getpeername;
+	pgetsockname	_getsockname;
+	pgethostname	_gethostname;
 
-	pinet_ntoa		_inet_ntoa;
+	//pinet_ntoa		_inet_ntoa;
 
 	phtonl			_htonl;
 
@@ -98,10 +102,12 @@ unsigned char ws2_32_state = 0;	// 0 = Not running, 1 = running.
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_ws2_32, ( void ** )&_WSASocketW, "WSASocketW" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_ws2_32, ( void ** )&_WSAConnect, "WSAConnect" ) )
 
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_ws2_32, ( void ** )&_WSAAddressToStringA, "WSAAddressToStringA" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_ws2_32, ( void ** )&_WSAAddressToStringW, "WSAAddressToStringW" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_ws2_32, ( void ** )&_FreeAddrInfoW, "FreeAddrInfoW" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_ws2_32, ( void ** )&_GetAddrInfoW, "GetAddrInfoW" ) )
-		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_ws2_32, ( void ** )&_GetNameInfoW, "GetNameInfoW" ) )
+		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_ws2_32, ( void ** )&_GetNameInfoW, "GetNameInfoW" ) )
+		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_ws2_32, ( void ** )&_GetHostNameW, "GetHostNameW" ) )
 
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_ws2_32, ( void ** )&_WSAGetLastError, "WSAGetLastError" ) )
 
@@ -120,14 +126,16 @@ unsigned char ws2_32_state = 0;	// 0 = Not running, 1 = running.
 
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_ws2_32, ( void ** )&_setsockopt, "setsockopt" ) )
 
-		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_ws2_32, ( void ** )&_send, "send" ) )
-		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_ws2_32, ( void ** )&_recv, "recv" ) )
+		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_ws2_32, ( void ** )&_send, "send" ) )
+		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_ws2_32, ( void ** )&_recv, "recv" ) )
 
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_ws2_32, ( void ** )&_getaddrinfo, "getaddrinfo" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_ws2_32, ( void ** )&_freeaddrinfo, "freeaddrinfo" ) )
-		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_ws2_32, ( void ** )&_getpeername, "getpeername" ) )
+		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_ws2_32, ( void ** )&_getpeername, "getpeername" ) )
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_ws2_32, ( void ** )&_getsockname, "getsockname" ) )
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_ws2_32, ( void ** )&_gethostname, "gethostname" ) )
 
-		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_ws2_32, ( void ** )&_inet_ntoa, "inet_ntoa" ) )
+		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_ws2_32, ( void ** )&_inet_ntoa, "inet_ntoa" ) )
 
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_ws2_32, ( void ** )&_htonl, "htonl" ) )
 

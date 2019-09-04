@@ -1,5 +1,5 @@
 /*
-	HTTP Downloader can download files through HTTP and HTTPS connections.
+	HTTP Downloader can download files through HTTP(S) and FTP(S) connections.
 	Copyright (C) 2015-2019 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
@@ -95,6 +95,8 @@ void HandleAddInfo( UINT cfFormat, PVOID data )
 {
 	ADD_INFO *ai = ( ADD_INFO * )GlobalAlloc( GPTR, sizeof( ADD_INFO ) );
 	ai->method = METHOD_GET;
+
+	ai->download_operations = ( cfg_drag_and_drop_action == DRAG_AND_DROP_ACTION_ADD_IN_STOPPED_STATE ? DOWNLOAD_OPERATION_ADD_STOPPED : DOWNLOAD_OPERATION_NONE );
 
 	//ai->download_operations = DOWNLOAD_OPERATION_SIMULATE;	// For testing.
 
@@ -401,7 +403,10 @@ wchar_t *ParseHTMLClipboard( char *data )
 
 						// See if the url starts with the http(s) protocol.
 						if ( ( ( href_end - href ) > 7 && _StrCmpNIA( href, "http://", 7 ) == 0 ) ||
-							 ( ( href_end - href ) > 8 && _StrCmpNIA( href, "https://", 8 ) == 0 ) )
+							 ( ( href_end - href ) > 8 && _StrCmpNIA( href, "https://", 8 ) == 0 ) ||
+							 ( ( href_end - href ) > 6 && _StrCmpNIA( href, "ftp://", 6 ) == 0 ) ||
+							 ( ( href_end - href ) > 7 && _StrCmpNIA( href, "ftps://", 7 ) == 0 ) ||
+							 ( ( href_end - href ) > 8 && _StrCmpNIA( href, "ftpes://", 8 ) == 0 ) )
 						{
 							url_length = ( int )( href_end - href );
 						}
@@ -781,7 +786,7 @@ HRESULT STDMETHODCALLTYPE Drop( IDropTarget *This, IDataObject *pDataObj, DWORD 
 				}
 				else
 				{
-					if ( cfg_download_immediately )
+					if ( cfg_drag_and_drop_action != DRAG_AND_DROP_ACTION_NONE )
 					{
 						HandleAddInfo( cfFormat, data );
 					}

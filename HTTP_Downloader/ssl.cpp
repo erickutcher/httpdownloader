@@ -1,5 +1,5 @@
 /*
-	HTTP Downloader can download files through HTTP and HTTPS connections.
+	HTTP Downloader can download files through HTTP(S) and FTP(S) connections.
 	Copyright (C) 2015-2019 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
@@ -41,7 +41,10 @@ void ResetServerCredentials()
 {
 	if ( SecIsValidHandle( &g_hCreds_server ) )
 	{
-		g_pSSPI->FreeCredentialsHandle( &g_hCreds_server );
+		if ( g_pSSPI != NULL )
+		{
+			g_pSSPI->FreeCredentialsHandle( &g_hCreds_server );
+		}
 		SecInvalidateHandle( &g_hCreds_server );
 	}
 }
@@ -50,7 +53,10 @@ void ResetClientCredentials()
 {
 	if ( SecIsValidHandle( &g_hCreds_client ) )
 	{
-		g_pSSPI->FreeCredentialsHandle( &g_hCreds_client );
+		if ( g_pSSPI != NULL )
+		{
+			g_pSSPI->FreeCredentialsHandle( &g_hCreds_client );
+		}
 		SecInvalidateHandle( &g_hCreds_client );
 	}
 }
@@ -122,7 +128,7 @@ SSL *SSL_new( DWORD protocol, bool is_server )
 	TimeStamp tsExpiry;
 	SECURITY_STATUS scRet;
 
-	if ( g_hSecurity == NULL )
+	if ( g_pSSPI == NULL )
 	{
 		return NULL;
 	}
@@ -211,28 +217,37 @@ void SSL_free( SSL *ssl )
 		return;
 	}
 
-	if ( ssl->sdd.OutBuffers[ 0 ].pvBuffer != NULL )
+	if ( g_pSSPI != NULL )
 	{
-		g_pSSPI->FreeContextBuffer( ssl->sdd.OutBuffers[ 0 ].pvBuffer );
-		ssl->sdd.OutBuffers[ 0 ].pvBuffer = NULL;
-	}
+		if ( ssl->sdd.OutBuffers[ 0 ].pvBuffer != NULL )
+		{
+			g_pSSPI->FreeContextBuffer( ssl->sdd.OutBuffers[ 0 ].pvBuffer );
+			ssl->sdd.OutBuffers[ 0 ].pvBuffer = NULL;
+		}
 
-	/*if ( ssl->ad.OutBuffers[ 0 ].pvBuffer != NULL )
-	{
-		g_pSSPI->FreeContextBuffer( ssl->ad.OutBuffers[ 0 ].pvBuffer );
-		ssl->ad.OutBuffers[ 0 ].pvBuffer = NULL;
-	}
+		/*if ( ssl->ad.OutBuffers[ 0 ].pvBuffer != NULL )
+		{
+			g_pSSPI->FreeContextBuffer( ssl->ad.OutBuffers[ 0 ].pvBuffer );
+			ssl->ad.OutBuffers[ 0 ].pvBuffer = NULL;
+		}
 
-	if ( ssl->cd.OutBuffers[ 0 ].pvBuffer != NULL )
-	{
-		g_pSSPI->FreeContextBuffer( ssl->cd.OutBuffers[ 0 ].pvBuffer );
-		ssl->cd.OutBuffers[ 0 ].pvBuffer = NULL;
-	}*/
+		if ( ssl->cd.OutBuffers[ 0 ].pvBuffer != NULL )
+		{
+			g_pSSPI->FreeContextBuffer( ssl->cd.OutBuffers[ 0 ].pvBuffer );
+			ssl->cd.OutBuffers[ 0 ].pvBuffer = NULL;
+		}*/
 
-	if ( ssl->acd.OutBuffers[ 0 ].pvBuffer != NULL )
-	{
-		g_pSSPI->FreeContextBuffer( ssl->acd.OutBuffers[ 0 ].pvBuffer );
-		ssl->acd.OutBuffers[ 0 ].pvBuffer = NULL;
+		if ( ssl->acd.OutBuffers[ 0 ].pvBuffer != NULL )
+		{
+			g_pSSPI->FreeContextBuffer( ssl->acd.OutBuffers[ 0 ].pvBuffer );
+			ssl->acd.OutBuffers[ 0 ].pvBuffer = NULL;
+		}
+
+		if ( SecIsValidHandle( &ssl->hContext ) )
+		{
+			g_pSSPI->DeleteSecurityContext( &ssl->hContext );
+			SecInvalidateHandle( &ssl->hContext );
+		}
 	}
 
 	if ( ssl->sd.pbDataBuffer != NULL )
@@ -251,12 +266,6 @@ void SSL_free( SSL *ssl )
 	{
 		GlobalFree( ssl->pbIoBuffer );
 		ssl->pbIoBuffer = NULL;
-	}
-
-	if ( SecIsValidHandle( &ssl->hContext ) )
-	{
-		g_pSSPI->DeleteSecurityContext( &ssl->hContext );
-		SecInvalidateHandle( &ssl->hContext );
 	}
 
 	GlobalFree( ssl );
@@ -323,7 +332,7 @@ SECURITY_STATUS SSL_WSAAccept_Reply( SOCKET_CONTEXT *context, OVERLAPPEDEX *over
 
 	sent = false;
 
-	if ( context != NULL && context->ssl != NULL && overlapped != NULL )
+	if ( context != NULL && context->ssl != NULL && overlapped != NULL && g_pSSPI != NULL )
 	{
 		SSL *ssl = context->ssl;
 		SecBufferDesc InBuffer;
@@ -460,7 +469,7 @@ SECURITY_STATUS SSL_WSAAccept_Response( SOCKET_CONTEXT *context, OVERLAPPEDEX *o
 
 	sent = false;
 
-	if ( context != NULL && context->ssl != NULL && overlapped != NULL )
+	if ( context != NULL && context->ssl != NULL && overlapped != NULL && g_pSSPI != NULL )
 	{
 		SSL *ssl = context->ssl;
 		DWORD dwFlags = 0;
@@ -591,7 +600,7 @@ SECURITY_STATUS SSL_WSAConnect( SOCKET_CONTEXT *context, OVERLAPPEDEX *overlappe
 
 	sent = false;
 
-	if ( context != NULL && context->ssl != NULL && overlapped != NULL )
+	if ( context != NULL && context->ssl != NULL && overlapped != NULL && g_pSSPI != NULL )
 	{
 		SecBufferDesc OutBuffer;
 		//SecBuffer OutBuffers[ 1 ];
@@ -688,7 +697,7 @@ SECURITY_STATUS SSL_WSAConnect_Response( SOCKET_CONTEXT *context, OVERLAPPEDEX *
 
 	sent = false;
 
-	if ( context != NULL && context->ssl != NULL && overlapped != NULL )
+	if ( context != NULL && context->ssl != NULL && overlapped != NULL && g_pSSPI != NULL )
 	{
 		WSABUF encrypted_buf;
 
@@ -825,7 +834,7 @@ SECURITY_STATUS SSL_WSAConnect_Reply( SOCKET_CONTEXT *context, OVERLAPPEDEX *ove
 
 	sent = false;
 
-	if ( context != NULL && context->ssl != NULL && overlapped != NULL )
+	if ( context != NULL && context->ssl != NULL && overlapped != NULL && g_pSSPI != NULL )
 	{
 		SecBufferDesc InBuffer;
 		SecBufferDesc OutBuffer;
@@ -979,7 +988,7 @@ SECURITY_STATUS SSL_WSAShutdown( SOCKET_CONTEXT *context, OVERLAPPEDEX *overlapp
 
 	sent = false;
 
-	if ( context != NULL && context->ssl != NULL && overlapped != NULL )
+	if ( context != NULL && context->ssl != NULL && overlapped != NULL && g_pSSPI != NULL )
 	{
 		DWORD dwType;
 
@@ -1096,7 +1105,7 @@ SECURITY_STATUS SSL_WSASend( SOCKET_CONTEXT *context, OVERLAPPEDEX *overlapped, 
 
 	sent = false;
 
-	if ( context != NULL && context->ssl != NULL && overlapped != NULL )
+	if ( context != NULL && context->ssl != NULL && overlapped != NULL && g_pSSPI != NULL )
 	{
 		SSL *ssl = context->ssl;
 
@@ -1244,7 +1253,7 @@ SECURITY_STATUS SSL_WSARecv_Decrypt( SSL *ssl, LPWSABUF lpBuffers, DWORD &lpNumb
 	SecBuffer *pDataBuffer;
 	SecBuffer *pExtraBuffer;
 
-	if ( ssl == NULL )
+	if ( ssl == NULL || g_pSSPI == NULL )
 	{
 		return -1;
 	}

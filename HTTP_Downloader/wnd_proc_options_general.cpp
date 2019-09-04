@@ -1,5 +1,5 @@
 /*
-	HTTP Downloader can download files through HTTP and HTTPS connections.
+	HTTP Downloader can download files through HTTP(S) and FTP(S) connections.
 	Copyright (C) 2015-2019 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
@@ -19,6 +19,7 @@
 #include "options.h"
 #include "lite_comdlg32.h"
 #include "lite_ole32.h"
+#include "lite_gdi32.h"
 #include "utilities.h"
 
 #define BTN_TRAY_ICON					1000
@@ -232,7 +233,7 @@ LRESULT CALLBACK GeneralTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 				{
 					if ( HIWORD( wParam ) == EN_UPDATE )
 					{
-						DWORD sel_start = 0;
+						DWORD sel_start;
 
 						char value[ 11 ];
 						_SendMessageA( ( HWND )lParam, WM_GETTEXT, 4, ( LPARAM )value );

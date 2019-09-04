@@ -1,5 +1,5 @@
 /*
-	HTTP Downloader can download files through HTTP and HTTPS connections.
+	HTTP Downloader can download files through HTTP(S) and FTP(S) connections.
 	Copyright (C) 2015-2019 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
@@ -30,8 +30,12 @@ struct COOKIE_CONTAINER
 };
 
 char *GetHeaderValue( char *header, char *field_name, unsigned long field_name_length, char **value_start, char **value_end );
-bool ParseURL_A( char *url, char *original_resource, PROTOCOL &protocol, char **host, unsigned int &host_length, unsigned short &port, char **resource, unsigned int &resource_length );
-bool ParseURL_W( wchar_t *url, wchar_t *original_resource, PROTOCOL &protocol, wchar_t **host, unsigned int &host_length, unsigned short &port, wchar_t **resource, unsigned int &resource_length );
+bool ParseURL_A( char *url, char *original_resource,
+				 PROTOCOL &protocol, char **host, unsigned int &host_length, unsigned short &port, char **resource, unsigned int &resource_length,
+				 char **username, unsigned int *username_length, char **password, unsigned int *password_length );
+bool ParseURL_W( wchar_t *url, wchar_t *original_resource,
+				 PROTOCOL &protocol, wchar_t **host, unsigned int &host_length, unsigned short &port, wchar_t **resource, unsigned int &resource_length,
+				 wchar_t **username, unsigned int *username_length, wchar_t **password, unsigned int *password_length );
 bool ParseCookieValues( char *cookie_list, dllrbt_tree **cookie_tree, char **cookies );
 
 unsigned short GetHTTPStatus( char *header );
@@ -57,5 +61,10 @@ char MakeResponse( SOCKET_CONTEXT *context );
 char MakeRequest( SOCKET_CONTEXT *context, IO_OPERATION next_operation, bool use_connect );
 char MakeRangeRequest( SOCKET_CONTEXT *context );
 char HandleRedirect( SOCKET_CONTEXT *context );
+
+char AllocateFile( SOCKET_CONTEXT *context );
+char HandleRenamePrompt( SOCKET_CONTEXT *context );
+char HandleFileSizePrompt( SOCKET_CONTEXT *context );
+char HandleLastModifiedPrompt( SOCKET_CONTEXT *context );
 
 #endif

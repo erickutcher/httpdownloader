@@ -1,5 +1,5 @@
 /*
-	HTTP Downloader can download files through HTTP and HTTPS connections.
+	HTTP Downloader can download files through HTTP(S) and FTP(S) connections.
 	Copyright (C) 2015-2019 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
@@ -87,8 +87,8 @@ void UpdateMenus( bool enable )
 			}
 			else
 			{
-				_EnableMenuItem( g_hMenuSub_download, MENU_OPEN_FILE, MF_DISABLED );
-				_EnableMenuItem( g_hMenuSub_download, MENU_OPEN_DIRECTORY, MF_DISABLED );
+				_EnableMenuItem( g_hMenuSub_download, MENU_OPEN_FILE, MF_GRAYED );
+				_EnableMenuItem( g_hMenuSub_download, MENU_OPEN_DIRECTORY, MF_GRAYED );
 			}
 
 			// Allow download update if any of the following. Includes paused and queued.
@@ -109,8 +109,8 @@ void UpdateMenus( bool enable )
 			}
 			else
 			{
-				_EnableMenuItem( g_hMenuSub_download, MENU_UPDATE_DOWNLOAD, MF_DISABLED );
-				_EnableMenuItem( g_hMenuSub_edit, MENU_UPDATE_DOWNLOAD, MF_DISABLED );
+				_EnableMenuItem( g_hMenuSub_download, MENU_UPDATE_DOWNLOAD, MF_GRAYED );
+				_EnableMenuItem( g_hMenuSub_edit, MENU_UPDATE_DOWNLOAD, MF_GRAYED );
 			}
 
 			// Allow queue menu if item is queued.
@@ -124,10 +124,10 @@ void UpdateMenus( bool enable )
 			}
 			else
 			{
-				_EnableMenuItem( g_hMenuSub_queue, MENU_QUEUE_TOP, MF_DISABLED );
-				_EnableMenuItem( g_hMenuSub_queue, MENU_QUEUE_UP, MF_DISABLED );
-				_EnableMenuItem( g_hMenuSub_queue, MENU_QUEUE_DOWN, MF_DISABLED );
-				_EnableMenuItem( g_hMenuSub_queue, MENU_QUEUE_BOTTOM, MF_DISABLED );
+				_EnableMenuItem( g_hMenuSub_queue, MENU_QUEUE_TOP, MF_GRAYED );
+				_EnableMenuItem( g_hMenuSub_queue, MENU_QUEUE_UP, MF_GRAYED );
+				_EnableMenuItem( g_hMenuSub_queue, MENU_QUEUE_DOWN, MF_GRAYED );
+				_EnableMenuItem( g_hMenuSub_queue, MENU_QUEUE_BOTTOM, MF_GRAYED );
 			}
 
 			// Make sure our Filename column is visible.
@@ -138,25 +138,25 @@ void UpdateMenus( bool enable )
 			}
 			else
 			{
-				_EnableMenuItem( g_hMenuSub_download, MENU_RENAME, MF_DISABLED );
-				_EnableMenuItem( g_hMenuSub_edit, MENU_RENAME, MF_DISABLED );
+				_EnableMenuItem( g_hMenuSub_download, MENU_RENAME, MF_GRAYED );
+				_EnableMenuItem( g_hMenuSub_edit, MENU_RENAME, MF_GRAYED );
 			}
 		}
 		else
 		{
-			_EnableMenuItem( g_hMenuSub_download, MENU_OPEN_FILE, MF_DISABLED );
-			_EnableMenuItem( g_hMenuSub_download, MENU_OPEN_DIRECTORY, MF_DISABLED );
+			_EnableMenuItem( g_hMenuSub_download, MENU_OPEN_FILE, MF_GRAYED );
+			_EnableMenuItem( g_hMenuSub_download, MENU_OPEN_DIRECTORY, MF_GRAYED );
 
-			_EnableMenuItem( g_hMenuSub_download, MENU_UPDATE_DOWNLOAD, MF_DISABLED );
-			_EnableMenuItem( g_hMenuSub_edit, MENU_UPDATE_DOWNLOAD, MF_DISABLED );
+			_EnableMenuItem( g_hMenuSub_download, MENU_UPDATE_DOWNLOAD, MF_GRAYED );
+			_EnableMenuItem( g_hMenuSub_edit, MENU_UPDATE_DOWNLOAD, MF_GRAYED );
 
-			_EnableMenuItem( g_hMenuSub_queue, MENU_QUEUE_TOP, MF_DISABLED );
-			_EnableMenuItem( g_hMenuSub_queue, MENU_QUEUE_UP, MF_DISABLED );
-			_EnableMenuItem( g_hMenuSub_queue, MENU_QUEUE_DOWN, MF_DISABLED );
-			_EnableMenuItem( g_hMenuSub_queue, MENU_QUEUE_BOTTOM, MF_DISABLED );
+			_EnableMenuItem( g_hMenuSub_queue, MENU_QUEUE_TOP, MF_GRAYED );
+			_EnableMenuItem( g_hMenuSub_queue, MENU_QUEUE_UP, MF_GRAYED );
+			_EnableMenuItem( g_hMenuSub_queue, MENU_QUEUE_DOWN, MF_GRAYED );
+			_EnableMenuItem( g_hMenuSub_queue, MENU_QUEUE_BOTTOM, MF_GRAYED );
 
-			_EnableMenuItem( g_hMenuSub_download, MENU_RENAME, MF_DISABLED );
-			_EnableMenuItem( g_hMenuSub_edit, MENU_RENAME, MF_DISABLED );
+			_EnableMenuItem( g_hMenuSub_download, MENU_RENAME, MF_GRAYED );
+			_EnableMenuItem( g_hMenuSub_edit, MENU_RENAME, MF_GRAYED );
 		}
 
 		if ( sel_count > 0 )
@@ -184,8 +184,8 @@ void UpdateMenus( bool enable )
 			}
 			else
 			{
-				_EnableMenuItem( g_hMenuSub_download, MENU_START, MF_DISABLED );
-				_EnableMenuItem( g_hMenuSub_edit, MENU_START, MF_DISABLED );
+				_EnableMenuItem( g_hMenuSub_download, MENU_START, MF_GRAYED );
+				_EnableMenuItem( g_hMenuSub_edit, MENU_START, MF_GRAYED );
 
 				tbb.fsState = TBSTATE_INDETERMINATE;
 				_SendMessageW( g_hWnd_toolbar, TB_SETBUTTONINFO, MENU_START, ( LPARAM )&tbb );
@@ -205,8 +205,8 @@ void UpdateMenus( bool enable )
 			}
 			else
 			{
-				_EnableMenuItem( g_hMenuSub_download, MENU_PAUSE, MF_DISABLED );
-				_EnableMenuItem( g_hMenuSub_edit, MENU_PAUSE, MF_DISABLED );
+				_EnableMenuItem( g_hMenuSub_download, MENU_PAUSE, MF_GRAYED );
+				_EnableMenuItem( g_hMenuSub_edit, MENU_PAUSE, MF_GRAYED );
 
 				tbb.fsState = TBSTATE_INDETERMINATE;
 				_SendMessageW( g_hWnd_toolbar, TB_SETBUTTONINFO, MENU_PAUSE, ( LPARAM )&tbb );
@@ -228,8 +228,8 @@ void UpdateMenus( bool enable )
 			}
 			else
 			{
-				_EnableMenuItem( g_hMenuSub_download, MENU_STOP, MF_DISABLED );
-				_EnableMenuItem( g_hMenuSub_edit, MENU_STOP, MF_DISABLED );
+				_EnableMenuItem( g_hMenuSub_download, MENU_STOP, MF_GRAYED );
+				_EnableMenuItem( g_hMenuSub_edit, MENU_STOP, MF_GRAYED );
 
 				tbb.fsState = TBSTATE_INDETERMINATE;
 				_SendMessageW( g_hWnd_toolbar, TB_SETBUTTONINFO, MENU_STOP, ( LPARAM )&tbb );
@@ -258,8 +258,8 @@ void UpdateMenus( bool enable )
 			}
 			else
 			{
-				_EnableMenuItem( g_hMenuSub_download, MENU_RESTART, MF_DISABLED );
-				_EnableMenuItem( g_hMenuSub_edit, MENU_RESTART, MF_DISABLED );
+				_EnableMenuItem( g_hMenuSub_download, MENU_RESTART, MF_GRAYED );
+				_EnableMenuItem( g_hMenuSub_edit, MENU_RESTART, MF_GRAYED );
 
 				tbb.fsState = TBSTATE_INDETERMINATE;
 				_SendMessageW( g_hWnd_toolbar, TB_SETBUTTONINFO, MENU_RESTART, ( LPARAM )&tbb );
@@ -280,11 +280,11 @@ void UpdateMenus( bool enable )
 			}
 			else
 			{
-				_EnableMenuItem( g_hMenuSub_download, MENU_REMOVE_AND_DELETE, MF_DISABLED );
-				_EnableMenuItem( g_hMenuSub_edit, MENU_REMOVE_AND_DELETE, MF_DISABLED );
+				_EnableMenuItem( g_hMenuSub_download, MENU_REMOVE_AND_DELETE, MF_GRAYED );
+				_EnableMenuItem( g_hMenuSub_edit, MENU_REMOVE_AND_DELETE, MF_GRAYED );
 
-				_EnableMenuItem( g_hMenuSub_download, MENU_DELETE, MF_DISABLED );
-				_EnableMenuItem( g_hMenuSub_edit, MENU_DELETE, MF_DISABLED );
+				_EnableMenuItem( g_hMenuSub_download, MENU_DELETE, MF_GRAYED );
+				_EnableMenuItem( g_hMenuSub_edit, MENU_DELETE, MF_GRAYED );
 			}
 
 			// Allow the URL copy.
@@ -296,27 +296,27 @@ void UpdateMenus( bool enable )
 		}
 		else
 		{
-			_EnableMenuItem( g_hMenuSub_download, MENU_START, MF_DISABLED );
-			_EnableMenuItem( g_hMenuSub_download, MENU_PAUSE, MF_DISABLED );
-			_EnableMenuItem( g_hMenuSub_download, MENU_STOP, MF_DISABLED );
-			_EnableMenuItem( g_hMenuSub_download, MENU_RESTART, MF_DISABLED );
+			_EnableMenuItem( g_hMenuSub_download, MENU_START, MF_GRAYED );
+			_EnableMenuItem( g_hMenuSub_download, MENU_PAUSE, MF_GRAYED );
+			_EnableMenuItem( g_hMenuSub_download, MENU_STOP, MF_GRAYED );
+			_EnableMenuItem( g_hMenuSub_download, MENU_RESTART, MF_GRAYED );
 
-			_EnableMenuItem( g_hMenuSub_download, MENU_REMOVE, MF_DISABLED );
-			_EnableMenuItem( g_hMenuSub_download, MENU_REMOVE_AND_DELETE, MF_DISABLED );
-			_EnableMenuItem( g_hMenuSub_download, MENU_DELETE, MF_DISABLED );
+			_EnableMenuItem( g_hMenuSub_download, MENU_REMOVE, MF_GRAYED );
+			_EnableMenuItem( g_hMenuSub_download, MENU_REMOVE_AND_DELETE, MF_GRAYED );
+			_EnableMenuItem( g_hMenuSub_download, MENU_DELETE, MF_GRAYED );
 
-			_EnableMenuItem( g_hMenuSub_download, MENU_COPY_URLS, MF_DISABLED );
+			_EnableMenuItem( g_hMenuSub_download, MENU_COPY_URLS, MF_GRAYED );
 
-			_EnableMenuItem( g_hMenuSub_edit, MENU_START, MF_DISABLED );
-			_EnableMenuItem( g_hMenuSub_edit, MENU_PAUSE, MF_DISABLED );
-			_EnableMenuItem( g_hMenuSub_edit, MENU_STOP, MF_DISABLED );
-			_EnableMenuItem( g_hMenuSub_edit, MENU_RESTART, MF_DISABLED );
+			_EnableMenuItem( g_hMenuSub_edit, MENU_START, MF_GRAYED );
+			_EnableMenuItem( g_hMenuSub_edit, MENU_PAUSE, MF_GRAYED );
+			_EnableMenuItem( g_hMenuSub_edit, MENU_STOP, MF_GRAYED );
+			_EnableMenuItem( g_hMenuSub_edit, MENU_RESTART, MF_GRAYED );
 
-			_EnableMenuItem( g_hMenuSub_edit, MENU_REMOVE, MF_DISABLED );
-			_EnableMenuItem( g_hMenuSub_edit, MENU_REMOVE_AND_DELETE, MF_DISABLED );
-			_EnableMenuItem( g_hMenuSub_edit, MENU_DELETE, MF_DISABLED );
+			_EnableMenuItem( g_hMenuSub_edit, MENU_REMOVE, MF_GRAYED );
+			_EnableMenuItem( g_hMenuSub_edit, MENU_REMOVE_AND_DELETE, MF_GRAYED );
+			_EnableMenuItem( g_hMenuSub_edit, MENU_DELETE, MF_GRAYED );
 
-			_EnableMenuItem( g_hMenuSub_edit, MENU_COPY_URLS, MF_DISABLED );
+			_EnableMenuItem( g_hMenuSub_edit, MENU_COPY_URLS, MF_GRAYED );
 
 			tbb.fsState = TBSTATE_INDETERMINATE;
 			_SendMessageW( g_hWnd_toolbar, TB_SETBUTTONINFO, MENU_REMOVE, ( LPARAM )&tbb );
@@ -337,7 +337,7 @@ void UpdateMenus( bool enable )
 		}
 		else if ( download_queue != NULL )
 		{
-			_EnableMenuItem( g_hMenuSub_edit, MENU_PAUSE_ACTIVE, MF_DISABLED );
+			_EnableMenuItem( g_hMenuSub_edit, MENU_PAUSE_ACTIVE, MF_GRAYED );
 			_EnableMenuItem( g_hMenuSub_edit, MENU_STOP_ALL, MF_ENABLED );
 
 			tbb.fsState = TBSTATE_INDETERMINATE;
@@ -347,8 +347,8 @@ void UpdateMenus( bool enable )
 		}
 		else
 		{
-			_EnableMenuItem( g_hMenuSub_edit, MENU_PAUSE_ACTIVE, MF_DISABLED );
-			_EnableMenuItem( g_hMenuSub_edit, MENU_STOP_ALL, MF_DISABLED );
+			_EnableMenuItem( g_hMenuSub_edit, MENU_PAUSE_ACTIVE, MF_GRAYED );
+			_EnableMenuItem( g_hMenuSub_edit, MENU_STOP_ALL, MF_GRAYED );
 
 			tbb.fsState = TBSTATE_INDETERMINATE;
 			_SendMessageW( g_hWnd_toolbar, TB_SETBUTTONINFO, MENU_PAUSE_ACTIVE, ( LPARAM )&tbb );
@@ -363,50 +363,50 @@ void UpdateMenus( bool enable )
 		}
 		else
 		{
-			//_EnableMenuItem( g_hMenuSub_edit, MENU_PAUSE_ACTIVE, MF_DISABLED );
-			//_EnableMenuItem( g_hMenuSub_edit, MENU_STOP_ALL, MF_DISABLED );
-			_EnableMenuItem( g_hMenuSub_edit, MENU_REMOVE_COMPLETED, MF_DISABLED );
+			//_EnableMenuItem( g_hMenuSub_edit, MENU_PAUSE_ACTIVE, MF_GRAYED );
+			//_EnableMenuItem( g_hMenuSub_edit, MENU_STOP_ALL, MF_GRAYED );
+			_EnableMenuItem( g_hMenuSub_edit, MENU_REMOVE_COMPLETED, MF_GRAYED );
 		}
 
-		_EnableMenuItem( g_hMenuSub_download, MENU_SELECT_ALL, ( sel_count != item_count ? MF_ENABLED : MF_DISABLED ) );
+		_EnableMenuItem( g_hMenuSub_download, MENU_SELECT_ALL, ( sel_count != item_count ? MF_ENABLED : MF_GRAYED ) );
 
-		_EnableMenuItem( g_hMenuSub_edit, MENU_SELECT_ALL, ( sel_count != item_count ? MF_ENABLED : MF_DISABLED ) );
+		_EnableMenuItem( g_hMenuSub_edit, MENU_SELECT_ALL, ( sel_count != item_count ? MF_ENABLED : MF_GRAYED ) );
 	}
 	else
 	{
-		_EnableMenuItem( g_hMenuSub_download, MENU_OPEN_FILE, MF_DISABLED );
-		_EnableMenuItem( g_hMenuSub_download, MENU_OPEN_DIRECTORY, MF_DISABLED );
-		_EnableMenuItem( g_hMenuSub_download, MENU_START, MF_DISABLED );
-		_EnableMenuItem( g_hMenuSub_download, MENU_PAUSE, MF_DISABLED );
-		_EnableMenuItem( g_hMenuSub_download, MENU_STOP, MF_DISABLED );
-		_EnableMenuItem( g_hMenuSub_download, MENU_RESTART, MF_DISABLED );
-		_EnableMenuItem( g_hMenuSub_download, MENU_UPDATE_DOWNLOAD, MF_DISABLED );
-		_EnableMenuItem( g_hMenuSub_download, MENU_REMOVE, MF_DISABLED );
-		_EnableMenuItem( g_hMenuSub_download, MENU_REMOVE_AND_DELETE, MF_DISABLED );
-		_EnableMenuItem( g_hMenuSub_download, MENU_DELETE, MF_DISABLED );
-		_EnableMenuItem( g_hMenuSub_download, MENU_RENAME, MF_DISABLED );
-		_EnableMenuItem( g_hMenuSub_download, MENU_COPY_URLS, MF_DISABLED );
-		_EnableMenuItem( g_hMenuSub_download, MENU_SELECT_ALL, MF_DISABLED );
+		_EnableMenuItem( g_hMenuSub_download, MENU_OPEN_FILE, MF_GRAYED );
+		_EnableMenuItem( g_hMenuSub_download, MENU_OPEN_DIRECTORY, MF_GRAYED );
+		_EnableMenuItem( g_hMenuSub_download, MENU_START, MF_GRAYED );
+		_EnableMenuItem( g_hMenuSub_download, MENU_PAUSE, MF_GRAYED );
+		_EnableMenuItem( g_hMenuSub_download, MENU_STOP, MF_GRAYED );
+		_EnableMenuItem( g_hMenuSub_download, MENU_RESTART, MF_GRAYED );
+		_EnableMenuItem( g_hMenuSub_download, MENU_UPDATE_DOWNLOAD, MF_GRAYED );
+		_EnableMenuItem( g_hMenuSub_download, MENU_REMOVE, MF_GRAYED );
+		_EnableMenuItem( g_hMenuSub_download, MENU_REMOVE_AND_DELETE, MF_GRAYED );
+		_EnableMenuItem( g_hMenuSub_download, MENU_DELETE, MF_GRAYED );
+		_EnableMenuItem( g_hMenuSub_download, MENU_RENAME, MF_GRAYED );
+		_EnableMenuItem( g_hMenuSub_download, MENU_COPY_URLS, MF_GRAYED );
+		_EnableMenuItem( g_hMenuSub_download, MENU_SELECT_ALL, MF_GRAYED );
 
-		_EnableMenuItem( g_hMenuSub_edit, MENU_START, MF_DISABLED );
-		_EnableMenuItem( g_hMenuSub_edit, MENU_PAUSE, MF_DISABLED );
-		_EnableMenuItem( g_hMenuSub_edit, MENU_STOP, MF_DISABLED );
-		_EnableMenuItem( g_hMenuSub_edit, MENU_RESTART, MF_DISABLED );
-		_EnableMenuItem( g_hMenuSub_edit, MENU_PAUSE_ACTIVE, MF_DISABLED );
-		_EnableMenuItem( g_hMenuSub_edit, MENU_STOP_ALL, MF_DISABLED );
-		_EnableMenuItem( g_hMenuSub_edit, MENU_UPDATE_DOWNLOAD, MF_DISABLED );
-		_EnableMenuItem( g_hMenuSub_edit, MENU_REMOVE, MF_DISABLED );
-		_EnableMenuItem( g_hMenuSub_edit, MENU_REMOVE_COMPLETED, MF_DISABLED );
-		_EnableMenuItem( g_hMenuSub_edit, MENU_REMOVE_AND_DELETE, MF_DISABLED );
-		_EnableMenuItem( g_hMenuSub_edit, MENU_DELETE, MF_DISABLED );
-		_EnableMenuItem( g_hMenuSub_edit, MENU_RENAME, MF_DISABLED );
-		_EnableMenuItem( g_hMenuSub_edit, MENU_COPY_URLS, MF_DISABLED );
-		_EnableMenuItem( g_hMenuSub_edit, MENU_SELECT_ALL, MF_DISABLED );
+		_EnableMenuItem( g_hMenuSub_edit, MENU_START, MF_GRAYED );
+		_EnableMenuItem( g_hMenuSub_edit, MENU_PAUSE, MF_GRAYED );
+		_EnableMenuItem( g_hMenuSub_edit, MENU_STOP, MF_GRAYED );
+		_EnableMenuItem( g_hMenuSub_edit, MENU_RESTART, MF_GRAYED );
+		_EnableMenuItem( g_hMenuSub_edit, MENU_PAUSE_ACTIVE, MF_GRAYED );
+		_EnableMenuItem( g_hMenuSub_edit, MENU_STOP_ALL, MF_GRAYED );
+		_EnableMenuItem( g_hMenuSub_edit, MENU_UPDATE_DOWNLOAD, MF_GRAYED );
+		_EnableMenuItem( g_hMenuSub_edit, MENU_REMOVE, MF_GRAYED );
+		_EnableMenuItem( g_hMenuSub_edit, MENU_REMOVE_COMPLETED, MF_GRAYED );
+		_EnableMenuItem( g_hMenuSub_edit, MENU_REMOVE_AND_DELETE, MF_GRAYED );
+		_EnableMenuItem( g_hMenuSub_edit, MENU_DELETE, MF_GRAYED );
+		_EnableMenuItem( g_hMenuSub_edit, MENU_RENAME, MF_GRAYED );
+		_EnableMenuItem( g_hMenuSub_edit, MENU_COPY_URLS, MF_GRAYED );
+		_EnableMenuItem( g_hMenuSub_edit, MENU_SELECT_ALL, MF_GRAYED );
 
-		_EnableMenuItem( g_hMenuSub_queue, MENU_QUEUE_TOP, MF_DISABLED );
-		_EnableMenuItem( g_hMenuSub_queue, MENU_QUEUE_UP, MF_DISABLED );
-		_EnableMenuItem( g_hMenuSub_queue, MENU_QUEUE_DOWN, MF_DISABLED );
-		_EnableMenuItem( g_hMenuSub_queue, MENU_QUEUE_BOTTOM, MF_DISABLED );
+		_EnableMenuItem( g_hMenuSub_queue, MENU_QUEUE_TOP, MF_GRAYED );
+		_EnableMenuItem( g_hMenuSub_queue, MENU_QUEUE_UP, MF_GRAYED );
+		_EnableMenuItem( g_hMenuSub_queue, MENU_QUEUE_DOWN, MF_GRAYED );
+		_EnableMenuItem( g_hMenuSub_queue, MENU_QUEUE_BOTTOM, MF_GRAYED );
 
 		tbb.fsState = TBSTATE_INDETERMINATE;
 		_SendMessageW( g_hWnd_toolbar, TB_SETBUTTONINFO, MENU_REMOVE, ( LPARAM )&tbb );
@@ -1029,7 +1029,12 @@ void UpdateColumns( unsigned int menu_id )
 
 			*download_columns[ menu_index ] = -1;
 			_SendMessageW( g_hWnd_files, LVM_DELETECOLUMN, index, 0 );
-			
+
+			if ( menu_index == cfg_sorted_column_index )
+			{
+				cfg_sorted_column_index = 0;
+			}
+
 			if ( g_total_columns == 1 )
 			{
 				// Find the remaining menu item and disable it.
@@ -1037,7 +1042,7 @@ void UpdateColumns( unsigned int menu_id )
 				{
 					if ( *download_columns[ j ] != -1 )
 					{
-						_EnableMenuItem( g_hMenuSub_column, COLUMN_MENU_OFFSET + j, MF_DISABLED );
+						_EnableMenuItem( g_hMenuSub_column, COLUMN_MENU_OFFSET + j, MF_GRAYED );
 
 						break;
 					}

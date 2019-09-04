@@ -1,5 +1,5 @@
 /*
-	HTTP Downloader can download files through HTTP and HTTPS connections.
+	HTTP Downloader can download files through HTTP(S) and FTP(S) connections.
 	Copyright (C) 2015-2019 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
@@ -61,6 +61,7 @@ extern HWND g_hWnd_options_tab;
 extern HWND g_hWnd_general_tab;
 extern HWND g_hWnd_appearance_tab;
 extern HWND g_hWnd_connection_tab;
+extern HWND g_hWnd_ftp_tab;
 extern HWND g_hWnd_proxy_tab;
 extern HWND g_hWnd_advanced_tab;
 
@@ -114,6 +115,23 @@ extern HWND g_hWnd_certificate_key_location;
 extern HWND g_hWnd_btn_certificate_key_location;
 extern HWND g_hWnd_static_server_ssl_version;
 extern HWND g_hWnd_server_ssl_version;
+
+// FTP Tab
+extern HWND g_hWnd_chk_passive_mode;
+extern HWND g_hWnd_chk_active_mode;
+extern HWND g_hWnd_chk_fallback_mode;
+
+extern HWND g_hWnd_static_active_listen_info;
+extern HWND g_hWnd_chk_type_ftp_hostname;
+extern HWND g_hWnd_chk_type_ftp_ip_address;
+extern HWND g_hWnd_ftp_hostname;
+extern HWND g_hWnd_ftp_ip_address;
+extern HWND g_hWnd_static_ftp_port_start;
+extern HWND g_hWnd_static_ftp_port_end;
+extern HWND g_hWnd_ftp_port_start;
+extern HWND g_hWnd_ftp_port_end;
+
+extern HWND g_hWnd_chk_send_keep_alive;
 
 // Proxy Tab
 // HTTP proxy
@@ -203,9 +221,10 @@ extern HWND g_hWnd_chk_download_history;
 extern HWND g_hWnd_chk_quick_allocation;
 extern HWND g_hWnd_chk_set_filetime;
 extern HWND g_hWnd_chk_use_one_instance;
-extern HWND g_hWnd_chk_download_immediately;
 extern HWND g_hWnd_chk_prevent_standby;
 extern HWND g_hWnd_chk_resume_downloads;
+
+extern HWND g_hWnd_drag_and_drop_action;
 
 extern HWND g_hWnd_prompt_last_modified;
 extern HWND g_hWnd_prompt_rename;
@@ -226,6 +245,8 @@ extern HWND g_hWnd_thread_count;
 // Appearance Tab
 
 extern HWND g_hWnd_chk_show_gridlines;
+
+extern HWND g_hWnd_chk_sort_added_and_updating_items;
 
 //
 

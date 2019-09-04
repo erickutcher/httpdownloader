@@ -1,5 +1,5 @@
 /*
-	HTTP Downloader can download files through HTTP and HTTPS connections.
+	HTTP Downloader can download files through HTTP(S) and FTP(S) connections.
 	Copyright (C) 2015-2019 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
@@ -86,8 +86,9 @@ bool cfg_enable_quick_allocation = false;
 bool cfg_set_filetime = true;
 bool cfg_use_one_instance = false;
 bool cfg_enable_drop_window = false;
-bool cfg_download_immediately = false;
 bool cfg_prevent_standby = true;
+
+unsigned char cfg_drag_and_drop_action = DRAG_AND_DROP_ACTION_NONE;
 
 unsigned char cfg_shutdown_action = SHUTDOWN_ACTION_NONE;
 
@@ -111,6 +112,18 @@ wchar_t *cfg_default_download_directory = NULL;
 
 unsigned int g_default_download_directory_length = 0;
 unsigned int g_temp_download_directory_length = 0;
+
+// FTP
+
+unsigned char cfg_ftp_mode_type = 0;	// 0 = Passive, 1 = Active
+bool cfg_ftp_enable_fallback_mode = false;
+unsigned char cfg_ftp_address_type = 0;	// 0 = Host name, 1 = IP address
+wchar_t *cfg_ftp_hostname = NULL;
+unsigned long cfg_ftp_ip_address = 2130706433;	// 127.0.0.1
+unsigned short cfg_ftp_port_start = 0;
+unsigned short cfg_ftp_port_end = 0;
+
+bool cfg_ftp_send_keep_alive = false;
 
 // Server
 
@@ -196,6 +209,10 @@ unsigned char cfg_drop_window_transparency = 0x80;
 bool cfg_show_drop_window_progress = false;
 
 //
+
+int cfg_sorted_column_index = 0;
+unsigned char cfg_sorted_direction = 0;	// Sort down.
+bool cfg_sort_added_and_updating_items = false;
 
 bool cfg_show_gridlines = true;
 
@@ -1867,13 +1884,40 @@ bool VerifyDigestAuthorization( char *username, unsigned long username_length, c
 	return ret;
 }
 
+void AdjustConstructBufferSize( SOCKET_CONTEXT *context, unsigned int offset, char *str, unsigned int str_len = 0 )
+{
+	if ( context != NULL )
+	{
+		if ( str != NULL && str_len == 0 )
+		{
+			str_len = lstrlenA( str );
+		}
+
+		while ( ( context->buffer_size - offset ) < str_len )
+		{
+			context->buffer_size += BUFFER_SIZE;
+
+			char *realloc_buffer = ( char * )GlobalReAlloc( context->buffer, sizeof( char ) * ( context->buffer_size + 1 ), GMEM_MOVEABLE | GMEM_ZEROINIT );
+			if ( realloc_buffer != NULL )
+			{
+				context->buffer = realloc_buffer;
+
+				context->wsabuf.buf = context->buffer;
+				context->wsabuf.len = context->buffer_size;
+			}
+		}
+	}
+}
+
 void ConstructRequest( SOCKET_CONTEXT *context, bool use_connect )
 {
 	unsigned int request_length = 0;
 
+	AdjustConstructBufferSize( context, request_length, context->request_info.host );
+
 	if ( use_connect )
 	{
-		request_length += __snprintf( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length,
+		request_length += __snprintf( context->wsabuf.buf + request_length, context->buffer_size - request_length,
 				"CONNECT %s:%lu " \
 				"HTTP/1.1\r\n" \
 				"Host: %s:%lu\r\n",
@@ -1883,12 +1927,12 @@ void ConstructRequest( SOCKET_CONTEXT *context, bool use_connect )
 	{
 		if ( context->download_info != NULL && context->download_info->method == METHOD_POST )
 		{
-			_memcpy_s( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length, "POST ", 5 );
+			_memcpy_s( context->wsabuf.buf + request_length, context->buffer_size - request_length, "POST ", 5 );
 			request_length += 5;
 		}
 		else
 		{
-			_memcpy_s( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length, "GET ", 4 );
+			_memcpy_s( context->wsabuf.buf + request_length, context->buffer_size - request_length, "GET ", 4 );
 			request_length += 4;
 		}
 
@@ -1896,37 +1940,39 @@ void ConstructRequest( SOCKET_CONTEXT *context, bool use_connect )
 		{
 			if ( context->request_info.protocol == PROTOCOL_HTTPS )
 			{
-				_memcpy_s( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length, "https:", 6 );
+				_memcpy_s( context->wsabuf.buf + request_length, context->buffer_size - request_length, "https:", 6 );
 				request_length += 6;
 			}
 			else if ( context->request_info.protocol == PROTOCOL_HTTP )
 			{
-				_memcpy_s( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length, "http:", 5 );
+				_memcpy_s( context->wsabuf.buf + request_length, context->buffer_size - request_length, "http:", 5 );
 				request_length += 5;
 			}
 
-			_memcpy_s( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length, "//", 2 );	// Could be protocol-relative.
+			_memcpy_s( context->wsabuf.buf + request_length, context->buffer_size - request_length, "//", 2 );	// Could be protocol-relative.
 			request_length += 2;
 
 			int host_length = lstrlenA( context->request_info.host );
-			_memcpy_s( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length, context->request_info.host, host_length );
+			_memcpy_s( context->wsabuf.buf + request_length, context->buffer_size - request_length, context->request_info.host, host_length );
 			request_length += host_length;
 
 			// Non-standard port for the protocol.
 			if ( ( context->request_info.protocol == PROTOCOL_HTTP && context->request_info.port != 80 ) ||
 				 ( context->request_info.protocol == PROTOCOL_HTTPS && context->request_info.port != 443 ) )
 			{
-				request_length += __snprintf( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length,
+				request_length += __snprintf( context->wsabuf.buf + request_length, context->buffer_size - request_length,
 						":%lu",
 						context->request_info.port );
 			}
 		}
 
+		AdjustConstructBufferSize( context, request_length, context->request_info.resource );
+
 		// Non-standard port for the protocol.
 		if ( ( context->request_info.protocol == PROTOCOL_HTTP && context->request_info.port != 80 ) ||
 			 ( context->request_info.protocol == PROTOCOL_HTTPS && context->request_info.port != 443 ) )
 		{
-			request_length += __snprintf( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length,
+			request_length += __snprintf( context->wsabuf.buf + request_length, context->buffer_size - request_length,
 					"%s " \
 					"HTTP/1.1\r\n" \
 					"Host: %s:%lu\r\n",
@@ -1935,7 +1981,7 @@ void ConstructRequest( SOCKET_CONTEXT *context, bool use_connect )
 		}
 		else	// No need for the port if it's the default for the protocol.
 		{
-			request_length += __snprintf( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length,
+			request_length += __snprintf( context->wsabuf.buf + request_length, context->buffer_size - request_length,
 					"%s " \
 					"HTTP/1.1\r\n" \
 					"Host: %s\r\n",
@@ -1943,22 +1989,22 @@ void ConstructRequest( SOCKET_CONTEXT *context, bool use_connect )
 					context->request_info.host );
 		}
 
-		//_memcpy_s( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length, "Accept-Encoding: gzip, deflate\r\n\0", 33 );
+		//_memcpy_s( context->wsabuf.buf + request_length, context->buffer_size - request_length, "Accept-Encoding: gzip, deflate\r\n\0", 33 );
 		//request_length += 32;
 
 		if ( context->header_info.content_encoding == CONTENT_ENCODING_GZIP )
 		{
-			_memcpy_s( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length, "Accept-Encoding: gzip\r\n\0", 24 );
+			_memcpy_s( context->wsabuf.buf + request_length, context->buffer_size - request_length, "Accept-Encoding: gzip\r\n\0", 24 );
 			request_length += 23;
 		}
 		else if ( context->header_info.content_encoding == CONTENT_ENCODING_DEFLATE )
 		{
-			_memcpy_s( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length, "Accept-Encoding: deflate\r\n\0", 27 );
+			_memcpy_s( context->wsabuf.buf + request_length, context->buffer_size - request_length, "Accept-Encoding: deflate\r\n\0", 27 );
 			request_length += 26;
 		}
 		else
 		{
-			_memcpy_s( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length, "Accept-Encoding: identity\r\n\0", 28 );
+			_memcpy_s( context->wsabuf.buf + request_length, context->buffer_size - request_length, "Accept-Encoding: identity\r\n\0", 28 );
 			request_length += 27;
 		}
 
@@ -1967,15 +2013,22 @@ void ConstructRequest( SOCKET_CONTEXT *context, bool use_connect )
 		   ( context->header_info.range_info->range_start > 0 &&
 			 context->header_info.range_info->range_end > 0 ) )
 		{
-			request_length += __snprintf( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length,
-					"Range: bytes=%llu-%llu\r\n", context->header_info.range_info->range_start, context->header_info.range_info->range_end );
+			// The 32-bit version of _snprintf in ntdll.dll on Windows XP doesn't like two %llu.
+			request_length += __snprintf( context->wsabuf.buf + request_length, context->buffer_size - request_length,
+					"Range: bytes=%llu-", context->header_info.range_info->range_start );
+			request_length += __snprintf( context->wsabuf.buf + request_length, context->buffer_size - request_length,
+					"%llu\r\n", context->header_info.range_info->range_end );
+			/*request_length += __snprintf( context->wsabuf.buf + request_length, context->buffer_size - request_length,
+					"Range: bytes=%llu-%llu\r\n", context->header_info.range_info->range_start, context->header_info.range_info->range_end );*/
 		}
 
 		/*if ( context->header_info.etag )
 		{
 			if ( context->download_info != NULL && context->download_info->etag != NULL )
 			{
-				request_length += __snprintf( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length,
+				AdjustConstructBufferSize( context, request_length, context->download_info->etag );
+
+				request_length += __snprintf( context->wsabuf.buf + request_length, context->buffer_size - request_length,
 						"If-Match: %s\r\n", context->download_info->etag );
 			}
 		}*/
@@ -1983,76 +2036,93 @@ void ConstructRequest( SOCKET_CONTEXT *context, bool use_connect )
 		// Add extra headers.
 		if ( context->download_info != NULL && context->download_info->headers != NULL )
 		{
-			request_length += __snprintf( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length,
+			AdjustConstructBufferSize( context, request_length, context->download_info->headers );
+
+			request_length += __snprintf( context->wsabuf.buf + request_length, context->buffer_size - request_length,
 					"%s", context->download_info->headers );
 		}
 
-		if ( context->header_info.digest_info != NULL )
+		if ( context->header_info.digest_info != NULL && context->download_info != NULL )
 		{
+			char *username;
+			char *password;
+
+			// The request's username and password (possibly obtained from redirects) must have priority over the download info's username and password.
+			if ( context->request_info.auth_info.username != NULL )
+			{
+				username = context->request_info.auth_info.username;
+				password = context->request_info.auth_info.password;
+			}
+			else
+			{
+				username = context->download_info->auth_info.username;
+				password = context->download_info->auth_info.password;
+			}
+
 			if ( context->header_info.digest_info->auth_type == AUTH_TYPE_BASIC )
 			{
-				if ( context->download_info != NULL )
+				char *auth_key = NULL;
+				DWORD auth_key_length = 0;
+				CreateBasicAuthorizationKey( username, -1, password, -1, &auth_key, &auth_key_length );
+
+				// Even though basic authorization doesn't use a nonce count, we'll use it so we know when to stop retrying the authorization.
+				++context->header_info.digest_info->nc;
+
+				if ( auth_key != NULL )
 				{
-					char *auth_key = NULL;
-					DWORD auth_key_length = 0;
-					CreateBasicAuthorizationKey( context->download_info->auth_info.username, -1, context->download_info->auth_info.password, -1, &auth_key, &auth_key_length );
+					AdjustConstructBufferSize( context, request_length, NULL, auth_key_length );
 
-					// Even though basic authorization doesn't use a nonce count, we'll use it so we know when to stop retrying the authorization.
-					++context->header_info.digest_info->nc;
+					_memcpy_s( context->wsabuf.buf + request_length, context->buffer_size - request_length, "Authorization: Basic ", 21 );
+					request_length += 21;
 
-					if ( auth_key != NULL )
-					{
-						_memcpy_s( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length, "Authorization: Basic ", 21 );
-						request_length += 21;
+					_memcpy_s( context->wsabuf.buf + request_length, context->buffer_size - request_length, auth_key, auth_key_length );
+					request_length += auth_key_length;
 
-						_memcpy_s( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length, auth_key, auth_key_length );
-						request_length += auth_key_length;
+					_memcpy_s( context->wsabuf.buf + request_length, context->buffer_size - request_length, "\r\n\0", 3 );
+					request_length += 2;
 
-						_memcpy_s( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length, "\r\n\0", 3 );
-						request_length += 2;
-
-						GlobalFree( auth_key );
-					}
+					GlobalFree( auth_key );
 				}
 			}
 			else if ( context->header_info.digest_info->auth_type == AUTH_TYPE_DIGEST )
 			{
-				if ( context->download_info != NULL )
+				char *auth_key = NULL;
+				DWORD auth_key_length = 0;
+				CreateDigestAuthorizationKey( username,
+											  password,
+											  ( use_connect ? "CONNECT" : ( context->download_info->method == METHOD_POST ? "POST" : "GET" ) ),
+											  context->request_info.resource,
+											  context->header_info.digest_info,
+											  &auth_key,
+											  &auth_key_length );
+
+				if ( auth_key != NULL )
 				{
-					char *auth_key = NULL;
-					DWORD auth_key_length = 0;
-					CreateDigestAuthorizationKey( context->download_info->auth_info.username,
-												  context->download_info->auth_info.password,
-												  ( use_connect ? "CONNECT" : ( context->download_info->method == METHOD_POST ? "POST" : "GET" ) ),
-												  context->request_info.resource,
-												  context->header_info.digest_info,
-												  &auth_key,
-												  &auth_key_length );
+					AdjustConstructBufferSize( context, request_length, NULL, auth_key_length );
 
-					if ( auth_key != NULL )
-					{
-						_memcpy_s( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length, "Authorization: Digest ", 22 );
-						request_length += 22;
+					_memcpy_s( context->wsabuf.buf + request_length, context->buffer_size - request_length, "Authorization: Digest ", 22 );
+					request_length += 22;
 
-						_memcpy_s( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length, auth_key, auth_key_length );
-						request_length += auth_key_length;
+					_memcpy_s( context->wsabuf.buf + request_length, context->buffer_size - request_length, auth_key, auth_key_length );
+					request_length += auth_key_length;
 
-						_memcpy_s( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length, "\r\n\0", 3 );
-						request_length += 2;
+					_memcpy_s( context->wsabuf.buf + request_length, context->buffer_size - request_length, "\r\n\0", 3 );
+					request_length += 2;
 
-						GlobalFree( auth_key );
-					}
+					GlobalFree( auth_key );
 				}
 			}
 		}
 
 		if ( context->header_info.cookies != NULL )
 		{
-			request_length += __snprintf( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length,
+			AdjustConstructBufferSize( context, request_length, context->header_info.cookies );
+
+			request_length += __snprintf( context->wsabuf.buf + request_length, context->buffer_size - request_length,
 					"Cookie: %s\r\n", context->header_info.cookies );
 		}
 
-		/*request_length += __snprintf( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length,
+		/*request_length += __snprintf( context->wsabuf.buf + request_length, context->buffer_size - request_length,
 			"Referer: %s%s%s\r\n", context->request_info.protocol == PROTOCOL_HTTPS ? "https://" : "http://", context->request_info.host, context->request_info.resource );*/
 	}
 
@@ -2086,16 +2156,18 @@ void ConstructRequest( SOCKET_CONTEXT *context, bool use_connect )
 		{
 			if ( context->header_info.proxy_digest_info->auth_type == AUTH_TYPE_BASIC )
 			{
+				AdjustConstructBufferSize( context, request_length, NULL, proxy_auth_key_length );
+
 				// Even though basic authorization doesn't use a nonce count, we'll use it so we know when to stop retrying the authorization.
 				++context->header_info.proxy_digest_info->nc;
 
-				_memcpy_s( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length, "Proxy-Authorization: Basic ", 27 );
+				_memcpy_s( context->wsabuf.buf + request_length, context->buffer_size - request_length, "Proxy-Authorization: Basic ", 27 );
 				request_length += 27;
 
-				_memcpy_s( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length, proxy_auth_key, proxy_auth_key_length );
+				_memcpy_s( context->wsabuf.buf + request_length, context->buffer_size - request_length, proxy_auth_key, proxy_auth_key_length );
 				request_length += proxy_auth_key_length;
 
-				_memcpy_s( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length, "\r\n\0", 3 );
+				_memcpy_s( context->wsabuf.buf + request_length, context->buffer_size - request_length, "\r\n\0", 3 );
 				request_length += 2;
 			}
 			else if ( context->header_info.proxy_digest_info->auth_type == AUTH_TYPE_DIGEST )
@@ -2112,13 +2184,15 @@ void ConstructRequest( SOCKET_CONTEXT *context, bool use_connect )
 
 				if ( auth_key != NULL )
 				{
-					_memcpy_s( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length, "Proxy-Authorization: Digest ", 28 );
+					AdjustConstructBufferSize( context, request_length, NULL, auth_key_length );
+
+					_memcpy_s( context->wsabuf.buf + request_length, context->buffer_size - request_length, "Proxy-Authorization: Digest ", 28 );
 					request_length += 28;
 
-					_memcpy_s( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length, auth_key, auth_key_length );
+					_memcpy_s( context->wsabuf.buf + request_length, context->buffer_size - request_length, auth_key, auth_key_length );
 					request_length += auth_key_length;
 
-					_memcpy_s( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length, "\r\n\0", 3 );
+					_memcpy_s( context->wsabuf.buf + request_length, context->buffer_size - request_length, "\r\n\0", 3 );
 					request_length += 2;
 
 					GlobalFree( auth_key );
@@ -2133,31 +2207,33 @@ void ConstructRequest( SOCKET_CONTEXT *context, bool use_connect )
 	{
 		post_data_length = lstrlenA( context->download_info->data );
 
-		request_length += __snprintf( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length,
+		request_length += __snprintf( context->wsabuf.buf + request_length, context->buffer_size - request_length,
 					"Content-Length: %lu\r\n", post_data_length );
 
-		_memcpy_s( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length, "Content-Type: application/x-www-form-urlencoded\r\n\0", 50 );
+		_memcpy_s( context->wsabuf.buf + request_length, context->buffer_size - request_length, "Content-Type: application/x-www-form-urlencoded\r\n\0", 50 );
 		request_length += 49;
 	}
 
 	if ( context->parts > 1 )
 	{
-		_memcpy_s( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length, "Connection: keep-alive\r\n\r\n\0", 27 );
+		_memcpy_s( context->wsabuf.buf + request_length, context->buffer_size - request_length, "Connection: keep-alive\r\n\r\n\0", 27 );
 		request_length += 26;
 	}
 	else
 	{
-		_memcpy_s( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length, "Connection: close\r\n\r\n\0", 22 );
+		_memcpy_s( context->wsabuf.buf + request_length, context->buffer_size - request_length, "Connection: close\r\n\r\n\0", 22 );
 		request_length += 21;
 	}
 
 	if ( context->download_info != NULL && context->download_info->method == METHOD_POST )
 	{
-		_memcpy_s( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length, context->download_info->data, post_data_length );
+		AdjustConstructBufferSize( context, request_length, NULL, post_data_length );
+
+		_memcpy_s( context->wsabuf.buf + request_length, context->buffer_size - request_length, context->download_info->data, post_data_length );
 		request_length += post_data_length;
 	}
 
-	context->wsabuf.len = request_length;
+	context->wsabuf.len = min( request_length, context->buffer_size );
 }
 
 void ConstructSOCKSRequest( SOCKET_CONTEXT *context, unsigned char request_type )
@@ -2174,13 +2250,13 @@ void ConstructSOCKSRequest( SOCKET_CONTEXT *context, unsigned char request_type 
 			context->wsabuf.buf[ request_length++ ] = 0x01;	// TCP/IP stream connection
 
 			unsigned short nb_port = ( ( context->request_info.port & 0x00FF ) << 8 ) | ( ( context->request_info.port & 0xFF00 ) >> 8 );
-			_memcpy_s( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length, &nb_port, sizeof( unsigned short ) );
+			_memcpy_s( context->wsabuf.buf + request_length, context->buffer_size - request_length, &nb_port, sizeof( unsigned short ) );
 			request_length += sizeof( unsigned short );
 
 			if ( cfg_resolve_domain_names_v4a )
 			{
 				// The last byte needs to be non-zero for the domain resolve to occur: 0.0.0.x 
-				_memcpy_s( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length, &dstip, sizeof( unsigned int ) );
+				_memcpy_s( context->wsabuf.buf + request_length, context->buffer_size - request_length, &dstip, sizeof( unsigned int ) );
 				request_length += sizeof( unsigned int );
 			}
 			else
@@ -2190,32 +2266,32 @@ void ConstructSOCKSRequest( SOCKET_CONTEXT *context, unsigned char request_type 
 					struct sockaddr_in *ipv4_addr = ( struct sockaddr_in * )context->proxy_address_info->ai_addr;
 					if ( ipv4_addr != NULL )
 					{
-						_memcpy_s( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length, &ipv4_addr->sin_addr, sizeof( ipv4_addr->sin_addr ) );
+						_memcpy_s( context->wsabuf.buf + request_length, context->buffer_size - request_length, &ipv4_addr->sin_addr, sizeof( ipv4_addr->sin_addr ) );
 						request_length += sizeof( ipv4_addr->sin_addr );
 					}
 					else
 					{
-						_memcpy_s( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length, &dstip, sizeof( unsigned int ) );
+						_memcpy_s( context->wsabuf.buf + request_length, context->buffer_size - request_length, &dstip, sizeof( unsigned int ) );
 						request_length += sizeof( unsigned int );
 					}
 				}
 				else
 				{
-					_memcpy_s( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length, &dstip, sizeof( unsigned int ) );
+					_memcpy_s( context->wsabuf.buf + request_length, context->buffer_size - request_length, &dstip, sizeof( unsigned int ) );
 					request_length += sizeof( unsigned int );
 				}
 			}
 
 			unsigned char username_length = ( unsigned char )lstrlenA( g_proxy_auth_ident_username_socks ) + 1;	// Include the NULL character.
 
-			_memcpy_s( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length, g_proxy_auth_ident_username_socks, username_length );
+			_memcpy_s( context->wsabuf.buf + request_length, context->buffer_size - request_length, g_proxy_auth_ident_username_socks, username_length );
 			request_length += username_length;
 
 			if ( cfg_resolve_domain_names_v4a )
 			{
 				int host_length = ( int )lstrlenA( context->request_info.host ) + 1;	// Include the NULL character.
 
-				_memcpy_s( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length, context->request_info.host, host_length );
+				_memcpy_s( context->wsabuf.buf + request_length, context->buffer_size - request_length, context->request_info.host, host_length );
 				request_length += host_length;
 			}
 		}
@@ -2268,12 +2344,12 @@ void ConstructSOCKSRequest( SOCKET_CONTEXT *context, unsigned char request_type 
 
 				context->wsabuf.buf[ request_length++ ] = host_length;
 
-				_memcpy_s( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length, context->request_info.host + ( is_ipv6_address ? 1 : 0 ), host_length );
+				_memcpy_s( context->wsabuf.buf + request_length, context->buffer_size - request_length, context->request_info.host + ( is_ipv6_address ? 1 : 0 ), host_length );
 
 				request_length += host_length;
 
 				unsigned short nb_port = ( ( context->request_info.port & 0x00FF ) << 8 ) | ( ( context->request_info.port & 0xFF00 ) >> 8 );
-				_memcpy_s( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length, &nb_port, sizeof( unsigned short ) );
+				_memcpy_s( context->wsabuf.buf + request_length, context->buffer_size - request_length, &nb_port, sizeof( unsigned short ) );
 				request_length += sizeof( unsigned short );
 			}
 			else if ( context->proxy_address_info != NULL )
@@ -2287,15 +2363,15 @@ void ConstructSOCKSRequest( SOCKET_CONTEXT *context, unsigned char request_type 
 					struct sockaddr_in6 *ipv6_addr = ( struct sockaddr_in6 * )context->proxy_address_info->ai_addr;
 					if ( ipv6_addr != NULL )
 					{
-						_memcpy_s( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length, &ipv6_addr->sin6_addr, sizeof( ipv6_addr->sin6_addr ) );
+						_memcpy_s( context->wsabuf.buf + request_length, context->buffer_size - request_length, &ipv6_addr->sin6_addr, sizeof( ipv6_addr->sin6_addr ) );
 						request_length += sizeof( ipv6_addr->sin6_addr );
 
-						_memcpy_s( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length, &ipv6_addr->sin6_port, sizeof( ipv6_addr->sin6_port ) );
+						_memcpy_s( context->wsabuf.buf + request_length, context->buffer_size - request_length, &ipv6_addr->sin6_port, sizeof( ipv6_addr->sin6_port ) );
 						request_length += sizeof( ipv6_addr->sin6_port );
 					}
 					else
 					{
-						_memcpy_s( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length, &dstip, sizeof( unsigned int ) );
+						_memcpy_s( context->wsabuf.buf + request_length, context->buffer_size - request_length, &dstip, sizeof( unsigned int ) );
 						request_length += sizeof( unsigned int );
 					}
 				}
@@ -2304,22 +2380,22 @@ void ConstructSOCKSRequest( SOCKET_CONTEXT *context, unsigned char request_type 
 					struct sockaddr_in *ipv4_addr = ( struct sockaddr_in * )context->proxy_address_info->ai_addr;
 					if ( ipv4_addr != NULL )
 					{
-						_memcpy_s( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length, &ipv4_addr->sin_addr, sizeof( ipv4_addr->sin_addr ) );
+						_memcpy_s( context->wsabuf.buf + request_length, context->buffer_size - request_length, &ipv4_addr->sin_addr, sizeof( ipv4_addr->sin_addr ) );
 						request_length += sizeof( ipv4_addr->sin_addr );
 
-						_memcpy_s( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length, &ipv4_addr->sin_port, sizeof( ipv4_addr->sin_port ) );
+						_memcpy_s( context->wsabuf.buf + request_length, context->buffer_size - request_length, &ipv4_addr->sin_port, sizeof( ipv4_addr->sin_port ) );
 						request_length += sizeof( ipv4_addr->sin_port );
 					}
 					else
 					{
-						_memcpy_s( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length, &dstip, sizeof( unsigned int ) );
+						_memcpy_s( context->wsabuf.buf + request_length, context->buffer_size - request_length, &dstip, sizeof( unsigned int ) );
 						request_length += sizeof( unsigned int );
 					}
 				}
 			}
 			else
 			{
-				_memcpy_s( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length, &dstip, sizeof( unsigned int ) );
+				_memcpy_s( context->wsabuf.buf + request_length, context->buffer_size - request_length, &dstip, sizeof( unsigned int ) );
 				request_length += sizeof( unsigned int );
 			}
 		}
@@ -2330,10 +2406,10 @@ void ConstructSOCKSRequest( SOCKET_CONTEXT *context, unsigned char request_type 
 
 			context->wsabuf.buf[ request_length++ ] = 0x01;	// Username/Password version
 			context->wsabuf.buf[ request_length++ ] = username_length;
-			_memcpy_s( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length, g_proxy_auth_username_socks, username_length );
+			_memcpy_s( context->wsabuf.buf + request_length, context->buffer_size - request_length, g_proxy_auth_username_socks, username_length );
 			request_length += username_length;
 			context->wsabuf.buf[ request_length++ ] = password_length;
-			_memcpy_s( context->wsabuf.buf + request_length, BUFFER_SIZE - request_length, g_proxy_auth_password_socks, password_length );
+			_memcpy_s( context->wsabuf.buf + request_length, context->buffer_size - request_length, g_proxy_auth_password_socks, password_length );
 			request_length += password_length;
 		}
 	}

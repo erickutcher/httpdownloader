@@ -1,5 +1,5 @@
 /*
-	HTTP Downloader can download files through HTTP and HTTPS connections.
+	HTTP Downloader can download files through HTTP(S) and FTP(S) connections.
 	Copyright (C) 2015-2019 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
@@ -147,6 +147,7 @@ STRING_TABLE_DATA options_string_table[] =
 	{ L"Appearance", 10 },
 	{ L"Apply", 5 },
 	{ L"Connection", 10 },
+	{ L"FTP", 3 },
 	{ L"General", 7 },
 	{ L"OK", 2 },
 	{ L"Proxy", 5 }
@@ -154,11 +155,13 @@ STRING_TABLE_DATA options_string_table[] =
 
 STRING_TABLE_DATA options_advanced_string_table[] =
 {
+	{ L"Add in Stopped state", 20 },
 	{ L"Allow only one instance of the program to run", 45 },
 	{ L"Continue Download", 17 },
 	{ L"Default download directory:", 27 },
 	{ L"Display Prompt", 14 },
-	{ L"Download drag and drop URL(s) immediately", 41 },
+	{ L"Download immediately", 20 },
+	{ L"Drag and drop URL(s) action:", 28 },
 	{ L"Enable download history", 23 },
 	{ L"Enable quick file allocation (administrator access required)", 60 },
 	{ L"Hibernate", 9 },
@@ -203,7 +206,8 @@ STRING_TABLE_DATA options_appearance_string_table[] =
 	{ L"Progress Color", 14 },
 	{ L"Progress bar:", 13 },
 	{ L"Progress Font Color", 19 },
-	{ L"Show gridlines in download list", 31 }
+	{ L"Show gridlines in download list", 31 },
+	{ L"Sort added and updating items", 29 }
 };
 
 STRING_TABLE_DATA options_connection_string_table[] =
@@ -235,6 +239,18 @@ STRING_TABLE_DATA options_connection_string_table[] =
 	{ L"Retry incomplete parts:", 23 },
 	{ L"Server SSL / TLS version:", 25 },
 	{ L"Timeout (seconds):", 18 }
+};
+
+STRING_TABLE_DATA options_ftp_string_table[] =
+{
+	{ L"Active", 6 },
+	{ L"Active Listen Information", 25 },
+	{ L"Data Transfer Mode", 18 },
+	{ L"Passive", 7 },
+	{ L"Port end:", 9 },
+	{ L"Port start:", 11 },
+	{ L"Send keep-alive requests", 24 },
+	{ L"Use other mode on failure", 25 }
 };
 
 STRING_TABLE_DATA options_general_string_table[] =
@@ -519,6 +535,7 @@ void InitializeLocaleValues()
 		for ( i = 0; i < OPTIONS_ADVANCED_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = options_advanced_string_table[ i ]; }
 		for ( i = 0; i < OPTIONS_APPEARANCE_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = options_appearance_string_table[ i ]; }
 		for ( i = 0; i < OPTIONS_CONNECTION_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = options_connection_string_table[ i ]; }
+		for ( i = 0; i < OPTIONS_FTP_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = options_ftp_string_table[ i ]; }
 		for ( i = 0; i < OPTIONS_GENERAL_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = options_general_string_table[ i ]; }
 		for ( i = 0; i < OPTIONS_PROXY_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = options_proxy_string_table[ i ]; }
 		for ( i = 0; i < CMESSAGEBOX_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = cmessagebox_string_table[ i ]; }

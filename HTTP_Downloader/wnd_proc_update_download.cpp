@@ -1,5 +1,5 @@
 /*
-	HTTP Downloader can download files through HTTP and HTTPS connections.
+	HTTP Downloader can download files through HTTP(S) and FTP(S) connections.
 	Copyright (C) 2015-2019 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
@@ -243,7 +243,7 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 
 			// Open theme data. Must be done after we subclass the control.
 			// Theme object will be closed when all tab controls are destroyed.
-			_SendMessageW( g_hWnd_update_tab, WM_PROPAGATE, 0, 0 );
+			_SendMessageW( g_hWnd_update_tab, WM_PROPAGATE, 0, ( LPARAM )COLOR_WINDOW );
 
 			return 0;
 		}
@@ -568,7 +568,7 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 				{
 					if ( HIWORD( wParam ) == EN_UPDATE )
 					{
-						DWORD sel_start = 0;
+						DWORD sel_start;
 
 						char value[ 11 ];
 						_SendMessageA( ( HWND )lParam, WM_GETTEXT, 11, ( LPARAM )value );

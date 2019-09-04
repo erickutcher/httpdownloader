@@ -1,5 +1,5 @@
 /*
-	HTTP Downloader can download files through HTTP and HTTPS connections.
+	HTTP Downloader can download files through HTTP(S) and FTP(S) connections.
 	Copyright (C) 2015-2019 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
@@ -622,7 +622,9 @@ bool ParseCookies( char *header, dllrbt_tree **cookie_tree, char **cookies, char
 	return true;
 }
 
-bool ParseURL_A( char *url, char *original_resource, PROTOCOL &protocol, char **host, unsigned int &host_length, unsigned short &port, char **resource, unsigned int &resource_length )
+bool ParseURL_A( char *url, char *original_resource,
+				 PROTOCOL &protocol, char **host, unsigned int &host_length, unsigned short &port, char **resource, unsigned int &resource_length,
+				 char **username, unsigned int *username_length, char **password, unsigned int *password_length )
 {
 	if ( url == NULL )
 	{
@@ -686,6 +688,50 @@ bool ParseURL_A( char *url, char *original_resource, PROTOCOL &protocol, char **
 				*( *resource ) = '/';
 				*( *resource + 1 ) = 0;	// Sanity.
 			}
+		}
+
+		// Find the beginning of a username and password.
+		char *unpw_token = NULL;
+		char *str_unpw_start = str_pos_start;
+		while ( str_unpw_start < str_pos_end )
+		{
+			if ( *str_unpw_start == L':' )
+			{
+				unpw_token = str_unpw_start;
+			}
+			else if ( *str_unpw_start == L'@' )
+			{
+				if ( username != NULL && username_length != NULL )
+				{
+					*username_length = ( unsigned int )( unpw_token == NULL ? ( str_unpw_start - str_pos_start ) : ( unpw_token - str_pos_start ) );
+
+					// Save the username.
+					*username = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( *username_length + 1 ) );
+					_memcpy_s( *username, *username_length + 1, str_pos_start, *username_length );
+					*( *username + *username_length ) = 0;	// Sanity
+				}
+
+				if ( unpw_token != NULL )
+				{
+					++unpw_token;
+
+					if ( password != NULL && password_length != NULL )
+					{
+						*password_length = ( unsigned int )( str_unpw_start - unpw_token );
+
+						// Save the password.
+						*password = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( *password_length + 1 ) );
+						_memcpy_s( *password, *password_length + 1, unpw_token, *password_length );
+						*( *password + *password_length ) = 0;	// Sanity
+					}
+				}
+
+				str_pos_start = str_unpw_start + 1;	// New beginning of host.
+
+				break;
+			}
+
+			++str_unpw_start;
 		}
 
 		// Find the beginning of a port (if it was included).
@@ -781,7 +827,9 @@ bool ParseURL_A( char *url, char *original_resource, PROTOCOL &protocol, char **
 	return true;
 }
 
-bool ParseURL_W( wchar_t *url, wchar_t *original_resource, PROTOCOL &protocol, wchar_t **host, unsigned int &host_length, unsigned short &port, wchar_t **resource, unsigned int &resource_length )
+bool ParseURL_W( wchar_t *url, wchar_t *original_resource,
+				 PROTOCOL &protocol, wchar_t **host, unsigned int &host_length, unsigned short &port, wchar_t **resource, unsigned int &resource_length,
+				 wchar_t **username, unsigned int *username_length, wchar_t **password, unsigned int *password_length )
 {
 	if ( url == NULL )
 	{
@@ -807,6 +855,21 @@ bool ParseURL_W( wchar_t *url, wchar_t *original_resource, PROTOCOL &protocol, w
 			protocol = PROTOCOL_HTTPS;
 			port = 443;
 		}
+		else if ( ( str_pos_end - str_pos_start ) == 4 && _StrCmpNIW( str_pos_start, L"ftp:", 4 ) == 0 )
+		{
+			protocol = PROTOCOL_FTP;
+			port = 21;
+		}
+		else if ( ( str_pos_end - str_pos_start ) == 5 && _StrCmpNIW( str_pos_start, L"ftps:", 5 ) == 0 )
+		{
+			protocol = PROTOCOL_FTPS;
+			port = 990;
+		}
+		else if ( ( str_pos_end - str_pos_start ) == 6 && _StrCmpNIW( str_pos_start, L"ftpes:", 6 ) == 0 )
+		{
+			protocol = PROTOCOL_FTPES;
+			port = 21;
+		}
 
 		str_pos_start = str_pos_end + 2;
 
@@ -824,7 +887,13 @@ bool ParseURL_W( wchar_t *url, wchar_t *original_resource, PROTOCOL &protocol, w
 		else
 		{
 			// See if there's a query string (this would technically not be valid). Would look like: www.test.com?foo=bar
-			str_pos_end = _StrChrW( str_pos_start, L'?' );
+			if ( protocol != PROTOCOL_FTP &&
+				 protocol != PROTOCOL_FTPS &&
+				 protocol != PROTOCOL_FTPES )
+			{
+				str_pos_end = _StrChrW( str_pos_start, L'?' );
+			}
+
 			if ( str_pos_end != NULL )
 			{
 				resource_length = lstrlenW( str_pos_end ) + 1;	// Include the starting /.
@@ -845,6 +914,50 @@ bool ParseURL_W( wchar_t *url, wchar_t *original_resource, PROTOCOL &protocol, w
 				*( *resource ) = L'/';
 				*( *resource + 1 ) = 0;	// Sanity.
 			}
+		}
+
+		// Find the beginning of a username and password.
+		wchar_t *unpw_token = NULL;
+		wchar_t *str_unpw_start = str_pos_start;
+		while ( str_unpw_start < str_pos_end )
+		{
+			if ( *str_unpw_start == L':' )
+			{
+				unpw_token = str_unpw_start;
+			}
+			else if ( *str_unpw_start == L'@' )
+			{
+				if ( username != NULL && username_length != NULL )
+				{
+					*username_length = ( unsigned int )( unpw_token == NULL ? ( str_unpw_start - str_pos_start ) : ( unpw_token - str_pos_start ) );
+
+					// Save the username.
+					*username = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( *username_length + 1 ) );
+					_wmemcpy_s( *username, *username_length + 1, str_pos_start, *username_length );
+					*( *username + *username_length ) = 0;	// Sanity
+				}
+
+				if ( unpw_token != NULL )
+				{
+					++unpw_token;
+
+					if ( password != NULL && password_length != NULL )
+					{
+						*password_length = ( unsigned int )( str_unpw_start - unpw_token );
+
+						// Save the password.
+						*password = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( *password_length + 1 ) );
+						_wmemcpy_s( *password, *password_length + 1, unpw_token, *password_length );
+						*( *password + *password_length ) = 0;	// Sanity
+					}
+				}
+
+				str_pos_start = str_unpw_start + 1;	// New beginning of host.
+
+				break;
+			}
+
+			++str_unpw_start;
 		}
 
 		// Find the beginning of a port (if it was included).
@@ -1278,8 +1391,12 @@ void GetLocation( char *header, char *resource, URL_LOCATION *url_location )
 
 		unsigned int host_length = 0;
 		unsigned int resource_length = 0;
+		unsigned int username_length = 0;
+		unsigned int password_length = 0;
 
-		ParseURL_A( location_header, resource, url_location->protocol, &url_location->host, host_length, url_location->port, &url_location->resource, resource_length );
+		ParseURL_A( location_header, resource,
+					url_location->protocol, &url_location->host, host_length, url_location->port, &url_location->resource, resource_length,
+					&url_location->auth_info.username, &username_length, &url_location->auth_info.password, &password_length );
 
 		char *a_resource = url_location->resource;
 		//unsigned int a_resource_length = 0;
@@ -2278,17 +2395,46 @@ char ParseHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int
 	}
 	else
 	{
-		context->wsabuf.buf += header_buffer_length;
 		context->wsabuf.len -= header_buffer_length;
 
-		if ( context->wsabuf.len > 0 )
+		// We may have received a header field entry that was larger than our buffer size.
+		// We're really only interested in larger than normal entries if they're for cookies.
+		// If it is a cookie entry, then reallocate our buffer to hold it.
+		// Everything else we can ignore.
+		if ( context->wsabuf.len == 0 )
 		{
-			return CONTENT_STATUS_READ_MORE_HEADER;	// Need more header data.
+			if ( _StrCmpNIA( header_buffer, "Set-Cookie", 10 ) == 0 )
+			{
+				context->buffer_size += BUFFER_SIZE;
+
+				char *realloc_buffer = ( char * )GlobalReAlloc( context->buffer, sizeof( char ) * ( context->buffer_size + 1 ), GMEM_MOVEABLE | GMEM_ZEROINIT );
+				if ( realloc_buffer != NULL )
+				{
+					context->buffer = realloc_buffer;
+
+					context->wsabuf.len = context->buffer_size - BUFFER_SIZE;
+					context->wsabuf.buf = context->buffer + context->wsabuf.len;
+				}
+				else	// If we can't reallocate the memory, then just ignore the header field value.
+				{
+					context->buffer_size -= BUFFER_SIZE;
+
+					context->wsabuf.buf = context->buffer;
+					context->wsabuf.len = context->buffer_size;
+				}
+			}
+			else	// Ignore the header field value.
+			{
+				context->wsabuf.buf = context->buffer;
+				context->wsabuf.len = context->buffer_size;
+			}
 		}
 		else
 		{
-			return CONTENT_STATUS_FAILED;	// Buffer is too small to work with.
+			context->wsabuf.buf += header_buffer_length;
 		}
+
+		return CONTENT_STATUS_READ_MORE_HEADER;	// Need more header data.
 	}
 
 	if ( end_of_header != NULL )
@@ -2989,7 +3135,7 @@ char GetHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int h
 				context->header_info.connection = CONNECTION_CLOSE;
 			}
 
-			// Set out range info even if we use one part.
+			// Set our range info even if we use one part.
 			if ( context->header_info.range_info->content_length > 0 && context->header_info.range_info->range_end == 0 )
 			{
 				context->header_info.range_info->range_start = 0;
@@ -3021,106 +3167,116 @@ char HandleRedirect( SOCKET_CONTEXT *context )
 
 	if ( context != NULL )
 	{
-		// Allow up to 100 redirects before we stop. The servers should get their act together.
-		//if ( context->request_info.redirect_count < cfg_max_redirects )
-		//{
-			SOCKET_CONTEXT *redirect_context = CreateSocketContext();
+		SOCKET_CONTEXT *redirect_context = CreateSocketContext();
 
-			redirect_context->processed_header = context->processed_header;
+		redirect_context->processed_header = context->processed_header;
 
-			redirect_context->part = context->part;
-			redirect_context->parts = context->parts;
+		redirect_context->part = context->part;
+		redirect_context->parts = context->parts;
 
-			//
+		//
 
-			if ( context->header_info.url_location.host != NULL )	// Handle absolute URIs.
-			{
-				redirect_context->request_info.host = context->header_info.url_location.host;
-				redirect_context->request_info.port = context->header_info.url_location.port;
-				redirect_context->request_info.resource = context->header_info.url_location.resource;
-				redirect_context->request_info.protocol = context->header_info.url_location.protocol;
+		if ( context->header_info.url_location.host != NULL )	// Handle absolute URIs.
+		{
+			redirect_context->request_info.host = context->header_info.url_location.host;
+			redirect_context->request_info.port = context->header_info.url_location.port;
+			redirect_context->request_info.resource = context->header_info.url_location.resource;
+			redirect_context->request_info.protocol = context->header_info.url_location.protocol;
 
-				redirect_context->request_info.redirect_count = context->request_info.redirect_count + 1;
-				
-				context->header_info.url_location.host = NULL;
-				context->header_info.url_location.resource = NULL;
-			}
-			else	// Handle relative URIs.
-			{
-				redirect_context->request_info = context->request_info;
-				redirect_context->request_info.resource = context->header_info.url_location.resource;
-				
-				++redirect_context->request_info.redirect_count;
+			redirect_context->request_info.auth_info.username = context->header_info.url_location.auth_info.username;
+			redirect_context->request_info.auth_info.password = context->header_info.url_location.auth_info.password;
 
-				context->request_info.host = NULL;	// We don't want to free the host, but the resource is ok to free.
-				context->header_info.url_location.resource = NULL;
-			}
+			redirect_context->request_info.redirect_count = context->request_info.redirect_count + 1;
 
-			redirect_context->header_info.cookie_tree = context->header_info.cookie_tree;
-			redirect_context->header_info.cookies = context->header_info.cookies;
-			redirect_context->header_info.chunk_buffer = context->header_info.chunk_buffer;
-			redirect_context->header_info.range_info = context->header_info.range_info;
+			context->header_info.url_location.host = NULL;
+			context->header_info.url_location.resource = NULL;
 
-			redirect_context->header_info.range_info->content_length = 0;	// We must reset this to get the real request length (not the length of the 401/407 request).
+			context->header_info.url_location.auth_info.username = NULL;
+			context->header_info.url_location.auth_info.password = NULL;
+		}
+		else	// Handle relative URIs.
+		{
+			redirect_context->request_info.host = context->request_info.host;
+			redirect_context->request_info.port = context->request_info.port;
+			redirect_context->request_info.resource = context->header_info.url_location.resource;
+			redirect_context->request_info.protocol = context->request_info.protocol;
 
-			if ( !redirect_context->processed_header )
-			{
-				redirect_context->header_info.range_info->range_start = 0;
-				redirect_context->header_info.range_info->range_end = 0;
-				redirect_context->header_info.range_info->content_offset = 0;
-				redirect_context->header_info.range_info->file_write_offset = 0;
-			}
+			redirect_context->request_info.auth_info.username = context->header_info.url_location.auth_info.username;
+			redirect_context->request_info.auth_info.password = context->header_info.url_location.auth_info.password;
 
-			redirect_context->header_info.digest_info = context->header_info.digest_info;
-			redirect_context->header_info.proxy_digest_info = context->header_info.proxy_digest_info;
+			redirect_context->request_info.redirect_count = context->request_info.redirect_count + 1;
 
-			//
+			context->request_info.host = NULL;	// We don't want to free the host, but the resource is ok to free.
+			context->header_info.url_location.resource = NULL;
 
-			context->header_info.cookie_tree = NULL;
-			context->header_info.cookies = NULL;
-			context->header_info.chunk_buffer = NULL;
-			context->header_info.range_info = NULL;
+			context->header_info.url_location.auth_info.username = NULL;
+			context->header_info.url_location.auth_info.password = NULL;
+		}
 
-			context->header_info.digest_info = NULL;
-			context->header_info.proxy_digest_info = NULL;
+		redirect_context->header_info.cookie_tree = context->header_info.cookie_tree;
+		redirect_context->header_info.cookies = context->header_info.cookies;
+		redirect_context->header_info.chunk_buffer = context->header_info.chunk_buffer;
+		redirect_context->header_info.range_info = context->header_info.range_info;
 
-			//
+		redirect_context->header_info.range_info->content_length = 0;	// We must reset this to get the real request length (not the length of the 401/407 request).
 
-			redirect_context->range_node = context->range_node;
+		if ( !redirect_context->processed_header )
+		{
+			redirect_context->header_info.range_info->range_start = 0;
+			redirect_context->header_info.range_info->range_end = 0;
+			redirect_context->header_info.range_info->content_offset = 0;
+			redirect_context->header_info.range_info->file_write_offset = 0;
+		}
 
-			redirect_context->context_node.data = redirect_context;
+		redirect_context->header_info.digest_info = context->header_info.digest_info;
+		redirect_context->header_info.proxy_digest_info = context->header_info.proxy_digest_info;
 
-			EnterCriticalSection( &context_list_cs );
+		//
 
-			DLL_AddNode( &g_context_list, &redirect_context->context_node, 0 );
+		context->header_info.cookie_tree = NULL;
+		context->header_info.cookies = NULL;
+		context->header_info.chunk_buffer = NULL;
+		context->header_info.range_info = NULL;
 
-			LeaveCriticalSection( &context_list_cs );
+		context->header_info.digest_info = NULL;
+		context->header_info.proxy_digest_info = NULL;
 
-			if ( context->download_info != NULL )
-			{
-				EnterCriticalSection( &context->download_info->shared_cs );
+		//
 
-				redirect_context->download_info = context->download_info;
+		redirect_context->range_node = context->range_node;
 
-				DLL_RemoveNode( &redirect_context->download_info->parts_list, &context->parts_node );
+		redirect_context->context_node.data = redirect_context;
 
-				redirect_context->parts_node.data = redirect_context;
-				DLL_AddNode( &redirect_context->download_info->parts_list, &redirect_context->parts_node, -1 );
+		EnterCriticalSection( &context_list_cs );
 
-				LeaveCriticalSection( &context->download_info->shared_cs );
+		DLL_AddNode( &g_context_list, &redirect_context->context_node, 0 );
 
-				context->download_info = NULL;
-			}
+		LeaveCriticalSection( &context_list_cs );
 
-			redirect_context->status = STATUS_CONNECTING;
+		if ( context->download_info != NULL )
+		{
+			EnterCriticalSection( &context->download_info->shared_cs );
 
-			if ( !CreateConnection( redirect_context, redirect_context->request_info.host, redirect_context->request_info.port ) )
-			{
-				redirect_context->status = STATUS_FAILED;
+			redirect_context->download_info = context->download_info;
 
-				CleanupConnection( redirect_context );
-			}
-		//}
+			DLL_RemoveNode( &redirect_context->download_info->parts_list, &context->parts_node );
+
+			redirect_context->parts_node.data = redirect_context;
+			DLL_AddNode( &redirect_context->download_info->parts_list, &redirect_context->parts_node, -1 );
+
+			LeaveCriticalSection( &context->download_info->shared_cs );
+
+			context->download_info = NULL;
+		}
+
+		redirect_context->status = STATUS_CONNECTING;
+
+		if ( !CreateConnection( redirect_context, redirect_context->request_info.host, redirect_context->request_info.port ) )
+		{
+			redirect_context->status = STATUS_FAILED;
+
+			CleanupConnection( redirect_context );
+		}
 
 		InterlockedIncrement( &context->pending_operations );
 
@@ -3167,7 +3323,7 @@ char MakeRangeRequest( SOCKET_CONTEXT *context )
 				{
 					EnterCriticalSection( &context->download_info->shared_cs );
 
-					// Create a range list if our parts are limited. We'll skip the creation of the context below.
+					// Queue the ranges that won't be downloaded immediately. We'll skip the creation of the context below.
 					if ( context->download_info->parts_limit > 0 && part > context->download_info->parts_limit )
 					{
 						RANGE_INFO *ri = ( RANGE_INFO * )GlobalAlloc( GPTR, sizeof( RANGE_INFO ) );
@@ -3187,7 +3343,7 @@ char MakeRangeRequest( SOCKET_CONTEXT *context )
 						ri->file_write_offset = ri->range_start;
 
 						DoublyLinkedList *range_node = DLL_CreateNode( ( void * )ri );
-						DLL_AddNode( &context->download_info->range_list, range_node, -1 );
+						DLL_AddNode( &context->download_info->range_queue, range_node, -1 );
 
 						skip_context_creation = true;
 					}
@@ -3216,6 +3372,9 @@ char MakeRangeRequest( SOCKET_CONTEXT *context )
 				new_context->request_info.port = context->request_info.port;
 				new_context->request_info.resource = GlobalStrDupA( context->request_info.resource );
 				new_context->request_info.protocol = context->request_info.protocol;
+
+				new_context->request_info.auth_info.username = GlobalStrDupA( context->request_info.auth_info.username );
+				new_context->request_info.auth_info.password = GlobalStrDupA( context->request_info.auth_info.password );
 
 				new_context->header_info.cookie_tree = CopyCookieTree( context->header_info.cookie_tree );
 				new_context->header_info.cookies = GlobalStrDupA( context->header_info.cookies );
@@ -3354,7 +3513,7 @@ char MakeRequest( SOCKET_CONTEXT *context, IO_OPERATION next_operation, bool use
 			InterlockedIncrement( &context->pending_operations );
 
 			context->wsabuf.buf = context->buffer;
-			context->wsabuf.len = BUFFER_SIZE;
+			context->wsabuf.len = context->buffer_size;
 
 			context->overlapped.next_operation = next_operation;
 
@@ -3407,6 +3566,9 @@ char MakeRequest( SOCKET_CONTEXT *context, IO_OPERATION next_operation, bool use
 			new_context->request_info.resource = context->request_info.resource;
 			new_context->request_info.protocol = context->request_info.protocol;
 
+			new_context->request_info.auth_info.username = context->request_info.auth_info.username;
+			new_context->request_info.auth_info.password = context->request_info.auth_info.password;
+
 			new_context->header_info.cookie_tree = context->header_info.cookie_tree;
 			new_context->header_info.cookies = context->header_info.cookies;
 			new_context->header_info.chunk_buffer = context->header_info.chunk_buffer;
@@ -3429,6 +3591,9 @@ char MakeRequest( SOCKET_CONTEXT *context, IO_OPERATION next_operation, bool use
 
 			context->request_info.host = NULL;
 			context->request_info.resource = NULL;
+
+			context->request_info.auth_info.username = NULL;
+			context->request_info.auth_info.password = NULL;
 
 			context->header_info.cookie_tree = NULL;
 			context->header_info.cookies = NULL;
@@ -3513,7 +3678,7 @@ char MakeResponse( SOCKET_CONTEXT *context )
 
 			if ( cfg_authentication_type == AUTH_TYPE_DIGEST )
 			{
-				context->wsabuf.len = __snprintf( context->wsabuf.buf, BUFFER_SIZE,
+				context->wsabuf.len = __snprintf( context->wsabuf.buf, context->buffer_size,
 					"HTTP/1.1 401 Unauthorized\r\n" \
 					"Content-Type: text/html\r\n" \
 					"WWW-Authenticate: Digest " \
@@ -3528,7 +3693,7 @@ char MakeResponse( SOCKET_CONTEXT *context )
 			}
 			else
 			{
-				context->wsabuf.len = __snprintf( context->wsabuf.buf, BUFFER_SIZE,
+				context->wsabuf.len = __snprintf( context->wsabuf.buf, context->buffer_size,
 					"HTTP/1.1 401 Unauthorized\r\n" \
 					"Content-Type: text/html\r\n" \
 					"WWW-Authenticate: Basic realm=\"Authorization Required\"\r\n" \
@@ -3545,7 +3710,7 @@ char MakeResponse( SOCKET_CONTEXT *context )
 			{
 				context->header_info.http_status = 0;	// Reset.
 
-				context->wsabuf.len = __snprintf( context->wsabuf.buf, BUFFER_SIZE,
+				context->wsabuf.len = __snprintf( context->wsabuf.buf, context->buffer_size,
 					"HTTP/1.1 200 OK\r\n" \
 					"Content-Type: text/plain\r\n" \
 					"Content-Length: 11\r\n" \
@@ -3554,14 +3719,14 @@ char MakeResponse( SOCKET_CONTEXT *context )
 			}
 			else
 			{
-				context->wsabuf.len = __snprintf( context->wsabuf.buf, BUFFER_SIZE,
+				context->wsabuf.len = __snprintf( context->wsabuf.buf, context->buffer_size,
 					"HTTP/1.1 204 No Content\r\n" \
 					"Connection: close\r\n\r\n" );
 			}
 		}
 		else
 		{
-			context->wsabuf.len = __snprintf( context->wsabuf.buf, BUFFER_SIZE,
+			context->wsabuf.len = __snprintf( context->wsabuf.buf, context->buffer_size,
 				"HTTP/1.1 501 Not Implemented\r\n" \
 				"Content-Type: text/html\r\n" \
 				"Content-Length: 116\r\n" \
@@ -4080,7 +4245,7 @@ char GetHTTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, uns
 		{
 			if ( context->header_info.chunk_buffer == NULL )
 			{
-				context->header_info.chunk_buffer = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * BUFFER_SIZE );
+				context->header_info.chunk_buffer = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * context->buffer_size );
 			}
 		}
 
@@ -4149,7 +4314,7 @@ char GetHTTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, uns
 						_memmove( context->buffer, response_buffer, response_buffer_length );
 
 						context->wsabuf.buf = context->buffer + response_buffer_length;
-						context->wsabuf.len = BUFFER_SIZE - response_buffer_length;
+						context->wsabuf.len = context->buffer_size - response_buffer_length;
 
 						content_status = CONTENT_STATUS_READ_MORE_CONTENT;	// Read more content data.
 						break;
@@ -4196,7 +4361,7 @@ char GetHTTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, uns
 				{
 					if ( !( context->download_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
 					{
-						_memcpy_s( context->write_wsabuf.buf + context->write_wsabuf.len, BUFFER_SIZE - context->write_wsabuf.len, output_buffer, output_buffer_length );
+						_memcpy_s( context->write_wsabuf.buf + context->write_wsabuf.len, context->buffer_size - context->write_wsabuf.len, output_buffer, output_buffer_length );
 					}
 
 					context->write_wsabuf.len += output_buffer_length;
@@ -4236,7 +4401,7 @@ char GetHTTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, uns
 				{
 					if ( !( context->download_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
 					{
-						_memcpy_s( context->write_wsabuf.buf + context->write_wsabuf.len, BUFFER_SIZE - context->write_wsabuf.len, output_buffer, output_buffer_length );
+						_memcpy_s( context->write_wsabuf.buf + context->write_wsabuf.len, context->buffer_size - context->write_wsabuf.len, output_buffer, output_buffer_length );
 					}
 
 					context->write_wsabuf.len += output_buffer_length;
@@ -4572,7 +4737,7 @@ char ParsePOSTData( SOCKET_CONTEXT *context, char *post_data, unsigned int post_
 	value_buf[ 3 ] = &context->post_info->password;
 	value_buf[ 4 ] = &context->post_info->parts;
 	value_buf[ 5 ] = &context->post_info->directory;
-	value_buf[ 6 ] = &context->post_info->simulate_download;
+	value_buf[ 6 ] = &context->post_info->download_operations;
 	value_buf[ 7 ] = &context->post_info->cookies;
 	value_buf[ 8 ] = &context->post_info->headers;
 	value_buf[ 9 ] = &context->post_info->data;
@@ -4775,7 +4940,7 @@ char GetHTTPRequestContent( SOCKET_CONTEXT *context, char *request_buffer, unsig
 		if ( content_status != CONTENT_STATUS_NONE )
 		{
 			context->wsabuf.buf = context->buffer;
-			context->wsabuf.len = BUFFER_SIZE;
+			context->wsabuf.len = context->buffer_size;
 
 			return content_status;
 		}
@@ -4829,7 +4994,17 @@ char GetHTTPRequestContent( SOCKET_CONTEXT *context, char *request_buffer, unsig
 					parts = ( unsigned int )_strtoul( context->post_info->parts, NULL, 10 );
 				}
 
-				bool simulate_download = ( context->post_info->simulate_download != NULL && *context->post_info->simulate_download == '1' ? true : false );
+				unsigned char download_operations = 0;
+				if ( context->post_info->download_operations != NULL )
+				{
+					download_operations = ( unsigned char )_strtoul( context->post_info->download_operations, NULL, 10 );
+					download_operations &= ( DOWNLOAD_OPERATION_SIMULATE | DOWNLOAD_OPERATION_ADD_STOPPED );	// Ensure we can only simulate and/or add stopped.
+				}
+
+				if ( !( download_operations & DOWNLOAD_OPERATION_ADD_STOPPED ) )
+				{
+					download_operations |= DOWNLOAD_OPERATION_OVERRIDE_PROMPTS;
+				}
 
 				unsigned char method = ( context->post_info->method != NULL && *context->post_info->method == '2' ? METHOD_POST : METHOD_GET );
 
@@ -4873,7 +5048,7 @@ char GetHTTPRequestContent( SOCKET_CONTEXT *context, char *request_buffer, unsig
 				ai->utf8_cookies = context->post_info->cookies;
 				ai->utf8_headers = context->post_info->headers;
 				ai->utf8_data = context->post_info->data;
-				ai->download_operations = DOWNLOAD_OPERATION_OVERRIDE_PROMPTS | ( simulate_download ? DOWNLOAD_OPERATION_SIMULATE : DOWNLOAD_OPERATION_NONE );
+				ai->download_operations = download_operations;
 				ai->urls = urls;
 				ai->download_directory = t_download_directory;
 

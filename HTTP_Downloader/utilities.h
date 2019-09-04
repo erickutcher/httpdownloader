@@ -1,5 +1,5 @@
 /*
-	HTTP Downloader can download files through HTTP and HTTPS connections.
+	HTTP Downloader can download files through HTTP(S) and FTP(S) connections.
 	Copyright (C) 2015-2019 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
@@ -25,6 +25,7 @@
 
 #define MD5_LENGTH	16
 
+#define _WIN32_WINNT_VISTA		0x0600
 //#define _WIN32_WINNT_WIN7		0x0601
 #define _WIN32_WINNT_WIN8		0x0602
 //#define _WIN32_WINNT_WINBLUE	0x0603
@@ -40,6 +41,8 @@ void decode_cipher( char *buffer, int buffer_length );
 wchar_t *GetMonth( unsigned short month );
 wchar_t *GetDay( unsigned short day );
 void UnixTimeToSystemTime( DWORD t, SYSTEMTIME *st );
+
+int CALLBACK DMCompareFunc( LPARAM lParam1, LPARAM lParam2, LPARAM lParamSort );
 
 void OffsetVirtualIndices( int *arr, char *column_arr[], unsigned char num_columns, unsigned char total_columns );
 int GetVirtualIndexFromColumnIndex( int column_index, char *column_arr[], unsigned char num_columns );

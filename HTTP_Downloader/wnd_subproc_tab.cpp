@@ -1,5 +1,5 @@
 /*
-	HTTP Downloader can download files through HTTP and HTTPS connections.
+	HTTP Downloader can download files through HTTP(S) and FTP(S) connections.
 	Copyright (C) 2015-2019 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
@@ -53,6 +53,9 @@ LRESULT CALLBACK TabSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
 				{
 					++init_count;
 
+					// Use background color.
+					_SetWindowLongPtrW( hWnd, GWLP_USERDATA, lParam );
+
 					return TRUE;
 				}
 			}
@@ -91,7 +94,7 @@ LRESULT CALLBACK TabSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
 			_DeleteObject( ohbm );
 
 			// Fill the background.
-			HBRUSH hBrush = _CreateSolidBrush( ( COLORREF )_GetSysColor( COLOR_WINDOW ) );
+			HBRUSH hBrush = _CreateSolidBrush( ( COLORREF )_GetSysColor( ( int )_GetWindowLongPtrW( hWnd, GWLP_USERDATA ) ) );
 			_FillRect( hdcMem, &client_rc, hBrush );
 			_DeleteObject( hBrush );
 

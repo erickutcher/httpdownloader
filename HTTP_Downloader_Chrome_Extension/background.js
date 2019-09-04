@@ -243,26 +243,23 @@ function SendDownloadToClient( download_info )
 		var username = "";
 		var password = "";
 		var parts = g_options.parts;
-		var simulate_download = "0";
+		var download_operations = 0;
 
 		request.onerror = function( e )
 		{
-			//console.log( "An error occurred while sending the download request." );
-			CreateDownloadWindow( download_info, "An error occurred while sending the download request." );
+			CreateDownloadWindow( download_info, chrome.i18n.getMessage( "SEND_FAILED" ) );
 		};
 
 		request.ontimeout = function( e )
 		{
-			//console.log( "The connection has timed out while sending the download request." );
-			CreateDownloadWindow( download_info, "The connection has timed out while sending the download request." );
+			CreateDownloadWindow( download_info, chrome.i18n.getMessage( "CONNECTION_TIMEOUT" ) );
 		};
 
 		request.onload = function( e )
 		{
 			if ( request.responseText != "DOWNLOADING" )
 			{
-				//console.log( "The server returned an invalid response to our download request." );
-				CreateDownloadWindow( download_info, "The server returned an invalid response to our download request." );
+				CreateDownloadWindow( download_info, chrome.i18n.getMessage( "INVALID_RESPONSE" ) );
 			}
 		};
 
@@ -283,7 +280,7 @@ function SendDownloadToClient( download_info )
 					  password + "\x1f" +
 					  parts + "\x1f" +
 					  download_info.directory + "\x1f" +
-					  simulate_download + "\x1f" +
+					  download_operations + "\x1f" +
 					  download_info.cookie_string + "\x1f" +
 					  download_info.headers + "\x1f" +
 					  download_info.post_data + "\x1f" );
@@ -498,6 +495,11 @@ function OnMenuClicked( info, tab )
 		chrome.tabs.executeScript( { file: script_file }, function( urls )
 		{
 			var directory = g_options.default_directory;
+
+			if ( typeof urls == "undefined" )
+			{
+				urls = "";
+			}
 
 			CreateDownloadWindow( { show_add_window: true, id: null, method: "1", url: urls, cookie_string: "", headers: headers, directory: directory, post_data: "" } );
 		} );

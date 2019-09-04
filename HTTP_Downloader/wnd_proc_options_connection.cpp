@@ -1,5 +1,5 @@
 /*
-	HTTP Downloader can download files through HTTP and HTTPS connections.
+	HTTP Downloader can download files through HTTP(S) and FTP(S) connections.
 	Copyright (C) 2015-2019 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
@@ -661,7 +661,7 @@ LRESULT CALLBACK ConnectionTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 				{
 					if ( HIWORD( wParam ) == EN_UPDATE )
 					{
-						DWORD sel_start = 0;
+						DWORD sel_start;
 
 						char value[ 11 ];
 						_SendMessageA( ( HWND )lParam, WM_GETTEXT, 11, ( LPARAM )value );
@@ -699,7 +699,7 @@ LRESULT CALLBACK ConnectionTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 				{
 					if ( HIWORD( wParam ) == EN_UPDATE )
 					{
-						DWORD sel_start = 0;
+						DWORD sel_start;
 
 						char value[ 11 ];
 						_SendMessageA( ( HWND )lParam, WM_GETTEXT, 11, ( LPARAM )value );
@@ -728,7 +728,7 @@ LRESULT CALLBACK ConnectionTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 				{
 					if ( HIWORD( wParam ) == EN_UPDATE )
 					{
-						DWORD sel_start = 0;
+						DWORD sel_start;
 
 						char value[ 11 ];
 						_SendMessageA( ( HWND )lParam, WM_GETTEXT, 4, ( LPARAM )value );
@@ -751,7 +751,7 @@ LRESULT CALLBACK ConnectionTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 					}
 					else if ( HIWORD( wParam ) == EN_KILLFOCUS )
 					{
-						DWORD sel_start = 0;
+						DWORD sel_start;
 
 						char value[ 11 ];
 						_SendMessageA( ( HWND )lParam, WM_GETTEXT, 4, ( LPARAM )value );
@@ -789,7 +789,7 @@ LRESULT CALLBACK ConnectionTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 				{
 					if ( HIWORD( wParam ) == EN_UPDATE )
 					{
-						DWORD sel_start = 0;
+						DWORD sel_start;
 
 						char value[ 11 ];
 						_SendMessageA( ( HWND )lParam, WM_GETTEXT, 11, ( LPARAM )value );
@@ -845,7 +845,7 @@ LRESULT CALLBACK ConnectionTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 				{
 					if ( HIWORD( wParam ) == EN_UPDATE )
 					{
-						DWORD sel_start = 0;
+						DWORD sel_start;
 
 						char value[ 11 ];
 						_SendMessageA( ( HWND )lParam, WM_GETTEXT, 6, ( LPARAM )value );

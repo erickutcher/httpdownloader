@@ -1,5 +1,5 @@
 /*
-	HTTP Downloader can download files through HTTP and HTTPS connections.
+	HTTP Downloader can download files through HTTP(S) and FTP(S) connections.
 	Copyright (C) 2015-2019 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
@@ -26,6 +26,7 @@
 
 #include "login_manager_utilities.h"
 
+#include "ftp_parsing.h"
 #include "utilities.h"
 
 #include "string_tables.h"
@@ -34,6 +35,8 @@
 #include "drop_window.h"
 
 #include "options.h"
+
+//#include "wnd_proc.h"
 
 #define BTN_OK					1000
 #define BTN_CANCEL				1001
@@ -48,6 +51,7 @@ HWND g_hWnd_options_tab = NULL;
 HWND g_hWnd_general_tab = NULL;
 HWND g_hWnd_appearance_tab = NULL;
 HWND g_hWnd_connection_tab = NULL;
+HWND g_hWnd_ftp_tab = NULL;
 HWND g_hWnd_proxy_tab = NULL;
 HWND g_hWnd_advanced_tab = NULL;
 
@@ -481,23 +485,27 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 			ti.pszText = ( LPWSTR )ST_V_General;
 			ti.lParam = ( LPARAM )&g_hWnd_general_tab;
-			_SendMessageW( g_hWnd_options_tab, TCM_INSERTITEM, 0, ( LPARAM )&ti );	// Insert a new tab at the end.
+			_SendMessageW( g_hWnd_options_tab, TCM_INSERTITEM, 0, ( LPARAM )&ti );
 
 			ti.pszText = ( LPWSTR )ST_V_Appearance;
 			ti.lParam = ( LPARAM )&g_hWnd_appearance_tab;
-			_SendMessageW( g_hWnd_options_tab, TCM_INSERTITEM, 1, ( LPARAM )&ti );	// Insert a new tab at the end.
+			_SendMessageW( g_hWnd_options_tab, TCM_INSERTITEM, 1, ( LPARAM )&ti );
 
 			ti.pszText = ( LPWSTR )ST_V_Connection;
 			ti.lParam = ( LPARAM )&g_hWnd_connection_tab;
-			_SendMessageW( g_hWnd_options_tab, TCM_INSERTITEM, 2, ( LPARAM )&ti );	// Insert a new tab at the end.
+			_SendMessageW( g_hWnd_options_tab, TCM_INSERTITEM, 2, ( LPARAM )&ti );
+
+			ti.pszText = ( LPWSTR )ST_V_FTP;
+			ti.lParam = ( LPARAM )&g_hWnd_ftp_tab;
+			_SendMessageW( g_hWnd_options_tab, TCM_INSERTITEM, 3, ( LPARAM )&ti );
 
 			ti.pszText = ( LPWSTR )ST_V_Proxy;
 			ti.lParam = ( LPARAM )&g_hWnd_proxy_tab;
-			_SendMessageW( g_hWnd_options_tab, TCM_INSERTITEM, 3, ( LPARAM )&ti );	// Insert a new tab at the end.
+			_SendMessageW( g_hWnd_options_tab, TCM_INSERTITEM, 4, ( LPARAM )&ti );
 
 			ti.pszText = ( LPWSTR )ST_V_Advanced;
 			ti.lParam = ( LPARAM )&g_hWnd_advanced_tab;
-			_SendMessageW( g_hWnd_options_tab, TCM_INSERTITEM, 4, ( LPARAM )&ti );	// Insert a new tab at the end.
+			_SendMessageW( g_hWnd_options_tab, TCM_INSERTITEM, 5, ( LPARAM )&ti );
 
 
 			HWND g_hWnd_ok = _CreateWindowW( WC_BUTTON, ST_V_OK, BS_DEFPUSHBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 260, rc.bottom - 32, 80, 23, hWnd, ( HMENU )BTN_OK, NULL, NULL );
@@ -516,6 +524,7 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			g_hWnd_general_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"general_tab", NULL, WS_CHILD | WS_TABSTOP | WS_VISIBLE, 15, ( rc_tab.bottom + rc_tab.top ) + 12, rc.right - 30, rc.bottom - ( ( rc_tab.bottom + rc_tab.top ) + 24 ), g_hWnd_options_tab, NULL, NULL, NULL );
 			g_hWnd_appearance_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"appearance_tab", NULL, WS_CHILD | WS_TABSTOP, 15, ( rc_tab.bottom + rc_tab.top ) + 12, rc.right - 30, rc.bottom - ( ( rc_tab.bottom + rc_tab.top ) + 24 ), g_hWnd_options_tab, NULL, NULL, NULL );
 			g_hWnd_connection_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"connection_tab", NULL, WS_CHILD | WS_VSCROLL | WS_TABSTOP, 15, ( rc_tab.bottom + rc_tab.top ) + 12, rc.right - 30, rc.bottom - ( ( rc_tab.bottom + rc_tab.top ) + 24 ), g_hWnd_options_tab, NULL, NULL, NULL );
+			g_hWnd_ftp_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"ftp_tab", NULL, WS_CHILD | WS_TABSTOP, 15, ( rc_tab.bottom + rc_tab.top ) + 12, rc.right - 30, rc.bottom - ( ( rc_tab.bottom + rc_tab.top ) + 24 ), g_hWnd_options_tab, NULL, NULL, NULL );
 			g_hWnd_proxy_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"proxy_tab", NULL, WS_CHILD | WS_VSCROLL | WS_TABSTOP, 15, ( rc_tab.bottom + rc_tab.top ) + 12, rc.right - 30, rc.bottom - ( ( rc_tab.bottom + rc_tab.top ) + 24 ), g_hWnd_options_tab, NULL, NULL, NULL );
 			g_hWnd_advanced_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"advanced_tab", NULL, WS_CHILD | WS_VSCROLL | WS_TABSTOP, 15, ( rc_tab.bottom + rc_tab.top ) + 12, rc.right - 30, rc.bottom - ( ( rc_tab.bottom + rc_tab.top ) + 24 ), g_hWnd_options_tab, NULL, NULL, NULL );
 
@@ -526,61 +535,16 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			options_state_changed = false;
 			_EnableWindow( g_hWnd_apply, FALSE );
 
-			return 0;
-		}
-		break;
-/*
-		case WM_CTLCOLORSTATIC:
-		{
-			return ( LRESULT )( _GetSysColorBrush( COLOR_WINDOW ) );
-		}
-		break;
+			/*TabProc = ( WNDPROC )_GetWindowLongPtrW( g_hWnd_options_tab, GWLP_WNDPROC );
+			_SetWindowLongPtrW( g_hWnd_options_tab, GWLP_WNDPROC, ( LONG_PTR )TabSubProc );
 
-		case WM_PAINT:
-		{
-			PAINTSTRUCT ps;
-			HDC hDC = _BeginPaint( hWnd, &ps );
-
-			RECT client_rc, frame_rc;
-			_GetClientRect( hWnd, &client_rc );
-
-			// Create a memory buffer to draw to.
-			HDC hdcMem = _CreateCompatibleDC( hDC );
-
-			HBITMAP hbm = _CreateCompatibleBitmap( hDC, client_rc.right - client_rc.left, client_rc.bottom - client_rc.top );
-			HBITMAP ohbm = ( HBITMAP )_SelectObject( hdcMem, hbm );
-			_DeleteObject( ohbm );
-			_DeleteObject( hbm );
-
-			// Fill the background.
-			HBRUSH color = _CreateSolidBrush( ( COLORREF )_GetSysColor( COLOR_3DFACE ) );
-			_FillRect( hdcMem, &client_rc, color );
-			_DeleteObject( color );
-
-			frame_rc = client_rc;
-			frame_rc.left += 10;
-			frame_rc.right -= 10;
-			frame_rc.top += 10;
-			frame_rc.bottom -= 40;
-
-			// Fill the frame.
-			color = _CreateSolidBrush( ( COLORREF )_GetSysColor( COLOR_WINDOW ) );
-			_FillRect( hdcMem, &frame_rc, color );
-			_DeleteObject( color );
-
-			// Draw the frame's border.
-			_DrawEdge( hdcMem, &frame_rc, EDGE_ETCHED, BF_RECT );
-
-			// Draw our memory buffer to the main device context.
-			_BitBlt( hDC, client_rc.left, client_rc.top, client_rc.right, client_rc.bottom, hdcMem, 0, 0, SRCCOPY );
-
-			_DeleteDC( hdcMem );
-			_EndPaint( hWnd, &ps );
+			// Open theme data. Must be done after we subclass the control.
+			// Theme object will be closed when all tab controls are destroyed.
+			_SendMessageW( g_hWnd_options_tab, WM_PROPAGATE, 0, ( LPARAM )COLOR_3DFACE );*/
 
 			return 0;
 		}
 		break;
-*/
 
 		case WM_NOTIFY:
 		{
@@ -779,7 +743,6 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 						}
 					}
 
-					cfg_download_immediately = ( _SendMessageW( g_hWnd_chk_download_immediately, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
 					cfg_prevent_standby = ( _SendMessageW( g_hWnd_chk_prevent_standby, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
 					cfg_resume_downloads = ( _SendMessageW( g_hWnd_chk_resume_downloads, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
 
@@ -794,6 +757,8 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 							}
 						#endif
 					}
+
+					cfg_sort_added_and_updating_items = ( _SendMessageW( g_hWnd_chk_sort_added_and_updating_items, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
 
 					bool show_gridlines = ( _SendMessageW( g_hWnd_chk_show_gridlines, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
 
@@ -863,6 +828,8 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 					//
 
+					cfg_drag_and_drop_action = ( unsigned char )_SendMessageW( g_hWnd_drag_and_drop_action, CB_GETCURSEL, 0, 0 );
+
 					cfg_prompt_rename = ( unsigned char )_SendMessageW( g_hWnd_prompt_rename, CB_GETCURSEL, 0, 0 );
 					cfg_prompt_file_size = ( unsigned char )_SendMessageW( g_hWnd_prompt_file_size, CB_GETCURSEL, 0, 0 );
 					_SendMessageA( g_hWnd_max_file_size, WM_GETTEXT, 21, ( LPARAM )value );
@@ -898,6 +865,32 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 					_wmemcpy_s( cfg_temp_download_directory, g_temp_download_directory_length + 1, t_temp_download_directory, g_temp_download_directory_length );
 					*( cfg_temp_download_directory + g_temp_download_directory_length ) = 0;	// Sanity.
 
+
+					// FTP
+					cfg_ftp_mode_type = ( _SendMessageW( g_hWnd_chk_active_mode, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? 1 : 0 );
+
+					cfg_ftp_enable_fallback_mode = ( _SendMessageW( g_hWnd_chk_fallback_mode, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
+
+					cfg_ftp_address_type = ( _SendMessageW( g_hWnd_chk_type_ftp_ip_address, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? 1 : 0 );
+
+					unsigned int hostname_length = ( unsigned int )_SendMessageW( g_hWnd_ftp_hostname, WM_GETTEXTLENGTH, 0, 0 ) + 1;	// Include the NULL terminator.
+					if ( cfg_ftp_hostname != NULL )
+					{
+						GlobalFree( cfg_ftp_hostname );
+					}
+					cfg_ftp_hostname = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * hostname_length );
+					_SendMessageW( g_hWnd_ftp_hostname, WM_GETTEXT, hostname_length, ( LPARAM )cfg_ftp_hostname );
+
+					_SendMessageW( g_hWnd_ftp_ip_address, IPM_GETADDRESS, 0, ( LPARAM )&cfg_ftp_ip_address );
+
+					_SendMessageA( g_hWnd_ftp_port_start, WM_GETTEXT, 6, ( LPARAM )value );
+					cfg_ftp_port_start = ( unsigned short )_strtoul( value, NULL, 10 );
+
+					_SendMessageA( g_hWnd_ftp_port_end, WM_GETTEXT, 6, ( LPARAM )value );
+					cfg_ftp_port_end = ( unsigned short )_strtoul( value, NULL, 10 );
+
+					cfg_ftp_send_keep_alive = ( _SendMessageW( g_hWnd_chk_send_keep_alive, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
+
 					//
 					// HTTP proxy.
 					//
@@ -905,7 +898,7 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 					cfg_address_type = ( _SendMessageW( g_hWnd_chk_type_ip_address, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? 1 : 0 );
 
-					unsigned int hostname_length = ( unsigned int )_SendMessageW( g_hWnd_hostname, WM_GETTEXTLENGTH, 0, 0 ) + 1;	// Include the NULL terminator.
+					hostname_length = ( unsigned int )_SendMessageW( g_hWnd_hostname, WM_GETTEXTLENGTH, 0, 0 ) + 1;	// Include the NULL terminator.
 					if ( cfg_hostname != NULL )
 					{
 						GlobalFree( cfg_hostname );

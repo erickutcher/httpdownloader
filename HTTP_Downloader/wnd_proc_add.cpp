@@ -1,5 +1,5 @@
 /*
-	HTTP Downloader can download files through HTTP and HTTPS connections.
+	HTTP Downloader can download files through HTTP(S) and FTP(S) connections.
 	Copyright (C) 2015-2019 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
@@ -48,6 +48,11 @@
 
 #define EDIT_ADD_URLS			1010
 
+#define BTN_ADD_DOWNLOAD		1011
+
+#define MENU_ADD_SPLIT_DOWNLOAD	10000
+#define MENU_ADD_SPLIT_ADD		10001
+
 HWND g_hWnd_add_urls = NULL;
 
 HWND g_hWnd_edit_add = NULL;
@@ -85,6 +90,7 @@ HWND g_hWnd_edit_data = NULL;
 HWND g_hWnd_chk_show_advanced_options = NULL;
 
 HWND g_hWnd_btn_download = NULL;
+HWND g_hWnd_btn_add_download = NULL;
 HWND g_hWnd_cancel = NULL;
 
 HWND g_hWnd_static_regex_filter = NULL;
@@ -100,6 +106,11 @@ WNDPROC URLProc = NULL;
 
 bool use_drag_and_drop_add = true;	// Assumes OLE32_STATE_RUNNING is true.
 IDropTarget *Add_DropTarget;
+
+bool use_add_split = false;
+HMENU g_hMenu_add_split = NULL;
+
+unsigned char add_split_type = 0;	// 0 = Download, 1 = Add
 
 LRESULT CALLBACK URLSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
 {
@@ -284,12 +295,44 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 			g_hWnd_chk_show_advanced_options = _CreateWindowW( WC_BUTTON, ST_V_Advanced_options, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, ( HMENU )BTN_ADVANCED, NULL, NULL );
 
-			g_hWnd_btn_download = _CreateWindowW( WC_BUTTON, ST_V_Download, BS_DEFPUSHBUTTON | WS_CHILD | WS_DISABLED | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, ( HMENU )BTN_DOWNLOAD, NULL, NULL );
+			use_add_split = IsWindowsVersionOrGreater( HIBYTE( _WIN32_WINNT_VISTA ), LOBYTE( _WIN32_WINNT_VISTA ), 0 );
+
+			if ( use_add_split )
+			{
+				g_hWnd_btn_download = _CreateWindowW( WC_BUTTON, ST_V_Download, BS_DEFSPLITBUTTON | BS_SPLITBUTTON | WS_CHILD | WS_DISABLED | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, ( HMENU )BTN_DOWNLOAD, NULL, NULL );
+			}
+			else
+			{
+				g_hWnd_btn_download = _CreateWindowW( WC_BUTTON, ST_V_Download, BS_DEFPUSHBUTTON | WS_CHILD | WS_DISABLED | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, ( HMENU )BTN_DOWNLOAD, NULL, NULL );
+				g_hWnd_btn_add_download = _CreateWindowW( WC_BUTTON, ST_V_Add, WS_CHILD | WS_DISABLED | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, ( HMENU )BTN_ADD_DOWNLOAD, NULL, NULL );
+			}
+
 			g_hWnd_cancel = _CreateWindowW( WC_BUTTON, ST_V_Cancel, WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, ( HMENU )BTN_ADD_CANCEL, NULL, NULL );
+
+			g_hMenu_add_split = _CreatePopupMenu();
+
+			MENUITEMINFO mii;
+			_memzero( &mii, sizeof( MENUITEMINFO ) );
+			mii.cbSize = sizeof( MENUITEMINFO );
+			mii.fMask = MIIM_TYPE | MIIM_ID;
+
+			mii.dwTypeData = ST_V_Download;
+			mii.cch = ST_L_Download;
+			mii.wID = MENU_ADD_SPLIT_DOWNLOAD;
+			_InsertMenuItemW( g_hMenu_add_split, 0, TRUE, &mii );
+
+			mii.dwTypeData = ST_V_Add;
+			mii.cch = ST_L_Add;
+			mii.wID = MENU_ADD_SPLIT_ADD;
+			_InsertMenuItemW( g_hMenu_add_split, 1, TRUE, &mii );
 
 			_SetFocus( g_hWnd_edit_add );
 
 			_SendMessageW( g_hWnd_btn_download, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			if ( !use_add_split )
+			{
+				_SendMessageW( g_hWnd_btn_add_download, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			}
 			_SendMessageW( g_hWnd_cancel, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 			_SendMessageW( hWnd_static_urls, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 			_SendMessageW( g_hWnd_edit_add, WM_SETFONT, ( WPARAM )g_hFont, 0 );
@@ -335,7 +378,7 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 			// Open theme data. Must be done after we subclass the control.
 			// Theme object will be closed when all tab controls are destroyed.
-			_SendMessageW( g_hWnd_advanced_add_tab, WM_PROPAGATE, 0, 0 );
+			_SendMessageW( g_hWnd_advanced_add_tab, WM_PROPAGATE, 0, ( LPARAM )COLOR_WINDOW );
 
 			#ifndef OLE32_USE_STATIC_LIB
 				if ( ole32_state == OLE32_STATE_SHUTDOWN )
@@ -440,7 +483,7 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			_GetClientRect( hWnd, &rc );
 
 			// Allow our controls to move in relation to the parent window.
-			HDWP hdwp = _BeginDeferWindowPos( 27 );
+			HDWP hdwp = _BeginDeferWindowPos( ( use_add_split ? 26 : 27 ) );
 
 			_DeferWindowPos( hdwp, g_hWnd_regex_filter, HWND_TOP, 275, 20, rc.right - 365, 23, SWP_NOZORDER );
 			_DeferWindowPos( hdwp, g_hWnd_btn_apply_filter, HWND_TOP, rc.right - 85, 20, 65, 23, SWP_NOZORDER );
@@ -486,7 +529,15 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 			_DeferWindowPos( hdwp, g_hWnd_chk_show_advanced_options, HWND_TOP, 10, rc.bottom - 32, 210, 23, SWP_NOZORDER );
 
-			_DeferWindowPos( hdwp, g_hWnd_btn_download, HWND_TOP, rc.right - 175, rc.bottom - 32, 80, 23, SWP_NOZORDER );
+			if ( use_add_split )
+			{
+				_DeferWindowPos( hdwp, g_hWnd_btn_download, HWND_TOP, rc.right - 188, rc.bottom - 32, 93, 23, SWP_NOZORDER );
+			}
+			else
+			{
+				_DeferWindowPos( hdwp, g_hWnd_btn_download, HWND_TOP, rc.right - 260, rc.bottom - 32, 80, 23, SWP_NOZORDER );
+				_DeferWindowPos( hdwp, g_hWnd_btn_add_download, HWND_TOP, rc.right - 175, rc.bottom - 32, 80, 23, SWP_NOZORDER );
+			}
 			_DeferWindowPos( hdwp, g_hWnd_cancel, HWND_TOP, rc.right - 90, rc.bottom - 32, 80, 23, SWP_NOZORDER );
 			_EndDeferWindowPos( hdwp );
 
@@ -516,6 +567,7 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			{
 				case IDOK:
 				case BTN_DOWNLOAD:
+				case BTN_ADD_DOWNLOAD:
 				{
 					unsigned char download_operations = ( _SendMessageW( g_hWnd_chk_simulate_download, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? DOWNLOAD_OPERATION_SIMULATE : DOWNLOAD_OPERATION_NONE );
 
@@ -547,7 +599,7 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 						ai->ssl_version = ( char )_SendMessageW( g_hWnd_ssl_version, CB_GETCURSEL, 0, 0 );
 
-						ai->download_operations = download_operations;
+						ai->download_operations = download_operations | ( LOWORD( wParam ) == BTN_ADD_DOWNLOAD || add_split_type == 1 ? DOWNLOAD_OPERATION_ADD_STOPPED : DOWNLOAD_OPERATION_NONE );
 
 						ai->method = ( _SendMessageW( g_hWnd_chk_send_data, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? METHOD_POST : METHOD_GET );
 
@@ -707,11 +759,32 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 				}
 				break;
 
+				case MENU_ADD_SPLIT_DOWNLOAD:
+				{
+					add_split_type = 0;
+
+					_SendMessageW( g_hWnd_btn_download, WM_SETTEXT, 0, ( LPARAM )ST_V_Download );
+				}
+				break;
+
+				case MENU_ADD_SPLIT_ADD:
+				{
+					add_split_type = 1;
+
+					_SendMessageW( g_hWnd_btn_download, WM_SETTEXT, 0, ( LPARAM )ST_V_Add );
+				}
+				break;
+
 				case EDIT_ADD_URLS:
 				{
 					if ( HIWORD( wParam ) == EN_UPDATE )
 					{
-						_EnableWindow( g_hWnd_btn_download, ( _SendMessageW( g_hWnd_edit_add, WM_GETTEXTLENGTH, 0, 0 ) > 0 ? TRUE : FALSE ) );
+						BOOL enable = ( _SendMessageW( g_hWnd_edit_add, WM_GETTEXTLENGTH, 0, 0 ) > 0 ? TRUE : FALSE );
+						_EnableWindow( g_hWnd_btn_download, enable );
+						if ( !use_add_split )
+						{
+							_EnableWindow( g_hWnd_btn_add_download, enable );
+						}
 					}
 				}
 				break;
@@ -720,7 +793,7 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 				{
 					if ( HIWORD( wParam ) == EN_UPDATE )
 					{
-						DWORD sel_start = 0;
+						DWORD sel_start;
 
 						char value[ 11 ];
 						_SendMessageA( ( HWND )lParam, WM_GETTEXT, 11, ( LPARAM )value );
@@ -826,9 +899,9 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 						wchar_t *filter = NULL;
 						switch ( index )
 						{
-							case 1: { filter = L"(?i)(^https?:\\/\\/[^\\/\\s]+\\/[^\\?#\\s]+\\.(jpe?g?|gif|png|bmp|tiff?|dib|ico)(\\?|#|$))"; } break;
-							case 2: { filter = L"(?i)(^https?:\\/\\/[^\\/\\s]+\\/[^\\?#\\s]+\\.(mp3|wave?|flac?|ogg|m4a|wma|aac|midi?|ape|shn|wv|aiff?|oga)(\\?|#|$))"; } break;
-							case 3: { filter = L"(?i)(^https?:\\/\\/[^\\/\\s]+\\/[^\\?#\\s]+\\.(avi|mp[124]|m4v|mpe?g?|mkv|webm|wmv|3gp|ogm|ogv|flv|vob)(\\?|#|$))"; } break;
+							case 1: { filter = L"(?i)(^(http|ftpe?)s?:\\/\\/[^\\/\\s]+\\/[^\\?#\\s]+\\.(jp(e?g|e)|gif|png|bmp|tiff?|dib|ico)(\\?|#|$))"; } break;
+							case 2: { filter = L"(?i)(^(http|ftpe?)s?:\\/\\/[^\\/\\s]+\\/[^\\?#\\s]+\\.(mp3|wave?|flac?|ogg|m4a|wma|aac|midi?|ape|shn|wv|aiff?|oga)(\\?|#|$))"; } break;
+							case 3: { filter = L"(?i)(^(http|ftpe?)s?:\\/\\/[^\\/\\s]+\\/[^\\?#\\s]+\\.(avi|mp[124]|m4v|mp(e?g|e)|mkv|webm|wmv|3gp|ogm|ogv|flv|vob)(\\?|#|$))"; } break;
 						}
 
 						_SendMessageW( g_hWnd_regex_filter, WM_SETTEXT, 0, ( LPARAM )filter );
@@ -903,6 +976,17 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 					}
 
 					ShowHideAddTabs( SW_SHOW );
+				}
+				break;
+
+				case BCN_DROPDOWN:
+				{
+					NMBCDROPDOWN *nmbcddd = ( NMBCDROPDOWN * )lParam;
+
+					RECT rc;
+					_GetWindowRect( nmbcddd->hdr.hwndFrom, &rc );
+
+					_TrackPopupMenu( g_hMenu_add_split, 0, rc.left, rc.bottom, 0, hWnd, NULL );
 				}
 				break;
 			}
@@ -1066,6 +1150,18 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 								{
 									offset = 8;
 								}
+								else if ( _StrCmpNIW( data, L"ftp://", 6 ) == 0 )
+								{
+									offset = 6;
+								}
+								else if ( _StrCmpNIW( data, L"ftps://", 7 ) == 0 )
+								{
+									offset = 7;
+								}
+								else if ( _StrCmpNIW( data, L"ftpes://", 8 ) == 0 )
+								{
+									offset = 8;
+								}
 
 								// Make sure there's at least 3 characters after http(s)://
 								if ( offset > 0 )
@@ -1132,6 +1228,10 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 			_SendMessageW( g_hWnd_edit_add, WM_SETTEXT, 0, NULL );
 			_EnableWindow( g_hWnd_btn_download, FALSE );
+			if ( !use_add_split )
+			{
+				_EnableWindow( g_hWnd_btn_add_download, FALSE );
+			}
 
 			_SendMessageW( g_hWnd_btn_download, BM_SETSTYLE, BS_DEFPUSHBUTTON, TRUE );
 			_SendMessageW( g_hWnd_cancel, BM_SETSTYLE, 0, TRUE );
@@ -1178,6 +1278,8 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 				GlobalFree( t_download_directory );
 				t_download_directory = NULL;
 			}
+
+			_DestroyMenu( g_hMenu_add_split );
 
 			g_hWnd_add_urls = NULL;
 

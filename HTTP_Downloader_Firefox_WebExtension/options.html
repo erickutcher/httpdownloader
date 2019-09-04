@@ -18,45 +18,45 @@
 	</head>
 	<body>
 		<div class="browser-style">
-			<div><label for="server">Server:</label></div>
+			<div><label for="server" data-i18n="server_">Server:</label></div>
 			<input type="text" id="server" size="50" value="">
 		</div>
 		<div style="padding-top: 10px;">
 			<fieldset>
-				<legend>Server Authentication</legend>
+				<legend data-i18n="server_authentication">Server Authentication</legend>
 				<div class="browser-style" style="float: left; margin-right: 10px;">
-					<div><label for="username">Username:</label></div>
+					<div><label for="username" data-i18n="username_">Username:</label></div>
 					<input type="text" id="username" value="">
 				</div>
 				<div class="browser-style" style="float: left;">
-					<div><label for="password">Password:</label></div>
+					<div><label for="password" data-i18n="password_">Password:</label></div>
 					<input type="password" id="password" value="">
 				</div>
 			</fieldset>
 		</div>
 		<div class="browser-style" style="padding-top: 10px;">
-			<div><label for="parts">Default download parts:</label></div>
+			<div><label for="parts" data-i18n="default_download_parts_">Default download parts:</label></div>
 			<input type="number" id="parts" value="" min="0" max="100" style="text-align: center;">
 		</div>
 		<div class="browser-style" style="padding-top: 10px;">
-			<div><label for="default_directory">Default download directory:</label></div>
-			<input type="text" id="default_directory" size="50" value="" placeholder="[Use Program Default]">
+			<div><label for="default_directory" data-i18n="default_download_directory_">Default download directory:</label></div>
+			<input type="text" id="default_directory" size="50" value="" data-i18n="_use_program_default_" placeholder="[Use Program Default]">
 		</div>
 		<div class="browser-style" style="padding-top: 10px;">
-			<input type="checkbox" id="user_agent"><label for="user_agent">Send User-Agent header</label>
+			<input type="checkbox" id="user_agent"><label for="user_agent" data-i18n="send_user_agent_header">Send User-Agent header</label>
 		</div>
 		<div class="browser-style">
-			<input type="checkbox" id="referer"><label for="referer">Send Referer header</label>
+			<input type="checkbox" id="referer"><label for="referer" data-i18n="send_referer_header">Send Referer header</label>
 		</div>
 		<div class="browser-style">
-			<input type="checkbox" id="override"><label for="override">Override browser's download manager</label>
+			<input type="checkbox" id="override"><label for="override" data-i18n="override_browsers_download_manager">Override browser's download manager</label>
 		</div>
 		<div class="browser-style" style="margin-left: 20px;">
-			<input type="checkbox" id="show_add_window"><label for="show_add_window">Show Add URL(s) window before download</label>
+			<input type="checkbox" id="show_add_window"><label for="show_add_window" data-i18n="show_add_urls_window_before_download">Show Add URL(s) window before download</label>
 		</div>
 		<div class="panel-section-separator"></div>
 		<div style="padding-top: 20px;">
-			<button type="button" id="save" class="browser-style">Save</button>
+			<button type="button" id="save" class="browser-style" data-i18n="save">Save</button>
 		</div>
 	</body>
 </html>

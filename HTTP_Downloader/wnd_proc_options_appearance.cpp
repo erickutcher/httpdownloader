@@ -1,5 +1,5 @@
 /*
-	HTTP Downloader can download files through HTTP and HTTPS connections.
+	HTTP Downloader can download files through HTTP(S) and FTP(S) connections.
 	Copyright (C) 2015-2019 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
@@ -29,6 +29,8 @@
 
 #define BTN_SHOW_GRID_LINES			1003
 
+#define BTN_SORT_ADDED_AND_UPDATING_ITEMS	1004
+
 // Appearance Tab
 HWND g_hWnd_row_options_list = NULL;
 HWND g_hWnd_static_example_row = NULL;
@@ -38,6 +40,8 @@ HWND g_hWnd_static_example_progress = NULL;
 HWND g_hWnd_progress_color_options_list = NULL;
 
 HWND g_hWnd_chk_show_gridlines = NULL;
+
+HWND g_hWnd_chk_sort_added_and_updating_items = NULL;
 
 COLORREF t_odd_row_background_color;
 COLORREF t_even_row_background_color;
@@ -104,6 +108,9 @@ LRESULT CALLBACK AppearanceTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 
 			g_hWnd_static_example_row = _CreateWindowW( WC_STATIC, NULL, SS_OWNERDRAW | WS_BORDER | WS_CHILD | WS_VISIBLE, 205, 15, 74, 45, hWnd, NULL, NULL, NULL );
 
+			g_hWnd_chk_show_gridlines = _CreateWindowW( WC_BUTTON, ST_V_Show_gridlines_in_download_list, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 205, 85, rc.right - 205, 20, hWnd, ( HMENU )BTN_SHOW_GRID_LINES, NULL, NULL );
+
+
 			HWND hWnd_static_progress_color = _CreateWindowW( WC_STATIC, ST_V_Progress_bar_, WS_CHILD | WS_VISIBLE, 0, 105, rc.right, 15, hWnd, NULL, NULL, NULL );
 			g_hWnd_progress_color_list = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_LISTBOX, NULL, LBS_NOTIFY | LBS_NOINTEGRALHEIGHT | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE, 0, 120, 200, 85, hWnd, ( HMENU )LB_PROGRESS_COLOR, NULL, NULL );
 			_SendMessageW( g_hWnd_progress_color_list, LB_ADDSTRING, 0, ( LPARAM )ST_V_Allocating_File );
@@ -131,7 +138,9 @@ LRESULT CALLBACK AppearanceTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 
 			g_hWnd_static_example_progress = _CreateWindowW( WC_STATIC, NULL, SS_OWNERDRAW | WS_BORDER | WS_CHILD | WS_VISIBLE, 350, 120, rc.right - 350, 45, hWnd, NULL, NULL, NULL );
 
-			g_hWnd_chk_show_gridlines = _CreateWindowW( WC_BUTTON, ST_V_Show_gridlines_in_download_list, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 210, rc.right, 20, hWnd, ( HMENU )BTN_SHOW_GRID_LINES, NULL, NULL );
+
+			g_hWnd_chk_sort_added_and_updating_items = _CreateWindowW( WC_BUTTON, ST_V_Sort_added_and_updating_items, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 210, rc.right, 20, hWnd, ( HMENU )BTN_SORT_ADDED_AND_UPDATING_ITEMS, NULL, NULL );
+
 
 			_SendMessageW( hWnd_static_row_options, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 			_SendMessageW( g_hWnd_row_options_list, WM_SETFONT, ( WPARAM )g_hFont, 0 );
@@ -141,9 +150,12 @@ LRESULT CALLBACK AppearanceTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 			_SendMessageW( g_hWnd_progress_color_options_list, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 			_SendMessageW( g_hWnd_static_example_progress, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 			_SendMessageW( g_hWnd_chk_show_gridlines, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_chk_sort_added_and_updating_items, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 
 
 			_SendMessageW( g_hWnd_chk_show_gridlines, BM_SETCHECK, ( cfg_show_gridlines ? BST_CHECKED : BST_UNCHECKED ), 0 );
+
+			_SendMessageW( g_hWnd_chk_sort_added_and_updating_items, BM_SETCHECK, ( cfg_sort_added_and_updating_items ? BST_CHECKED : BST_UNCHECKED ), 0 );
 
 			SetAppearance();
 
@@ -325,6 +337,7 @@ LRESULT CALLBACK AppearanceTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 				break;
 
 				case BTN_SHOW_GRID_LINES:
+				case BTN_SORT_ADDED_AND_UPDATING_ITEMS:
 				{
 					options_state_changed = true;
 					_EnableWindow( g_hWnd_apply, TRUE );

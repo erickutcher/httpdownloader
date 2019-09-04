@@ -1,5 +1,5 @@
 /*
-	HTTP Downloader can download files through HTTP and HTTPS connections.
+	HTTP Downloader can download files through HTTP(S) and FTP(S) connections.
 	Copyright (C) 2015-2019 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
@@ -103,10 +103,10 @@ int CMessageBoxW( HWND hWnd, LPCWSTR lpText, LPCWSTR lpCaption, UINT uType )
 
 		if ( cmessagebox_prompt_count == 0 )
 		{
-			//_EnableMenuItem( g_hMenuSub_tray, MENU_RESTORE, MF_DISABLED );
-			_EnableMenuItem( g_hMenuSub_tray, MENU_OPTIONS, MF_DISABLED );
-			_EnableMenuItem( g_hMenuSub_tray, MENU_ADD_URLS, MF_DISABLED );
-			_EnableMenuItem( g_hMenuSub_tray, MENU_EXIT, MF_DISABLED );
+			//_EnableMenuItem( g_hMenuSub_tray, MENU_RESTORE, MF_GRAYED );
+			_EnableMenuItem( g_hMenuSub_tray, MENU_OPTIONS, MF_GRAYED );
+			_EnableMenuItem( g_hMenuSub_tray, MENU_ADD_URLS, MF_GRAYED );
+			_EnableMenuItem( g_hMenuSub_tray, MENU_EXIT, MF_GRAYED );
 		}
 
 		++cmessagebox_prompt_count;

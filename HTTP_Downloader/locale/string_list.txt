@@ -101,14 +101,17 @@ Advanced
 Appearance
 Apply
 Connection
+FTP
 General
 OK
 Proxy
+Add in Stopped state
 Allow only one instance of the program to run
 Continue Download
 Default download directory:
 Display Prompt
-Download drag and drop URL(s) immediately
+Download immediately
+Drag and drop URL(s) action:
 Enable download history
 Enable quick file allocation (administrator access required)
 Hibernate
@@ -150,6 +153,7 @@ Progress Color
 Progress bar:
 Progress Font Color
 Show gridlines in download list
+Sort added and updating items
 :
 Active download limit:
 Basic Authentication
@@ -177,6 +181,14 @@ Retry incomplete downloads:
 Retry incomplete parts:
 Server SSL / TLS version:
 Timeout (seconds):
+Active
+Active Listen Information
+Data Transfer Mode
+Passive
+Port end:
+Port start:
+Send keep-alive requests
+Use other mode on failure
 Always on top
 Close to System Tray
 Enable System Tray icon:

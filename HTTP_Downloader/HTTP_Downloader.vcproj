@@ -398,6 +398,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\ftp_parsing.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\http_parsing.cpp"
 				>
 			</File>
@@ -539,6 +543,10 @@
 			</File>
 			<File
 				RelativePath=".\wnd_proc_options_connection.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\wnd_proc_options_ftp.cpp"
 				>
 			</File>
 			<File
@@ -685,6 +693,10 @@
 			</File>
 			<File
 				RelativePath=".\folder_browser.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ftp_parsing.h"
 				>
 			</File>
 			<File

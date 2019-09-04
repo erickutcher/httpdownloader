@@ -1,5 +1,5 @@
 /*
-	HTTP Downloader can download files through HTTP and HTTPS connections.
+	HTTP Downloader can download files through HTTP(S) and FTP(S) connections.
 	Copyright (C) 2015-2019 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
@@ -95,6 +95,10 @@
 #define SHUTDOWN_ACTION_HIBERNATE			5
 #define SHUTDOWN_ACTION_SHUT_DOWN			6
 #define SHUTDOWN_ACTION_HYBRID_SHUT_DOWN	7
+
+#define DRAG_AND_DROP_ACTION_NONE					0
+#define DRAG_AND_DROP_ACTION_DOWNLOAD_IMMEDIATELY	1
+#define DRAG_AND_DROP_ACTION_ADD_IN_STOPPED_STATE	2
 
 struct SORT_INFO
 {
@@ -291,8 +295,9 @@ extern bool cfg_enable_quick_allocation;
 extern bool cfg_set_filetime;
 extern bool cfg_use_one_instance;
 extern bool cfg_enable_drop_window;
-extern bool cfg_download_immediately;
 extern bool cfg_prevent_standby;
+
+extern unsigned char cfg_drag_and_drop_action;
 
 extern unsigned char cfg_shutdown_action;
 
@@ -313,6 +318,18 @@ extern unsigned char cfg_default_download_parts;
 extern unsigned char cfg_max_redirects;
 
 extern wchar_t *cfg_default_download_directory;
+
+// FTP
+
+extern unsigned char cfg_ftp_mode_type;
+extern bool cfg_ftp_enable_fallback_mode;
+extern unsigned char cfg_ftp_address_type;
+extern wchar_t *cfg_ftp_hostname;
+extern unsigned long cfg_ftp_ip_address;
+extern unsigned short cfg_ftp_port_start;
+extern unsigned short cfg_ftp_port_end;
+
+extern bool cfg_ftp_send_keep_alive;
 
 // Server
 
@@ -421,6 +438,10 @@ extern bool cfg_show_drop_window_progress;
 //
 
 // Appearance
+
+extern int cfg_sorted_column_index;
+extern unsigned char cfg_sorted_direction;
+extern bool cfg_sort_added_and_updating_items;
 
 extern bool cfg_show_gridlines;
 

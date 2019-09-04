@@ -1,5 +1,5 @@
 /*
-	HTTP Downloader can download files through HTTP and HTTPS connections.
+	HTTP Downloader can download files through HTTP(S) and FTP(S) connections.
 	Copyright (C) 2015-2019 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
@@ -45,6 +45,7 @@
 #include "cmessagebox.h"
 
 #include "connection.h"
+#include "ftp_parsing.h"
 
 #include "login_manager_utilities.h"
 
@@ -289,10 +290,16 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 				}
 				else if ( arg_name_length == 8 && _StrCmpNIW( arg_name, L"simulate", 8 ) == 0 )	// Simulate the download.
 				{
-					cla->download_operations = DOWNLOAD_OPERATION_SIMULATE;
+					cla->download_operations |= DOWNLOAD_OPERATION_SIMULATE;
+				}
+				else if ( arg_name_length == 11 && _StrCmpNIW( arg_name, L"add-stopped", 11 ) == 0 )	// Add the download in the Stopped state.
+				{
+					cla->download_operations |= DOWNLOAD_OPERATION_ADD_STOPPED;
+					cla->download_immediately = 1;
 				}
 				else if ( arg_name_length == 9 && _StrCmpNIW( arg_name, L"immediate", 9 ) == 0 )	// Download immediately.
 				{
+					cla->download_operations &= ~DOWNLOAD_OPERATION_ADD_STOPPED;
 					cla->download_immediately = 1;
 				}
 				else if ( ( arg + 1 ) < argCount &&
@@ -483,6 +490,8 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 	InitializeCriticalSection( &session_totals_cs );
 
 	InitializeCriticalSection( &icon_cache_cs );
+
+	InitializeCriticalSection( &ftp_listen_info_cs );
 
 	InitializeCriticalSection( &context_list_cs );
 	InitializeCriticalSection( &active_download_list_cs );
@@ -764,7 +773,6 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 						g_can_perform_shutdown_action = true;
 					}
 				}
-
 			}
 		}
 
@@ -1072,6 +1080,15 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 		goto CLEANUP;
 	}
 
+	wcex.lpfnWndProc    = FTPTabWndProc;
+	wcex.lpszClassName  = L"ftp_tab";
+
+	if ( !_RegisterClassExW( &wcex ) )
+	{
+		fail_type = 1;
+		goto CLEANUP;
+	}
+
 	wcex.style		   |= CS_DBLCLKS;
 	wcex.lpfnWndProc    = URLDropWndProc;
 	wcex.lpszClassName  = L"url_drop_window";
@@ -1170,6 +1187,9 @@ CLEANUP:
 	if ( cfg_default_download_directory != NULL ) { GlobalFree( cfg_default_download_directory ); }
 	if ( cfg_temp_download_directory != NULL ) { GlobalFree( cfg_temp_download_directory ); }
 	if ( cfg_sound_file_path != NULL ) { GlobalFree( cfg_sound_file_path ); }
+
+	// FTP
+	if ( cfg_ftp_hostname != NULL ) { GlobalFree( cfg_ftp_hostname ); }
 
 	// HTTP proxy
 	if ( cfg_hostname != NULL ) { GlobalFree( cfg_hostname ); }
@@ -1280,6 +1300,8 @@ CLEANUP:
 	DeleteCriticalSection( &last_modified_prompt_list_cs );
 	DeleteCriticalSection( &move_file_queue_cs );
 	DeleteCriticalSection( &cleanup_cs );
+
+	DeleteCriticalSection( &ftp_listen_info_cs );
 
 	DeleteCriticalSection( &icon_cache_cs );
 

@@ -1,5 +1,5 @@
 /*
-	HTTP Downloader can download files through HTTP and HTTPS connections.
+	HTTP Downloader can download files through HTTP(S) and FTP(S) connections.
 	Copyright (C) 2015-2019 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
@@ -24,6 +24,10 @@
 	pOpenThemeData			_OpenThemeData;
 	pCloseThemeData			_CloseThemeData;
 	pDrawThemeBackground	_DrawThemeBackground;
+	//pGetThemeColor			_GetThemeColor;
+	//pIsThemeActive			_IsThemeActive;
+	//pEnableThemeDialogTexture	_EnableThemeDialogTexture;
+	//pDrawThemeParentBackground	_DrawThemeParentBackground;
 
 	HMODULE hModule_uxtheme = NULL;
 
@@ -46,6 +50,10 @@
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_uxtheme, ( void ** )&_OpenThemeData, "OpenThemeData" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_uxtheme, ( void ** )&_CloseThemeData, "CloseThemeData" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_uxtheme, ( void ** )&_DrawThemeBackground, "DrawThemeBackground" ) )
+		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_uxtheme, ( void ** )&_GetThemeColor, "GetThemeColor" ) )
+		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_uxtheme, ( void ** )&_IsThemeActive, "IsThemeActive" ) )
+		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_uxtheme, ( void ** )&_EnableThemeDialogTexture, "EnableThemeDialogTexture" ) )
+		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_uxtheme, ( void ** )&_DrawThemeParentBackground, "DrawThemeParentBackground" ) )
 
 		uxtheme_state = UXTHEME_STATE_RUNNING;
 

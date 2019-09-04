@@ -1,5 +1,5 @@
 /*
-	HTTP Downloader can download files through HTTP and HTTPS connections.
+	HTTP Downloader can download files through HTTP(S) and FTP(S) connections.
 	Copyright (C) 2015-2019 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
@@ -1428,6 +1428,20 @@ THREAD_RETURN handle_download_update( void *pArguments )
 			{
 				LeaveCriticalSection( &di->shared_cs );
 			}
+
+			// Sort only the values that can be updated.
+			if ( cfg_sort_added_and_updating_items &&
+			   ( cfg_sorted_column_index == 1 ||	// Active Parts
+				 cfg_sorted_column_index == 10 ||	// SSL / TLS Version
+				 cfg_sorted_column_index == 13 ) )	// URL
+			{
+				SORT_INFO si;
+				si.column = GetColumnIndexFromVirtualIndex( cfg_sorted_column_index, download_columns, NUM_COLUMNS );
+				si.hWnd = g_hWnd_files;
+				si.direction = cfg_sorted_direction;
+
+				_SendMessageW( g_hWnd_files, LVM_SORTITEMS, ( WPARAM )&si, ( LPARAM )( PFNLVCOMPARE )DMCompareFunc );
+			}
 		}
 
 		// This is all that should be set for this function.
@@ -1481,6 +1495,7 @@ THREAD_RETURN copy_urls( void *pArguments )
 	LVITEM lvi;
 	_memzero( &lvi, sizeof( LVITEM ) );
 	lvi.mask = LVIF_PARAM;
+	lvi.iItem = -1;	// Set this to -1 so that the LVM_GETNEXTITEM call can go through the list correctly.
 
 	int item_count = ( int )_SendMessageW( g_hWnd_files, LVM_GETITEMCOUNT, 0, 0 );
 	int sel_count = ( int )_SendMessageW( g_hWnd_files, LVM_GETSELECTEDCOUNT, 0, 0 );
@@ -1999,6 +2014,7 @@ THREAD_RETURN delete_files( void *pArguments )
 	LVITEM lvi;
 	_memzero( &lvi, sizeof( LVITEM ) );
 	lvi.mask = LVIF_PARAM;
+	lvi.iItem = -1;	// Set this to -1 so that the LVM_GETNEXTITEM call can go through the list correctly.
 
 	int item_count = ( int )_SendMessageW( g_hWnd_files, LVM_GETITEMCOUNT, 0, 0 );
 	int sel_count = ( int )_SendMessageW( g_hWnd_files, LVM_GETSELECTEDCOUNT, 0, 0 );

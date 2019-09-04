@@ -63,6 +63,18 @@ function RestoreOptions()
 
 document.addEventListener( "DOMContentLoaded", function()
 {
+	document.querySelectorAll( "[data-i18n]" ).forEach( el =>
+	{
+		if ( el.id == "default_directory" )
+		{
+			el.placeholder = browser.i18n.getMessage( el.dataset.i18n );
+		}
+		else
+		{
+			el.innerText = browser.i18n.getMessage( el.dataset.i18n );
+		}
+	} );
+
 	document.getElementById( "save" ).addEventListener( "click", SaveOptions );
 	document.getElementById( "override" ).addEventListener( "change", DisableCheckbox );
 

@@ -2,7 +2,7 @@
 <html>
 	<head>
 		<meta charset="utf-8">
-		<title>HTTP Downloader - Add URL(s)</title>
+		<title data-i18n="title">HTTP Downloader - Add URL(s)</title>
 		<style>
 			html, body
 			{
@@ -97,26 +97,26 @@
 					<div style="flex: 1; display: flex; flex-flow: column; height: 100%;">
 						<div style="display: flex; flex-flow: row;">
 							<div style="margin-top: auto;">
-								<label for="urls">URL(s):</label>
+								<label for="urls" data-i18n="url_s__">URL(s):</label>
 							</div>
 							<div style="flex: 1; display: flex; flex-flow: row; text-align: right; margin-bottom: 5px;">
-								<label for="filter" style="margin: auto 0px auto 70px; white-space: nowrap;">RegEx filter:</label>
+								<label for="filter" style="margin: auto 0px auto 70px; white-space: nowrap;" data-i18n="regex_filter_">RegEx filter:</label>
 								<select id="filter_presets" style="margin-left: 5px;">
-									<option selected="selected">Custom</option>
-									<option>Images</option>
-									<option>Music</option>
-									<option>Videos</option>
+									<option selected="selected" data-i18n="custom">Custom</option>
+									<option data-i18n="images">Images</option>
+									<option data-i18n="music">Music</option>
+									<option data-i18n="videos">Videos</option>
 								</select>
-								<input type="text" id="filter" list="filter_presets" value="" style="flex: 1; width: 100%; margin-left: 5px;"><input type="button" id="apply_filter" value="Apply" style="margin-left: 5px;"><input type="button" id="revert_filter" value="Revert" style="margin-left: 5px;">
+								<input type="text" id="filter" list="filter_presets" value="" style="flex: 1; width: 100%; margin-left: 5px;"><button type="button" id="apply_filter" style="margin-left: 5px;" data-i18n="apply">Apply</button><button type="button" id="revert_filter" style="margin-left: 5px;" data-i18n="revert">Revert</button>
 							</div>
 						</div>
 						<textarea id="urls" rows="4" style="flex: 1;"></textarea>
 						<div style="margin-top: 10px;">
 							<div style="margin-top: auto;">
-								<label for="directory">Download directory:</label>
+								<label for="directory" data-i18n="download_directory_">Download directory:</label>
 							</div>
 							<div>
-								<input type="text" id="directory" value="" placeholder="[Use Program Default]" style="box-sizing: border-box; width: 100%;">
+								<input type="text" id="directory" value="" data-i18n="_use_program_default_" placeholder="[Use Program Default]" style="box-sizing: border-box; width: 100%;">
 							</div>
 						</div>
 					</div>
@@ -124,7 +124,7 @@
 						<div style="display: flex; flex-flow: row wrap;">
 							<div style="margin-right: 15px;">
 								<div style="margin-top: auto;">
-									<label for="parts">Download parts:</label>
+									<label for="parts" data-i18n="download_parts_">Download parts:</label>
 								</div>
 								<div>
 									<input type="number" id="parts" value="" min="0" max="100" style="text-align: center;">
@@ -132,11 +132,11 @@
 							</div>
 							<div style="flex: 1;">
 								<fieldset>
-									<legend>Authentication</legend>
+									<legend data-i18n="authentication">Authentication</legend>
 									<div style="display: flex; flex-flow: row wrap;">
 										<div style="margin-right: 10px;">
 											<div style="margin-top: auto;">
-												<label for="username">Username:</label>
+												<label for="username" data-i18n="username_">Username:</label>
 											</div>
 											<div>
 												<input type="text" id="username" value="">
@@ -144,7 +144,7 @@
 										</div>
 										<div style="flex: 1;">
 											<div style="margin-top: auto;">
-												<label for="password">Password:</label>
+												<label for="password" data-i18n="password_">Password:</label>
 											</div>
 											<div>
 												<input type="password" id="password" value="">
@@ -155,11 +155,11 @@
 							</div>
 						</div>
 						<div class="tab" style="margin-top: 15px;">
-							<input type="radio" name="tabs" id="tab_cookies" checked><label for="tab_cookies">Cookies</label><input type="radio" name="tabs" id="tab_headers"><label for="tab_headers">Headers</label><input type="radio" name="tabs" id="tab_post_data"><label for="tab_post_data">POST Data</label>
+							<input type="radio" name="tabs" id="tab_cookies" checked><label for="tab_cookies" data-i18n="cookies">Cookies</label><input type="radio" name="tabs" id="tab_headers"><label for="tab_headers" data-i18n="headers">Headers</label><input type="radio" name="tabs" id="tab_post_data"><label for="tab_post_data" data-i18n="post_data">POST Data</label>
 							<div class="tab_frame">
 								<div class="tab_panel" style="margin: 10px;">
 									<div style="margin-top: auto;">
-										<label for="cookies">Cookies:</label>
+										<label for="cookies" data-i18n="cookies_">Cookies:</label>
 									</div>
 									<div>
 										<textarea id="cookies" rows="5"></textarea>
@@ -167,7 +167,7 @@
 								</div>
 								<div class="tab_panel" style="margin: 10px;">
 									<div style="margin-top: auto;">
-										<label for="headers">Headers:</label>
+										<label for="headers" data-i18n="headers_">Headers:</label>
 									</div>
 									<div>
 										<textarea id="headers" rows="5"></textarea>
@@ -175,7 +175,7 @@
 								</div>
 								<div class="tab_panel" style="margin: 5px 10px 10px 10px;">
 									<div style="margin-top: auto;">
-										<input type="checkbox" id="method"><label for="method">Send POST Data:</label>
+										<input type="checkbox" id="method"><label for="method" data-i18n="send_post_data_">Send POST Data:</label>
 									</div>
 									<div>
 										<textarea id="post_data" rows="5"></textarea>
@@ -184,16 +184,16 @@
 							</div>
 						</div>
 						<div style="margin-top: 15px;">
-							<input type="checkbox" id="simulate_download"><label for="simulate_download">Simulate download</label>
+							<input type="checkbox" id="simulate_download"><label for="simulate_download" data-i18n="simulate_download">Simulate download</label>
 						</div>
 					</div>
 				</div>
 				<div style="display: flex; flex-flow: row; margin-top: 15px; margin-bottom: 15px;">
 					<div>
-						<input type="checkbox" id="advanced"><label for="advanced">Advanced options</label>
+						<input type="checkbox" id="advanced"><label for="advanced" data-i18n="advanced_options">Advanced options</label>
 					</div>
 					<div style="flex: 1; text-align: right;">
-						<input type="button" id="download" value="Download"><input type="button" id="cancel" value="Cancel" style="margin-left: 5px;">
+						<button type="button" id="download" data-i18n="download">Download</button><button type="button" id="add" style="margin-left: 5px;" data-i18n="add">Add</button><button type="button" id="cancel" style="margin-left: 5px;" data-i18n="cancel">Cancel</button>
 					</div>
 				</div>
 			</div>
