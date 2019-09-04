@@ -1,0 +1,157 @@
+{
+	"extension_description": {
+		"message": "Download files with HTTP Downloader."
+	},
+
+	"title": {
+		"message": "HTTP Downloader - URL(s) hinzufügen"
+	},
+
+	"url_s__": {
+		"message": "URL(s):"
+	},
+
+	"regex_filter_": {
+		"message": "RegEx-Filter:"
+	},
+
+	"custom": {
+		"message": "Eigene"
+	},
+
+	"images": {
+		"message": "Bilder"
+	},
+
+	"music": {
+		"message": "Musik"
+	},
+
+	"videos": {
+		"message": "Videos"
+	},
+
+	"apply": {
+		"message": "Anwenden"
+	},
+
+	"revert": {
+		"message": "Rückgängig"
+	},
+
+	"download_directory_": {
+		"message": "Verzeichnis:"
+	},
+
+	"_use_program_default_": {
+		"message": "[Programmstandard benutzen]"
+	},
+
+	"download_parts_": {
+		"message": "Teile:"
+	},
+
+	"authentication": {
+		"message": "Authentifikation"
+	},
+
+	"username_": {
+		"message": "Benutzer:"
+	},
+
+	"password_": {
+		"message": "Passwort:"
+	},
+
+	"cookies": {
+		"message": "Cookies"
+	},
+
+	"headers": {
+		"message": "Header"
+	},
+
+	"post_data": {
+		"message": "POST-Methode"
+	},
+
+	"cookies_": {
+		"message": "Cookies:"
+	},
+
+	"headers_": {
+		"message": "Header:"
+	},
+
+	"send_post_data_": {
+		"message": "POST Daten senden:"
+	},
+
+	"simulate_download": {
+		"message": "Download simulieren"
+	},
+
+	"advanced_options": {
+		"message": "Erweiterte Optionen"
+	},
+
+	"download": {
+		"message": "Download"
+	},
+
+	"add": {
+		"message": "Hinzufügen"
+	},
+
+	"cancel": {
+		"message": "Abbrechen"
+	},
+
+	"server_": {
+		"message": "Server:"
+	},
+
+	"server_authentication": {
+		"message": "Authentifikation"
+	},
+
+	"default_download_parts_": {
+		"message": "Teile (Standard):"
+	},
+
+	"default_download_directory_": {
+		"message": "Verzeichnis (Standard):"
+	},
+
+	"send_user_agent_header": {
+		"message": "User-Agent übertragen"
+	},
+
+	"send_referer_header": {
+		"message": "Referer übertragen"
+	},
+
+	"override_browsers_download_manager": {
+		"message": "Downloadmanager des Browsers überschreiben"
+	},
+
+	"show_add_urls_window_before_download": {
+		"message": "Vor dem Download URL(s) hinzufügen anzeigen"
+	},
+
+	"save": {
+		"message": "Speichern"
+	},
+
+	"SEND_FAILED": {
+		"message": "Beim senden der Anfrage für den Download ist ein Fehler aufgetreten."
+	},
+
+	"CONNECTION_TIMEOUT": {
+		"message": "Die Zeit für den Aufbau der Verbindung wurde überschritten."
+	},
+
+	"INVALID_RESPONSE": {
+		"message": "Der Server hat mit einer ungültigen Antwort auf die Anfrage geantwortet."
+	}
+}
