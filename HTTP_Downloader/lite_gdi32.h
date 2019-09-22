@@ -32,7 +32,9 @@
 	#define _BitBlt						BitBlt
 	#define _CreateCompatibleBitmap		CreateCompatibleBitmap
 	#define _CreateCompatibleDC			CreateCompatibleDC
+	//#define _CreateDCW					CreateDCW
 	#define _CreateFontIndirectW		CreateFontIndirectW
+	#define _CreatePatternBrush			CreatePatternBrush
 	#define _CreatePen					CreatePen
 	#define _CreateSolidBrush			CreateSolidBrush
 	#define _DeleteDC					DeleteDC
@@ -50,6 +52,7 @@
 	#define _SelectObject				SelectObject
 	//#define _SetBkColor					SetBkColor
 	#define _SetBkMode					SetBkMode
+	#define _SetBrushOrgEx				SetBrushOrgEx
 	#define _SetTextColor				SetTextColor
 
 #else
@@ -60,7 +63,9 @@
 	typedef BOOL ( WINAPI *pBitBlt )( HDC hdcDest, int nXDest, int nYDest, int nWidth, int nHeight, HDC hdcSrc, int nXSrc, int nYSrc, DWORD dwRop );
 	typedef HBITMAP ( WINAPI *pCreateCompatibleBitmap )( HDC hdc, int nWidth, int nHeight );
 	typedef HDC ( WINAPI *pCreateCompatibleDC )( HDC hdc );
+	//typedef HDC ( WINAPI *pCreateDCW )( LPCWSTR pwszDriver, LPCWSTR pwszDevice, LPCWSTR pszPort, const DEVMODEW *pdm );
 	typedef HFONT ( WINAPI *pCreateFontIndirectW )( const LOGFONT *lplf );
+	typedef HBRUSH ( WINAPI *pCreatePatternBrush )( HBITMAP hbm );
 	typedef HPEN ( WINAPI *pCreatePen )( int fnPenStyle, int nWidth, COLORREF crColor );
 	typedef HBRUSH ( WINAPI *pCreateSolidBrush )( COLORREF crColor );
 	typedef BOOL ( WINAPI *pDeleteDC )( HDC hdc );
@@ -78,12 +83,15 @@
 	typedef HGDIOBJ ( WINAPI *pSelectObject )( HDC hdc, HGDIOBJ hgdiobj );
 	//typedef COLORREF ( WINAPI *pSetBkColor )( HDC hdc, COLORREF crColor );
 	typedef int ( WINAPI *pSetBkMode )( HDC hdc, int iBkMode );
+	typedef BOOL ( WINAPI *pSetBrushOrgEx )( HDC hdc, int x, int y, LPPOINT lppt );
 	typedef COLORREF ( WINAPI *pSetTextColor )( HDC hdc, COLORREF crColor );
 
 	extern pBitBlt						_BitBlt;
 	extern pCreateCompatibleBitmap		_CreateCompatibleBitmap;
 	extern pCreateCompatibleDC			_CreateCompatibleDC;
+	//extern pCreateDCW					_CreateDCW;
 	extern pCreateFontIndirectW			_CreateFontIndirectW;
+	extern pCreatePatternBrush			_CreatePatternBrush;
 	extern pCreatePen					_CreatePen;
 	extern pCreateSolidBrush			_CreateSolidBrush;
 	extern pDeleteDC					_DeleteDC;
@@ -101,6 +109,7 @@
 	extern pSelectObject				_SelectObject;
 	//extern pSetBkColor					_SetBkColor;
 	extern pSetBkMode					_SetBkMode;
+	extern pSetBrushOrgEx				_SetBrushOrgEx;
 	extern pSetTextColor				_SetTextColor;
 
 	extern unsigned char gdi32_state;

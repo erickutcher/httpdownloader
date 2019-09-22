@@ -1033,7 +1033,6 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 	}
 
 	wcex.hIcon			= NULL;
-	wcex.hbrBackground  = ( HBRUSH )( COLOR_WINDOW + 1 );
 
 	wcex.lpfnWndProc    = AdvancedTabWndProc;
 	wcex.lpszClassName  = L"advanced_tab";
@@ -1089,6 +1088,15 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 		goto CLEANUP;
 	}
 
+	wcex.lpfnWndProc    = WebServerTabWndProc;
+	wcex.lpszClassName  = L"web_server_tab";
+
+	if ( !_RegisterClassExW( &wcex ) )
+	{
+		fail_type = 1;
+		goto CLEANUP;
+	}
+
 	wcex.style		   |= CS_DBLCLKS;
 	wcex.lpfnWndProc    = URLDropWndProc;
 	wcex.lpszClassName  = L"url_drop_window";
@@ -1113,7 +1121,10 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 		goto CLEANUP;
 	}
 
-	_ShowWindow( g_hWnd_main, ( cfg_min_max == 1 ? SW_MINIMIZE : ( cfg_min_max == 2 ? SW_MAXIMIZE : SW_SHOWNORMAL ) ) );
+	if ( !cfg_tray_icon || !cfg_start_in_tray )
+	{
+		_ShowWindow( g_hWnd_main, ( cfg_min_max == 1 ? SW_MINIMIZE : ( cfg_min_max == 2 ? SW_MAXIMIZE : SW_SHOWNORMAL ) ) );
+	}
 
 	if ( cla != NULL )
 	{

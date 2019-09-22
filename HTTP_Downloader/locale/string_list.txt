@@ -154,33 +154,15 @@ Progress bar:
 Progress Font Color
 Show gridlines in download list
 Sort added and updating items
-:
 Active download limit:
-Basic Authentication
-Certificate file:
 Default download parts:
 Default SSL / TLS version:
-Digest Authentication
-Enable server:
-Enable SSL / TLS:
-Hostname / IPv6 address:
-IPv4 address:
-Key file:
-Load PKCS #12 File
-Load Private Key File
-Load X.509 Certificate File
 Login Manager...
 Maximum redirects:
-PKCS #12:
-PKCS #12 file:
-PKCS #12 password:
-Port:
-Public / Private key pair:
-Require authentication:
 Retry incomplete downloads:
 Retry incomplete parts:
-Server SSL / TLS version:
 Timeout (seconds):
+-
 Active
 Active Listen Information
 Data Transfer Mode
@@ -198,6 +180,7 @@ Minimize to System Tray
 Play sound when all downloads finish:
 Show notification when all downloads finish
 Show progress bar
+Start in System Tray
 Transparency:
 Allow proxy to resolve domain names
 Allow proxy to resolve domain names (use SOCKS v4a)
@@ -208,6 +191,26 @@ Use authentication:
 Use HTTP proxy:
 Use HTTPS proxy:
 Use SOCKS proxy:
+:
+Basic Authentication
+Certificate file:
+Digest Authentication
+Enable server:
+Enable SSL / TLS:
+Hostname / IPv6 address:
+IPv4 address:
+Key file:
+Load PKCS #12 File
+Load Private Key File
+Load X.509 Certificate File
+PKCS #12:
+PKCS #12 file:
+PKCS #12 password:
+Port:
+Public / Private key pair:
+Require authentication:
+Server
+Server SSL / TLS version:
 Continue
 No
 Overwrite
@@ -321,3 +324,7 @@ The specified site already exists.
 The specified site is invalid.
 There is already a file with the same name in this location.
 You must supply a download directory.
+Built on
+Copyright
+HTTP Downloader is made free under the GPLv3 license.
+Version

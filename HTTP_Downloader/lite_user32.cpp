@@ -61,6 +61,7 @@
 	pGetCursorPos			_GetCursorPos;
 	pGetDC					_GetDC;
 	//pGetDlgItem				_GetDlgItem;
+	pGetFocus				_GetFocus;
 	pGetIconInfo			_GetIconInfo;
 	pGetKeyState			_GetKeyState;
 	//pGetMenuItemInfoW		_GetMenuItemInfoW;
@@ -72,6 +73,7 @@
 	pGetSysColor			_GetSysColor;
 	pGetSysColorBrush		_GetSysColorBrush;
 	pGetSystemMetrics		_GetSystemMetrics;
+	pGetWindow				_GetWindow;
 	//pGetWindowLongW			_GetWindowLongW;
 	pGetWindowLongPtrW		_GetWindowLongPtrW;
 	pGetWindowRect			_GetWindowRect;
@@ -89,7 +91,7 @@
 	pLoadIconW				_LoadIconW;
 	pLoadImageW				_LoadImageW;
 	pLockWorkStation		_LockWorkStation;
-	//pMapWindowPoints			_MapWindowPoints;
+	pMapWindowPoints		_MapWindowPoints;
 	//pMessageBoxA			_MessageBoxA;
 	pMessageBoxW			_MessageBoxW;
 	pOffsetRect				_OffsetRect;
@@ -187,7 +189,8 @@
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_GetCursorPos, "GetCursorPos" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_GetDC, "GetDC" ) )
 		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_GetDlgItem, "GetDlgItem" ) )
-		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_GetDlgItem, "GetDlgItem" ) )
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_GetFocus, "GetFocus" ) )
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_GetIconInfo, "GetIconInfo" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_GetKeyState, "GetKeyState" ) )
 		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_GetMenuItemInfoW, "GetMenuItemInfoW" ) )
 		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_GetMessagePos, "GetMessagePos" ) )
@@ -198,6 +201,7 @@
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_GetSysColor, "GetSysColor" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_GetSysColorBrush, "GetSysColorBrush" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_GetSystemMetrics, "GetSystemMetrics" ) )
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_GetWindow, "GetWindow" ) )
 		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_GetWindowLongW, "GetWindowLongW" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_GetWindowLongPtrW, "GetWindowLongPtrW" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_GetWindowRect, "GetWindowRect" ) )
@@ -215,7 +219,7 @@
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_LoadIconW, "LoadIconW" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_LoadImageW, "LoadImageW" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_LockWorkStation, "LockWorkStation" ) )
-		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_MapWindowPoints, "MapWindowPoints" ) )
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_MapWindowPoints, "MapWindowPoints" ) )
 		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_MessageBoxA, "MessageBoxA" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_MessageBoxW, "MessageBoxW" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_OffsetRect, "OffsetRect" ) )

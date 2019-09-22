@@ -69,6 +69,7 @@
 	#define _GetCursorPos			GetCursorPos
 	#define _GetDC					GetDC
 	//#define _GetDlgItem				GetDlgItem
+	#define _GetFocus				GetFocus
 	#define _GetIconInfo			GetIconInfo
 	#define _GetKeyState			GetKeyState
 	//#define _GetMenuItemInfoW		GetMenuItemInfoW
@@ -80,6 +81,7 @@
 	#define _GetSysColor			GetSysColor
 	#define _GetSysColorBrush		GetSysColorBrush
 	#define _GetSystemMetrics		GetSystemMetrics
+	#define _GetWindow				GetWindow
 	//#define _GetWindowLongW			GetWindowLongW
 	#define _GetWindowLongPtrW		GetWindowLongPtrW
 	#define _GetWindowRect			GetWindowRect
@@ -97,7 +99,7 @@
 	#define _LoadIconW				LoadIconW
 	#define _LoadImageW				LoadImageW
 	#define _LockWorkStation		LockWorkStation
-	//#define _MapWindowPoints		MapWindowPoints
+	#define _MapWindowPoints		MapWindowPoints
 	//#define _MessageBoxA			MessageBoxA
 	#define _MessageBoxW			MessageBoxW
 	#define _OffsetRect				OffsetRect
@@ -184,6 +186,7 @@
 	typedef BOOL ( WINAPI *pGetCursorPos )( LPPOINT lpPoint );
 	typedef HDC ( WINAPI *pGetDC )( HWND hWnd );
 	//typedef HWND ( WINAPI *pGetDlgItem )( HWND hDlg, int nIDDlgItem );
+	typedef HWND ( WINAPI *pGetFocus )();
 	typedef BOOL ( WINAPI *pGetIconInfo )( HICON hIcon, PICONINFO piconinfo );
 	typedef SHORT ( WINAPI *pGetKeyState )( int nVirtKey );
 	//typedef BOOL ( WINAPI *pGetMenuItemInfoW )( HMENU hMenu, UINT uItem, BOOL fByPosition, LPMENUITEMINFO lpmii );
@@ -195,6 +198,7 @@
 	typedef DWORD ( WINAPI *pGetSysColor )( int nIndex );
 	typedef HBRUSH ( WINAPI *pGetSysColorBrush )( int nIndex );
 	typedef int ( WINAPI *pGetSystemMetrics )( int nIndex );
+	typedef HWND ( WINAPI *pGetWindow )( HWND hWnd, UINT uCmd );
 	//typedef LONG ( WINAPI *pGetWindowLongW )( HWND hWnd, int nIndex );
 	typedef LONG_PTR ( WINAPI *pGetWindowLongPtrW )( HWND hWnd, int nIndex );
 	typedef BOOL ( WINAPI *pGetWindowRect )( HWND hWnd, LPRECT lpRect );
@@ -212,7 +216,7 @@
 	typedef HICON ( WINAPI *pLoadIconW )( HINSTANCE hInstance, LPCTSTR lpIconName );
 	typedef HANDLE ( WINAPI *pLoadImageW )( HINSTANCE hinst, LPCTSTR lpszName, UINT uType, int cxDesired, int cyDesired, UINT fuLoad );
 	typedef BOOL ( WINAPI *pLockWorkStation )();
-	//typedef int ( WINAPI *pMapWindowPoints )( HWND hWndFrom, HWND hWndTo, LPPOINT lpPoints, UINT cPoints );
+	typedef int ( WINAPI *pMapWindowPoints )( HWND hWndFrom, HWND hWndTo, LPPOINT lpPoints, UINT cPoints );
 	//typedef int ( WINAPI *pMessageBoxA )( HWND hWnd, LPCSTR lpText, LPCSTR lpCaption, UINT uType );
 	typedef int ( WINAPI *pMessageBoxW )( HWND hWnd, LPCTSTR lpText, LPCTSTR lpCaption, UINT uType );
 	typedef BOOL ( WINAPI *pOffsetRect )( LPRECT lprc, int dx, int dy );
@@ -292,6 +296,7 @@
 	extern pGetCursorPos			_GetCursorPos;
 	extern pGetDC					_GetDC;
 	//extern pGetDlgItem				_GetDlgItem;
+	extern pGetFocus				_GetFocus;
 	extern pGetIconInfo				_GetIconInfo;
 	extern pGetKeyState				_GetKeyState;
 	//extern pGetMenuItemInfoW		_GetMenuItemInfoW;
@@ -303,6 +308,7 @@
 	extern pGetSysColor				_GetSysColor;
 	extern pGetSysColorBrush		_GetSysColorBrush;
 	extern pGetSystemMetrics		_GetSystemMetrics;
+	extern pGetWindow				_GetWindow;
 	//extern pGetWindowLongW			_GetWindowLongW;
 	extern pGetWindowLongPtrW		_GetWindowLongPtrW;
 	extern pGetWindowRect			_GetWindowRect;
@@ -320,7 +326,7 @@
 	extern pLoadIconW				_LoadIconW;
 	extern pLoadImageW				_LoadImageW;
 	extern pLockWorkStation			_LockWorkStation;
-	//extern pMapWindowPoints			_MapWindowPoints;
+	extern pMapWindowPoints			_MapWindowPoints;
 	//extern pMessageBoxA				_MessageBoxA;
 	extern pMessageBoxW				_MessageBoxW;
 	extern pOffsetRect				_OffsetRect;

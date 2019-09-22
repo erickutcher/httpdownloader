@@ -69,6 +69,7 @@ HWND g_hWnd_temp_download_directory = NULL;
 HWND g_hWnd_btn_temp_download_directory = NULL;
 
 HWND g_hWnd_thread_count = NULL;
+HWND g_hWnd_ud_thread_count = NULL;
 
 wchar_t *t_default_download_directory = NULL;
 wchar_t *t_temp_download_directory = NULL;
@@ -82,16 +83,16 @@ LRESULT CALLBACK AdvancedTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 			RECT rc;
 			_GetClientRect( hWnd, &rc );
 
-			g_hWnd_chk_download_history = _CreateWindowW( WC_BUTTON, ST_V_Enable_download_history, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, rc.right - 10, 20, hWnd, ( HMENU )BTN_DOWNLOAD_HISTORY, NULL, NULL );
-			g_hWnd_chk_quick_allocation = _CreateWindowW( WC_BUTTON, ST_V_Enable_quick_file_allocation, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 20, rc.right - 10, 20, hWnd, ( HMENU )BTN_QUICK_ALLOCATION, NULL, NULL );
-			g_hWnd_chk_set_filetime = _CreateWindowW( WC_BUTTON, ST_V_Set_date_and_time_of_file, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 40, rc.right - 10, 20, hWnd, ( HMENU )BTN_SET_FILETIME, NULL, NULL );
-			g_hWnd_chk_use_one_instance = _CreateWindowW( WC_BUTTON, ST_V_Allow_only_one_instance, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 60, rc.right - 10, 20, hWnd, ( HMENU )BTN_USE_ONE_INSTANCE, NULL, NULL );
+			g_hWnd_chk_download_history = _CreateWindowW( WC_BUTTON, ST_V_Enable_download_history, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, rc.right, 20, hWnd, ( HMENU )BTN_DOWNLOAD_HISTORY, NULL, NULL );
+			g_hWnd_chk_quick_allocation = _CreateWindowW( WC_BUTTON, ST_V_Enable_quick_file_allocation, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 20, rc.right, 20, hWnd, ( HMENU )BTN_QUICK_ALLOCATION, NULL, NULL );
+			g_hWnd_chk_set_filetime = _CreateWindowW( WC_BUTTON, ST_V_Set_date_and_time_of_file, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 40, rc.right, 20, hWnd, ( HMENU )BTN_SET_FILETIME, NULL, NULL );
+			g_hWnd_chk_use_one_instance = _CreateWindowW( WC_BUTTON, ST_V_Allow_only_one_instance, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 60, rc.right, 20, hWnd, ( HMENU )BTN_USE_ONE_INSTANCE, NULL, NULL );
 
-			g_hWnd_chk_prevent_standby = _CreateWindowW( WC_BUTTON, ST_V_Prevent_system_standby, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 80, rc.right - 10, 20, hWnd, ( HMENU )BTN_PREVENT_STANDBY, NULL, NULL );
-			g_hWnd_chk_resume_downloads = _CreateWindowW( WC_BUTTON, ST_V_Resume_previously_downloading, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 100, rc.right - 10, 20, hWnd, ( HMENU )BTN_RESUME_DOWNLOADS, NULL, NULL );
+			g_hWnd_chk_prevent_standby = _CreateWindowW( WC_BUTTON, ST_V_Prevent_system_standby, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 80, rc.right, 20, hWnd, ( HMENU )BTN_PREVENT_STANDBY, NULL, NULL );
+			g_hWnd_chk_resume_downloads = _CreateWindowW( WC_BUTTON, ST_V_Resume_previously_downloading, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 100, rc.right, 20, hWnd, ( HMENU )BTN_RESUME_DOWNLOADS, NULL, NULL );
 
-			HWND hWnd_static_drag_and_drop_action = _CreateWindowW( WC_STATIC, ST_V_Drag_and_drop_URL_s__action_, WS_CHILD | WS_VISIBLE, 0, 125, rc.right - 10, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_drag_and_drop_action = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_COMBOBOX, NULL, CBS_AUTOHSCROLL | CBS_DROPDOWNLIST | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE, 0, 140, 135, 23, hWnd, ( HMENU )CB_DRAG_AND_DROP_ACTION, NULL, NULL );
+			HWND hWnd_static_drag_and_drop_action = _CreateWindowW( WC_STATIC, ST_V_Drag_and_drop_URL_s__action_, WS_CHILD | WS_VISIBLE, 0, 129, rc.right - 155, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_drag_and_drop_action = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_COMBOBOX, NULL, CBS_AUTOHSCROLL | CBS_DROPDOWNLIST | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE, rc.right - 150, 125, 150, 23, hWnd, ( HMENU )CB_DRAG_AND_DROP_ACTION, NULL, NULL );
 			_SendMessageW( g_hWnd_drag_and_drop_action, CB_ADDSTRING, 0, ( LPARAM )ST_V_None );
 			_SendMessageW( g_hWnd_drag_and_drop_action, CB_ADDSTRING, 0, ( LPARAM )ST_V_Download_immediately );
 			_SendMessageW( g_hWnd_drag_and_drop_action, CB_ADDSTRING, 0, ( LPARAM )ST_V_Add_in_Stopped_state );
@@ -99,8 +100,8 @@ LRESULT CALLBACK AdvancedTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 			_SendMessageW( g_hWnd_drag_and_drop_action, CB_SETCURSEL, cfg_drag_and_drop_action, 0 );
 
 
-			HWND hWnd_static_prompt_last_modified = _CreateWindowW( WC_STATIC, ST_V_When_a_file_has_been_modified_, WS_CHILD | WS_VISIBLE, 0, 170, rc.right - 10, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_prompt_last_modified = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_COMBOBOX, NULL, CBS_AUTOHSCROLL | CBS_DROPDOWNLIST | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE, 0, 185, 135, 23, hWnd, ( HMENU )CB_PROMPT_LAST_MODIFIED, NULL, NULL );
+			HWND hWnd_static_prompt_last_modified = _CreateWindowW( WC_STATIC, ST_V_When_a_file_has_been_modified_, WS_CHILD | WS_VISIBLE, 0, 157, rc.right - 155, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_prompt_last_modified = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_COMBOBOX, NULL, CBS_AUTOHSCROLL | CBS_DROPDOWNLIST | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE, rc.right - 150, 153, 150, 23, hWnd, ( HMENU )CB_PROMPT_LAST_MODIFIED, NULL, NULL );
 			_SendMessageW( g_hWnd_prompt_last_modified, CB_ADDSTRING, 0, ( LPARAM )ST_V_Display_Prompt );
 			_SendMessageW( g_hWnd_prompt_last_modified, CB_ADDSTRING, 0, ( LPARAM )ST_V_Continue_Download );
 			_SendMessageW( g_hWnd_prompt_last_modified, CB_ADDSTRING, 0, ( LPARAM )ST_V_Restart_Download );
@@ -109,8 +110,8 @@ LRESULT CALLBACK AdvancedTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 			_SendMessageW( g_hWnd_prompt_last_modified, CB_SETCURSEL, cfg_prompt_last_modified, 0 );
 
 
-			HWND hWnd_static_prompt_rename = _CreateWindowW( WC_STATIC, ST_V_When_a_file_already_exists_, WS_CHILD | WS_VISIBLE, 0, 215, rc.right - 10, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_prompt_rename = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_COMBOBOX, NULL, CBS_AUTOHSCROLL | CBS_DROPDOWNLIST | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE, 0, 230, 135, 23, hWnd, ( HMENU )CB_PROMPT_RENAME, NULL, NULL );
+			HWND hWnd_static_prompt_rename = _CreateWindowW( WC_STATIC, ST_V_When_a_file_already_exists_, WS_CHILD | WS_VISIBLE, 0, 185, rc.right - 155, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_prompt_rename = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_COMBOBOX, NULL, CBS_AUTOHSCROLL | CBS_DROPDOWNLIST | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE, rc.right - 150, 181, 150, 23, hWnd, ( HMENU )CB_PROMPT_RENAME, NULL, NULL );
 			_SendMessageW( g_hWnd_prompt_rename, CB_ADDSTRING, 0, ( LPARAM )ST_V_Display_Prompt );
 			_SendMessageW( g_hWnd_prompt_rename, CB_ADDSTRING, 0, ( LPARAM )ST_V_Rename_File );
 			_SendMessageW( g_hWnd_prompt_rename, CB_ADDSTRING, 0, ( LPARAM )ST_V_Overwrite_File );
@@ -119,9 +120,9 @@ LRESULT CALLBACK AdvancedTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 			_SendMessageW( g_hWnd_prompt_rename, CB_SETCURSEL, cfg_prompt_rename, 0 );
 
 
-			HWND hWnd_static_prompt_file_size = _CreateWindowW( WC_STATIC, ST_V_When_a_file_is_greater_than_or_equal_to_, WS_CHILD | WS_VISIBLE, 0, 260, rc.right - 10, 15, hWnd, NULL, NULL, NULL );
+			HWND hWnd_static_prompt_file_size = _CreateWindowW( WC_STATIC, ST_V_When_a_file_is_greater_than_or_equal_to_, WS_CHILD | WS_VISIBLE, 0, 213, rc.right - 260, 15, hWnd, NULL, NULL, NULL );
 
-			g_hWnd_max_file_size = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 275, 100, 23, hWnd, ( HMENU )EDIT_MAX_FILE_SIZE, NULL, NULL );
+			g_hWnd_max_file_size = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 255, 209, 100, 23, hWnd, ( HMENU )EDIT_MAX_FILE_SIZE, NULL, NULL );
 
 			_SendMessageW( g_hWnd_max_file_size, EM_LIMITTEXT, 20, 0 );
 
@@ -130,7 +131,7 @@ LRESULT CALLBACK AdvancedTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 			__snprintf( value, 21, "%llu", cfg_max_file_size );
 			_SendMessageA( g_hWnd_max_file_size, WM_SETTEXT, 21, ( LPARAM )value );
 
-			g_hWnd_prompt_file_size = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_COMBOBOX, NULL, CBS_AUTOHSCROLL | CBS_DROPDOWNLIST | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE, 105, 275, 135, 23, hWnd, ( HMENU )CB_PROMPT_FILE_SIZE, NULL, NULL );
+			g_hWnd_prompt_file_size = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_COMBOBOX, NULL, CBS_AUTOHSCROLL | CBS_DROPDOWNLIST | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE, rc.right - 150, 209, 150, 23, hWnd, ( HMENU )CB_PROMPT_FILE_SIZE, NULL, NULL );
 			_SendMessageW( g_hWnd_prompt_file_size, CB_ADDSTRING, 0, ( LPARAM )ST_V_Display_Prompt );
 			_SendMessageW( g_hWnd_prompt_file_size, CB_ADDSTRING, 0, ( LPARAM )ST_V_Continue_Download );
 			_SendMessageW( g_hWnd_prompt_file_size, CB_ADDSTRING, 0, ( LPARAM )ST_V_Skip_Download );
@@ -138,8 +139,8 @@ LRESULT CALLBACK AdvancedTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 			_SendMessageW( g_hWnd_prompt_file_size, CB_SETCURSEL, cfg_prompt_file_size, 0 );
 
 
-			HWND hWnd_static_shutdown_action = _CreateWindowW( WC_STATIC, ST_V_System_shutdown_action_, WS_CHILD | WS_VISIBLE, 0, 308, rc.right - 10, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_shutdown_action = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_COMBOBOX, NULL, CBS_AUTOHSCROLL | CBS_DROPDOWNLIST | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE, 0, 323, 135, 23, hWnd, ( HMENU )CB_SHUTDOWN_ACTION, NULL, NULL );
+			HWND hWnd_static_shutdown_action = _CreateWindowW( WC_STATIC, ST_V_System_shutdown_action_, WS_CHILD | WS_VISIBLE, 0, 241, rc.right - 155, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_shutdown_action = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_COMBOBOX, NULL, CBS_AUTOHSCROLL | CBS_DROPDOWNLIST | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE, rc.right - 150, 237, 150, 23, hWnd, ( HMENU )CB_SHUTDOWN_ACTION, NULL, NULL );
 
 			_SendMessageW( g_hWnd_shutdown_action, CB_ADDSTRING, 0, ( LPARAM )ST_V_None );
 			_SendMessageW( g_hWnd_shutdown_action, CB_ADDSTRING, 0, ( LPARAM )ST_V_Log_off );
@@ -157,41 +158,33 @@ LRESULT CALLBACK AdvancedTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 
 
 
-			HWND hWnd_static_default_download_directory = _CreateWindowW( WC_STATIC, ST_V_Default_download_directory_, WS_CHILD | WS_VISIBLE, 0, 356, rc.right - 10, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_default_download_directory = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, cfg_default_download_directory, ES_AUTOHSCROLL | ES_READONLY | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 371, rc.right - 65, 23, hWnd, NULL, NULL, NULL );
-			g_hWnd_btn_default_download_directory = _CreateWindowW( WC_BUTTON, ST_V_BTN___, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 60, 371, 35, 23, hWnd, ( HMENU )BTN_DEFAULT_DOWNLOAD_DIRECTORY, NULL, NULL );
+			HWND hWnd_static_default_download_directory = _CreateWindowW( WC_STATIC, ST_V_Default_download_directory_, WS_CHILD | WS_VISIBLE, 0, 267, rc.right, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_default_download_directory = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, cfg_default_download_directory, ES_AUTOHSCROLL | ES_READONLY | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 282, rc.right - 40, 23, hWnd, NULL, NULL, NULL );
+			g_hWnd_btn_default_download_directory = _CreateWindowW( WC_BUTTON, ST_V_BTN___, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 35, 282, 35, 23, hWnd, ( HMENU )BTN_DEFAULT_DOWNLOAD_DIRECTORY, NULL, NULL );
 
 
-			g_hWnd_chk_temp_download_directory = _CreateWindowW( WC_BUTTON, ST_V_Use_temporary_download_directory_, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 399, rc.right - 10, 20, hWnd, ( HMENU )BTN_USE_TEMP_DOWNLOAD_DIRECTORY, NULL, NULL );
-			g_hWnd_temp_download_directory = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, cfg_temp_download_directory, ES_AUTOHSCROLL | ES_READONLY | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 419, rc.right - 65, 23, hWnd, NULL, NULL, NULL );
-			g_hWnd_btn_temp_download_directory = _CreateWindowW( WC_BUTTON, ST_V_BTN___, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 60, 419, 35, 23, hWnd, ( HMENU )BTN_TEMP_DOWNLOAD_DIRECTORY, NULL, NULL );
+			g_hWnd_chk_temp_download_directory = _CreateWindowW( WC_BUTTON, ST_V_Use_temporary_download_directory_, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 310, rc.right - 10, 20, hWnd, ( HMENU )BTN_USE_TEMP_DOWNLOAD_DIRECTORY, NULL, NULL );
+			g_hWnd_temp_download_directory = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, cfg_temp_download_directory, ES_AUTOHSCROLL | ES_READONLY | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 330, rc.right - 40, 23, hWnd, NULL, NULL, NULL );
+			g_hWnd_btn_temp_download_directory = _CreateWindowW( WC_BUTTON, ST_V_BTN___, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 35, 330, 35, 23, hWnd, ( HMENU )BTN_TEMP_DOWNLOAD_DIRECTORY, NULL, NULL );
 
 
-			HWND hWnd_static_thread_count = _CreateWindowW( WC_STATIC, ST_V_Thread_pool_count_, WS_CHILD | WS_VISIBLE, 0, 453, rc.right - 10, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_thread_count = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 467, 100, 23, hWnd, ( HMENU )EDIT_THREAD_COUNT, NULL, NULL );
+			HWND hWnd_static_thread_count = _CreateWindowW( WC_STATIC, ST_V_Thread_pool_count_, WS_CHILD | WS_VISIBLE, 0, 364, 190, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_thread_count = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 100, 360, 100, 23, hWnd, ( HMENU )EDIT_THREAD_COUNT, NULL, NULL );
 
-			// Keep this unattached. Looks ugly inside the text box.
-			HWND hWnd_ud_thread_count = _CreateWindowW( UPDOWN_CLASS, NULL, /*UDS_ALIGNRIGHT |*/ UDS_ARROWKEYS | UDS_NOTHOUSANDS | UDS_SETBUDDYINT | WS_CHILD | WS_VISIBLE, 100, 466, _GetSystemMetrics( SM_CXVSCROLL ), 25, hWnd, NULL, NULL, NULL );
+			g_hWnd_ud_thread_count = _CreateWindowW( UPDOWN_CLASS, NULL, UDS_ALIGNRIGHT | UDS_ARROWKEYS | UDS_NOTHOUSANDS | UDS_SETBUDDYINT | WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 
 			_SendMessageW( g_hWnd_thread_count, EM_LIMITTEXT, 10, 0 );
-			_SendMessageW( hWnd_ud_thread_count, UDM_SETBUDDY, ( WPARAM )g_hWnd_thread_count, 0 );
-			_SendMessageW( hWnd_ud_thread_count, UDM_SETBASE, 10, 0 );
-			_SendMessageW( hWnd_ud_thread_count, UDM_SETRANGE32, 1, g_max_threads );
-			_SendMessageW( hWnd_ud_thread_count, UDM_SETPOS, 0, cfg_thread_count );
+			_SendMessageW( g_hWnd_ud_thread_count, UDM_SETBUDDY, ( WPARAM )g_hWnd_thread_count, 0 );
+			_SendMessageW( g_hWnd_ud_thread_count, UDM_SETBASE, 10, 0 );
+			_SendMessageW( g_hWnd_ud_thread_count, UDM_SETRANGE32, 1, g_max_threads );
+			_SendMessageW( g_hWnd_ud_thread_count, UDM_SETPOS, 0, cfg_thread_count );
 
+			RECT rc_spinner;
+			_GetClientRect( g_hWnd_ud_thread_count, &rc_spinner );
+			int spinner_width = rc_spinner.right - rc_spinner.left;
 
-			//
-
-			SCROLLINFO si;
-			si.cbSize = sizeof( SCROLLINFO );
-			si.fMask = SIF_ALL;
-			si.nMin = 0;
-			si.nMax = 490 + 13;	// Value is the position and height of the bottom most control. Needs 13px more padding for Windows 10.
-			si.nPage = ( rc.bottom - rc.top );
-			si.nPos = 0;
-			_SetScrollInfo( hWnd, SB_VERT, &si, TRUE );
-
-			//
+			_SetWindowPos( g_hWnd_thread_count, HWND_TOP, rc.right - ( 100 + spinner_width ), 360, 100, 23, SWP_NOZORDER );
+			_SetWindowPos( g_hWnd_ud_thread_count, HWND_TOP, rc.right - spinner_width, 360, 0, 0, SWP_NOZORDER | SWP_NOSIZE );
 
 
 			_SendMessageW( g_hWnd_chk_download_history, WM_SETFONT, ( WPARAM )g_hFont, 0 );
@@ -268,70 +261,6 @@ LRESULT CALLBACK AdvancedTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 		}
 		break;
 
-		case WM_CTLCOLORSTATIC:
-		{
-			return ( LRESULT )( _GetSysColorBrush( COLOR_WINDOW ) );
-		}
-		break;
-
-		case WM_MBUTTONUP:
-		case WM_LBUTTONUP:
-		case WM_RBUTTONUP:
-		{
-			_SetFocus( hWnd );
-
-			return 0;
-		}
-		break;
-
-		case WM_MOUSEWHEEL:
-		case WM_VSCROLL:
-		{
-			SCROLLINFO si;
-			si.cbSize = sizeof( SCROLLINFO );
-			si.fMask = SIF_POS;
-			_GetScrollInfo( hWnd, SB_VERT, &si );
-
-			int delta = si.nPos;
-
-			if ( msg == WM_VSCROLL )
-			{
-				// Only process the standard scroll bar.
-				if ( lParam != NULL )
-				{
-					return _DefWindowProcW( hWnd, msg, wParam, lParam );
-				}
-
-				switch ( LOWORD( wParam ) )
-				{
-					case SB_LINEUP: { si.nPos -= 10; } break;
-					case SB_LINEDOWN: { si.nPos += 10; } break;
-					case SB_PAGEUP: { si.nPos -= 50; } break;
-					case SB_PAGEDOWN: { si.nPos += 50; } break;
-					//case SB_THUMBPOSITION:
-					case SB_THUMBTRACK: { si.nPos = ( int )HIWORD( wParam ); } break;
-					default: { return 0; } break;
-				}
-			}
-			else if ( msg == WM_MOUSEWHEEL )
-			{
-				si.nPos -= ( GET_WHEEL_DELTA_WPARAM( wParam ) / WHEEL_DELTA ) * 20;
-			}
-
-			_SetScrollPos( hWnd, SB_VERT, si.nPos, TRUE );
-
-			si.fMask = SIF_POS;
-			_GetScrollInfo( hWnd, SB_VERT, &si );
-
-			if ( si.nPos != delta )
-			{
-				_ScrollWindow( hWnd, 0, delta - si.nPos, NULL, NULL );
-			}
-
-			return 0;
-		}
-		break;
-
 		case WM_COMMAND:
 		{
 			switch ( LOWORD( wParam ) )
@@ -344,7 +273,7 @@ LRESULT CALLBACK AdvancedTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 				case BTN_RESUME_DOWNLOADS:
 				{
 					options_state_changed = true;
-					_EnableWindow( g_hWnd_apply, TRUE );
+					_EnableWindow( g_hWnd_options_apply, TRUE );
 				}
 				break;
 
@@ -378,7 +307,7 @@ LRESULT CALLBACK AdvancedTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 						if ( num != cfg_max_file_size )
 						{
 							options_state_changed = true;
-							_EnableWindow( g_hWnd_apply, TRUE );
+							_EnableWindow( g_hWnd_options_apply, TRUE );
 						}
 
 					}
@@ -394,7 +323,7 @@ LRESULT CALLBACK AdvancedTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 					if ( HIWORD( wParam ) == CBN_SELCHANGE )
 					{
 						options_state_changed = true;
-						_EnableWindow( g_hWnd_apply, TRUE );
+						_EnableWindow( g_hWnd_options_apply, TRUE );
 					}
 				}
 				break;
@@ -413,7 +342,7 @@ LRESULT CALLBACK AdvancedTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 						_SendMessageW( g_hWnd_default_download_directory, WM_SETTEXT, 0, ( LPARAM )t_default_download_directory );
 
 						options_state_changed = true;
-						_EnableWindow( g_hWnd_apply, TRUE );
+						_EnableWindow( g_hWnd_options_apply, TRUE );
 					}
 				}
 				break;
@@ -442,7 +371,7 @@ LRESULT CALLBACK AdvancedTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 					if ( !show_dialog )
 					{
 						options_state_changed = true;
-						_EnableWindow( g_hWnd_apply, TRUE );
+						_EnableWindow( g_hWnd_options_apply, TRUE );
 
 						break;
 					}
@@ -462,7 +391,7 @@ LRESULT CALLBACK AdvancedTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 						_SendMessageW( g_hWnd_temp_download_directory, WM_SETTEXT, 0, ( LPARAM )t_temp_download_directory );
 
 						options_state_changed = true;
-						_EnableWindow( g_hWnd_apply, TRUE );
+						_EnableWindow( g_hWnd_options_apply, TRUE );
 					}
 					else
 					{
@@ -508,7 +437,7 @@ LRESULT CALLBACK AdvancedTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 						if ( num != cfg_thread_count )
 						{
 							options_state_changed = true;
-							_EnableWindow( g_hWnd_apply, TRUE );
+							_EnableWindow( g_hWnd_options_apply, TRUE );
 						}
 					}
 				}

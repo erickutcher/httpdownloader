@@ -285,8 +285,9 @@ extern int cfg_drop_pos_x;	// URL drop window.
 extern int cfg_drop_pos_y;	// URL drop window.
 
 extern bool cfg_tray_icon;
-extern bool cfg_close_to_tray;
 extern bool cfg_minimize_to_tray;
+extern bool cfg_close_to_tray;
+extern bool cfg_start_in_tray;
 extern bool cfg_show_notification;
 
 extern bool cfg_always_on_top;

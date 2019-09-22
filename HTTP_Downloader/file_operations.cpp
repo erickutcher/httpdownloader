@@ -78,7 +78,7 @@ char read_config()
 
 				if ( version <= MAGIC_ID_SETTINGS[ 3 ] )
 				{
-					reserved = 1024 - ( version == 0 ? 175 : ( version == 1 ? 508 : ( version == 2 ? 521 : 563 ) ) );
+					reserved = 1024 - ( version == 0 ? 175 : ( version == 1 ? 508 : ( version == 2 ? 521 : 564 ) ) );
 
 					char *next = cfg_buf + 4;
 
@@ -448,6 +448,11 @@ char read_config()
 						next += sizeof( unsigned char );
 
 						_memcpy_s( &cfg_sort_added_and_updating_items, sizeof( bool ), next, sizeof( bool ) );
+						next += sizeof( bool );
+
+						//
+
+						_memcpy_s( &cfg_start_in_tray, sizeof( bool ), next, sizeof( bool ) );
 						next += sizeof( bool );
 					}
 
@@ -1114,11 +1119,11 @@ char save_config()
 	HANDLE hFile_cfg = CreateFile( base_directory, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL );
 	if ( hFile_cfg != INVALID_HANDLE_VALUE )
 	{
-		int reserved = 1024 - 563;
+		int reserved = 1024 - 564;
 		int size = ( sizeof( int ) * 21 ) +
 				   ( sizeof( unsigned short ) * 7 ) +
 				   ( sizeof( char ) * 47 ) +
-				   ( sizeof( bool ) * 32 ) +
+				   ( sizeof( bool ) * 33 ) +
 				   ( sizeof( unsigned long ) * 6 ) +
 				   ( sizeof( LONG ) * 4 ) +
 				   ( sizeof( BYTE ) * 6 ) +
@@ -1486,6 +1491,11 @@ char save_config()
 		pos += sizeof( unsigned char );
 
 		_memcpy_s( write_buf + pos, size - pos, &cfg_sort_added_and_updating_items, sizeof( bool ) );
+		pos += sizeof( bool );
+
+		//
+
+		_memcpy_s( write_buf + pos, size - pos, &cfg_start_in_tray, sizeof( bool ) );
 		pos += sizeof( bool );
 
 

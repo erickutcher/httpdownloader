@@ -22,6 +22,7 @@
 
 #include "lite_ole32.h"
 #include "lite_gdi32.h"
+#include "lite_uxtheme.h"
 
 #include "list_operations.h"
 
@@ -32,8 +33,8 @@
 
 #include "wnd_proc.h"
 
-#define MIN_ADVANCED_HEIGHT		548
-#define MIN_SIMPLE_HEIGHT		263
+#define MIN_ADVANCED_HEIGHT		555
+#define MIN_SIMPLE_HEIGHT		270
 
 #define BTN_DOWNLOAD			1000
 #define BTN_ADD_CANCEL			1001
@@ -103,6 +104,7 @@ bool g_show_advanced = false;
 wchar_t *t_download_directory = NULL;
 
 WNDPROC URLProc = NULL;
+WNDPROC AddTabProc = NULL;
 
 bool use_drag_and_drop_add = true;	// Assumes OLE32_STATE_RUNNING is true.
 IDropTarget *Add_DropTarget;
@@ -111,6 +113,10 @@ bool use_add_split = false;
 HMENU g_hMenu_add_split = NULL;
 
 unsigned char add_split_type = 0;	// 0 = Download, 1 = Add
+
+HBRUSH g_add_tab_brush = NULL;
+int g_add_tab_width = 0;
+bool g_add_use_theme = true;
 
 LRESULT CALLBACK URLSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
 {
@@ -174,6 +180,72 @@ LRESULT CALLBACK URLSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
 	return _CallWindowProcW( URLProc, hWnd, msg, wParam, lParam );
 }
 
+LRESULT CALLBACK AddTabSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
+{
+	switch ( msg )
+	{
+		case WM_CTLCOLORSTATIC:
+		{
+			if ( g_add_use_theme && _IsThemeActive() == TRUE && ( HWND )lParam != g_hWnd_chk_show_advanced_options )
+			{
+				if ( ( HWND )lParam == g_hWnd_static_cookies ||
+					 ( HWND )lParam == g_hWnd_static_headers ||
+					 ( HWND )lParam == g_hWnd_chk_send_data )
+				{
+					_SetBkMode( ( HDC )wParam, TRANSPARENT );
+
+					POINT pt;
+					pt.x = 0; pt.y = 0;
+
+					_MapWindowPoints( hWnd, ( HWND )lParam, &pt, 1 );
+					_SetBrushOrgEx( ( HDC )wParam, pt.x, pt.y, NULL );
+
+					return ( INT_PTR )g_add_tab_brush;
+				}
+			}
+		}
+		break;
+
+		case WM_SIZE:
+		{
+			RECT rc;
+			_GetClientRect( hWnd, &rc );
+
+			// Allow our controls to move in relation to the parent window.
+			HDWP hdwp = _BeginDeferWindowPos( 6 );
+
+			RECT rc_tab;
+			_SendMessageW( hWnd, TCM_GETITEMRECT, 0, ( LPARAM )&rc_tab );
+
+			_DeferWindowPos( hdwp, g_hWnd_static_cookies, HWND_TOP, 10, ( rc_tab.bottom - rc_tab.top ) + 10, rc.right - 20, 15, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_edit_cookies, HWND_TOP, 10, ( rc_tab.bottom - rc_tab.top ) + 25, rc.right - 20, 130, SWP_NOZORDER );
+
+			_DeferWindowPos( hdwp, g_hWnd_static_headers, HWND_TOP, 10, ( rc_tab.bottom - rc_tab.top ) + 10, rc.right - 20, 15, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_edit_headers, HWND_TOP, 10, ( rc_tab.bottom - rc_tab.top ) + 25, rc.right - 20, 130, SWP_NOZORDER );
+
+			_DeferWindowPos( hdwp, g_hWnd_chk_send_data, HWND_TOP, 10, ( rc_tab.bottom - rc_tab.top ) + 10, rc.right - 20, 20, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_edit_data, HWND_TOP, 10, ( rc_tab.bottom - rc_tab.top ) + 30, rc.right - 20, 125, SWP_NOZORDER );
+
+			_EndDeferWindowPos( hdwp );
+		}
+		break;
+		
+		case WM_COMMAND:
+		{
+			if ( LOWORD( wParam ) == CHK_SEND_DATA )
+			{
+				_EnableWindow( g_hWnd_edit_data, ( _SendMessageW( g_hWnd_chk_send_data, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? TRUE : FALSE ) );
+			}
+
+			return 0;
+		}
+		break;
+	}
+
+	return _CallWindowProcW( AddTabProc, hWnd, msg, wParam, lParam );
+}
+
+
 void ShowHideAddTabs( int sw_type )
 {
 	int index = ( int )_SendMessageW( g_hWnd_advanced_add_tab, TCM_GETCURSEL, 0, 0 );		// Get the selected tab
@@ -212,8 +284,8 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 		case WM_CREATE:
 		{
 			DWORD enabled = ( g_use_regular_expressions ? 0 : WS_DISABLED );
-			g_hWnd_static_regex_filter = _CreateWindowW( WC_STATIC, ST_V_RegEx_filter_, SS_OWNERDRAW | WS_CHILD | WS_VISIBLE | enabled, 95, 24, 90, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_regex_filter_preset = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_COMBOBOX, NULL, CBS_AUTOHSCROLL | CBS_DROPDOWNLIST | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE | enabled, 190, 20, 80, 23, hWnd, ( HMENU )CB_REGEX_FILTER_PRESET, NULL, NULL );
+			g_hWnd_static_regex_filter = _CreateWindowW( WC_STATIC, ST_V_RegEx_filter_, SS_OWNERDRAW | WS_CHILD | WS_VISIBLE | enabled, 85, 14, 90, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_regex_filter_preset = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_COMBOBOX, NULL, CBS_AUTOHSCROLL | CBS_DROPDOWNLIST | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE | enabled, 180, 10, 80, 23, hWnd, ( HMENU )CB_REGEX_FILTER_PRESET, NULL, NULL );
 			_SendMessageW( g_hWnd_regex_filter_preset, CB_ADDSTRING, 0, ( LPARAM )ST_V_Custom );
 			_SendMessageW( g_hWnd_regex_filter_preset, CB_ADDSTRING, 0, ( LPARAM )ST_V_Images );
 			_SendMessageW( g_hWnd_regex_filter_preset, CB_ADDSTRING, 0, ( LPARAM )ST_V_Music );
@@ -226,7 +298,7 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			g_hWnd_btn_apply_filter = _CreateWindowW( WC_BUTTON, ST_V_Apply, WS_CHILD | WS_TABSTOP | WS_VISIBLE | enabled, 0, 0, 0, 0, hWnd, ( HMENU )BTN_APPLY_FILTER, NULL, NULL );
 
 
-			HWND hWnd_static_urls = _CreateWindowW( WC_STATIC, ST_V_URL_s__, WS_CHILD | WS_VISIBLE, 20, 35, 70, 15, hWnd, NULL, NULL, NULL );
+			HWND hWnd_static_urls = _CreateWindowW( WC_STATIC, ST_V_URL_s__, WS_CHILD | WS_VISIBLE, 10, 25, 70, 15, hWnd, NULL, NULL, NULL );
 			g_hWnd_edit_add = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, L"", WS_CHILD | WS_TABSTOP | ES_AUTOHSCROLL | ES_MULTILINE | WS_HSCROLL | WS_VSCROLL | WS_VISIBLE, 0, 0, 0, 0, hWnd, ( HMENU )EDIT_ADD_URLS, NULL, NULL );
 
 			_SendMessageW( g_hWnd_edit_add, EM_LIMITTEXT, 0, 0 );	// Maximum size.
@@ -237,10 +309,10 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 
 			g_hWnd_static_download_parts = _CreateWindowW( WC_STATIC, ST_V_Download_parts_, WS_CHILD, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
-			g_hWnd_download_parts = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP, 0, 0, 0, 0, hWnd, ( HMENU )EDIT_DOWNLOAD_PARTS, NULL, NULL );
+			// Needs dimensions so that the spinner control can size itself.
+			g_hWnd_download_parts = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP, 20, 203, 85, 23, hWnd, ( HMENU )EDIT_DOWNLOAD_PARTS, NULL, NULL );
 
-			// Keep this unattached. Looks ugly inside the text box.
-			g_hWnd_ud_download_parts = _CreateWindowW( UPDOWN_CLASS, NULL, /*UDS_ALIGNRIGHT |*/ UDS_ARROWKEYS | UDS_NOTHOUSANDS | UDS_SETBUDDYINT | WS_CHILD, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+			g_hWnd_ud_download_parts = _CreateWindowW( UPDOWN_CLASS, NULL, UDS_ALIGNRIGHT | UDS_ARROWKEYS | UDS_NOTHOUSANDS | UDS_SETBUDDYINT | WS_CHILD, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 
 			_SendMessageW( g_hWnd_download_parts, EM_LIMITTEXT, 3, 0 );
 			_SendMessageW( g_hWnd_ud_download_parts, UDM_SETBUDDY, ( WPARAM )g_hWnd_download_parts, 0 );
@@ -282,14 +354,14 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			ti.pszText = ( LPWSTR )ST_V_POST_Data;
 			_SendMessageW( g_hWnd_advanced_add_tab, TCM_INSERTITEM, 2, ( LPARAM )&ti );	// Insert a new tab at the end.
 
-			g_hWnd_static_cookies = _CreateWindowW( WC_STATIC, ST_V_Cookies_, WS_CHILD, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
-			g_hWnd_edit_cookies = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, L"", WS_CHILD | WS_TABSTOP | ES_AUTOHSCROLL | ES_MULTILINE | WS_HSCROLL | WS_VSCROLL, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+			g_hWnd_static_cookies = _CreateWindowW( WC_STATIC, ST_V_Cookies_, WS_CHILD, 0, 0, 0, 0, g_hWnd_advanced_add_tab, NULL, NULL, NULL );
+			g_hWnd_edit_cookies = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, L"", WS_CHILD | WS_TABSTOP | ES_AUTOHSCROLL | ES_MULTILINE | WS_HSCROLL | WS_VSCROLL, 0, 0, 0, 0, g_hWnd_advanced_add_tab, NULL, NULL, NULL );
 
-			g_hWnd_static_headers = _CreateWindowW( WC_STATIC, ST_V_Headers_, WS_CHILD, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
-			g_hWnd_edit_headers = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, L"", WS_CHILD | WS_TABSTOP | ES_AUTOHSCROLL | ES_MULTILINE | WS_HSCROLL | WS_VSCROLL, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+			g_hWnd_static_headers = _CreateWindowW( WC_STATIC, ST_V_Headers_, WS_CHILD, 0, 0, 0, 0, g_hWnd_advanced_add_tab, NULL, NULL, NULL );
+			g_hWnd_edit_headers = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, L"", WS_CHILD | WS_TABSTOP | ES_AUTOHSCROLL | ES_MULTILINE | WS_HSCROLL | WS_VSCROLL, 0, 0, 0, 0, g_hWnd_advanced_add_tab, NULL, NULL, NULL );
 
-			g_hWnd_chk_send_data = _CreateWindowW( WC_BUTTON, ST_V_Send_POST_Data_, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP, 0, 0, 0, 0, hWnd, ( HMENU )CHK_SEND_DATA, NULL, NULL );
-			g_hWnd_edit_data = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, L"", WS_CHILD | WS_TABSTOP | ES_AUTOHSCROLL | ES_MULTILINE | WS_HSCROLL | WS_VSCROLL | WS_DISABLED, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+			g_hWnd_chk_send_data = _CreateWindowW( WC_BUTTON, ST_V_Send_POST_Data_, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP, 0, 0, 0, 0, g_hWnd_advanced_add_tab, ( HMENU )CHK_SEND_DATA, NULL, NULL );
+			g_hWnd_edit_data = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, L"", WS_CHILD | WS_TABSTOP | ES_AUTOHSCROLL | ES_MULTILINE | WS_HSCROLL | WS_VSCROLL | WS_DISABLED, 0, 0, 0, 0, g_hWnd_advanced_add_tab, NULL, NULL, NULL );
 
 			g_hWnd_chk_simulate_download = _CreateWindowW( WC_BUTTON, ST_V_Simulate_download, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP, 0, 0, 0, 0, hWnd, ( HMENU )CHK_SIMULATE_DOWNLOAD, NULL, NULL );
 
@@ -373,12 +445,15 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			_SetWindowLongPtrW( g_hWnd_edit_headers, GWLP_WNDPROC, ( LONG_PTR )URLSubProc );
 			_SetWindowLongPtrW( g_hWnd_edit_data, GWLP_WNDPROC, ( LONG_PTR )URLSubProc );
 
-			TabProc = ( WNDPROC )_GetWindowLongPtrW( g_hWnd_advanced_add_tab, GWLP_WNDPROC );
-			_SetWindowLongPtrW( g_hWnd_advanced_add_tab, GWLP_WNDPROC, ( LONG_PTR )TabSubProc );
+			AddTabProc = ( WNDPROC )_GetWindowLongPtrW( g_hWnd_advanced_add_tab, GWLP_WNDPROC );
+			_SetWindowLongPtrW( g_hWnd_advanced_add_tab, GWLP_WNDPROC, ( LONG_PTR )AddTabSubProc );
 
-			// Open theme data. Must be done after we subclass the control.
-			// Theme object will be closed when all tab controls are destroyed.
-			_SendMessageW( g_hWnd_advanced_add_tab, WM_PROPAGATE, 0, ( LPARAM )COLOR_WINDOW );
+			#ifndef UXTHEME_USE_STATIC_LIB
+				if ( uxtheme_state == UXTHEME_STATE_SHUTDOWN )
+				{
+					g_add_use_theme = InitializeUXTheme();
+				}
+			#endif
 
 			#ifndef OLE32_USE_STATIC_LIB
 				if ( ole32_state == OLE32_STATE_SHUTDOWN )
@@ -398,19 +473,6 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 		}
 		break;
 
-		case WM_CTLCOLORSTATIC:
-		{
-			if ( ( HWND )lParam != g_hWnd_chk_show_advanced_options )
-			{
-				return ( LRESULT )( _GetSysColorBrush( COLOR_WINDOW ) );
-			}
-			else
-			{
-				return _DefWindowProcW( hWnd, msg, wParam, lParam );
-			}
-		}
-		break;
-
 		case WM_DRAWITEM:
 		{
 			DRAWITEMSTRUCT *dis = ( DRAWITEMSTRUCT * )lParam;
@@ -418,9 +480,6 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			// The disabled static control causes flickering. The only way around it is to draw it ourselves.
 			if ( dis->CtlType == ODT_STATIC )
 			{
-				_FillRect( dis->hDC, &dis->rcItem, _GetSysColorBrush( COLOR_WINDOW ) );
-
-				COLORREF font_color = _GetSysColor( COLOR_WINDOWTEXT );
 				if ( _IsWindowEnabled( dis->hwndItem ) == FALSE )
 				{
 					_SetTextColor( dis->hDC, _GetSysColor( COLOR_GRAYTEXT ) );
@@ -432,100 +491,43 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 		}
 		break;
 
-		case WM_PAINT:
-		{
-			PAINTSTRUCT ps;
-			HDC hDC = _BeginPaint( hWnd, &ps );
-
-			RECT client_rc, frame_rc;
-			_GetClientRect( hWnd, &client_rc );
-
-			// Create a memory buffer to draw to.
-			HDC hdcMem = _CreateCompatibleDC( hDC );
-
-			HBITMAP hbm = _CreateCompatibleBitmap( hDC, client_rc.right - client_rc.left, client_rc.bottom - client_rc.top );
-			HBITMAP ohbm = ( HBITMAP )_SelectObject( hdcMem, hbm );
-			_DeleteObject( ohbm );
-			_DeleteObject( hbm );
-
-			// Fill the background.
-			HBRUSH color = _CreateSolidBrush( ( COLORREF )_GetSysColor( COLOR_3DFACE ) );
-			_FillRect( hdcMem, &client_rc, color );
-			_DeleteObject( color );
-
-			frame_rc = client_rc;
-			frame_rc.left += 10;
-			frame_rc.right -= 10;
-			frame_rc.top += 10;
-			frame_rc.bottom -= 40;
-
-			// Fill the frame.
-			color = _CreateSolidBrush( ( COLORREF )_GetSysColor( COLOR_WINDOW ) );
-			_FillRect( hdcMem, &frame_rc, color );
-			_DeleteObject( color );
-
-			// Draw the frame's border.
-			_DrawEdge( hdcMem, &frame_rc, EDGE_ETCHED, BF_RECT );
-
-			// Draw our memory buffer to the main device context.
-			_BitBlt( hDC, client_rc.left, client_rc.top, client_rc.right, client_rc.bottom, hdcMem, 0, 0, SRCCOPY );
-
-			_DeleteDC( hdcMem );
-			_EndPaint( hWnd, &ps );
-
-			return 0;
-		}
-		break;
-
 		case WM_SIZE:
 		{
 			RECT rc;
 			_GetClientRect( hWnd, &rc );
 
 			// Allow our controls to move in relation to the parent window.
-			HDWP hdwp = _BeginDeferWindowPos( ( use_add_split ? 26 : 27 ) );
+			HDWP hdwp = _BeginDeferWindowPos( ( use_add_split ? 21 : 22 ) );
 
-			_DeferWindowPos( hdwp, g_hWnd_regex_filter, HWND_TOP, 275, 20, rc.right - 365, 23, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_btn_apply_filter, HWND_TOP, rc.right - 85, 20, 65, 23, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_regex_filter, HWND_TOP, 265, 10, rc.right - 345, 23, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_btn_apply_filter, HWND_TOP, rc.right - 75, 10, 65, 23, SWP_NOZORDER );
 
-			_DeferWindowPos( hdwp, g_hWnd_edit_add, HWND_TOP, 20, 50, rc.right - 40, rc.bottom - ( g_show_advanced ? 428 : 143 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_edit_add, HWND_TOP, 10, 40, rc.right - 20, rc.bottom - ( g_show_advanced ? 418 : 133 ), SWP_NOZORDER );
 
-			_DeferWindowPos( hdwp, g_hWnd_static_download_directory, HWND_TOP, 20, rc.bottom - ( g_show_advanced ? 373 : 88 ), rc.right - 40, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_download_directory, HWND_TOP, 20, rc.bottom - ( g_show_advanced ? 358 : 73 ), rc.right - 80, 23, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_btn_download_directory, HWND_TOP, rc.right - 55, rc.bottom - ( g_show_advanced ? 358 : 73 ), 35, 23, SWP_NOZORDER );
-
-			_DeferWindowPos( hdwp, g_hWnd_static_download_parts, HWND_TOP, 20, rc.bottom - 325, 115, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_download_parts, HWND_TOP, 20, rc.bottom - 310, 85, 23, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_ud_download_parts, HWND_TOP, 105, rc.bottom - 311, _GetSystemMetrics( SM_CXVSCROLL ), 25, SWP_NOZORDER );
-
-			_DeferWindowPos( hdwp, g_hWnd_static_ssl_version, HWND_TOP, 140, rc.bottom - 325, 115, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_ssl_version, HWND_TOP, 140, rc.bottom - 310, 100, 23, SWP_NOZORDER );
-
-			_DeferWindowPos( hdwp, g_hWnd_btn_authentication, HWND_TOP, 260, rc.bottom - 325, 230, 65, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_static_username, HWND_TOP, 270, rc.bottom - 310, 100, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_edit_username, HWND_TOP, 270, rc.bottom - 295, 100, 23, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_static_password, HWND_TOP, 380, rc.bottom - 310, 100, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_edit_password, HWND_TOP, 380, rc.bottom - 295, 100, 23, SWP_NOZORDER );
-
-			_DeferWindowPos( hdwp, g_hWnd_advanced_add_tab, HWND_TOP, 20, rc.bottom - 260, rc.right - 40, 185, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_static_download_directory, HWND_TOP, 10, rc.bottom - ( g_show_advanced ? 373 : 88 ), rc.right - 20, 15, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_download_directory, HWND_TOP, 10, rc.bottom - ( g_show_advanced ? 358 : 73 ), rc.right - 60, 23, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_btn_download_directory, HWND_TOP, rc.right - 45, rc.bottom - ( g_show_advanced ? 358 : 73 ), 35, 23, SWP_NOZORDER );
 
 			//
 
-			RECT rc_tab;
-			_SendMessageW( g_hWnd_advanced_add_tab, TCM_GETITEMRECT, 0, ( LPARAM )&rc_tab );
+			_DeferWindowPos( hdwp, g_hWnd_static_download_parts, HWND_TOP, 10, rc.bottom - 325, 115, 15, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_download_parts, HWND_TOP, 10, rc.bottom - 310, 85, 23, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_ud_download_parts, HWND_TOP, 95, rc.bottom - 310, 0, 0, SWP_NOZORDER | SWP_NOSIZE );
 
-			_DeferWindowPos( hdwp, g_hWnd_static_cookies, HWND_TOP, 30, rc.bottom - 250 + rc_tab.bottom, rc.right - 60, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_edit_cookies, HWND_TOP, 30, rc.bottom - 235 + rc_tab.bottom, rc.right - 60, 130, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_static_ssl_version, HWND_TOP, 130, rc.bottom - 325, 115, 15, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_ssl_version, HWND_TOP, 130, rc.bottom - 310, 100, 23, SWP_NOZORDER );
 
-			_DeferWindowPos( hdwp, g_hWnd_static_headers, HWND_TOP, 30, rc.bottom - 250 + rc_tab.bottom, rc.right - 60, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_edit_headers, HWND_TOP, 30, rc.bottom - 235 + rc_tab.bottom, rc.right - 60, 130, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_btn_authentication, HWND_TOP, 250, rc.bottom - 325, 230, 65, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_static_username, HWND_TOP, 260, rc.bottom - 310, 100, 15, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_edit_username, HWND_TOP, 260, rc.bottom - 295, 100, 23, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_static_password, HWND_TOP, 370, rc.bottom - 310, 100, 15, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_edit_password, HWND_TOP, 370, rc.bottom - 295, 100, 23, SWP_NOZORDER );
 
-			_DeferWindowPos( hdwp, g_hWnd_chk_send_data, HWND_TOP, 30, rc.bottom - 250 + rc_tab.bottom, rc.right - 60, 20, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_edit_data, HWND_TOP, 30, rc.bottom - 230 + rc_tab.bottom, rc.right - 60, 125, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_advanced_add_tab, HWND_TOP, 10, rc.bottom - 260, rc.right - 20, 185, SWP_NOZORDER );
 
 			//
 
-			_DeferWindowPos( hdwp, g_hWnd_chk_simulate_download, HWND_TOP, 20, rc.bottom - 65, 210, 20, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_chk_simulate_download, HWND_TOP, 10, rc.bottom - 65, 210, 20, SWP_NOZORDER );
 
 			_DeferWindowPos( hdwp, g_hWnd_chk_show_advanced_options, HWND_TOP, 10, rc.bottom - 32, 210, 23, SWP_NOZORDER );
 
@@ -541,11 +543,46 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			_DeferWindowPos( hdwp, g_hWnd_cancel, HWND_TOP, rc.right - 90, rc.bottom - 32, 80, 23, SWP_NOZORDER );
 			_EndDeferWindowPos( hdwp );
 
-			rc.left = 5;
+			//
+
+			// This brush is refreshed whenever the tab changes size.
+			// It's used to paint the background of static controls.
+			// Windows XP has a gradient colored tab pane and setting the background of a static control to TRANSPARENT in WM_CTLCOLORSTATIC doesn't work well.
+			if ( _IsWindowVisible( g_hWnd_advanced_add_tab ) == TRUE  && g_add_tab_width != ( rc.right - 20 ) )
+			{
+				g_add_tab_width = rc.right - 20;
+
+				HBRUSH old_brush = g_add_tab_brush;
+
+				HDC hDC = _GetDC( g_hWnd_advanced_add_tab );
+
+				// Create a memory buffer to draw to.
+				HDC hdcMem = _CreateCompatibleDC( hDC );
+
+				HBITMAP hbm = _CreateCompatibleBitmap( hDC, g_add_tab_width, 185 );
+				HBITMAP ohbm = ( HBITMAP )_SelectObject( hdcMem, hbm );
+				_DeleteObject( ohbm );
+
+				_SendMessageW( g_hWnd_advanced_add_tab, WM_PRINTCLIENT, ( WPARAM )hdcMem, ( LPARAM )( PRF_ERASEBKGND | PRF_CLIENT | PRF_NONCLIENT ) );
+
+				g_add_tab_brush = _CreatePatternBrush( hbm );
+
+				_DeleteObject( hbm );
+
+				_DeleteDC( hdcMem );
+				_ReleaseDC( g_hWnd_advanced_add_tab, hDC );
+
+				if ( old_brush != NULL )
+				{
+					_DeleteObject( old_brush );
+				}
+			}
+
+			/*rc.left = 5;
 			rc.top = 5;
 			rc.right -= 65;
-			rc.bottom -= ( g_show_advanced ? 448 : 163 );	// Add 20 to each of these numbers from above.
-			_SendMessageW( g_hWnd_edit_add, EM_SETRECT, 0, ( LPARAM )&rc );
+			rc.bottom -= ( g_show_advanced ? 438 : 153 );	// Add 20 to each of these numbers from above.
+			_SendMessageW( g_hWnd_edit_add, EM_SETRECT, 0, ( LPARAM )&rc );*/
 
 			return 0;
 		}
@@ -819,12 +856,6 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 				}
 				break;
 
-				case CHK_SEND_DATA:
-				{
-					_EnableWindow( g_hWnd_edit_data, ( _SendMessageW( g_hWnd_chk_send_data, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? TRUE : FALSE ) );
-				}
-				break;
-
 				case CHK_SIMULATE_DOWNLOAD:
 				{
 					BOOL enable = ( _SendMessageW( g_hWnd_chk_simulate_download, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? FALSE : TRUE );
@@ -969,10 +1000,10 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 				{
 					NMHDR *nmhdr = ( NMHDR * )lParam;
 
-					HWND hWnd_focused = GetFocus();
+					HWND hWnd_focused = _GetFocus();
 					if ( hWnd_focused != hWnd && hWnd_focused != nmhdr->hwndFrom )
 					{
-						SetFocus( GetWindow( nmhdr->hwndFrom, GW_CHILD ) );
+						_SetFocus( _GetWindow( nmhdr->hwndFrom, GW_CHILD ) );
 					}
 
 					ShowHideAddTabs( SW_SHOW );
@@ -1266,6 +1297,12 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 		case WM_DESTROY:
 		{
+			if ( g_add_tab_brush != NULL )
+			{
+				_DeleteObject( g_add_tab_brush );
+				g_add_tab_brush = NULL;
+			}
+
 			if ( use_drag_and_drop_add )
 			{
 				UnregisterDropWindow( g_hWnd_edit_add, Add_DropTarget );

@@ -25,7 +25,7 @@
 	pCloseThemeData			_CloseThemeData;
 	pDrawThemeBackground	_DrawThemeBackground;
 	//pGetThemeColor			_GetThemeColor;
-	//pIsThemeActive			_IsThemeActive;
+	pIsThemeActive			_IsThemeActive;
 	//pEnableThemeDialogTexture	_EnableThemeDialogTexture;
 	//pDrawThemeParentBackground	_DrawThemeParentBackground;
 
@@ -51,7 +51,7 @@
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_uxtheme, ( void ** )&_CloseThemeData, "CloseThemeData" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_uxtheme, ( void ** )&_DrawThemeBackground, "DrawThemeBackground" ) )
 		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_uxtheme, ( void ** )&_GetThemeColor, "GetThemeColor" ) )
-		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_uxtheme, ( void ** )&_IsThemeActive, "IsThemeActive" ) )
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_uxtheme, ( void ** )&_IsThemeActive, "IsThemeActive" ) )
 		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_uxtheme, ( void ** )&_EnableThemeDialogTexture, "EnableThemeDialogTexture" ) )
 		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_uxtheme, ( void ** )&_DrawThemeParentBackground, "DrawThemeParentBackground" ) )
 

@@ -442,6 +442,20 @@ LRESULT CALLBACK LoginManagerWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 					lvc.mask = LVCF_FMT | LVCF_ORDER;
 					_SendMessageW( nmlv->hdr.hwndFrom, LVM_GETCOLUMN, nmlv->iSubItem, ( LPARAM )&lvc );
 
+					// The number column doesn't get sorted and its iOrder is always 0, so let's remove any sort arrows that are active.
+					if ( lvc.iOrder == 0 )
+					{
+						// Remove the sort format for all columns.
+						for ( unsigned char i = 1; _SendMessageW( nmlv->hdr.hwndFrom, LVM_GETCOLUMN, i, ( LPARAM )&lvc ) == TRUE; ++i )
+						{
+							// Remove sort up and sort down
+							lvc.fmt = lvc.fmt & ( ~HDF_SORTUP ) & ( ~HDF_SORTDOWN );
+							_SendMessageW( nmlv->hdr.hwndFrom, LVM_SETCOLUMN, i, ( LPARAM )&lvc );
+						}
+
+						break;
+					}
+
 					SORT_INFO si;
 					si.column = lvc.iOrder;
 					si.hWnd = nmlv->hdr.hwndFrom;
@@ -575,19 +589,6 @@ LRESULT CALLBACK LoginManagerWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 				break;
 			}
 			return FALSE;
-		}
-		break;
-
-		case WM_CTLCOLORSTATIC:
-		{
-			if ( ( HWND )lParam != g_hWnd_chk_show_passwords )
-			{
-				return ( LRESULT )( _GetSysColorBrush( COLOR_WINDOW ) );
-			}
-			else
-			{
-				return _DefWindowProcW( hWnd, msg, wParam, lParam );
-			}
 		}
 		break;
 
@@ -737,51 +738,6 @@ LRESULT CALLBACK LoginManagerWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 		}
 		break;
 
-		case WM_PAINT:
-		{
-			PAINTSTRUCT ps;
-			HDC hDC = _BeginPaint( hWnd, &ps );
-
-			RECT client_rc, frame_rc;
-			_GetClientRect( hWnd, &client_rc );
-
-			// Create a memory buffer to draw to.
-			HDC hdcMem = _CreateCompatibleDC( hDC );
-
-			HBITMAP hbm = _CreateCompatibleBitmap( hDC, client_rc.right - client_rc.left, client_rc.bottom - client_rc.top );
-			HBITMAP ohbm = ( HBITMAP )_SelectObject( hdcMem, hbm );
-			_DeleteObject( ohbm );
-			_DeleteObject( hbm );
-
-			// Fill the background.
-			HBRUSH color = _CreateSolidBrush( ( COLORREF )_GetSysColor( COLOR_3DFACE ) );
-			_FillRect( hdcMem, &client_rc, color );
-			_DeleteObject( color );
-
-			frame_rc = client_rc;
-			frame_rc.left += 10;
-			frame_rc.right -= 10;
-			frame_rc.top += 10;
-			frame_rc.bottom -= 40;
-
-			// Fill the frame.
-			color = _CreateSolidBrush( ( COLORREF )_GetSysColor( COLOR_WINDOW ) );
-			_FillRect( hdcMem, &frame_rc, color );
-			_DeleteObject( color );
-
-			// Draw the frame's border.
-			_DrawEdge( hdcMem, &frame_rc, EDGE_ETCHED, BF_RECT );
-
-			// Draw our memory buffer to the main device context.
-			_BitBlt( hDC, client_rc.left, client_rc.top, client_rc.right, client_rc.bottom, hdcMem, 0, 0, SRCCOPY );
-
-			_DeleteDC( hdcMem );
-			_EndPaint( hWnd, &ps );
-
-			return 0;
-		}
-		break;
-
 		case WM_GETMINMAXINFO:
 		{
 			// Set the minimum dimensions that the window can be sized to.
@@ -799,15 +755,15 @@ LRESULT CALLBACK LoginManagerWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 
 			// Allow our listview to resize in proportion to the main window.
 			HDWP hdwp = _BeginDeferWindowPos( 11 );
-			_DeferWindowPos( hdwp, g_hWnd_login_list, HWND_TOP, 20, 20, rc.right - 40, rc.bottom - 122, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_login_list, HWND_TOP, 10, 10, rc.right - 20, rc.bottom - 112, SWP_NOZORDER );
 
-			_DeferWindowPos( hdwp, g_hWnd_static_lm_site, HWND_TOP, 20, rc.bottom - 92, rc.right - 260, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_edit_lm_site, HWND_TOP, 20, rc.bottom - 77, rc.right - 260, 23, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_static_lm_site, HWND_TOP, 10, rc.bottom - 92, rc.right - 240, 15, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_edit_lm_site, HWND_TOP, 10, rc.bottom - 77, rc.right - 240, 23, SWP_NOZORDER );
 
-			_DeferWindowPos( hdwp, g_hWnd_static_lm_username, HWND_TOP, rc.right - 230, rc.bottom - 92, 100, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_edit_lm_username, HWND_TOP, rc.right - 230, rc.bottom - 77, 100, 23, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_static_lm_password, HWND_TOP, rc.right - 120, rc.bottom - 92, 100, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_edit_lm_password, HWND_TOP, rc.right - 120, rc.bottom - 77, 100, 23, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_static_lm_username, HWND_TOP, rc.right - 220, rc.bottom - 92, 100, 15, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_edit_lm_username, HWND_TOP, rc.right - 220, rc.bottom - 77, 100, 23, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_static_lm_password, HWND_TOP, rc.right - 110, rc.bottom - 92, 100, 15, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_edit_lm_password, HWND_TOP, rc.right - 110, rc.bottom - 77, 100, 23, SWP_NOZORDER );
 
 			_DeferWindowPos( hdwp, g_hWnd_add_login, HWND_TOP, 10, rc.bottom - 32, 80, 23, SWP_NOZORDER );
 			_DeferWindowPos( hdwp, g_hWnd_remove_login, HWND_TOP, 95, rc.bottom - 32, 80, 23, SWP_NOZORDER );

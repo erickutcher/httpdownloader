@@ -57,15 +57,16 @@ extern HFONT hFont_copy_connection;
 
 
 // Options Window
-extern HWND g_hWnd_options_tab;
+extern HWND g_hWnd_options_tree;
 extern HWND g_hWnd_general_tab;
 extern HWND g_hWnd_appearance_tab;
 extern HWND g_hWnd_connection_tab;
+extern HWND g_hWnd_web_server_tab;
 extern HWND g_hWnd_ftp_tab;
 extern HWND g_hWnd_proxy_tab;
 extern HWND g_hWnd_advanced_tab;
 
-extern HWND g_hWnd_apply;
+extern HWND g_hWnd_options_apply;
 
 
 // Connection Tab
@@ -201,8 +202,9 @@ extern HWND g_hWnd_chk_resolve_domain_names;
 
 // General Tab
 extern HWND g_hWnd_chk_tray_icon;
-extern HWND g_hWnd_chk_minimize;
-extern HWND g_hWnd_chk_close;
+extern HWND g_hWnd_chk_minimize_to_tray;
+extern HWND g_hWnd_chk_close_to_tray;
+extern HWND g_hWnd_chk_start_in_tray;
 extern HWND g_hWnd_chk_show_notification;
 
 extern HWND g_hWnd_chk_always_on_top;

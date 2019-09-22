@@ -154,8 +154,7 @@ LRESULT CALLBACK ProxyTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPa
 			g_hWnd_ip_address = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_IPADDRESS, NULL, WS_CHILD | WS_TABSTOP, 0, 40, 310, 23, hWnd, ( HMENU )EDIT_IP_ADDRESS, NULL, NULL );
 
 
-			g_hWnd_static_colon = _CreateWindowW( WC_STATIC, ST_V__, WS_CHILD | WS_VISIBLE, 314, 44, 75, 15, hWnd, NULL, NULL, NULL );
-
+			g_hWnd_static_colon = _CreateWindowW( WC_STATIC, ST_V_COLON, SS_CENTER | WS_CHILD | WS_VISIBLE, 310, 44, 10, 15, hWnd, NULL, NULL, NULL );
 
 			g_hWnd_static_port = _CreateWindowW( WC_STATIC, ST_V_Port_, WS_CHILD | WS_VISIBLE, 320, 25, 75, 15, hWnd, NULL, NULL, NULL );
 			g_hWnd_port = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 320, 40, 75, 23, hWnd, ( HMENU )EDIT_PORT, NULL, NULL );
@@ -174,7 +173,7 @@ LRESULT CALLBACK ProxyTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPa
 
 			//
 
-			HWND hWnd_static_hoz = _CreateWindowW( WC_STATIC, NULL, SS_ETCHEDHORZ | WS_CHILD | WS_VISIBLE, 0, 116, rc.right - 10, 5, hWnd, NULL, NULL, NULL );
+			HWND hWnd_static_proxy_hoz1 = _CreateWindowW( WC_STATIC, NULL, SS_ETCHEDHORZ | WS_CHILD | WS_VISIBLE, 0, 116, rc.right, 1, hWnd, NULL, NULL, NULL );
 
 			//
 
@@ -188,8 +187,7 @@ LRESULT CALLBACK ProxyTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPa
 			g_hWnd_ip_address_s = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_IPADDRESS, NULL, WS_CHILD | WS_TABSTOP, 0, 166, 310, 23, hWnd, ( HMENU )EDIT_IP_ADDRESS_S, NULL, NULL );
 
 
-			g_hWnd_static_colon_s = _CreateWindowW( WC_STATIC, ST_V__, WS_CHILD | WS_VISIBLE, 314, 170, 75, 15, hWnd, NULL, NULL, NULL );
-
+			g_hWnd_static_colon_s = _CreateWindowW( WC_STATIC, ST_V_COLON, SS_CENTER | WS_CHILD | WS_VISIBLE, 310, 170, 10, 15, hWnd, NULL, NULL, NULL );
 
 			g_hWnd_static_port_s = _CreateWindowW( WC_STATIC, ST_V_Port_, WS_CHILD | WS_VISIBLE, 320, 151, 75, 15, hWnd, NULL, NULL, NULL );
 			g_hWnd_port_s = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 320, 166, 75, 23, hWnd, ( HMENU )EDIT_PORT_S, NULL, NULL );
@@ -209,7 +207,7 @@ LRESULT CALLBACK ProxyTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPa
 			//
 
 
-			HWND hWnd_static_hoz2 = _CreateWindowW( WC_STATIC, NULL, SS_ETCHEDHORZ | WS_CHILD | WS_VISIBLE, 0, 242, rc.right - 10, 5, hWnd, NULL, NULL, NULL );
+			HWND hWnd_static_proxy_hoz2 = _CreateWindowW( WC_STATIC, NULL, SS_ETCHEDHORZ | WS_CHILD | WS_VISIBLE, 0, 242, rc.right, 1, hWnd, NULL, NULL, NULL );
 
 			//
 
@@ -225,8 +223,7 @@ LRESULT CALLBACK ProxyTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPa
 			g_hWnd_ip_address_socks = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_IPADDRESS, NULL, WS_CHILD | WS_TABSTOP, 0, 292, 310, 23, hWnd, ( HMENU )EDIT_IP_ADDRESS_S, NULL, NULL );
 
 
-			g_hWnd_static_colon_socks = _CreateWindowW( WC_STATIC, ST_V__, WS_CHILD | WS_VISIBLE, 314, 296, 75, 15, hWnd, NULL, NULL, NULL );
-
+			g_hWnd_static_colon_socks = _CreateWindowW( WC_STATIC, ST_V_COLON, SS_CENTER | WS_CHILD | WS_VISIBLE, 310, 296, 10, 15, hWnd, NULL, NULL, NULL );
 
 			g_hWnd_static_port_socks = _CreateWindowW( WC_STATIC, ST_V_Port_, WS_CHILD | WS_VISIBLE, 320, 277, 75, 15, hWnd, NULL, NULL, NULL );
 			g_hWnd_port_socks = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 320, 292, 75, 23, hWnd, ( HMENU )EDIT_PORT_SOCKS, NULL, NULL );
@@ -252,20 +249,6 @@ LRESULT CALLBACK ProxyTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPa
 
 			_SendMessageW( g_hWnd_auth_username_socks, EM_LIMITTEXT, 255, 0 );
 			_SendMessageW( g_hWnd_auth_password_socks, EM_LIMITTEXT, 255, 0 );
-
-
-			//
-
-			SCROLLINFO si;
-			si.cbSize = sizeof( SCROLLINFO );
-			si.fMask = SIF_ALL;
-			si.nMin = 0;
-			si.nMax = 403 + 13;	// Value is the position and height of the bottom most control. Needs 13px more padding for Windows 10.
-			si.nPage = ( rc.bottom - rc.top );
-			si.nPos = 0;
-			_SetScrollInfo( hWnd, SB_VERT, &si, TRUE );
-
-			//
 
 
 			_SendMessageW( g_hWnd_chk_proxy, WM_SETFONT, ( WPARAM )g_hFont, 0 );
@@ -576,70 +559,6 @@ LRESULT CALLBACK ProxyTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPa
 		}
 		break;
 
-		case WM_CTLCOLORSTATIC:
-		{
-			return ( LRESULT )( _GetSysColorBrush( COLOR_WINDOW ) );
-		}
-		break;
-
-		case WM_MBUTTONUP:
-		case WM_LBUTTONUP:
-		case WM_RBUTTONUP:
-		{
-			_SetFocus( hWnd );
-
-			return 0;
-		}
-		break;
-
-		case WM_MOUSEWHEEL:
-		case WM_VSCROLL:
-		{
-			SCROLLINFO si;
-			si.cbSize = sizeof( SCROLLINFO );
-			si.fMask = SIF_POS;
-			_GetScrollInfo( hWnd, SB_VERT, &si );
-
-			int delta = si.nPos;
-
-			if ( msg == WM_VSCROLL )
-			{
-				// Only process the standard scroll bar.
-				if ( lParam != NULL )
-				{
-					return _DefWindowProcW( hWnd, msg, wParam, lParam );
-				}
-
-				switch ( LOWORD( wParam ) )
-				{
-					case SB_LINEUP: { si.nPos -= 10; } break;
-					case SB_LINEDOWN: { si.nPos += 10; } break;
-					case SB_PAGEUP: { si.nPos -= 50; } break;
-					case SB_PAGEDOWN: { si.nPos += 50; } break;
-					//case SB_THUMBPOSITION:
-					case SB_THUMBTRACK: { si.nPos = ( int )HIWORD( wParam ); } break;
-					default: { return 0; } break;
-				}
-			}
-			else if ( msg == WM_MOUSEWHEEL )
-			{
-				si.nPos -= ( GET_WHEEL_DELTA_WPARAM( wParam ) / WHEEL_DELTA ) * 20;
-			}
-
-			_SetScrollPos( hWnd, SB_VERT, si.nPos, TRUE );
-
-			si.fMask = SIF_POS;
-			_GetScrollInfo( hWnd, SB_VERT, &si );
-
-			if ( si.nPos != delta )
-			{
-				_ScrollWindow( hWnd, 0, delta - si.nPos, NULL, NULL );
-			}
-
-			return 0;
-		}
-		break;
-
 		case WM_COMMAND:
 		{
 			switch ( LOWORD( wParam ) )
@@ -661,7 +580,7 @@ LRESULT CALLBACK ProxyTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPa
 					_EnableWindow( g_hWnd_auth_password, enable );
 
 					options_state_changed = true;
-					_EnableWindow( g_hWnd_apply, TRUE );
+					_EnableWindow( g_hWnd_options_apply, TRUE );
 				}
 				break;
 
@@ -682,7 +601,7 @@ LRESULT CALLBACK ProxyTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPa
 					_EnableWindow( g_hWnd_auth_password_s, enable );
 
 					options_state_changed = true;
-					_EnableWindow( g_hWnd_apply, TRUE );
+					_EnableWindow( g_hWnd_options_apply, TRUE );
 				}
 				break;
 
@@ -716,7 +635,7 @@ LRESULT CALLBACK ProxyTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPa
 					_EnableWindow( g_hWnd_auth_password_socks, enable );
 
 					options_state_changed = true;
-					_EnableWindow( g_hWnd_apply, TRUE );
+					_EnableWindow( g_hWnd_options_apply, TRUE );
 				}
 				break;
 
@@ -730,7 +649,7 @@ LRESULT CALLBACK ProxyTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPa
 					_EnableWindow( g_hWnd_auth_password_socks, enable );
 
 					options_state_changed = true;
-					_EnableWindow( g_hWnd_apply, TRUE );
+					_EnableWindow( g_hWnd_options_apply, TRUE );
 				}
 				break;
 
@@ -768,7 +687,7 @@ LRESULT CALLBACK ProxyTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPa
 							 ( LOWORD( wParam ) == EDIT_PORT_SOCKS	&& num != cfg_port_socks ) )
 						{
 							options_state_changed = true;
-							_EnableWindow( g_hWnd_apply, TRUE );
+							_EnableWindow( g_hWnd_options_apply, TRUE );
 						}
 					}
 				}
@@ -788,7 +707,7 @@ LRESULT CALLBACK ProxyTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPa
 					if ( HIWORD( wParam ) == EN_UPDATE )
 					{
 						options_state_changed = true;
-						_EnableWindow( g_hWnd_apply, TRUE );
+						_EnableWindow( g_hWnd_options_apply, TRUE );
 					}
 				}
 				break;
@@ -800,7 +719,7 @@ LRESULT CALLBACK ProxyTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPa
 					if ( HIWORD( wParam ) == EN_CHANGE )
 					{
 						options_state_changed = true;
-						_EnableWindow( g_hWnd_apply, TRUE );
+						_EnableWindow( g_hWnd_options_apply, TRUE );
 					}
 				}
 				break;
@@ -809,7 +728,7 @@ LRESULT CALLBACK ProxyTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPa
 				case BTN_RESOLVE_DOMAIN_NAMES:
 				{
 					options_state_changed = true;
-					_EnableWindow( g_hWnd_apply, TRUE );
+					_EnableWindow( g_hWnd_options_apply, TRUE );
 				}
 				break;
 
@@ -822,7 +741,7 @@ LRESULT CALLBACK ProxyTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPa
 					}
 
 					options_state_changed = true;
-					_EnableWindow( g_hWnd_apply, TRUE );
+					_EnableWindow( g_hWnd_options_apply, TRUE );
 				}
 				break;
 
@@ -835,7 +754,7 @@ LRESULT CALLBACK ProxyTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPa
 					}
 
 					options_state_changed = true;
-					_EnableWindow( g_hWnd_apply, TRUE );
+					_EnableWindow( g_hWnd_options_apply, TRUE );
 				}
 				break;
 
@@ -848,7 +767,7 @@ LRESULT CALLBACK ProxyTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPa
 					}
 
 					options_state_changed = true;
-					_EnableWindow( g_hWnd_apply, TRUE );
+					_EnableWindow( g_hWnd_options_apply, TRUE );
 				}
 				break;
 
@@ -861,7 +780,7 @@ LRESULT CALLBACK ProxyTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPa
 					}
 
 					options_state_changed = true;
-					_EnableWindow( g_hWnd_apply, TRUE );
+					_EnableWindow( g_hWnd_options_apply, TRUE );
 				}
 				break;
 
@@ -874,7 +793,7 @@ LRESULT CALLBACK ProxyTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPa
 					}
 
 					options_state_changed = true;
-					_EnableWindow( g_hWnd_apply, TRUE );
+					_EnableWindow( g_hWnd_options_apply, TRUE );
 				}
 				break;
 
@@ -887,7 +806,7 @@ LRESULT CALLBACK ProxyTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPa
 					}
 
 					options_state_changed = true;
-					_EnableWindow( g_hWnd_apply, TRUE );
+					_EnableWindow( g_hWnd_options_apply, TRUE );
 				}
 				break;
 
@@ -912,7 +831,7 @@ LRESULT CALLBACK ProxyTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPa
 					}
 
 					options_state_changed = true;
-					_EnableWindow( g_hWnd_apply, TRUE );
+					_EnableWindow( g_hWnd_options_apply, TRUE );
 				}
 				break;
 
@@ -937,7 +856,7 @@ LRESULT CALLBACK ProxyTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPa
 					}
 
 					options_state_changed = true;
-					_EnableWindow( g_hWnd_apply, TRUE );
+					_EnableWindow( g_hWnd_options_apply, TRUE );
 				}
 				break;
 			}

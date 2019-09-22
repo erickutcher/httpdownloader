@@ -162,6 +162,12 @@ LRESULT CALLBACK URLDropWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 		}
 		break;
 
+		case WM_ERASEBKGND:
+		{
+			return TRUE;
+		}
+		break;
+
 		case WM_PAINT:
 		{
 			PAINTSTRUCT ps;

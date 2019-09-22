@@ -56,19 +56,19 @@ LRESULT CALLBACK SearchWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 			RECT rc;
 			_GetClientRect( hWnd, &rc );
 
-			g_hWnd_static_search_for = _CreateWindowW( WC_STATIC, ST_V_Search_for_, WS_CHILD | WS_VISIBLE, 20, 20, 60, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_search_for = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, L"", ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 20, 35, rc.right - 40, 23, hWnd, ( HMENU )EDIT_SEARCH_FOR, NULL, NULL );
+			g_hWnd_static_search_for = _CreateWindowW( WC_STATIC, ST_V_Search_for_, WS_CHILD | WS_VISIBLE, 10, 10, 60, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_search_for = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, L"", ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 10, 25, rc.right - 20, 23, hWnd, ( HMENU )EDIT_SEARCH_FOR, NULL, NULL );
 
-			HWND hWnd_btn_search_type = _CreateWindowW( WC_BUTTON, ST_V_Search_Type, BS_GROUPBOX | WS_CHILD | WS_VISIBLE, 20, 65, 100, 60, hWnd, NULL, NULL, NULL );
-			g_hWnd_chk_type_filename = _CreateWindowW( WC_BUTTON, ST_V_Filename, BS_AUTORADIOBUTTON | WS_CHILD | WS_GROUP | WS_TABSTOP | WS_VISIBLE, 30, 80, 80, 20, hWnd, ( HMENU )BTN_TYPE_FILENAME, NULL, NULL );
-			g_hWnd_chk_type_url = _CreateWindowW( WC_BUTTON, ST_V_URL, BS_AUTORADIOBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 30, 100, 80, 20, hWnd, ( HMENU )BTN_TYPE_URL, NULL, NULL );
+			HWND hWnd_btn_search_type = _CreateWindowW( WC_BUTTON, ST_V_Search_Type, BS_GROUPBOX | WS_CHILD | WS_VISIBLE, 10, 55, 110, 60, hWnd, NULL, NULL, NULL );
+			g_hWnd_chk_type_filename = _CreateWindowW( WC_BUTTON, ST_V_Filename, BS_AUTORADIOBUTTON | WS_CHILD | WS_GROUP | WS_TABSTOP | WS_VISIBLE, 20, 70, 90, 20, hWnd, ( HMENU )BTN_TYPE_FILENAME, NULL, NULL );
+			g_hWnd_chk_type_url = _CreateWindowW( WC_BUTTON, ST_V_URL, BS_AUTORADIOBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 20, 90, 90, 20, hWnd, ( HMENU )BTN_TYPE_URL, NULL, NULL );
 
-			g_hWnd_chk_match_case = _CreateWindowW( WC_BUTTON, ST_V_Match_case, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 135, 65, 160, 20, hWnd, ( HMENU )BTN_MATCH_CASE, NULL, NULL );
-			g_hWnd_chk_match_whole_word = _CreateWindowW( WC_BUTTON, ST_V_Match_whole_word, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 135, 85, 160, 20, hWnd, ( HMENU )BTN_MATCH_WHOLE_WORD, NULL, NULL );
-			g_hWnd_chk_regular_expression = _CreateWindowW( WC_BUTTON, ST_V_Regular_expression, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE | ( g_use_regular_expressions ? 0 : WS_DISABLED ), 135, 105, 160, 20, hWnd, ( HMENU )BTN_REGULAR_EXPRESSION, NULL, NULL );
+			g_hWnd_chk_match_case = _CreateWindowW( WC_BUTTON, ST_V_Match_case, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 135, 55, rc.right - 145, 20, hWnd, ( HMENU )BTN_MATCH_CASE, NULL, NULL );
+			g_hWnd_chk_match_whole_word = _CreateWindowW( WC_BUTTON, ST_V_Match_whole_word, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 135, 75, rc.right - 145, 20, hWnd, ( HMENU )BTN_MATCH_WHOLE_WORD, NULL, NULL );
+			g_hWnd_chk_regular_expression = _CreateWindowW( WC_BUTTON, ST_V_Regular_expression, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE | ( g_use_regular_expressions ? 0 : WS_DISABLED ), 135, 95, rc.right - 145, 20, hWnd, ( HMENU )BTN_REGULAR_EXPRESSION, NULL, NULL );
 
-			g_hWnd_btn_search_all = _CreateWindowW( WC_BUTTON, ST_V_Search_All, WS_CHILD | WS_TABSTOP | WS_VISIBLE | WS_DISABLED, rc.right - 280, rc.bottom - 32, 85, 23, hWnd, ( HMENU )BTN_SEARCH_ALL, NULL, NULL );
-			g_hWnd_btn_search = _CreateWindowW( WC_BUTTON, ST_V_Search_Next, BS_DEFPUSHBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE | WS_DISABLED, rc.right - 190, rc.bottom - 32, 95, 23, hWnd, ( HMENU )BTN_SEARCH, NULL, NULL );
+			g_hWnd_btn_search_all = _CreateWindowW( WC_BUTTON, ST_V_Search_All, WS_CHILD | WS_TABSTOP | WS_VISIBLE | WS_DISABLED, rc.right - 285, rc.bottom - 32, 85, 23, hWnd, ( HMENU )BTN_SEARCH_ALL, NULL, NULL );
+			g_hWnd_btn_search = _CreateWindowW( WC_BUTTON, ST_V_Search_Next, BS_DEFPUSHBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE | WS_DISABLED, rc.right - 195, rc.bottom - 32, 100, 23, hWnd, ( HMENU )BTN_SEARCH, NULL, NULL );
 			g_hWnd_search_cancel = _CreateWindowW( WC_BUTTON, ST_V_Cancel, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 90, rc.bottom - 32, 80, 23, hWnd, ( HMENU )BTN_SEARCH_CANCEL, NULL, NULL );
 
 			_SendMessageW( g_hWnd_static_search_for, WM_SETFONT, ( WPARAM )g_hFont, 0 );
@@ -86,57 +86,6 @@ LRESULT CALLBACK SearchWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 			_SendMessageW( g_hWnd_chk_type_filename, BM_SETCHECK, BST_CHECKED, 0 );
 
 			_SetFocus( g_hWnd_search_for );
-
-			return 0;
-		}
-		break;
-
-		case WM_CTLCOLORSTATIC:
-		{
-			return ( LRESULT )( _GetSysColorBrush( COLOR_WINDOW ) );
-		}
-		break;
-
-		case WM_PAINT:
-		{
-			PAINTSTRUCT ps;
-			HDC hDC = _BeginPaint( hWnd, &ps );
-
-			RECT client_rc, frame_rc;
-			_GetClientRect( hWnd, &client_rc );
-
-			// Create a memory buffer to draw to.
-			HDC hdcMem = _CreateCompatibleDC( hDC );
-
-			HBITMAP hbm = _CreateCompatibleBitmap( hDC, client_rc.right - client_rc.left, client_rc.bottom - client_rc.top );
-			HBITMAP ohbm = ( HBITMAP )_SelectObject( hdcMem, hbm );
-			_DeleteObject( ohbm );
-			_DeleteObject( hbm );
-
-			// Fill the background.
-			HBRUSH color = _CreateSolidBrush( ( COLORREF )_GetSysColor( COLOR_3DFACE ) );
-			_FillRect( hdcMem, &client_rc, color );
-			_DeleteObject( color );
-
-			frame_rc = client_rc;
-			frame_rc.left += 10;
-			frame_rc.right -= 10;
-			frame_rc.top += 10;
-			frame_rc.bottom -= 40;
-
-			// Fill the frame.
-			color = _CreateSolidBrush( ( COLORREF )_GetSysColor( COLOR_WINDOW ) );
-			_FillRect( hdcMem, &frame_rc, color );
-			_DeleteObject( color );
-
-			// Draw the frame's border.
-			_DrawEdge( hdcMem, &frame_rc, EDGE_ETCHED, BF_RECT );
-
-			// Draw our memory buffer to the main device context.
-			_BitBlt( hDC, client_rc.left, client_rc.top, client_rc.right, client_rc.bottom, hdcMem, 0, 0, SRCCOPY );
-
-			_DeleteDC( hdcMem );
-			_EndPaint( hWnd, &ps );
 
 			return 0;
 		}

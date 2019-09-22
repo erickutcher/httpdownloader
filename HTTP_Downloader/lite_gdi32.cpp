@@ -24,7 +24,9 @@
 	pBitBlt						_BitBlt;
 	pCreateCompatibleBitmap		_CreateCompatibleBitmap;
 	pCreateCompatibleDC			_CreateCompatibleDC;
+	//pCreateDCW					_CreateDCW;
 	pCreateFontIndirectW		_CreateFontIndirectW;
+	pCreatePatternBrush			_CreatePatternBrush;
 	pCreatePen					_CreatePen;
 	pCreateSolidBrush			_CreateSolidBrush;
 	pDeleteDC					_DeleteDC;
@@ -42,6 +44,7 @@
 	pSelectObject				_SelectObject;
 	//pSetBkColor					_SetBkColor;
 	pSetBkMode					_SetBkMode;
+	pSetBrushOrgEx				_SetBrushOrgEx;
 	pSetTextColor				_SetTextColor;
 
 	HMODULE hModule_gdi32 = NULL;
@@ -65,7 +68,9 @@
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_gdi32, ( void ** )&_BitBlt, "BitBlt" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_gdi32, ( void ** )&_CreateCompatibleBitmap, "CreateCompatibleBitmap" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_gdi32, ( void ** )&_CreateCompatibleDC, "CreateCompatibleDC" ) )
+		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_gdi32, ( void ** )&_CreateDCW, "CreateDCW" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_gdi32, ( void ** )&_CreateFontIndirectW, "CreateFontIndirectW" ) )
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_gdi32, ( void ** )&_CreatePatternBrush, "CreatePatternBrush" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_gdi32, ( void ** )&_CreatePen, "CreatePen" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_gdi32, ( void ** )&_CreateSolidBrush, "CreateSolidBrush" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_gdi32, ( void ** )&_DeleteDC, "DeleteDC" ) )
@@ -83,6 +88,7 @@
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_gdi32, ( void ** )&_SelectObject, "SelectObject" ) )
 		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_gdi32, ( void ** )&_SetBkColor, "SetBkColor" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_gdi32, ( void ** )&_SetBkMode, "SetBkMode" ) )
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_gdi32, ( void ** )&_SetBrushOrgEx, "SetBrushOrgEx" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_gdi32, ( void ** )&_SetTextColor, "SetTextColor" ) )
 
 		gdi32_state = GDI32_STATE_RUNNING;

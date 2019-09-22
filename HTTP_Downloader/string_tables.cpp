@@ -212,37 +212,19 @@ STRING_TABLE_DATA options_appearance_string_table[] =
 
 STRING_TABLE_DATA options_connection_string_table[] =
 {
-	{ L":", 1 },
 	{ L"Active download limit:", 22 },
-	{ L"Basic Authentication", 20 },
-	{ L"Certificate file:", 17 },
 	{ L"Default download parts:", 23 },
 	{ L"Default SSL / TLS version:", 26 },
-	{ L"Digest Authentication", 21 },
-	{ L"Enable server:", 14 },
-	{ L"Enable SSL / TLS:", 17 },
-	{ L"Hostname / IPv6 address:", 24 },
-	{ L"IPv4 address:", 13 },
-	{ L"Key file:", 9 },
-	{ L"Load PKCS #12 File", 18 },
-	{ L"Load Private Key File", 21 },
-	{ L"Load X.509 Certificate File", 27 },
 	{ L"Login Manager...", 16 },
 	{ L"Maximum redirects:", 18 },
-	{ L"PKCS #12:", 9 },
-	{ L"PKCS #12 file:", 14 },
-	{ L"PKCS #12 password:", 18 },
-	{ L"Port:", 5 },
-	{ L"Public / Private key pair:", 26 },
-	{ L"Require authentication:", 23 },
 	{ L"Retry incomplete downloads:", 27 },
 	{ L"Retry incomplete parts:", 23 },
-	{ L"Server SSL / TLS version:", 25 },
 	{ L"Timeout (seconds):", 18 }
 };
 
 STRING_TABLE_DATA options_ftp_string_table[] =
 {
+	{ L"-", 1 },
 	{ L"Active", 6 },
 	{ L"Active Listen Information", 25 },
 	{ L"Data Transfer Mode", 18 },
@@ -264,6 +246,7 @@ STRING_TABLE_DATA options_general_string_table[] =
 	{ L"Play sound when all downloads finish:", 37 },
 	{ L"Show notification when all downloads finish", 43 },
 	{ L"Show progress bar", 17 },
+	{ L"Start in System Tray", 20 },
 	{ L"Transparency:", 13 }
 };
 
@@ -278,6 +261,30 @@ STRING_TABLE_DATA options_proxy_string_table[] =
 	{ L"Use HTTP proxy:", 15 },
 	{ L"Use HTTPS proxy:", 16 },
 	{ L"Use SOCKS proxy:", 16 }
+};
+
+STRING_TABLE_DATA options_server_string_table[] =
+{
+	{ L":", 1 },
+	{ L"Basic Authentication", 20 },
+	{ L"Certificate file:", 17 },
+	{ L"Digest Authentication", 21 },
+	{ L"Enable server:", 14 },
+	{ L"Enable SSL / TLS:", 17 },
+	{ L"Hostname / IPv6 address:", 24 },
+	{ L"IPv4 address:", 13 },
+	{ L"Key file:", 9 },
+	{ L"Load PKCS #12 File", 18 },
+	{ L"Load Private Key File", 21 },
+	{ L"Load X.509 Certificate File", 27 },
+	{ L"PKCS #12:", 9 },
+	{ L"PKCS #12 file:", 14 },
+	{ L"PKCS #12 password:", 18 },
+	{ L"Port:", 5 },
+	{ L"Public / Private key pair:", 26 },
+	{ L"Require authentication:", 23 },
+	{ L"Server", 6 },
+	{ L"Server SSL / TLS version:", 25 }
 };
 
 STRING_TABLE_DATA cmessagebox_string_table[] =
@@ -417,6 +424,14 @@ STRING_TABLE_DATA common_message_string_table[] =
 	{ L"You must supply a download directory.", 37 }
 };
 
+STRING_TABLE_DATA about_string_table[] =
+{
+	{ L"Built on", 8 },
+	{ L"Copyright", 9 },
+	{ L"HTTP Downloader is made free under the GPLv3 license.", 53 },
+	{ L"Version", 7 }
+};
+
 void InitializeLocaleValues()
 {
 	unsigned short string_count = 0;
@@ -538,12 +553,14 @@ void InitializeLocaleValues()
 		for ( i = 0; i < OPTIONS_FTP_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = options_ftp_string_table[ i ]; }
 		for ( i = 0; i < OPTIONS_GENERAL_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = options_general_string_table[ i ]; }
 		for ( i = 0; i < OPTIONS_PROXY_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = options_proxy_string_table[ i ]; }
+		for ( i = 0; i < OPTIONS_SERVER_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = options_server_string_table[ i ]; }
 		for ( i = 0; i < CMESSAGEBOX_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = cmessagebox_string_table[ i ]; }
 		for ( i = 0; i < ADD_URLS_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = add_urls_string_table[ i ]; }
 		for ( i = 0; i < SEARCH_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = search_string_table[ i ]; }
 		for ( i = 0; i < LOGIN_MANAGER_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = login_manager_string_table[ i ]; }
 		for ( i = 0; i < COMMON_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = common_string_table[ i ]; }
 		for ( i = 0; i < COMMON_MESSAGE_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = common_message_string_table[ i ]; }
+		for ( i = 0; i < ABOUT_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = about_string_table[ i ]; }
 
 		/*
 		// Quick locale generation.

@@ -41,8 +41,10 @@ HWND g_hWnd_chk_type_ftp_hostname = NULL;
 HWND g_hWnd_chk_type_ftp_ip_address = NULL;
 HWND g_hWnd_ftp_hostname = NULL;
 HWND g_hWnd_ftp_ip_address = NULL;
+HWND g_hWnd_ftp_static_colon = NULL;
 HWND g_hWnd_static_ftp_port_start = NULL;
 HWND g_hWnd_static_ftp_port_end = NULL;
+HWND g_hWnd_ftp_static_dash = NULL;
 HWND g_hWnd_ftp_port_start = NULL;
 HWND g_hWnd_ftp_port_end = NULL;
 
@@ -56,17 +58,17 @@ LRESULT CALLBACK FTPTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
     {
 		case WM_CREATE:
 		{
-			RECT rc;
-			_GetClientRect( hWnd, &rc );
+			//RECT rc;
+			//_GetClientRect( hWnd, &rc );
 
-			HWND hWnd_static_transfer_mode = _CreateWindowW( WC_BUTTON, ST_V_Data_Transfer_Mode, BS_GROUPBOX | WS_CHILD | WS_VISIBLE, 0, 0, 330, 60, hWnd, NULL, NULL, NULL );
+			HWND hWnd_static_transfer_mode = _CreateWindowW( WC_BUTTON, ST_V_Data_Transfer_Mode, BS_GROUPBOX | WS_CHILD | WS_VISIBLE, 0, 0, 400, 60, hWnd, NULL, NULL, NULL );
 
 			g_hWnd_chk_passive_mode = _CreateWindowW( WC_BUTTON, ST_V_Passive, BS_AUTORADIOBUTTON | WS_CHILD | WS_GROUP | WS_TABSTOP | WS_VISIBLE, 10, 15, 80, 20, hWnd, ( HMENU )BTN_PASSIVE_MODE, NULL, NULL );
 			g_hWnd_chk_active_mode = _CreateWindowW( WC_BUTTON, ST_V_Active, BS_AUTORADIOBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 10, 35, 80, 20, hWnd, ( HMENU )BTN_ACTIVE_MODE, NULL, NULL );
 
-			g_hWnd_chk_fallback_mode = _CreateWindowW( WC_BUTTON, ST_V_Use_other_mode_on_failure, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 100, 15, 220, 20, hWnd, ( HMENU )BTN_FALLBACK_MODE, NULL, NULL );
+			g_hWnd_chk_fallback_mode = _CreateWindowW( WC_BUTTON, ST_V_Use_other_mode_on_failure, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 100, 15, 290, 20, hWnd, ( HMENU )BTN_FALLBACK_MODE, NULL, NULL );
 
-			g_hWnd_static_active_listen_info = _CreateWindowW( WC_BUTTON, ST_V_Active_Listen_Information, BS_GROUPBOX | WS_CHILD | WS_VISIBLE, 0, 70, 330, 115, hWnd, NULL, NULL, NULL );
+			g_hWnd_static_active_listen_info = _CreateWindowW( WC_BUTTON, ST_V_Active_Listen_Information, BS_GROUPBOX | WS_CHILD | WS_VISIBLE, 0, 70, 500, 70, hWnd, NULL, NULL, NULL );
 
 			g_hWnd_chk_type_ftp_hostname = _CreateWindowW( WC_BUTTON, ST_V_Hostname___IPv6_address_, BS_AUTORADIOBUTTON | WS_CHILD | WS_GROUP | WS_TABSTOP | WS_VISIBLE, 10, 85, 200, 20, hWnd, ( HMENU )BTN_TYPE_FTP_HOST, NULL, NULL );
 			g_hWnd_chk_type_ftp_ip_address = _CreateWindowW( WC_BUTTON, ST_V_IPv4_address_, BS_AUTORADIOBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 215, 85, 110, 20, hWnd, ( HMENU )BTN_TYPE_FTP_IP_ADDRESS, NULL, NULL );
@@ -74,14 +76,17 @@ LRESULT CALLBACK FTPTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 			g_hWnd_ftp_hostname = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 10, 105, 310, 23, hWnd, ( HMENU )EDIT_FTP_HOST, NULL, NULL );
 			g_hWnd_ftp_ip_address = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_IPADDRESS, NULL, WS_CHILD | WS_TABSTOP, 10, 105, 310, 23, hWnd, ( HMENU )EDIT_FTP_IP_ADDRESS, NULL, NULL );
 
+			g_hWnd_ftp_static_colon = _CreateWindowW( WC_STATIC, ST_V_COLON, SS_CENTER | WS_CHILD | WS_VISIBLE, 320, 109, 10, 15, hWnd, NULL, NULL, NULL );
 
-			g_hWnd_static_ftp_port_start = _CreateWindowW( WC_STATIC, ST_V_Port_start_, WS_CHILD | WS_VISIBLE, 10, 135, 75, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_ftp_port_start = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 10, 150, 75, 23, hWnd, ( HMENU )EDIT_FTP_PORT_START, NULL, NULL );
+			g_hWnd_static_ftp_port_start = _CreateWindowW( WC_STATIC, ST_V_Port_start_, WS_CHILD | WS_VISIBLE, 330, 90, 75, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_ftp_port_start = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 330, 105, 75, 23, hWnd, ( HMENU )EDIT_FTP_PORT_START, NULL, NULL );
 
-			g_hWnd_static_ftp_port_end = _CreateWindowW( WC_STATIC, ST_V_Port_end_, WS_CHILD | WS_VISIBLE, 90, 135, 75, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_ftp_port_end = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 90, 150, 75, 23, hWnd, ( HMENU )EDIT_FTP_PORT_END, NULL, NULL );
+			g_hWnd_ftp_static_dash = _CreateWindowW( WC_STATIC, ST_V_DASH, SS_CENTER | WS_CHILD | WS_VISIBLE, 405, 109, 10, 15, hWnd, NULL, NULL, NULL );
 
-			g_hWnd_chk_send_keep_alive = _CreateWindowW( WC_BUTTON, ST_V_Send_keep_alive_requests, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 190, 180, 20, hWnd, ( HMENU )BTN_SEND_KEEP_ALIVE, NULL, NULL );
+			g_hWnd_static_ftp_port_end = _CreateWindowW( WC_STATIC, ST_V_Port_end_, WS_CHILD | WS_VISIBLE, 415, 90, 75, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_ftp_port_end = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 415, 105, 75, 23, hWnd, ( HMENU )EDIT_FTP_PORT_END, NULL, NULL );
+
+			g_hWnd_chk_send_keep_alive = _CreateWindowW( WC_BUTTON, ST_V_Send_keep_alive_requests, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 145, 300, 20, hWnd, ( HMENU )BTN_SEND_KEEP_ALIVE, NULL, NULL );
 
 
 			_SendMessageW( hWnd_static_transfer_mode, WM_SETFONT, ( WPARAM )g_hFont, 0 );
@@ -97,8 +102,12 @@ LRESULT CALLBACK FTPTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 
 			_SendMessageW( g_hWnd_ftp_hostname, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 
+			_SendMessageW( g_hWnd_ftp_static_colon, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+
 			_SendMessageW( g_hWnd_static_ftp_port_start, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 			_SendMessageW( g_hWnd_ftp_port_start, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+
+			_SendMessageW( g_hWnd_ftp_static_dash, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 
 			_SendMessageW( g_hWnd_static_ftp_port_end, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 			_SendMessageW( g_hWnd_ftp_port_end, WM_SETFONT, ( WPARAM )g_hFont, 0 );
@@ -149,8 +158,10 @@ LRESULT CALLBACK FTPTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 			_EnableWindow( g_hWnd_chk_type_ftp_ip_address, enable );
 			_EnableWindow( g_hWnd_ftp_hostname, enable );
 			_EnableWindow( g_hWnd_ftp_ip_address, enable );
+			_EnableWindow( g_hWnd_ftp_static_colon, enable );
 			_EnableWindow( g_hWnd_static_ftp_port_start, enable );
 			_EnableWindow( g_hWnd_ftp_port_start, enable );
+			_EnableWindow( g_hWnd_ftp_static_dash, enable );
 			_EnableWindow( g_hWnd_static_ftp_port_end, enable );
 
 			if ( cfg_ftp_address_type == 1 )
@@ -201,12 +212,6 @@ LRESULT CALLBACK FTPTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 		}
 		break;
 
-		case WM_CTLCOLORSTATIC:
-		{
-			return ( LRESULT )( _GetSysColorBrush( COLOR_WINDOW ) );
-		}
-		break;
-
 		case WM_COMMAND:
 		{
 			switch ( LOWORD( wParam ) )
@@ -231,8 +236,10 @@ LRESULT CALLBACK FTPTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 					_EnableWindow( g_hWnd_chk_type_ftp_ip_address, enable );
 					_EnableWindow( g_hWnd_ftp_hostname, enable );
 					_EnableWindow( g_hWnd_ftp_ip_address, enable );
+					_EnableWindow( g_hWnd_ftp_static_colon, enable );
 					_EnableWindow( g_hWnd_static_ftp_port_start, enable );
 					_EnableWindow( g_hWnd_ftp_port_start, enable );
+					_EnableWindow( g_hWnd_ftp_static_dash, enable );
 					_EnableWindow( g_hWnd_static_ftp_port_end, enable );
 
 					char value[ 11 ];
@@ -245,7 +252,7 @@ LRESULT CALLBACK FTPTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 					_EnableWindow( g_hWnd_ftp_port_end, enable );
 
 					options_state_changed = true;
-					_EnableWindow( g_hWnd_apply, TRUE );
+					_EnableWindow( g_hWnd_options_apply, TRUE );
 				}
 				break;
 
@@ -300,7 +307,7 @@ LRESULT CALLBACK FTPTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 							 ( LOWORD( wParam ) == EDIT_FTP_PORT_END && num_end != cfg_ftp_port_end ) )
 						{
 							options_state_changed = true;
-							_EnableWindow( g_hWnd_apply, TRUE );
+							_EnableWindow( g_hWnd_options_apply, TRUE );
 						}
 					}
 					else if ( HIWORD( wParam ) == EN_KILLFOCUS )
@@ -322,7 +329,7 @@ LRESULT CALLBACK FTPTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 							 ( LOWORD( wParam ) == EDIT_FTP_PORT_END && num_end != cfg_ftp_port_end ) )
 						{
 							options_state_changed = true;
-							_EnableWindow( g_hWnd_apply, TRUE );
+							_EnableWindow( g_hWnd_options_apply, TRUE );
 						}
 					}
 				}
@@ -333,7 +340,7 @@ LRESULT CALLBACK FTPTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 					if ( HIWORD( wParam ) == EN_UPDATE )
 					{
 						options_state_changed = true;
-						_EnableWindow( g_hWnd_apply, TRUE );
+						_EnableWindow( g_hWnd_options_apply, TRUE );
 					}
 				}
 				break;
@@ -343,7 +350,7 @@ LRESULT CALLBACK FTPTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 					if ( HIWORD( wParam ) == EN_CHANGE )
 					{
 						options_state_changed = true;
-						_EnableWindow( g_hWnd_apply, TRUE );
+						_EnableWindow( g_hWnd_options_apply, TRUE );
 					}
 				}
 				break;
@@ -357,7 +364,7 @@ LRESULT CALLBACK FTPTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 					}
 
 					options_state_changed = true;
-					_EnableWindow( g_hWnd_apply, TRUE );
+					_EnableWindow( g_hWnd_options_apply, TRUE );
 				}
 				break;
 
@@ -370,14 +377,14 @@ LRESULT CALLBACK FTPTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 					}
 
 					options_state_changed = true;
-					_EnableWindow( g_hWnd_apply, TRUE );
+					_EnableWindow( g_hWnd_options_apply, TRUE );
 				}
 				break;
 
 				case BTN_SEND_KEEP_ALIVE:
 				{
 					options_state_changed = true;
-					_EnableWindow( g_hWnd_apply, TRUE );
+					_EnableWindow( g_hWnd_options_apply, TRUE );
 				}
 				break;
 			}

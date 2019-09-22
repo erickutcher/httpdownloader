@@ -558,6 +558,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\wnd_proc_options_web_server.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\wnd_proc_search.cpp"
 				>
 			</File>
@@ -567,10 +571,6 @@
 			</File>
 			<File
 				RelativePath=".\wnd_proc_url_drop.cpp"
-				>
-			</File>
-			<File
-				RelativePath=".\wnd_subproc_tab.cpp"
 				>
 			</File>
 			<Filter

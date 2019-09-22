@@ -1575,7 +1575,7 @@ void HandleCommand( HWND hWnd, WPARAM wParam, LPARAM lParam )
 				{
 					if ( g_hWnd_update_download == NULL )
 					{
-						g_hWnd_update_download = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"update_download", ST_V_Update_Download, WS_OVERLAPPEDWINDOW, ( ( _GetSystemMetrics( SM_CXSCREEN ) - 525 ) / 2 ), ( ( _GetSystemMetrics( SM_CYSCREEN ) - 403 ) / 2 ), 525, 403, NULL, NULL, NULL, NULL );
+						g_hWnd_update_download = _CreateWindowExW( WS_EX_COMPOSITED | ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"update_download", ST_V_Update_Download, WS_OVERLAPPEDWINDOW, ( ( _GetSystemMetrics( SM_CXSCREEN ) - 525 ) / 2 ), ( ( _GetSystemMetrics( SM_CYSCREEN ) - 385 ) / 2 ), 525, 385, NULL, NULL, NULL, NULL );
 					}
 					else if ( _IsIconic( g_hWnd_update_download ) )	// If minimized, then restore the window.
 					{
@@ -1702,7 +1702,7 @@ void HandleCommand( HWND hWnd, WPARAM wParam, LPARAM lParam )
 		{
 			if ( g_hWnd_add_urls == NULL )
 			{
-				g_hWnd_add_urls = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"add_urls", ST_V_Add_URL_s_, WS_OVERLAPPEDWINDOW, ( ( _GetSystemMetrics( SM_CXSCREEN ) - 600 ) / 2 ), ( ( _GetSystemMetrics( SM_CYSCREEN ) - 263 ) / 2 ), 600, 263, NULL, NULL, NULL, NULL );
+				g_hWnd_add_urls = _CreateWindowExW( WS_EX_COMPOSITED | ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"add_urls", ST_V_Add_URL_s_, WS_OVERLAPPEDWINDOW, ( ( _GetSystemMetrics( SM_CXSCREEN ) - 600 ) / 2 ), ( ( _GetSystemMetrics( SM_CYSCREEN ) - 270 ) / 2 ), 600, 270, NULL, NULL, NULL, NULL );
 			}
 
 			_SendMessageW( g_hWnd_add_urls, WM_PROPAGATE, 0, 0 );
@@ -1786,7 +1786,7 @@ void HandleCommand( HWND hWnd, WPARAM wParam, LPARAM lParam )
 		{
 			if ( g_hWnd_search == NULL )
 			{
-				g_hWnd_search = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"search", ST_V_Search, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU, ( ( _GetSystemMetrics( SM_CXSCREEN ) - 320 ) / 2 ), ( ( _GetSystemMetrics( SM_CYSCREEN ) - 210 ) / 2 ), 320, 210, NULL, NULL, NULL, NULL );
+				g_hWnd_search = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"search", ST_V_Search, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU, ( ( _GetSystemMetrics( SM_CXSCREEN ) - 400 ) / 2 ), ( ( _GetSystemMetrics( SM_CYSCREEN ) - 190 ) / 2 ), 400, 190, NULL, NULL, NULL, NULL );
 			}
 
 			_SendMessageW( g_hWnd_search, WM_PROPAGATE, 0, 0 );
@@ -1797,7 +1797,7 @@ void HandleCommand( HWND hWnd, WPARAM wParam, LPARAM lParam )
 		{
 			if ( g_hWnd_options == NULL )
 			{
-				g_hWnd_options = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"options", ST_V_Options, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU, ( ( _GetSystemMetrics( SM_CXSCREEN ) - 480 ) / 2 ), ( ( _GetSystemMetrics( SM_CYSCREEN ) - 400 ) / 2 ), 480, 400, NULL, NULL, NULL, NULL );
+				g_hWnd_options = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"options", ST_V_Options, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU /*| WS_THICKFRAME*/, ( ( _GetSystemMetrics( SM_CXSCREEN ) - 720 ) / 2 ), ( ( _GetSystemMetrics( SM_CYSCREEN ) - 500 ) / 2 ), 720, 500, NULL, NULL, NULL, NULL );
 				_ShowWindow( g_hWnd_options, SW_SHOWNORMAL );
 			}
 			_SetForegroundWindow( g_hWnd_options );
@@ -1831,23 +1831,27 @@ void HandleCommand( HWND hWnd, WPARAM wParam, LPARAM lParam )
 		case MENU_ABOUT:
 		{
 			wchar_t msg[ 512 ];
-			__snwprintf( msg, 512, L"HTTP Downloader is made free under the GPLv3 license.\r\n\r\n" \
-								   L"Version 1.0.2.7 (%u-bit)\r\n\r\n" \
-								   L"Built on %s, %s %d, %04d %d:%02d:%02d %s (UTC)\r\n\r\n" \
-								   L"Copyright \xA9 2015-2019 Eric Kutcher",
+			__snwprintf( msg, 512, L"%s\r\n\r\n" \
+								   L"%s 1.0.2.8 (%u-bit)\r\n\r\n" \
+								   L"%s %s, %s %d, %04d %d:%02d:%02d %s (UTC)\r\n\r\n" \
+								   L"%s \xA9 2015-2019 Eric Kutcher",
+								   ST_V_LICENSE,
+								   ST_V_VERSION,
 #ifdef _WIN64
 								   64,
 #else
 								   32,
 #endif
-								   ( g_compile_time.wDayOfWeek > 6 ? L"" : day_string_table[ g_compile_time.wDayOfWeek ].value ),
-								   ( ( g_compile_time.wMonth > 12 || g_compile_time.wMonth < 1 ) ? L"" : month_string_table[ g_compile_time.wMonth - 1 ].value ),
+								   ST_V_BUILT,
+								   ( g_compile_time.wDayOfWeek > 6 ? L"" : GetDay( g_compile_time.wDayOfWeek ) ),
+								   ( ( g_compile_time.wMonth > 12 || g_compile_time.wMonth < 1 ) ? L"" : GetMonth( g_compile_time.wMonth ) ),
 								   g_compile_time.wDay,
 								   g_compile_time.wYear,
 								   ( g_compile_time.wHour > 12 ? g_compile_time.wHour - 12 : ( g_compile_time.wHour != 0 ? g_compile_time.wHour : 12 ) ),
 								   g_compile_time.wMinute,
 								   g_compile_time.wSecond,
-								   ( g_compile_time.wHour >= 12 ? L"PM" : L"AM" ) );
+								   ( g_compile_time.wHour >= 12 ? L"PM" : L"AM" ),
+								   ST_V_COPYRIGHT );
 
 			_MessageBoxW( hWnd, msg, PROGRAM_CAPTION, MB_APPLMODAL | MB_ICONINFORMATION );
 		}
@@ -3395,7 +3399,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 			{
 				if ( g_hWnd_add_urls == NULL )
 				{
-					g_hWnd_add_urls = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"add_urls", ST_V_Add_URL_s_, WS_OVERLAPPEDWINDOW, ( ( _GetSystemMetrics( SM_CXSCREEN ) - 600 ) / 2 ), ( ( _GetSystemMetrics( SM_CYSCREEN ) - 263 ) / 2 ), 600, 263, NULL, NULL, NULL, NULL );
+					g_hWnd_add_urls = _CreateWindowExW( WS_EX_COMPOSITED | ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"add_urls", ST_V_Add_URL_s_, WS_OVERLAPPEDWINDOW, ( ( _GetSystemMetrics( SM_CXSCREEN ) - 600 ) / 2 ), ( ( _GetSystemMetrics( SM_CYSCREEN ) - 270 ) / 2 ), 600, 270, NULL, NULL, NULL, NULL );
 				}
 
 				_SendMessageW( g_hWnd_add_urls, WM_PROPAGATE, wParam, lParam );

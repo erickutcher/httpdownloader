@@ -25,23 +25,25 @@
 #define BTN_TRAY_ICON					1000
 #define BTN_MINIMIZE_TO_TRAY			1001
 #define BTN_CLOSE_TO_TRAY				1002
-#define BTN_SHOW_NOTIFICATION			1003
-#define BTN_SHOW_TRAY_PROGRESS			1004
+#define BTN_START_IN_TRAY				1003
+#define BTN_SHOW_NOTIFICATION			1004
+#define BTN_SHOW_TRAY_PROGRESS			1005
 
-#define BTN_ALWAYS_ON_TOP				1005
+#define BTN_ALWAYS_ON_TOP				1006
 
-#define BTN_ENABLE_DROP_WINDOW			1006
-#define EDIT_DROP_WINDOW_TRANSPARENCY	1007
-#define BTN_SHOW_DROP_WINDOW_PROGRESS	1008
+#define BTN_ENABLE_DROP_WINDOW			1007
+#define EDIT_DROP_WINDOW_TRANSPARENCY	1008
+#define BTN_SHOW_DROP_WINDOW_PROGRESS	1009
 
-#define BTN_PLAY_SOUND					1009
-#define EDIT_SOUND_FILE					1010
-#define BTN_LOAD_SOUND_FILE				1011
+#define BTN_PLAY_SOUND					1010
+#define EDIT_SOUND_FILE					1011
+#define BTN_LOAD_SOUND_FILE				1012
 
 // General Tab
 HWND g_hWnd_chk_tray_icon = NULL;
-HWND g_hWnd_chk_minimize = NULL;
-HWND g_hWnd_chk_close = NULL;
+HWND g_hWnd_chk_minimize_to_tray = NULL;
+HWND g_hWnd_chk_close_to_tray = NULL;
+HWND g_hWnd_chk_start_in_tray = NULL;
 HWND g_hWnd_chk_show_notification = NULL;
 
 HWND g_hWnd_chk_always_on_top = NULL;
@@ -69,35 +71,39 @@ LRESULT CALLBACK GeneralTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 			_GetClientRect( hWnd, &rc );
 
 			g_hWnd_chk_tray_icon = _CreateWindowW( WC_BUTTON, ST_V_Enable_System_Tray_icon_, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, rc.right, 20, hWnd, ( HMENU )BTN_TRAY_ICON, NULL, NULL );
-			g_hWnd_chk_minimize = _CreateWindowW( WC_BUTTON, ST_V_Minimize_to_System_Tray, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 15, 20, rc.right - 15, 20, hWnd, ( HMENU )BTN_MINIMIZE_TO_TRAY, NULL, NULL );
-			g_hWnd_chk_close = _CreateWindowW( WC_BUTTON, ST_V_Close_to_System_Tray, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 15, 40, rc.right - 15, 20, hWnd, ( HMENU )BTN_CLOSE_TO_TRAY, NULL, NULL );
-			g_hWnd_chk_show_notification = _CreateWindowW( WC_BUTTON, ST_V_Show_notification_when_downloads_finish, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 15, 60, rc.right - 15, 20, hWnd, ( HMENU )BTN_SHOW_NOTIFICATION, NULL, NULL );
-			g_hWnd_chk_show_tray_progress = _CreateWindowW( WC_BUTTON, ST_V_Show_progress_bar, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 15, 80, rc.right - 15, 20, hWnd, ( HMENU )BTN_SHOW_TRAY_PROGRESS, NULL, NULL );
+			g_hWnd_chk_minimize_to_tray = _CreateWindowW( WC_BUTTON, ST_V_Minimize_to_System_Tray, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 15, 20, rc.right - 15, 20, hWnd, ( HMENU )BTN_MINIMIZE_TO_TRAY, NULL, NULL );
+			g_hWnd_chk_close_to_tray = _CreateWindowW( WC_BUTTON, ST_V_Close_to_System_Tray, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 15, 40, rc.right - 15, 20, hWnd, ( HMENU )BTN_CLOSE_TO_TRAY, NULL, NULL );
+			g_hWnd_chk_start_in_tray = _CreateWindowW( WC_BUTTON, ST_V_Start_in_System_Tray, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 15, 60, rc.right - 15, 20, hWnd, ( HMENU )BTN_START_IN_TRAY, NULL, NULL );
+			g_hWnd_chk_show_notification = _CreateWindowW( WC_BUTTON, ST_V_Show_notification_when_downloads_finish, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 15, 80, rc.right - 15, 20, hWnd, ( HMENU )BTN_SHOW_NOTIFICATION, NULL, NULL );
+			g_hWnd_chk_show_tray_progress = _CreateWindowW( WC_BUTTON, ST_V_Show_progress_bar, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 15, 100, rc.right - 15, 20, hWnd, ( HMENU )BTN_SHOW_TRAY_PROGRESS, NULL, NULL );
 
-			g_hWnd_chk_always_on_top = _CreateWindowW( WC_BUTTON, ST_V_Always_on_top, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 100, rc.right, 20, hWnd, ( HMENU )BTN_ALWAYS_ON_TOP, NULL, NULL );
+			g_hWnd_chk_always_on_top = _CreateWindowW( WC_BUTTON, ST_V_Always_on_top, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 120, rc.right, 20, hWnd, ( HMENU )BTN_ALWAYS_ON_TOP, NULL, NULL );
 
-			g_hWnd_chk_enable_drop_window = _CreateWindowW( WC_BUTTON, ST_V_Enable_URL_drop_window_, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 120, rc.right, 20, hWnd, ( HMENU )BTN_ENABLE_DROP_WINDOW, NULL, NULL );
+			g_hWnd_chk_enable_drop_window = _CreateWindowW( WC_BUTTON, ST_V_Enable_URL_drop_window_, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 140, rc.right, 20, hWnd, ( HMENU )BTN_ENABLE_DROP_WINDOW, NULL, NULL );
 
-			g_hWnd_static_drop_window_transparency = _CreateWindowW( WC_STATIC, ST_V_Transparency_, WS_CHILD | WS_VISIBLE, 15, 144, 100, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_drop_window_transparency = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 115, 140, 60, 23, hWnd, ( HMENU )EDIT_DROP_WINDOW_TRANSPARENCY, NULL, NULL );
-			// Keep this unattached. Looks ugly inside the text box.
-			g_hWnd_ud_drop_window_transparency = _CreateWindowW( UPDOWN_CLASS, NULL, /*UDS_ALIGNRIGHT |*/ UDS_ARROWKEYS | UDS_NOTHOUSANDS | UDS_SETBUDDYINT | WS_CHILD | WS_VISIBLE, 175, 139, _GetSystemMetrics( SM_CXVSCROLL ), 25, hWnd, NULL, NULL, NULL );
+			g_hWnd_static_drop_window_transparency = _CreateWindowW( WC_STATIC, ST_V_Transparency_, WS_CHILD | WS_VISIBLE, 15, 164, 100, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_drop_window_transparency = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 115, 160, 60, 23, hWnd, ( HMENU )EDIT_DROP_WINDOW_TRANSPARENCY, NULL, NULL );
+
+			g_hWnd_ud_drop_window_transparency = _CreateWindowW( UPDOWN_CLASS, NULL, UDS_ALIGNRIGHT | UDS_ARROWKEYS | UDS_NOTHOUSANDS | UDS_SETBUDDYINT | WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 
 			_SendMessageW( g_hWnd_drop_window_transparency, EM_LIMITTEXT, 3, 0 );
 			_SendMessageW( g_hWnd_ud_drop_window_transparency, UDM_SETBUDDY, ( WPARAM )g_hWnd_drop_window_transparency, 0 );
             _SendMessageW( g_hWnd_ud_drop_window_transparency, UDM_SETBASE, 10, 0 );
 			_SendMessageW( g_hWnd_ud_drop_window_transparency, UDM_SETRANGE32, 0, 255 );
+			_SetWindowPos( g_hWnd_drop_window_transparency, HWND_TOP, 0, 0, 60, 23, SWP_NOZORDER | SWP_NOMOVE );
+			_SetWindowPos( g_hWnd_ud_drop_window_transparency, HWND_TOP, 175, 160, 0, 0, SWP_NOZORDER | SWP_NOSIZE );
 
-			g_hWnd_chk_show_drop_window_progress = _CreateWindowW( WC_BUTTON, ST_V_Show_progress_bar, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 15, 163, rc.right - 15, 20, hWnd, ( HMENU )BTN_SHOW_DROP_WINDOW_PROGRESS, NULL, NULL );
+			g_hWnd_chk_show_drop_window_progress = _CreateWindowW( WC_BUTTON, ST_V_Show_progress_bar, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 15, 183, rc.right - 15, 20, hWnd, ( HMENU )BTN_SHOW_DROP_WINDOW_PROGRESS, NULL, NULL );
 
-			g_hWnd_chk_play_sound = _CreateWindowW( WC_BUTTON, ST_V_Play_sound_when_downloads_finish_, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 183, rc.right, 20, hWnd, ( HMENU )BTN_PLAY_SOUND, NULL, NULL );
-			g_hWnd_sound_file = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, cfg_sound_file_path, ES_AUTOHSCROLL | ES_READONLY | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 203, rc.right - 40, 23, hWnd, NULL, NULL, NULL );
-			g_hWnd_load_sound_file = _CreateWindowW( WC_BUTTON, ST_V_BTN___, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 35, 203, 35, 23, hWnd, ( HMENU )BTN_LOAD_SOUND_FILE, NULL, NULL );
+			g_hWnd_chk_play_sound = _CreateWindowW( WC_BUTTON, ST_V_Play_sound_when_downloads_finish_, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 203, rc.right, 20, hWnd, ( HMENU )BTN_PLAY_SOUND, NULL, NULL );
+			g_hWnd_sound_file = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, cfg_sound_file_path, ES_AUTOHSCROLL | ES_READONLY | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 223, rc.right - 40, 23, hWnd, NULL, NULL, NULL );
+			g_hWnd_load_sound_file = _CreateWindowW( WC_BUTTON, ST_V_BTN___, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 35, 223, 35, 23, hWnd, ( HMENU )BTN_LOAD_SOUND_FILE, NULL, NULL );
 
 
 			_SendMessageW( g_hWnd_chk_tray_icon, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_chk_minimize, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_chk_close, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_chk_minimize_to_tray, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_chk_close_to_tray, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_chk_start_in_tray, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 			_SendMessageW( g_hWnd_chk_show_notification, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 			_SendMessageW( g_hWnd_chk_show_tray_progress, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 
@@ -117,22 +123,25 @@ LRESULT CALLBACK GeneralTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 			if ( cfg_tray_icon )
 			{
 				_SendMessageW( g_hWnd_chk_tray_icon, BM_SETCHECK, BST_CHECKED, 0 );
-				_EnableWindow( g_hWnd_chk_minimize, TRUE );
-				_EnableWindow( g_hWnd_chk_close, TRUE );
+				_EnableWindow( g_hWnd_chk_minimize_to_tray, TRUE );
+				_EnableWindow( g_hWnd_chk_close_to_tray, TRUE );
+				_EnableWindow( g_hWnd_chk_start_in_tray, TRUE );
 				_EnableWindow( g_hWnd_chk_show_notification, TRUE );
 				_EnableWindow( g_hWnd_chk_show_tray_progress, TRUE );
 			}
 			else
 			{
 				_SendMessageW( g_hWnd_chk_tray_icon, BM_SETCHECK, BST_UNCHECKED, 0 );
-				_EnableWindow( g_hWnd_chk_minimize, FALSE );
-				_EnableWindow( g_hWnd_chk_close, FALSE );
+				_EnableWindow( g_hWnd_chk_minimize_to_tray, FALSE );
+				_EnableWindow( g_hWnd_chk_close_to_tray, FALSE );
+				_EnableWindow( g_hWnd_chk_start_in_tray, FALSE );
 				_EnableWindow( g_hWnd_chk_show_notification, FALSE );
 				_EnableWindow( g_hWnd_chk_show_tray_progress, FALSE );
 			}
 
-			_SendMessageW( g_hWnd_chk_minimize, BM_SETCHECK, ( cfg_minimize_to_tray ? BST_CHECKED : BST_UNCHECKED ), 0 );
-			_SendMessageW( g_hWnd_chk_close, BM_SETCHECK, ( cfg_close_to_tray ? BST_CHECKED : BST_UNCHECKED ), 0 );
+			_SendMessageW( g_hWnd_chk_minimize_to_tray, BM_SETCHECK, ( cfg_minimize_to_tray ? BST_CHECKED : BST_UNCHECKED ), 0 );
+			_SendMessageW( g_hWnd_chk_close_to_tray, BM_SETCHECK, ( cfg_close_to_tray ? BST_CHECKED : BST_UNCHECKED ), 0 );
+			_SendMessageW( g_hWnd_chk_start_in_tray, BM_SETCHECK, ( cfg_start_in_tray ? BST_CHECKED : BST_UNCHECKED ), 0 );
 			_SendMessageW( g_hWnd_chk_show_notification, BM_SETCHECK, ( cfg_show_notification ? BST_CHECKED : BST_UNCHECKED ), 0 );
 			_SendMessageW( g_hWnd_chk_show_tray_progress, BM_SETCHECK, ( cfg_show_tray_progress ? BST_CHECKED : BST_UNCHECKED ), 0 );
 
@@ -175,12 +184,6 @@ LRESULT CALLBACK GeneralTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 		}
 		break;
 
-		case WM_CTLCOLORSTATIC:
-		{
-			return ( LRESULT )( _GetSysColorBrush( COLOR_WINDOW ) );
-		}
-		break;
-
 		case WM_COMMAND:
 		{
 			switch ( LOWORD( wParam ) )
@@ -189,21 +192,23 @@ LRESULT CALLBACK GeneralTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 				{
 					if ( _SendMessageW( g_hWnd_chk_tray_icon, BM_GETCHECK, 0, 0 ) == BST_CHECKED )
 					{
-						_EnableWindow( g_hWnd_chk_minimize, TRUE );
-						_EnableWindow( g_hWnd_chk_close, TRUE );
+						_EnableWindow( g_hWnd_chk_minimize_to_tray, TRUE );
+						_EnableWindow( g_hWnd_chk_close_to_tray, TRUE );
+						_EnableWindow( g_hWnd_chk_start_in_tray, TRUE );
 						_EnableWindow( g_hWnd_chk_show_notification, TRUE );
 						_EnableWindow( g_hWnd_chk_show_tray_progress, TRUE );
 					}
 					else
 					{
-						_EnableWindow( g_hWnd_chk_minimize, FALSE );
-						_EnableWindow( g_hWnd_chk_close, FALSE );
+						_EnableWindow( g_hWnd_chk_minimize_to_tray, FALSE );
+						_EnableWindow( g_hWnd_chk_close_to_tray, FALSE );
+						_EnableWindow( g_hWnd_chk_start_in_tray, FALSE );
 						_EnableWindow( g_hWnd_chk_show_notification, FALSE );
 						_EnableWindow( g_hWnd_chk_show_tray_progress, FALSE );
 					}
 
 					options_state_changed = true;
-					_EnableWindow( g_hWnd_apply, TRUE );
+					_EnableWindow( g_hWnd_options_apply, TRUE );
 				}
 				break;
 
@@ -225,7 +230,7 @@ LRESULT CALLBACK GeneralTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 					}
 
 					options_state_changed = true;
-					_EnableWindow( g_hWnd_apply, TRUE );
+					_EnableWindow( g_hWnd_options_apply, TRUE );
 				}
 				break;
 
@@ -251,21 +256,22 @@ LRESULT CALLBACK GeneralTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 						if ( num != cfg_drop_window_transparency )
 						{
 							options_state_changed = true;
-							_EnableWindow( g_hWnd_apply, TRUE );
+							_EnableWindow( g_hWnd_options_apply, TRUE );
 						}
 					}
 				}
 				break;
 
-				case BTN_CLOSE_TO_TRAY:
 				case BTN_MINIMIZE_TO_TRAY:
-				case BTN_ALWAYS_ON_TOP:
+				case BTN_CLOSE_TO_TRAY:
+				case BTN_START_IN_TRAY:
 				case BTN_SHOW_NOTIFICATION:
 				case BTN_SHOW_TRAY_PROGRESS:
+				case BTN_ALWAYS_ON_TOP:
 				case BTN_SHOW_DROP_WINDOW_PROGRESS:
 				{
 					options_state_changed = true;
-					_EnableWindow( g_hWnd_apply, TRUE );
+					_EnableWindow( g_hWnd_options_apply, TRUE );
 				}
 				break;
 
@@ -293,7 +299,7 @@ LRESULT CALLBACK GeneralTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 					if ( !show_dialog )
 					{
 						options_state_changed = true;
-						_EnableWindow( g_hWnd_apply, TRUE );
+						_EnableWindow( g_hWnd_options_apply, TRUE );
 
 						break;
 					}
@@ -325,7 +331,7 @@ LRESULT CALLBACK GeneralTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 						_SendMessageW( g_hWnd_sound_file, WM_SETTEXT, 0, ( LPARAM )t_sound_file_path );
 
 						options_state_changed = true;
-						_EnableWindow( g_hWnd_apply, TRUE );
+						_EnableWindow( g_hWnd_options_apply, TRUE );
 					}
 					else
 					{

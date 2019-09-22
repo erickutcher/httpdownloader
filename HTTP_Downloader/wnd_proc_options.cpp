@@ -36,8 +36,6 @@
 
 #include "options.h"
 
-//#include "wnd_proc.h"
-
 #define BTN_OK					1000
 #define BTN_CANCEL				1001
 #define BTN_APPLY				1002
@@ -47,15 +45,20 @@ HWND g_hWnd_options = NULL;
 bool options_state_changed = false;
 
 // Options Window
-HWND g_hWnd_options_tab = NULL;
+HWND g_hWnd_options_tree = NULL;
 HWND g_hWnd_general_tab = NULL;
 HWND g_hWnd_appearance_tab = NULL;
 HWND g_hWnd_connection_tab = NULL;
+HWND g_hWnd_web_server_tab = NULL;
 HWND g_hWnd_ftp_tab = NULL;
 HWND g_hWnd_proxy_tab = NULL;
 HWND g_hWnd_advanced_tab = NULL;
 
-HWND g_hWnd_apply = NULL;
+HWND g_hWnd_options_ok = NULL;
+HWND g_hWnd_options_cancel = NULL;
+HWND g_hWnd_options_apply = NULL;
+
+WNDPROC TreeViewProc = NULL;
 
 void SetServerSettings()
 {
@@ -467,6 +470,24 @@ void SetAppearanceSettings()
 	_InvalidateRect( g_hWnd_files, NULL, TRUE );
 }
 
+LRESULT CALLBACK TreeViewSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
+{
+	switch ( msg )
+	{
+		case WM_KEYDOWN:
+		{
+			// Prevent the expand/collapse of parents.
+			if ( wParam == VK_LEFT || wParam == VK_RIGHT )
+			{
+				return 0;
+			}
+		}
+		break;
+	}
+
+	return _CallWindowProcW( TreeViewProc, hWnd, msg, wParam, lParam );
+}
+
 LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
 {
     switch ( msg )
@@ -476,71 +497,144 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			RECT rc;
 			_GetClientRect( hWnd, &rc );
 
-			// WS_CLIPCHILDREN causes artifacts when entering a bad character in a number only edit control.
-			g_hWnd_options_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, WC_TABCONTROL, NULL, WS_CHILD | /*WS_CLIPCHILDREN |*/ WS_TABSTOP | WS_VISIBLE, 10, 10, rc.right - 20, rc.bottom - 50, hWnd, NULL, NULL, NULL );
-
-			TCITEM ti;
-			_memzero( &ti, sizeof( TCITEM ) );
-			ti.mask = TCIF_PARAM | TCIF_TEXT;	// The tab will have text and an lParam value.
-
-			ti.pszText = ( LPWSTR )ST_V_General;
-			ti.lParam = ( LPARAM )&g_hWnd_general_tab;
-			_SendMessageW( g_hWnd_options_tab, TCM_INSERTITEM, 0, ( LPARAM )&ti );
-
-			ti.pszText = ( LPWSTR )ST_V_Appearance;
-			ti.lParam = ( LPARAM )&g_hWnd_appearance_tab;
-			_SendMessageW( g_hWnd_options_tab, TCM_INSERTITEM, 1, ( LPARAM )&ti );
-
-			ti.pszText = ( LPWSTR )ST_V_Connection;
-			ti.lParam = ( LPARAM )&g_hWnd_connection_tab;
-			_SendMessageW( g_hWnd_options_tab, TCM_INSERTITEM, 2, ( LPARAM )&ti );
-
-			ti.pszText = ( LPWSTR )ST_V_FTP;
-			ti.lParam = ( LPARAM )&g_hWnd_ftp_tab;
-			_SendMessageW( g_hWnd_options_tab, TCM_INSERTITEM, 3, ( LPARAM )&ti );
-
-			ti.pszText = ( LPWSTR )ST_V_Proxy;
-			ti.lParam = ( LPARAM )&g_hWnd_proxy_tab;
-			_SendMessageW( g_hWnd_options_tab, TCM_INSERTITEM, 4, ( LPARAM )&ti );
-
-			ti.pszText = ( LPWSTR )ST_V_Advanced;
-			ti.lParam = ( LPARAM )&g_hWnd_advanced_tab;
-			_SendMessageW( g_hWnd_options_tab, TCM_INSERTITEM, 5, ( LPARAM )&ti );
+			g_hWnd_options_tree = _CreateWindowExW( WS_EX_CLIENTEDGE | TVS_EX_DOUBLEBUFFER, WC_TREEVIEW, NULL, TVS_HASBUTTONS | TVS_HASLINES | TVS_DISABLEDRAGDROP | TVS_SHOWSELALWAYS | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 10, 10, 120, rc.bottom - 50, hWnd, NULL, NULL, NULL );
 
 
-			HWND g_hWnd_ok = _CreateWindowW( WC_BUTTON, ST_V_OK, BS_DEFPUSHBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 260, rc.bottom - 32, 80, 23, hWnd, ( HMENU )BTN_OK, NULL, NULL );
-			HWND g_hWnd_cancel = _CreateWindowW( WC_BUTTON, ST_V_Cancel, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 175, rc.bottom - 32, 80, 23, hWnd, ( HMENU )BTN_CANCEL, NULL, NULL );
-			g_hWnd_apply = _CreateWindowW( WC_BUTTON, ST_V_Apply, WS_CHILD | WS_DISABLED | WS_TABSTOP | WS_VISIBLE, rc.right - 90, rc.bottom - 32, 80, 23, hWnd, ( HMENU )BTN_APPLY, NULL, NULL );
+			TVINSERTSTRUCT tvis;
+			_memzero( &tvis, sizeof( TVINSERTSTRUCT ) );
+
+			tvis.item.mask = TVIF_TEXT | TVIF_PARAM | TVIF_STATE;
+			tvis.item.state = TVIS_SELECTED;
+			tvis.item.stateMask = TVIS_SELECTED | TVIS_EXPANDED;
+			tvis.item.cchTextMax = ST_L_General;
+			tvis.item.pszText = ST_V_General;
+			tvis.item.lParam = ( LPARAM )&g_hWnd_general_tab;
+
+			tvis.hInsertAfter = TVI_FIRST;
+			tvis.hParent = TVI_ROOT;
+
+			HTREEITEM hti = ( HTREEITEM )_SendMessageW( g_hWnd_options_tree, TVM_INSERTITEM, 0, ( LPARAM )&tvis );
+
+			//tvis.item.mask = TVIF_TEXT | TVIF_PARAM | TVIF_STATE;
+			tvis.item.state = 0;
+			//tvis.item.stateMask = TVIS_SELECTED | TVIS_EXPANDED;
+			tvis.item.cchTextMax = ST_L_Appearance;
+			tvis.item.pszText = ST_V_Appearance;
+			tvis.item.lParam = ( LPARAM )&g_hWnd_appearance_tab;
+
+			tvis.hParent = NULL;
+			tvis.hInsertAfter = hti;
+
+			hti = ( HTREEITEM )_SendMessageW( g_hWnd_options_tree, TVM_INSERTITEM, 0, ( LPARAM )&tvis );
+
+			//tvis.item.mask = TVIF_TEXT | TVIF_PARAM | TVIF_STATE;
+			tvis.item.state = TVIS_EXPANDED;
+			//tvis.item.stateMask = TVIS_SELECTED | TVIS_EXPANDED;
+			tvis.item.cchTextMax = ST_L_Connection;
+			tvis.item.pszText = ST_V_Connection;
+			tvis.item.lParam = ( LPARAM )&g_hWnd_connection_tab;
+
+			tvis.hParent = NULL;
+			tvis.hInsertAfter = hti;
+
+			HTREEITEM hti_connection = ( HTREEITEM )_SendMessageW( g_hWnd_options_tree, TVM_INSERTITEM, 0, ( LPARAM )&tvis );
+
+			//tvis.item.mask = TVIF_TEXT | TVIF_PARAM | TVIF_STATE;
+			//tvis.item.state = TVIS_EXPANDED;
+			//tvis.item.stateMask = TVIS_SELECTED | TVIS_EXPANDED;
+			tvis.item.cchTextMax = ST_L_FTP;
+			tvis.item.pszText = ST_V_FTP;
+			tvis.item.lParam = ( LPARAM )&g_hWnd_ftp_tab;
+
+			tvis.hParent = hti_connection;
+			tvis.hInsertAfter = hti_connection;
+
+			hti = ( HTREEITEM )_SendMessageW( g_hWnd_options_tree, TVM_INSERTITEM, 0, ( LPARAM )&tvis );
+
+			//tvis.item.mask = TVIF_TEXT | TVIF_PARAM | TVIF_STATE;
+			//tvis.item.state = TVIS_EXPANDED;
+			//tvis.item.stateMask = TVIS_SELECTED | TVIS_EXPANDED;
+			tvis.item.cchTextMax = ST_L_Proxy;
+			tvis.item.pszText = ST_V_Proxy;
+			tvis.item.lParam = ( LPARAM )&g_hWnd_proxy_tab;
+
+			tvis.hParent = hti_connection;
+			tvis.hInsertAfter = hti;
+
+			hti = ( HTREEITEM )_SendMessageW( g_hWnd_options_tree, TVM_INSERTITEM, 0, ( LPARAM )&tvis );
+
+			//tvis.item.mask = TVIF_TEXT | TVIF_PARAM | TVIF_STATE;
+			//tvis.item.state = TVIS_EXPANDED;
+			//tvis.item.stateMask = TVIS_SELECTED | TVIS_EXPANDED;
+			tvis.item.cchTextMax = ST_L_Server;
+			tvis.item.pszText = ST_V_Server;
+			tvis.item.lParam = ( LPARAM )&g_hWnd_web_server_tab;
+
+			tvis.hParent = hti_connection;
+			tvis.hInsertAfter = hti;
+
+			hti = ( HTREEITEM )_SendMessageW( g_hWnd_options_tree, TVM_INSERTITEM, 0, ( LPARAM )&tvis );
+
+			//tvis.item.mask = TVIF_TEXT | TVIF_PARAM | TVIF_STATE;
+			tvis.item.state = 0;
+			//tvis.item.stateMask = TVIS_SELECTED | TVIS_EXPANDED;
+			tvis.item.cchTextMax = ST_L_Advanced;
+			tvis.item.pszText = ST_V_Advanced;
+			tvis.item.lParam = ( LPARAM )&g_hWnd_advanced_tab;
+
+			tvis.hParent = NULL;
+			tvis.hInsertAfter = hti;
+
+			_SendMessageW( g_hWnd_options_tree, TVM_INSERTITEM, 0, ( LPARAM )&tvis );
+
+			g_hWnd_options_ok = _CreateWindowW( WC_BUTTON, ST_V_OK, BS_DEFPUSHBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 260, rc.bottom - 32, 80, 23, hWnd, ( HMENU )BTN_OK, NULL, NULL );
+			g_hWnd_options_cancel = _CreateWindowW( WC_BUTTON, ST_V_Cancel, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 175, rc.bottom - 32, 80, 23, hWnd, ( HMENU )BTN_CANCEL, NULL, NULL );
+			g_hWnd_options_apply = _CreateWindowW( WC_BUTTON, ST_V_Apply, WS_CHILD | WS_DISABLED | WS_TABSTOP | WS_VISIBLE, rc.right - 90, rc.bottom - 32, 80, 23, hWnd, ( HMENU )BTN_APPLY, NULL, NULL );
+
+			g_hWnd_general_tab = _CreateWindowW( L"general_tab", NULL, WS_CHILD | WS_TABSTOP | WS_VISIBLE, 140, 10, rc.right - 150, rc.bottom - 50, hWnd, NULL, NULL, NULL );
+			g_hWnd_appearance_tab = _CreateWindowW( L"appearance_tab", NULL, WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, rc.bottom - 50, hWnd, NULL, NULL, NULL );
+			g_hWnd_connection_tab = _CreateWindowW( L"connection_tab", NULL, WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, rc.bottom - 50, hWnd, NULL, NULL, NULL );
+			g_hWnd_web_server_tab = _CreateWindowW( L"web_server_tab", NULL, WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, rc.bottom - 50, hWnd, NULL, NULL, NULL );
+			g_hWnd_ftp_tab = _CreateWindowW( L"ftp_tab", NULL, WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, rc.bottom - 50, hWnd, NULL, NULL, NULL );
+			g_hWnd_proxy_tab = _CreateWindowW( L"proxy_tab", NULL, WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, rc.bottom - 50, hWnd, NULL, NULL, NULL );
+			g_hWnd_advanced_tab = _CreateWindowW( L"advanced_tab", NULL, WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, rc.bottom - 50, hWnd, NULL, NULL, NULL );
 
 
-			_SendMessageW( g_hWnd_options_tab, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_options_ok, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_options_cancel, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_options_apply, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 
-			// Set the tab control's font so we can get the correct tab height to adjust its children.
-			RECT rc_tab;
-			_GetClientRect( g_hWnd_options_tab, &rc );
-
-			_SendMessageW( g_hWnd_options_tab, TCM_GETITEMRECT, 0, ( LPARAM )&rc_tab );
-
-			g_hWnd_general_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"general_tab", NULL, WS_CHILD | WS_TABSTOP | WS_VISIBLE, 15, ( rc_tab.bottom + rc_tab.top ) + 12, rc.right - 30, rc.bottom - ( ( rc_tab.bottom + rc_tab.top ) + 24 ), g_hWnd_options_tab, NULL, NULL, NULL );
-			g_hWnd_appearance_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"appearance_tab", NULL, WS_CHILD | WS_TABSTOP, 15, ( rc_tab.bottom + rc_tab.top ) + 12, rc.right - 30, rc.bottom - ( ( rc_tab.bottom + rc_tab.top ) + 24 ), g_hWnd_options_tab, NULL, NULL, NULL );
-			g_hWnd_connection_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"connection_tab", NULL, WS_CHILD | WS_VSCROLL | WS_TABSTOP, 15, ( rc_tab.bottom + rc_tab.top ) + 12, rc.right - 30, rc.bottom - ( ( rc_tab.bottom + rc_tab.top ) + 24 ), g_hWnd_options_tab, NULL, NULL, NULL );
-			g_hWnd_ftp_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"ftp_tab", NULL, WS_CHILD | WS_TABSTOP, 15, ( rc_tab.bottom + rc_tab.top ) + 12, rc.right - 30, rc.bottom - ( ( rc_tab.bottom + rc_tab.top ) + 24 ), g_hWnd_options_tab, NULL, NULL, NULL );
-			g_hWnd_proxy_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"proxy_tab", NULL, WS_CHILD | WS_VSCROLL | WS_TABSTOP, 15, ( rc_tab.bottom + rc_tab.top ) + 12, rc.right - 30, rc.bottom - ( ( rc_tab.bottom + rc_tab.top ) + 24 ), g_hWnd_options_tab, NULL, NULL, NULL );
-			g_hWnd_advanced_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"advanced_tab", NULL, WS_CHILD | WS_VSCROLL | WS_TABSTOP, 15, ( rc_tab.bottom + rc_tab.top ) + 12, rc.right - 30, rc.bottom - ( ( rc_tab.bottom + rc_tab.top ) + 24 ), g_hWnd_options_tab, NULL, NULL, NULL );
-
-			_SendMessageW( g_hWnd_ok, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_cancel, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_apply, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			TreeViewProc = ( WNDPROC )_GetWindowLongPtrW( g_hWnd_options_tree, GWLP_WNDPROC );
+			_SetWindowLongPtrW( g_hWnd_options_tree, GWLP_WNDPROC, ( LONG_PTR )TreeViewSubProc );
 
 			options_state_changed = false;
-			_EnableWindow( g_hWnd_apply, FALSE );
+			_EnableWindow( g_hWnd_options_apply, FALSE );
 
-			/*TabProc = ( WNDPROC )_GetWindowLongPtrW( g_hWnd_options_tab, GWLP_WNDPROC );
-			_SetWindowLongPtrW( g_hWnd_options_tab, GWLP_WNDPROC, ( LONG_PTR )TabSubProc );
+			return 0;
+		}
+		break;
 
-			// Open theme data. Must be done after we subclass the control.
-			// Theme object will be closed when all tab controls are destroyed.
-			_SendMessageW( g_hWnd_options_tab, WM_PROPAGATE, 0, ( LPARAM )COLOR_3DFACE );*/
+		case WM_SIZE:
+		{
+			RECT rc;
+			_GetClientRect( hWnd, &rc );
+
+			// Allow our listview to resize in proportion to the main window.
+			HDWP hdwp = _BeginDeferWindowPos( 10 );
+			_DeferWindowPos( hdwp, g_hWnd_options_tree, HWND_TOP, 0, 0, 120, rc.bottom - 50, SWP_NOZORDER | SWP_NOMOVE );
+
+			_DeferWindowPos( hdwp, g_hWnd_general_tab, HWND_TOP, 0, 0, rc.right - 150, rc.bottom - 50, SWP_NOZORDER | SWP_NOMOVE );
+			_DeferWindowPos( hdwp, g_hWnd_appearance_tab, HWND_TOP, 0, 0, rc.right - 150, rc.bottom - 50, SWP_NOZORDER | SWP_NOMOVE );
+			_DeferWindowPos( hdwp, g_hWnd_connection_tab, HWND_TOP, 0, 0, rc.right - 150, rc.bottom - 50, SWP_NOZORDER | SWP_NOMOVE );
+			_DeferWindowPos( hdwp, g_hWnd_web_server_tab, HWND_TOP, 0, 0, rc.right - 150, rc.bottom - 50, SWP_NOZORDER | SWP_NOMOVE );
+			_DeferWindowPos( hdwp, g_hWnd_ftp_tab, HWND_TOP, 0, 0, rc.right - 150, rc.bottom - 50, SWP_NOZORDER | SWP_NOMOVE );
+			_DeferWindowPos( hdwp, g_hWnd_proxy_tab, HWND_TOP, 0, 0, rc.right - 150, rc.bottom - 50, SWP_NOZORDER | SWP_NOMOVE );
+			_DeferWindowPos( hdwp, g_hWnd_advanced_tab, HWND_TOP, 0, 0, rc.right - 150, rc.bottom - 50, SWP_NOZORDER | SWP_NOMOVE );
+
+			_DeferWindowPos( hdwp, g_hWnd_options_ok, HWND_TOP, rc.right - 260, rc.bottom - 32, 0, 0, SWP_NOZORDER | SWP_NOSIZE );
+			_DeferWindowPos( hdwp, g_hWnd_options_cancel, HWND_TOP, rc.right - 175, rc.bottom - 32, 0, 0, SWP_NOZORDER | SWP_NOSIZE );
+			_DeferWindowPos( hdwp, g_hWnd_options_apply, HWND_TOP, rc.right - 90, rc.bottom - 32, 0, 0, SWP_NOZORDER | SWP_NOSIZE );
+			_EndDeferWindowPos( hdwp );
 
 			return 0;
 		}
@@ -548,46 +642,34 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 		case WM_NOTIFY:
 		{
-			// Get our listview codes.
+			// Get our treeview codes.
 			switch ( ( ( LPNMHDR )lParam )->code )
 			{
-				case TCN_SELCHANGING:		// The tab that's about to lose focus
+				case TVN_SELCHANGING:		// The tree item that's about to lose focus
 				{
-					NMHDR *nmhdr = ( NMHDR * )lParam;
+					NMTREEVIEW *nmtv = ( NMTREEVIEW * )lParam;
 
-					TCITEM tie;
-					_memzero( &tie, sizeof( TCITEM ) );
-					tie.mask = TCIF_PARAM; // Get the lparam value
-					int index = ( int )_SendMessageW( nmhdr->hwndFrom, TCM_GETCURSEL, 0, 0 );		// Get the selected tab
-					if ( index != -1 )
+					if ( nmtv->itemOld.lParam != NULL )
 					{
-						_SendMessageW( nmhdr->hwndFrom, TCM_GETITEM, index, ( LPARAM )&tie );	// Get the selected tab's information
-						_ShowWindow( *( ( HWND * )tie.lParam ), SW_HIDE );
+						_ShowWindow( *( ( HWND * )nmtv->itemOld.lParam ), SW_HIDE );
 					}
 				}
 				break;
 
-				case TCN_SELCHANGE:			// The tab that gains focus
+				case TVN_SELCHANGED:			// The tree item that gains focus
 				{
-					NMHDR *nmhdr = ( NMHDR * )lParam;
+					NMTREEVIEW *nmtv = ( NMTREEVIEW * )lParam;
 
-					HWND hWnd_focused = GetFocus();
-					if ( hWnd_focused != hWnd && hWnd_focused != nmhdr->hwndFrom )
+					if ( nmtv->itemNew.lParam != NULL )
 					{
-						SetFocus( GetWindow( nmhdr->hwndFrom, GW_CHILD ) );
+						_ShowWindow( *( ( HWND * )nmtv->itemNew.lParam ), SW_SHOW );
 					}
+				}
+				break;
 
-					TCITEM tie;
-					_memzero( &tie, sizeof( TCITEM ) );
-					tie.mask = TCIF_PARAM; // Get the lparam value
-					int index = ( int )_SendMessageW( nmhdr->hwndFrom, TCM_GETCURSEL, 0, 0 );		// Get the selected tab
-					if ( index != -1 )
-					{
-						_SendMessageW( nmhdr->hwndFrom, TCM_GETITEM, index, ( LPARAM )&tie );	// Get the selected tab's information
-						_ShowWindow( *( ( HWND * )tie.lParam ), SW_SHOW );
-
-						_SetFocus( *( ( HWND * )tie.lParam ) );
-					}
+				case NM_DBLCLK:
+				{
+					return TRUE;
 				}
 				break;
 			}
@@ -630,8 +712,9 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 					cfg_sound_file_path = GlobalStrDupW( t_sound_file_path );
 
-					cfg_minimize_to_tray = ( _SendMessageW( g_hWnd_chk_minimize, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
-					cfg_close_to_tray = ( _SendMessageW( g_hWnd_chk_close, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
+					cfg_minimize_to_tray = ( _SendMessageW( g_hWnd_chk_minimize_to_tray, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
+					cfg_close_to_tray = ( _SendMessageW( g_hWnd_chk_close_to_tray, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
+					cfg_start_in_tray = ( _SendMessageW( g_hWnd_chk_start_in_tray, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
 					cfg_show_notification = ( _SendMessageW( g_hWnd_chk_show_notification, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
 
 					cfg_show_tray_progress = ( _SendMessageW( g_hWnd_chk_show_tray_progress, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
@@ -1199,7 +1282,7 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 					if ( LOWORD( wParam ) == BTN_APPLY )
 					{
-						_EnableWindow( g_hWnd_apply, FALSE );
+						_EnableWindow( g_hWnd_options_apply, FALSE );
 					}
 					else
 					{
@@ -1222,6 +1305,8 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 		{
 			// 0 = inactive, > 0 = active
 			g_hWnd_active = ( wParam == 0 ? NULL : hWnd );
+
+			_SetFocus( g_hWnd_options_tree );
 
 			return FALSE;
 		}
