@@ -221,6 +221,7 @@ struct POST_INFO
 	char				*username;
 	char				*password;
 	char				*parts;
+	char				*download_speed_limit;
 	char				*directory;
 	char				*download_operations;
 	char				*cookies;
@@ -267,8 +268,6 @@ struct SOCKET_CONTEXT
 
 	SOCKET_CONTEXT		*ftp_context;
 
-	DoublyLinkedList	*range_node;	// Self reference to the range_list of this context's download_info.
-
 	addrinfoW			*address_info;			// Address info of the server we're connecting to.
 	addrinfoW			*proxy_address_info;	// Address info of the server that we want to proxy.
 
@@ -308,7 +307,7 @@ struct SOCKET_CONTEXT
 	unsigned char		cleanup;			// In cleanup function, or in worker thread doing/calling cleanup.
 
 	unsigned char		got_filename;		// For Content-Disposition header fields. 0 = none/not found, 1 = renamed (doesn't exist), 2 = renamed (exists)
-	unsigned char		got_last_modified;	// For Last-Modified header fields. 0 = none/not found, 1 = found
+	unsigned char		got_last_modified;	// For Last-Modified header fields. 0 = none/not found, 1 = found, 2 = prompt
 
 	bool				show_file_size_prompt;
 
@@ -321,6 +320,7 @@ struct SOCKET_CONTEXT
 
 struct ADD_INFO
 {
+	unsigned long long	download_speed_limit;
 	AUTH_CREDENTIALS	auth_info;
 	wchar_t				*download_directory;
 	wchar_t				*urls;
@@ -355,10 +355,13 @@ struct DOWNLOAD_INFO
 	unsigned long long	speed;
 	unsigned long long	time_remaining;
 	unsigned long long	time_elapsed;
+	unsigned long long	download_speed_limit;
 	AUTH_CREDENTIALS	auth_info;
 	wchar_t				*url;
 	wchar_t				*w_add_time;
-	DoublyLinkedList	*range_list;		// Active ranges that make up each download part.
+	DoublyLinkedList	*range_list;
+	DoublyLinkedList	*print_range_list;
+	DoublyLinkedList	*range_list_end;
 	DoublyLinkedList	*range_queue;		// Inactive ranges that make up each download part.
 	DoublyLinkedList	*parts_list;		// The contexts that make up each download part.
 	HICON				*icon;

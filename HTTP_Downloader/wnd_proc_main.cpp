@@ -65,8 +65,13 @@ int cy = 0;								// Current y (top) position of the main window based on the m
 
 unsigned char g_total_columns = 0;
 
-unsigned long long session_total_downloaded = 0;
-unsigned long long session_downloaded_speed = 0;
+unsigned long long g_session_total_downloaded = 0;
+unsigned long long g_session_downloaded_speed = 0;
+
+unsigned long long g_session_last_total_downloaded = 0;
+unsigned long long g_session_last_downloaded_speed = 0;
+
+wchar_t *g_size_prefix[] = { L"B", L"KB", L"MB", L"GB", L"TB", L"PB", L"EB" };
 
 WNDPROC ListViewProc = NULL;			// Subclassed listview window.
 
@@ -172,19 +177,20 @@ int CALLBACK DMCompareFunc( LPARAM lParam1, LPARAM lParam2, LPARAM lParamSort )
 
 		switch ( arr[ si->column ] )
 		{
-			case 3: { return _wcsicmp_s( di1->file_path, di2->file_path ); } break;
-			case 7:	{ return _wcsicmp_s( di1->file_path + di1->file_extension_offset, di2->file_path + di2->file_extension_offset ); } break;
-			case 8:	{ return _wcsicmp_s( di1->file_path + di1->filename_offset, di2->file_path + di2->filename_offset ); } break;
-			case 13: { return _wcsicmp_s( di1->url, di2->url ); } break;
+			case COLUMN_DOWNLOAD_DIRECTORY:		{ return _wcsicmp_s( di1->file_path, di2->file_path ); } break;
+			case COLUMN_FILE_TYPE:				{ return _wcsicmp_s( di1->file_path + di1->file_extension_offset, di2->file_path + di2->file_extension_offset ); } break;
+			case COLUMN_FILENAME:				{ return _wcsicmp_s( di1->file_path + di1->filename_offset, di2->file_path + di2->filename_offset ); } break;
+			case COLUMN_URL:					{ return _wcsicmp_s( di1->url, di2->url ); } break;
 
-			case 4: { return ( di1->speed > di2->speed ); } break;
-			case 5: { return ( di1->downloaded > di2->downloaded ); } break;
-			case 6: { return ( di1->file_size > di2->file_size ); } break;
-			case 2: { return ( di1->add_time.QuadPart > di2->add_time.QuadPart ); } break;
-			case 11: { return ( di1->time_elapsed > di2->time_elapsed ); } break;
-			case 12: { return ( di1->time_remaining > di2->time_remaining ); } break;
+			case COLUMN_DOWNLOAD_SPEED:			{ return ( di1->speed > di2->speed ); } break;
+			case COLUMN_DOWNLOAD_SPEED_LIMIT:	{ return ( di1->download_speed_limit > di2->download_speed_limit ); } break;
+			case COLUMN_DOWNLOADED:				{ return ( di1->downloaded > di2->downloaded ); } break;
+			case COLUMN_FILE_SIZE:				{ return ( di1->file_size > di2->file_size ); } break;
+			case COLUMN_DATE_AND_TIME_ADDED:	{ return ( di1->add_time.QuadPart > di2->add_time.QuadPart ); } break;
+			case COLUMN_TIME_ELAPSED:			{ return ( di1->time_elapsed > di2->time_elapsed ); } break;
+			case COLUMN_TIME_REMAINING:			{ return ( di1->time_remaining > di2->time_remaining ); } break;
 
-			case 9:
+			case COLUMN_PROGRESS:
 			{
 				if ( di1->status == di2->status )
 				{
@@ -214,14 +220,16 @@ int CALLBACK DMCompareFunc( LPARAM lParam1, LPARAM lParam2, LPARAM lParamSort )
 						{
 							return 0;
 						}
+
+						int i_percentage1;
+						int i_percentage2;
 #ifdef _WIN64
-						int i_percentage1 = ( int )( 1000.f * ( ( float )di1->last_downloaded / ( float )di1->file_size ) );
-						int i_percentage2 = ( int )( 1000.f * ( ( float )di2->last_downloaded / ( float )di2->file_size ) );
+						i_percentage1 = ( int )( 1000.0 * ( ( double )di1->last_downloaded / ( double )di1->file_size ) );
+						i_percentage2 = ( int )( 1000.0 * ( ( double )di2->last_downloaded / ( double )di2->file_size ) );
 #else
 						// Multiply the floating point division by 1000%.
 						// This leaves us with an integer in which the last digit will represent the decimal value.
-						float f_percentage1 = 1000.f * ( ( float )di1->last_downloaded / ( float )di1->file_size );
-						int i_percentage1 = 0;
+						double f_percentage1 = 1000.0 * ( ( double )di1->last_downloaded / ( double )di1->file_size );
 						__asm
 						{
 							fld f_percentage1;		//; Load the floating point value onto the FPU stack.
@@ -230,8 +238,7 @@ int CALLBACK DMCompareFunc( LPARAM lParam1, LPARAM lParam2, LPARAM lParamSort )
 
 						// Multiply the floating point division by 1000%.
 						// This leaves us with an integer in which the last digit will represent the decimal value.
-						float f_percentage2 = 1000.f * ( ( float )di2->last_downloaded / ( float )di2->file_size );
-						int i_percentage2 = 0;
+						double f_percentage2 = 1000.0 * ( ( double )di2->last_downloaded / ( double )di2->file_size );
 						__asm
 						{
 							fld f_percentage2;		//; Load the floating point value onto the FPU stack.
@@ -250,7 +257,7 @@ int CALLBACK DMCompareFunc( LPARAM lParam1, LPARAM lParam2, LPARAM lParamSort )
 			}
 			break;
 
-			case 10:
+			case COLUMN_SSL_TLS_VERSION:
 			{
 				if ( di1->ssl_version == -1 )
 				{
@@ -267,7 +274,7 @@ int CALLBACK DMCompareFunc( LPARAM lParam1, LPARAM lParam2, LPARAM lParamSort )
 			}
 			break;
 
-			case 1:
+			case COLUMN_ACTIVE_PARTS:
 			{
 				if ( di1->parts > di2->parts )
 				{
@@ -297,19 +304,33 @@ int CALLBACK DMCompareFunc( LPARAM lParam1, LPARAM lParam2, LPARAM lParamSort )
 
 unsigned int FormatSizes( wchar_t *buffer, unsigned int buffer_size, unsigned char toggle_type, unsigned long long data_size )
 {
-	unsigned int length = 0;
+	unsigned int length;
+
+	double divisor;
 
 	if ( toggle_type == SIZE_FORMAT_AUTO )
 	{
-		if ( data_size > 1073741824 )
+		if ( data_size > ( 1ULL << 60 ) )
+		{
+			toggle_type = SIZE_FORMAT_EXABYTE;	// Exabyte
+		}
+		else if ( data_size > ( 1ULL << 50 ) )
+		{
+			toggle_type = SIZE_FORMAT_PETABYTE;	// Petabyte
+		}
+		else if ( data_size > ( 1ULL << 40 ) )
+		{
+			toggle_type = SIZE_FORMAT_TERABYTE;	// Terabyte
+		}
+		else if ( data_size > ( 1 << 30 ) )
 		{
 			toggle_type = SIZE_FORMAT_GIGABYTE;	// Gigabyte
 		}
-		else if ( data_size > 1048576 )
+		else if ( data_size > ( 1 << 20 ) )
 		{
 			toggle_type = SIZE_FORMAT_MEGABYTE;	// Megabyte
 		}
-		else if ( data_size > 1024 )
+		else if ( data_size > ( 1 << 10 ) )
 		{
 			toggle_type = SIZE_FORMAT_KILOBYTE;	// Kilobyte
 		}
@@ -319,14 +340,16 @@ unsigned int FormatSizes( wchar_t *buffer, unsigned int buffer_size, unsigned ch
 		}
 	}
 
-	if ( toggle_type == SIZE_FORMAT_KILOBYTE )
+	if ( toggle_type != SIZE_FORMAT_BYTE )
 	{
+		divisor = ( double )( 1ULL << ( toggle_type * 10 ) );
+
+		unsigned long long i_percentage;
 #ifdef _WIN64
-		unsigned int i_percentage = ( unsigned int )( 100.0f * ( float )data_size / 1024.0f );
+		i_percentage = ( unsigned long long )( 100.0 * ( ( double )data_size / divisor ) );
 #else
 		// This leaves us with an integer in which the last digit will represent the decimal value.
-		float f_percentage = 100.0f * ( float )data_size / 1024.0f;
-		unsigned int i_percentage = 0;
+		double f_percentage = 100.0 * ( ( double )data_size / divisor );
 		__asm
 		{
 			fld f_percentage;	//; Load the floating point value onto the FPU stack.
@@ -337,51 +360,11 @@ unsigned int FormatSizes( wchar_t *buffer, unsigned int buffer_size, unsigned ch
 		unsigned int remainder = i_percentage % 100;
 		i_percentage /= 100;
 
-		length = __snwprintf( buffer, buffer_size, L"%lu.%02lu KB", i_percentage, remainder );
-	}
-	else if ( toggle_type == SIZE_FORMAT_MEGABYTE )
-	{
-#ifdef _WIN64
-		unsigned int i_percentage = ( unsigned int )( 100.0f * ( float )data_size / 1048576.0f );
-#else
-		// This leaves us with an integer in which the last digit will represent the decimal value.
-		float f_percentage = 100.0f * ( float )data_size / 1048576.0f;
-		unsigned int i_percentage = 0;
-		__asm
-		{
-			fld f_percentage;	//; Load the floating point value onto the FPU stack.
-			fistp i_percentage;	//; Convert the floating point value into an integer, store it in an integer, and then pop it off the stack.
-		}
-#endif
-		// Get the last digit (decimal value).
-		unsigned int remainder = i_percentage % 100;
-		i_percentage /= 100;
-
-		length = __snwprintf( buffer, buffer_size, L"%lu.%02lu MB", i_percentage, remainder );
-	}
-	else if ( toggle_type == SIZE_FORMAT_GIGABYTE )
-	{
-#ifdef _WIN64
-		unsigned int i_percentage = ( unsigned int )( 100.0f * ( float )data_size / 1073741824.0f );
-#else
-		// This leaves us with an integer in which the last digit will represent the decimal value.
-		float f_percentage = 100.0f * ( float )data_size / 1073741824.0f;
-		unsigned int i_percentage = 0;
-		__asm
-		{
-			fld f_percentage;	//; Load the floating point value onto the FPU stack.
-			fistp i_percentage;	//; Convert the floating point value into an integer, store it in an integer, and then pop it off the stack.
-		}
-#endif
-		// Get the last digit (decimal value).
-		unsigned int remainder = i_percentage % 100;
-		i_percentage /= 100;
-
-		length = __snwprintf( buffer, buffer_size, L"%lu.%02lu GB", i_percentage, remainder );
+		length = __snwprintf( buffer, buffer_size, L"%I64u.%02lu %s", i_percentage, remainder, g_size_prefix[ toggle_type ] );
 	}
 	else
 	{
-		length = __snwprintf( buffer, buffer_size, L"%llu B", data_size );
+		length = __snwprintf( buffer, buffer_size, L"%I64u %s", data_size, g_size_prefix[ toggle_type ] );
 	}
 
 	return length;
@@ -392,16 +375,13 @@ DWORD WINAPI UpdateWindow( LPVOID WorkThreadContext )
 	QFILETIME current_time, last_update;
 
 	wchar_t title_text[ 128 ];
-	wchar_t sb_downloaded_buf[ 64 ];
-	wchar_t sb_download_speed_buf[ 64 ];
+	wchar_t sb_downloaded_buf[ 128 ];
+	wchar_t sb_download_speed_buf[ 128 ];
 
 	bool update_text_values = false;
 
 	unsigned int sb_downloaded_buf_length = 0;
 	unsigned int sb_download_speed_buf_length = 0;
-
-	unsigned long long last_session_total_downloaded = 0;
-	unsigned long long last_session_downloaded_speed = 0;
 
 	bool run_timer = g_timers_running;
 	unsigned char standby_counter = 0;
@@ -413,13 +393,13 @@ DWORD WINAPI UpdateWindow( LPVOID WorkThreadContext )
 
 	last_update.ull = 0;
 
-	unsigned char speed_buf_length = ( ST_L_Download_speed_ > 38 ? 38 : ST_L_Download_speed_ ); // Let's not overflow. 64 - ( ' ' + 22 +  '/' + 's' + NULL ) = 38 remaining bytes for our string.
-	_wmemcpy_s( sb_download_speed_buf, 64, ST_V_Download_speed_, speed_buf_length );
-	sb_download_speed_buf[ speed_buf_length ] = ' ';
+	unsigned char speed_buf_length = ( ST_L_Download_speed_ > 102 ? 102 : ST_L_Download_speed_ ); // Let's not overflow. 128 - ( ' ' + 22 +  '/' + 's' + NULL ) = 102 remaining bytes for our string.
+	_wmemcpy_s( sb_download_speed_buf, 128, ST_V_Download_speed_, speed_buf_length );
+	sb_download_speed_buf[ speed_buf_length++ ] = ' ';
 
-	unsigned char download_buf_length = ( ST_L_Total_downloaded_ > 40 ? 40 : ST_L_Total_downloaded_ ); // Let's not overflow. 64 - ( ' ' + 22 + NULL ) = 40 remaining bytes for our string.
-	_wmemcpy_s( sb_downloaded_buf, 64, ST_V_Total_downloaded_, download_buf_length );
-	sb_downloaded_buf[ download_buf_length ] = ' ';
+	unsigned char download_buf_length = ( ST_L_Total_downloaded_ > 104 ? 104 : ST_L_Total_downloaded_ ); // Let's not overflow. 128 - ( ' ' + 22 + NULL ) = 104 remaining bytes for our string.
+	_wmemcpy_s( sb_downloaded_buf, 128, ST_V_Total_downloaded_, download_buf_length );
+	sb_downloaded_buf[ download_buf_length++ ] = ' ';
 
 	_wmemcpy_s( title_text, 128, PROGRAM_CAPTION, 15 );
 
@@ -438,7 +418,7 @@ DWORD WINAPI UpdateWindow( LPVOID WorkThreadContext )
 		// This will allow the timer to go through at least one loop after it's been disabled (g_timers_running == false).
 		run_timer = g_timers_running;
 
-		session_downloaded_speed = 0;
+		g_session_downloaded_speed = 0;
 
 		if ( TryEnterCriticalSection( &worker_cs ) == TRUE )
 		{
@@ -503,7 +483,7 @@ DWORD WINAPI UpdateWindow( LPVOID WorkThreadContext )
 											di->time_remaining = 0;
 										}
 
-										session_downloaded_speed += di->speed;
+										g_session_downloaded_speed += di->speed;
 									}
 									else	// The remaining time will be unknown if the download stalls.
 									{
@@ -549,31 +529,31 @@ DWORD WINAPI UpdateWindow( LPVOID WorkThreadContext )
 		update_text_values = false;
 
 		// Update our status bar with the download speed.
-		if ( session_downloaded_speed != last_session_downloaded_speed )
+		if ( g_session_downloaded_speed != g_session_last_downloaded_speed )
 		{
 			// The maximum length that FormatSizes can return is 22 bytes excluding the NULL terminator.
-			sb_download_speed_buf_length = FormatSizes( sb_download_speed_buf + ( speed_buf_length + 1 ), 64 - ( speed_buf_length + 1 ), cfg_t_status_down_speed, session_downloaded_speed ) + ( speed_buf_length + 1 );
+			sb_download_speed_buf_length = FormatSizes( sb_download_speed_buf + speed_buf_length, 128 - speed_buf_length, cfg_t_status_down_speed, g_session_downloaded_speed ) + speed_buf_length;
 			sb_download_speed_buf[ sb_download_speed_buf_length++ ] = L'/';
 			sb_download_speed_buf[ sb_download_speed_buf_length++ ] = L's';
 			sb_download_speed_buf[ sb_download_speed_buf_length ] = 0;	// Sanity.
 
 			_SendMessageW( g_hWnd_status, SB_SETTEXT, MAKEWPARAM( 0, 0 ), ( LPARAM )sb_download_speed_buf );
 
-			last_session_downloaded_speed = session_downloaded_speed;
+			g_session_last_downloaded_speed = g_session_downloaded_speed;
 
 			update_text_values = true;
 		}
 
 		// Update our status bar with the download total.
-		if ( session_total_downloaded != last_session_total_downloaded )
+		if ( g_session_total_downloaded != g_session_last_total_downloaded )
 		{
 			// The maximum length that FormatSizes can return is 22 bytes excluding the NULL terminator.
-			sb_downloaded_buf_length = FormatSizes( sb_downloaded_buf + ( download_buf_length + 1 ), 64 - ( download_buf_length + 1 ), cfg_t_status_downloaded, session_total_downloaded ) + ( download_buf_length + 1 );
+			sb_downloaded_buf_length = FormatSizes( sb_downloaded_buf + download_buf_length, 128 - download_buf_length, cfg_t_status_downloaded, g_session_total_downloaded ) + download_buf_length;
 			// NULL terminator is set in FormatSizes.
 
 			_SendMessageW( g_hWnd_status, SB_SETTEXT, MAKEWPARAM( 1, 0 ), ( LPARAM )sb_downloaded_buf );
 
-			last_session_total_downloaded = session_total_downloaded;
+			g_session_last_total_downloaded = g_session_total_downloaded;
 
 			update_text_values = true;
 		}
@@ -585,13 +565,13 @@ DWORD WINAPI UpdateWindow( LPVOID WorkThreadContext )
 				int tooltip_offset = 15, title_text_offset = 15;
 
 				// The maximum length that FormatSizes can return is 22 bytes excluding the NULL terminator.
-				sb_download_speed_buf_length = FormatSizes( sb_download_speed_buf + ( speed_buf_length + 1 ), 64 - ( speed_buf_length + 1 ), SIZE_FORMAT_AUTO, session_downloaded_speed ) + ( speed_buf_length + 1 );
+				sb_download_speed_buf_length = FormatSizes( sb_download_speed_buf + speed_buf_length, 128 - speed_buf_length, SIZE_FORMAT_AUTO, g_session_downloaded_speed ) + speed_buf_length;
 				sb_download_speed_buf[ sb_download_speed_buf_length++ ] = L'/';
 				sb_download_speed_buf[ sb_download_speed_buf_length++ ] = L's';
 				sb_download_speed_buf[ sb_download_speed_buf_length ] = 0;	// Sanity.
 
 				// The maximum length that FormatSizes can return is 22 bytes excluding the NULL terminator.
-				sb_downloaded_buf_length = FormatSizes( sb_downloaded_buf + ( download_buf_length + 1 ), 64 - ( download_buf_length + 1 ), SIZE_FORMAT_AUTO, session_total_downloaded ) + ( download_buf_length + 1 );
+				sb_downloaded_buf_length = FormatSizes( sb_downloaded_buf + download_buf_length, 128 - download_buf_length, SIZE_FORMAT_AUTO, g_session_total_downloaded ) + download_buf_length;
 				// NULL terminator is set in FormatSizes.
 
 				_wmemcpy_s( title_text + title_text_offset, 128 - title_text_offset, L" - ", 3 );
@@ -668,10 +648,10 @@ DWORD WINAPI UpdateWindow( LPVOID WorkThreadContext )
 
 			// Sort all values that can change during a download.
 			if ( cfg_sort_added_and_updating_items &&
-				 cfg_sorted_column_index != 0 &&	// #
-				 cfg_sorted_column_index != 2 &&	// Date and Time Added
-				 cfg_sorted_column_index != 3 &&	// Download Directory
-				 cfg_sorted_column_index != 13 )	// URL
+				 cfg_sorted_column_index != COLUMN_NUM &&
+				 cfg_sorted_column_index != COLUMN_DATE_AND_TIME_ADDED &&
+				 cfg_sorted_column_index != COLUMN_DOWNLOAD_DIRECTORY &&
+				 cfg_sorted_column_index != COLUMN_URL )
 			{
 				SORT_INFO si;
 				si.column = GetColumnIndexFromVirtualIndex( cfg_sorted_column_index, download_columns, NUM_COLUMNS );
@@ -747,10 +727,10 @@ DWORD WINAPI UpdateWindow( LPVOID WorkThreadContext )
 
 			// Sort all values that can change during a download.
 			if ( cfg_sort_added_and_updating_items &&
-				 cfg_sorted_column_index != 0 &&	// #
-				 cfg_sorted_column_index != 2 &&	// Date and Time Added
-				 cfg_sorted_column_index != 3 &&	// Download Directory
-				 cfg_sorted_column_index != 13 )	// URL
+				 cfg_sorted_column_index != COLUMN_NUM &&
+				 cfg_sorted_column_index != COLUMN_DATE_AND_TIME_ADDED &&
+				 cfg_sorted_column_index != COLUMN_DOWNLOAD_DIRECTORY &&
+				 cfg_sorted_column_index != COLUMN_URL )
 			{
 				SORT_INFO si;
 				si.column = GetColumnIndexFromVirtualIndex( cfg_sorted_column_index, download_columns, NUM_COLUMNS );
@@ -863,7 +843,7 @@ wchar_t *GetDownloadInfoString( DOWNLOAD_INFO *di, int column, int item_index, w
 	// Save the appropriate text in our buffer for the current column.
 	switch ( column )
 	{
-		case 0:	// NUM
+		case COLUMN_NUM:
 		{
 			buf = tbuf;	// Reset the buffer pointer.
 
@@ -871,7 +851,7 @@ wchar_t *GetDownloadInfoString( DOWNLOAD_INFO *di, int column, int item_index, w
 		}
 		break;
 
-		case 1:	// ACTIVE PARTS
+		case COLUMN_ACTIVE_PARTS:
 		{
 			buf = tbuf;	// Reset the buffer pointer.
 
@@ -886,13 +866,13 @@ wchar_t *GetDownloadInfoString( DOWNLOAD_INFO *di, int column, int item_index, w
 		}
 		break;
 
-		case 2:	// DATE AND TIME ADDED
+		case COLUMN_DATE_AND_TIME_ADDED:
 		{
 			buf = di->w_add_time;
 		}
 		break;
 
-		case 3:	// DOWNLOAD DIRECTORY
+		case COLUMN_DOWNLOAD_DIRECTORY:
 		{
 			if ( !( di->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
 			{
@@ -905,16 +885,16 @@ wchar_t *GetDownloadInfoString( DOWNLOAD_INFO *di, int column, int item_index, w
 		}
 		break;
 
-		case 4:	// DOWNLOAD SPEED
+		case COLUMN_DOWNLOAD_SPEED:
 		{
 			if ( IS_STATUS( di->status, STATUS_DOWNLOADING ) )
 			{
 				buf = tbuf;	// Reset the buffer pointer.
 
 				unsigned int length = FormatSizes( buf, tbuf_size, cfg_t_down_speed, di->speed );
-				buf[ length ] = L'/';
-				buf[ length + 1 ] = L's';
-				buf[ length + 2 ] = 0;
+				buf[ length++ ] = L'/';
+				buf[ length++ ] = L's';
+				buf[ length ] = 0;
 			}
 			else
 			{
@@ -923,7 +903,25 @@ wchar_t *GetDownloadInfoString( DOWNLOAD_INFO *di, int column, int item_index, w
 		}
 		break;
 
-		case 5:	// DOWNLOADED
+		case COLUMN_DOWNLOAD_SPEED_LIMIT:
+		{
+			if ( di->download_speed_limit > 0 )
+			{
+				buf = tbuf;	// Reset the buffer pointer.
+
+				unsigned int length = FormatSizes( buf, tbuf_size, cfg_t_speed_limit, di->download_speed_limit );
+				buf[ length++ ] = L'/';
+				buf[ length++ ] = L's';
+				buf[ length ] = 0;
+			}
+			else
+			{
+				buf = L"";
+			}
+		}
+		break;
+
+		case COLUMN_DOWNLOADED:
 		{
 			buf = tbuf;	// Reset the buffer pointer.
 
@@ -931,7 +929,7 @@ wchar_t *GetDownloadInfoString( DOWNLOAD_INFO *di, int column, int item_index, w
 		}
 		break;
 
-		case 6:	// FILE SIZE
+		case COLUMN_FILE_SIZE:
 		{
 			buf = tbuf;	// Reset the buffer pointer.
 
@@ -943,60 +941,40 @@ wchar_t *GetDownloadInfoString( DOWNLOAD_INFO *di, int column, int item_index, w
 			}
 			else
 			{
+				unsigned char prefix = ( cfg_t_file_size == SIZE_FORMAT_AUTO ? SIZE_FORMAT_BYTE : cfg_t_file_size );
 				buf[ 0 ] = L'?';
 				buf[ 1 ] = L' ';
-
-				if ( cfg_t_file_size == SIZE_FORMAT_KILOBYTE )
-				{
-					buf[ 2 ] = L'K';
-					buf[ 3 ] = L'B';
-					buf[ 4 ] = 0;
-				}
-				else if ( cfg_t_file_size == SIZE_FORMAT_MEGABYTE )
-				{
-					buf[ 2 ] = L'M';
-					buf[ 3 ] = L'B';
-					buf[ 4 ] = 0;
-				}
-				else if ( cfg_t_file_size == SIZE_FORMAT_GIGABYTE )
-				{
-					buf[ 2 ] = L'G';
-					buf[ 3 ] = L'B';
-					buf[ 4 ] = 0;
-				}
-				else
-				{
-					buf[ 2 ] = L'B';
-					buf[ 3 ] = 0;
-				}
+				buf[ 2 ] = g_size_prefix[ prefix ][ 0 ];
+				buf[ 3 ] = g_size_prefix[ prefix ][ 1 ];
+				buf[ 4 ] = 0;
 			}
 		}
 		break;
 
-		/*case 7:	// FILE TYPE
+		/*case COLUMN_FILE_TYPE:
 		{
 		}
 		break;*/
 
-		case 8:	// FILENAME
+		case COLUMN_FILENAME:
 		{
 			buf = di->file_path + di->filename_offset;
 		}
 		break;
 
-		case 9:	// PROGRESS
+		case COLUMN_PROGRESS:
 		{
 			buf = tbuf;	// Reset the buffer pointer.
 
 			if ( di->file_size > 0 )
 			{
+				int i_percentage;
 #ifdef _WIN64
-				int i_percentage = ( int )( 1000.f * ( ( float )di->last_downloaded / ( float )di->file_size ) );
+				i_percentage = ( int )( 1000.0 * ( ( double )di->last_downloaded / ( double )di->file_size ) );
 #else
 				// Multiply the floating point division by 1000%.
 				// This leaves us with an integer in which the last digit will represent the decimal value.
-				float f_percentage = 1000.f * ( ( float )di->last_downloaded / ( float )di->file_size );
-				int i_percentage = 0;
+				double f_percentage = 1000.0 * ( ( double )di->last_downloaded / ( double )di->file_size );
 				__asm
 				{
 					fld f_percentage;	//; Load the floating point value onto the FPU stack.
@@ -1154,7 +1132,7 @@ wchar_t *GetDownloadInfoString( DOWNLOAD_INFO *di, int column, int item_index, w
 		}
 		break;
 
-		case 10:	// SSL / TLS Version
+		case COLUMN_SSL_TLS_VERSION:
 		{
 			switch ( di->ssl_version )
 			{
@@ -1168,11 +1146,11 @@ wchar_t *GetDownloadInfoString( DOWNLOAD_INFO *di, int column, int item_index, w
 		}
 		break;
 
-		case 11:	// TIME ELAPSED
-		case 12:	// TIME REMAINING
+		case COLUMN_TIME_ELAPSED:
+		case COLUMN_TIME_REMAINING:
 		{
 			// Use the infinity symbol for remaining time if it can't be calculated.
-			if ( column == 12 &&
+			if ( column == COLUMN_TIME_REMAINING &&
 			   ( IS_STATUS( di->status, STATUS_CONNECTING | STATUS_PAUSED ) ||
 			   ( di->status == STATUS_DOWNLOADING && ( di->file_size == 0 || di->speed == 0 ) ) ) )
 			{
@@ -1180,7 +1158,7 @@ wchar_t *GetDownloadInfoString( DOWNLOAD_INFO *di, int column, int item_index, w
 			}
 			else
 			{
-				unsigned long long time_length = ( column == 11 ? di->time_elapsed : di->time_remaining );
+				unsigned long long time_length = ( column == COLUMN_TIME_ELAPSED ? di->time_elapsed : di->time_remaining );
 
 				if ( IS_STATUS( di->status, STATUS_DOWNLOADING ) || time_length > 0 )
 				{
@@ -1188,19 +1166,19 @@ wchar_t *GetDownloadInfoString( DOWNLOAD_INFO *di, int column, int item_index, w
 
 					if ( time_length < 60 )	// Less than 1 minute.
 					{
-						__snwprintf( buf, tbuf_size, L"%llus", time_length );
+						__snwprintf( buf, tbuf_size, L"%I64us", time_length );
 					}
 					else if ( time_length < 3600 )	// Less than 1 hour.
 					{
-						__snwprintf( buf, tbuf_size, L"%llum%02llus", time_length / 60, time_length % 60 );
+						__snwprintf( buf, tbuf_size, L"%I64um%02llus", time_length / 60, time_length % 60 );
 					}
 					else if ( time_length < 86400 )	// Less than 1 day.
 					{
-						__snwprintf( buf, tbuf_size, L"%lluh%02llum%02llus", time_length / 3600, ( time_length / 60 ) % 60, time_length % 60 );
+						__snwprintf( buf, tbuf_size, L"%I64uh%02llum%02llus", time_length / 3600, ( time_length / 60 ) % 60, time_length % 60 );
 					}
 					else	// More than 1 day.
 					{
-						__snwprintf( buf, tbuf_size, L"%llud%02lluh%02llum%02llus", time_length / 86400, ( time_length / 3600 ) % 24, ( time_length / 60 ) % 60, time_length % 60 );
+						__snwprintf( buf, tbuf_size, L"%I64ud%02lluh%02llum%02llus", time_length / 86400, ( time_length / 3600 ) % 24, ( time_length / 60 ) % 60, time_length % 60 );
 					}
 				}
 				else
@@ -1211,7 +1189,7 @@ wchar_t *GetDownloadInfoString( DOWNLOAD_INFO *di, int column, int item_index, w
 		}
 		break;
 
-		case 13:	// URL
+		case COLUMN_URL:
 		{
 			buf = di->url;
 		}
@@ -1246,7 +1224,7 @@ LRESULT CALLBACK ListViewSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPa
 					{
 						largest_width = 26;	// 5 + 16 + 5.
 
-						if ( virtual_index != 7 )	// File Type
+						if ( virtual_index != COLUMN_FILE_TYPE )	// File Type
 						{
 							wchar_t tbuf[ 128 ];
 
@@ -1575,7 +1553,7 @@ void HandleCommand( HWND hWnd, WPARAM wParam, LPARAM lParam )
 				{
 					if ( g_hWnd_update_download == NULL )
 					{
-						g_hWnd_update_download = _CreateWindowExW( WS_EX_COMPOSITED | ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"update_download", ST_V_Update_Download, WS_OVERLAPPEDWINDOW, ( ( _GetSystemMetrics( SM_CXSCREEN ) - 525 ) / 2 ), ( ( _GetSystemMetrics( SM_CYSCREEN ) - 385 ) / 2 ), 525, 385, NULL, NULL, NULL, NULL );
+						g_hWnd_update_download = _CreateWindowExW( WS_EX_COMPOSITED | ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"update_download", ST_V_Update_Download, WS_OVERLAPPEDWINDOW, ( ( _GetSystemMetrics( SM_CXSCREEN ) - 525 ) / 2 ), ( ( _GetSystemMetrics( SM_CYSCREEN ) - 420 ) / 2 ), 525, 420, NULL, NULL, NULL, NULL );
 					}
 					else if ( _IsIconic( g_hWnd_update_download ) )	// If minimized, then restore the window.
 					{
@@ -1684,6 +1662,7 @@ void HandleCommand( HWND hWnd, WPARAM wParam, LPARAM lParam )
 		case MENU_DATE_AND_TIME_ADDED:
 		case MENU_DOWNLOAD_DIRECTORY:
 		case MENU_DOWNLOAD_SPEED:
+		case MENU_DOWNLOAD_SPEED_LIMIT:
 		case MENU_DOWNLOADED:
 		case MENU_FILE_SIZE:
 		case MENU_FILE_TYPE:
@@ -1793,6 +1772,17 @@ void HandleCommand( HWND hWnd, WPARAM wParam, LPARAM lParam )
 		}
 		break;
 
+		case MENU_GLOBAL_SPEED_LIMIT:
+		{
+			if ( g_hWnd_download_speed_limit == NULL )
+			{
+				g_hWnd_download_speed_limit = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"download_speed_limit", ST_V_Global_Download_Speed_Limit, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU, ( ( _GetSystemMetrics( SM_CXSCREEN ) - 280 ) / 2 ), ( ( _GetSystemMetrics( SM_CYSCREEN ) - 120 ) / 2 ), 280, 120, NULL, NULL, NULL, NULL );
+				_ShowWindow( g_hWnd_download_speed_limit, SW_SHOWNORMAL );
+			}
+			_SetForegroundWindow( g_hWnd_download_speed_limit );
+		}
+		break;
+
 		case MENU_OPTIONS:
 		{
 			if ( g_hWnd_options == NULL )
@@ -1832,7 +1822,7 @@ void HandleCommand( HWND hWnd, WPARAM wParam, LPARAM lParam )
 		{
 			wchar_t msg[ 512 ];
 			__snwprintf( msg, 512, L"%s\r\n\r\n" \
-								   L"%s 1.0.2.8 (%u-bit)\r\n\r\n" \
+								   L"%s 1.0.2.9 (%u-bit)\r\n\r\n" \
 								   L"%s %s, %s %d, %04d %d:%02d:%02d %s (UTC)\r\n\r\n" \
 								   L"%s \xA9 2015-2019 Eric Kutcher",
 								   ST_V_LICENSE,
@@ -1900,7 +1890,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 			}
 			else
 			{
-				g_toolbar_imagelist = _ImageList_LoadImageW( GetModuleHandle( NULL ), MAKEINTRESOURCE( IDB_BITMAP_TOOLBAR ), 24, 0, ( COLORREF )RGB( 0xFF, 0x00, 0xFF ), IMAGE_BITMAP, LR_CREATEDIBSECTION );
+				g_toolbar_imagelist = _ImageList_LoadImageW( GetModuleHandleW( NULL ), MAKEINTRESOURCE( IDB_BITMAP_TOOLBAR ), 24, 0, ( COLORREF )RGB( 0xFF, 0x00, 0xFF ), IMAGE_BITMAP, LR_CREATEDIBSECTION );
 			}
 			_SendMessageW( g_hWnd_toolbar, TB_SETIMAGELIST, 0, ( LPARAM )g_toolbar_imagelist );
 
@@ -1909,24 +1899,25 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 			// Allows us to use the iString value for tooltips.
 			_SendMessageW( g_hWnd_toolbar, TB_SETMAXTEXTROWS, 0, 0 );
 
-			TBBUTTON tbb[ 13 ] = 
+			TBBUTTON tbb[ 14 ] = 
 			{
-				{ MAKELONG( 0, 0 ),			MENU_ADD_URLS,	TBSTATE_ENABLED, BTNS_AUTOSIZE,	{ 0 }, 0,		( INT_PTR )ST_V_Add_URL_s_ },
-				{ MAKELONG( 1, 0 ),			  MENU_REMOVE,	TBSTATE_ENABLED, BTNS_AUTOSIZE,	{ 0 }, 0,			( INT_PTR )ST_V_Remove },
-				{				 0,					   -1,				  0,	  BTNS_SEP,	{ 0 }, 0,							  NULL },
-				{ MAKELONG( 2, 0 ),			   MENU_START,	TBSTATE_ENABLED, BTNS_AUTOSIZE,	{ 0 }, 0,			 ( INT_PTR )ST_V_Start },
-				{ MAKELONG( 3, 0 ),			   MENU_PAUSE,	TBSTATE_ENABLED, BTNS_AUTOSIZE,	{ 0 }, 0,			 ( INT_PTR )ST_V_Pause },
-				{ MAKELONG( 4, 0 ),				MENU_STOP,	TBSTATE_ENABLED, BTNS_AUTOSIZE,	{ 0 }, 0,			  ( INT_PTR )ST_V_Stop },
-				{ MAKELONG( 5, 0 ),			 MENU_RESTART,	TBSTATE_ENABLED, BTNS_AUTOSIZE,	{ 0 }, 0,		   ( INT_PTR )ST_V_Restart },
-				{				 0,					   -1,				  0,	  BTNS_SEP,	{ 0 }, 0,							  NULL },
-				{ MAKELONG( 6, 0 ),		MENU_PAUSE_ACTIVE,	TBSTATE_ENABLED, BTNS_AUTOSIZE,	{ 0 }, 0,	  ( INT_PTR )ST_V_Pause_Active },
-				{ MAKELONG( 7, 0 ),			MENU_STOP_ALL,	TBSTATE_ENABLED, BTNS_AUTOSIZE,	{ 0 }, 0,		  ( INT_PTR )ST_V_Stop_All },
-				{				 0,					   -1,				  0,	  BTNS_SEP,	{ 0 }, 0,							  NULL },
-				{ MAKELONG( 8, 0 ),			  MENU_SEARCH,	TBSTATE_ENABLED, BTNS_AUTOSIZE,	{ 0 }, 0,		    ( INT_PTR )ST_V_Search },
-				{ MAKELONG( 9, 0 ),			 MENU_OPTIONS,	TBSTATE_ENABLED, BTNS_AUTOSIZE,	{ 0 }, 0,		   ( INT_PTR )ST_V_Options }
+				{ MAKELONG( 0, 0 ),				  MENU_ADD_URLS,	TBSTATE_ENABLED, BTNS_AUTOSIZE,	{ 0 }, 0,					 ( INT_PTR )ST_V_Add_URL_s_ },
+				{ MAKELONG( 1, 0 ),					MENU_REMOVE,	TBSTATE_ENABLED, BTNS_AUTOSIZE,	{ 0 }, 0,						 ( INT_PTR )ST_V_Remove },
+				{				 0,							 -1,				  0,	  BTNS_SEP,	{ 0 }, 0,										   NULL },
+				{ MAKELONG( 2, 0 ),					 MENU_START,	TBSTATE_ENABLED, BTNS_AUTOSIZE,	{ 0 }, 0,						  ( INT_PTR )ST_V_Start },
+				{ MAKELONG( 3, 0 ),					 MENU_PAUSE,	TBSTATE_ENABLED, BTNS_AUTOSIZE,	{ 0 }, 0,						  ( INT_PTR )ST_V_Pause },
+				{ MAKELONG( 4, 0 ),					  MENU_STOP,	TBSTATE_ENABLED, BTNS_AUTOSIZE,	{ 0 }, 0,						   ( INT_PTR )ST_V_Stop },
+				{ MAKELONG( 5, 0 ),				   MENU_RESTART,	TBSTATE_ENABLED, BTNS_AUTOSIZE,	{ 0 }, 0,						( INT_PTR )ST_V_Restart },
+				{				 0,							 -1,				  0,	  BTNS_SEP,	{ 0 }, 0,										   NULL },
+				{ MAKELONG( 6, 0 ),			  MENU_PAUSE_ACTIVE,	TBSTATE_ENABLED, BTNS_AUTOSIZE,	{ 0 }, 0,				   ( INT_PTR )ST_V_Pause_Active },
+				{ MAKELONG( 7, 0 ),				  MENU_STOP_ALL,	TBSTATE_ENABLED, BTNS_AUTOSIZE,	{ 0 }, 0,					   ( INT_PTR )ST_V_Stop_All },
+				{				 0,							 -1,				  0,	  BTNS_SEP,	{ 0 }, 0,										   NULL },
+				{ MAKELONG( 8, 0 ),					MENU_SEARCH,	TBSTATE_ENABLED, BTNS_AUTOSIZE,	{ 0 }, 0,						 ( INT_PTR )ST_V_Search },
+				{ MAKELONG( 9, 0 ),		MENU_GLOBAL_SPEED_LIMIT,	TBSTATE_ENABLED, BTNS_AUTOSIZE,	{ 0 }, 0,	( INT_PTR )ST_V_Global_Download_Speed_Limit },
+				{ MAKELONG( 10, 0 ),			   MENU_OPTIONS,	TBSTATE_ENABLED, BTNS_AUTOSIZE,	{ 0 }, 0,						( INT_PTR )ST_V_Options }
 			};
 
-			_SendMessageW( g_hWnd_toolbar, TB_ADDBUTTONS, 13, ( LPARAM )&tbb );
+			_SendMessageW( g_hWnd_toolbar, TB_ADDBUTTONS, 14, ( LPARAM )&tbb );
 
 			g_hWnd_files = _CreateWindowW( WC_LISTVIEW, NULL, LVS_REPORT | LVS_EDITLABELS | LVS_OWNERDRAWFIXED | WS_CHILDWINDOW | WS_VISIBLE | ( cfg_show_toolbar ? WS_BORDER : 0 ) | ( cfg_show_column_headers ? 0 : LVS_NOCOLUMNHEADER ), 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 			_SendMessageW( g_hWnd_files, LVM_SETEXTENDEDLISTVIEWSTYLE, 0, LVS_EX_DOUBLEBUFFER | LVS_EX_FULLROWSELECT | ( cfg_show_gridlines ? LVS_EX_GRIDLINES : 0 ) | LVS_EX_HEADERDRAGDROP );
@@ -1970,17 +1961,53 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 				RegisterDropWindow( g_hWnd_files, &List_DropTarget );
 			}
 
-			int status_bar_widths[] = { 250, -1 };
+			int status_bar_widths[] = { 250, 500, -1 };
 
-			_SendMessageW( g_hWnd_status, SB_SETPARTS, 2, ( LPARAM )status_bar_widths );
-			_SendMessageW( g_hWnd_status, SB_SETTEXT, MAKEWPARAM( 0, 0 ), ( LPARAM )( cfg_t_status_down_speed == SIZE_FORMAT_BYTE ? ST_V_Download_speed__0_B_s :
-																					( cfg_t_status_down_speed == SIZE_FORMAT_KILOBYTE ? ST_V_Download_speed__0_00_KB_s :
-																					( cfg_t_status_down_speed == SIZE_FORMAT_MEGABYTE ? ST_V_Download_speed__0_00_MB_s :
-																					( cfg_t_status_down_speed == SIZE_FORMAT_GIGABYTE ? ST_V_Download_speed__0_00_GB_s : ST_V_Download_speed__0_B_s ) ) ) ) );
-			_SendMessageW( g_hWnd_status, SB_SETTEXT, MAKEWPARAM( 1, 0 ), ( LPARAM )( cfg_t_status_downloaded == SIZE_FORMAT_BYTE ? ST_V_Total_downloaded__0_B :
-																					( cfg_t_status_downloaded == SIZE_FORMAT_KILOBYTE ? ST_V_Total_downloaded__0_00_KB :
-																					( cfg_t_status_downloaded == SIZE_FORMAT_MEGABYTE ? ST_V_Total_downloaded__0_00_MB :
-																					( cfg_t_status_downloaded == SIZE_FORMAT_GIGABYTE ? ST_V_Total_downloaded__0_00_GB : ST_V_Total_downloaded__0_B ) ) ) ) );
+			_SendMessageW( g_hWnd_status, SB_SETPARTS, 3, ( LPARAM )status_bar_widths );
+
+			wchar_t status_bar_buf[ 128 ];
+			unsigned char buf_length;
+
+			buf_length = ( ST_L_Download_speed_ > 102 ? 102 : ST_L_Download_speed_ ); // Let's not overflow. 128 - ( ' ' + 22 +  '/' + 's' + NULL ) = 102 remaining bytes for our string.
+			_wmemcpy_s( status_bar_buf, 128, ST_V_Download_speed_, buf_length );
+			status_bar_buf[ buf_length++ ] = ' ';
+			// The maximum length that FormatSizes can return is 22 bytes excluding the NULL terminator.
+			unsigned int length = FormatSizes( status_bar_buf + buf_length, 128 - buf_length, cfg_t_status_down_speed, 0 ) + buf_length;
+			status_bar_buf[ length++ ] = L'/';
+			status_bar_buf[ length++ ] = L's';
+			status_bar_buf[ length ] = 0;
+
+			_SendMessageW( g_hWnd_status, SB_SETTEXT, MAKEWPARAM( 0, 0 ), ( LPARAM )status_bar_buf );
+
+
+			buf_length = ( ST_L_Total_downloaded_ > 104 ? 104 : ST_L_Total_downloaded_ ); // Let's not overflow. 128 - ( ' ' + 22 + NULL ) = 104 remaining bytes for our string.
+			_wmemcpy_s( status_bar_buf, 128, ST_V_Total_downloaded_, buf_length );
+			status_bar_buf[ buf_length++ ] = ' ';
+			// The maximum length that FormatSizes can return is 22 bytes excluding the NULL terminator.
+			FormatSizes( status_bar_buf + buf_length, 128 - buf_length, cfg_t_status_downloaded, 0 );
+			// NULL terminator is set in FormatSizes.
+			_SendMessageW( g_hWnd_status, SB_SETTEXT, MAKEWPARAM( 1, 0 ), ( LPARAM )status_bar_buf );
+
+
+			buf_length = ( ST_L_Global_download_speed_limit_ > 102 ? 102 : ST_L_Global_download_speed_limit_ ); // Let's not overflow. 128 - ( ' ' + 22 +  '/' + 's' + NULL ) = 102 remaining bytes for our string.
+			_wmemcpy_s( status_bar_buf, 128, ST_V_Global_download_speed_limit_, buf_length );
+			status_bar_buf[ buf_length++ ] = ' ';
+
+			if ( cfg_download_speed_limit == 0 )
+			{
+				_wmemcpy_s( status_bar_buf + buf_length, 128 - buf_length, ST_V_Unlimited, ST_L_Unlimited + 1 );
+			}
+			else
+			{
+				// The maximum length that FormatSizes can return is 22 bytes excluding the NULL terminator.
+				length = FormatSizes( status_bar_buf + buf_length, 128 - buf_length, cfg_t_status_speed_limit, cfg_download_speed_limit ) + buf_length;
+				status_bar_buf[ length++ ] = L'/';
+				status_bar_buf[ length++ ] = L's';
+				status_bar_buf[ length ] = 0;
+			}
+
+			_SendMessageW( g_hWnd_status, SB_SETTEXT, MAKEWPARAM( 2, 0 ), ( LPARAM )status_bar_buf );
+
 
 			int arr[ NUM_COLUMNS ];
 
@@ -1991,12 +2018,18 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 
 			for ( char i = 0; i < NUM_COLUMNS; ++i )
 			{
-				// Active Parts, Download Speed, Downloaded, File Size, Time Elapsed, Time Remaining
-				if ( i == 1 || i == 4 || i == 5 || i == 6 || i == 11 || i == 12 )
+				// Active Parts, Download Speed, Download Speed Limit, Downloaded, File Size, Time Elapsed, Time Remaining
+				if ( i == COLUMN_ACTIVE_PARTS ||
+					 i == COLUMN_DOWNLOAD_SPEED ||
+					 i == COLUMN_DOWNLOAD_SPEED_LIMIT ||
+					 i == COLUMN_DOWNLOADED ||
+					 i == COLUMN_FILE_SIZE ||
+					 i == COLUMN_TIME_ELAPSED ||
+					 i == COLUMN_TIME_REMAINING )
 				{
 					lvc.fmt = LVCFMT_RIGHT;
 				}
-				else if ( i == 9 )	// Progress
+				else if ( i == COLUMN_PROGRESS )	// Progress
 				{
 					lvc.fmt = LVCFMT_CENTER;
 				}
@@ -2025,7 +2058,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 
 			g_hWnd_files_columns = ( HWND )_SendMessageW( g_hWnd_files, LVM_GETHEADER, 0, 0 );
 
-			g_default_tray_icon = ( HICON )_LoadImageW( GetModuleHandle( NULL ), MAKEINTRESOURCE( IDI_ICON ), IMAGE_ICON, 16, 16, LR_SHARED );
+			g_default_tray_icon = ( HICON )_LoadImageW( GetModuleHandleW( NULL ), MAKEINTRESOURCE( IDI_ICON ), IMAGE_ICON, 16, 16, LR_SHARED );
 
 			if ( cfg_tray_icon )
 			{
@@ -2175,6 +2208,12 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 					}
 					break;
 
+					case 'L':	// Open Global Download Speed Limit window.
+					{
+						_SendMessageW( hWnd, WM_COMMAND, MENU_GLOBAL_SPEED_LIMIT, 0 );
+					}
+					break;
+
 					case VK_DELETE:	// Remove and Delete selected items.
 					{
 						if ( !in_worker_thread && _SendMessageW( g_hWnd_files, LVM_GETSELECTEDCOUNT, 0, 0 ) > 0 )
@@ -2244,7 +2283,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 					{
 						// Make sure the # columns are visible.
 						HWND hWnd_parent = _GetParent( nmh->hdr.hwndFrom );
-						if ( hWnd_parent == g_hWnd_files && *download_columns[ 0 ] != -1 )
+						if ( hWnd_parent == g_hWnd_files && *download_columns[ COLUMN_NUM ] != -1 )
 						{
 							nmh->pitem->iOrder = GetColumnIndexFromVirtualIndex( nmh->iItem, download_columns, NUM_COLUMNS );
 							return TRUE;
@@ -2282,7 +2321,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 						// Change the size column info.
 						if ( index != -1 )
 						{
-							if ( index == 4 )
+							if ( index == COLUMN_DOWNLOAD_SPEED )
 							{
 								if ( cfg_t_down_speed >= SIZE_FORMAT_AUTO )
 								{
@@ -2294,7 +2333,19 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 								}
 								InvalidateRect( nmlv->hdr.hwndFrom, NULL, TRUE );
 							}
-							else if ( index == 5 )
+							else if ( index == COLUMN_DOWNLOAD_SPEED_LIMIT )
+							{
+								if ( cfg_t_speed_limit >= SIZE_FORMAT_AUTO )
+								{
+									cfg_t_speed_limit = SIZE_FORMAT_BYTE;
+								}
+								else
+								{
+									++cfg_t_speed_limit;
+								}
+								InvalidateRect( nmlv->hdr.hwndFrom, NULL, TRUE );
+							}
+							else if ( index == COLUMN_DOWNLOADED )
 							{
 								if ( cfg_t_downloaded >= SIZE_FORMAT_AUTO )
 								{
@@ -2306,7 +2357,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 								}
 								InvalidateRect( nmlv->hdr.hwndFrom, NULL, TRUE );
 							}
-							else if ( index == 6 )
+							else if ( index == COLUMN_FILE_SIZE )
 							{
 								if ( cfg_t_file_size >= SIZE_FORMAT_AUTO )
 								{
@@ -2335,7 +2386,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 						}
 
 						// The number column doesn't get sorted and its iOrder is always 0, so let's remove any sort arrows that are active.
-						if ( lvc.iOrder == 0 && *download_columns[ 0 ] != -1 )
+						if ( lvc.iOrder == 0 && *download_columns[ COLUMN_NUM ] != -1 )
 						{
 							// Remove the sort format for all columns.
 							for ( unsigned char i = 1; _SendMessageW( nmlv->hdr.hwndFrom, LVM_GETCOLUMN, i, ( LPARAM )&lvc ) == TRUE; ++i )
@@ -2438,52 +2489,86 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 				{
 					NMMOUSE *nm = ( NMMOUSE * )lParam;
 
-					if ( nm->hdr.hwndFrom == g_hWnd_status )
+					// Change the format of the panel if Ctrl is held while clicking the panel.
+					if ( GetKeyState( VK_CONTROL ) & 0x8000 )
 					{
-						wchar_t status_bar_buf[ 64 ];
-						unsigned char buf_length;
-
-						if ( nm->dwItemSpec == 0 )
+						if ( nm->hdr.hwndFrom == g_hWnd_status )
 						{
-							if ( cfg_t_status_down_speed >= SIZE_FORMAT_AUTO )
-							{
-								cfg_t_status_down_speed = SIZE_FORMAT_BYTE;
-							}
-							else
-							{
-								++cfg_t_status_down_speed;
-							}
+							wchar_t status_bar_buf[ 128 ];
+							unsigned char buf_length;
 
-							buf_length = ( ST_L_Download_speed_ > 38 ? 38 : ST_L_Download_speed_ ); // Let's not overflow. 64 - ( ' ' + 22 +  '/' + 's' + NULL ) = 38 remaining bytes for our string.
-							_wmemcpy_s( status_bar_buf, 64, ST_V_Download_speed_, buf_length );
-							status_bar_buf[ buf_length ] = ' ';
-							// The maximum length that FormatSizes can return is 22 bytes excluding the NULL terminator.
-							unsigned int length = FormatSizes( status_bar_buf + ( buf_length + 1 ), 64 - ( buf_length + 1 ), cfg_t_status_down_speed, session_downloaded_speed ) + ( buf_length + 1 );
-							status_bar_buf[ length ] = L'/';
-							status_bar_buf[ length + 1 ] = L's';
-							status_bar_buf[ length + 2 ] = 0;
-
-							_SendMessageW( g_hWnd_status, SB_SETTEXT, MAKEWPARAM( 0, 0 ), ( LPARAM )status_bar_buf );
-						}
-						else if ( nm->dwItemSpec == 1 )
-						{
-							if ( cfg_t_status_downloaded >= SIZE_FORMAT_AUTO )
+							if ( nm->dwItemSpec == 0 )
 							{
-								cfg_t_status_downloaded = SIZE_FORMAT_BYTE;
+								if ( cfg_t_status_down_speed >= SIZE_FORMAT_AUTO )
+								{
+									cfg_t_status_down_speed = SIZE_FORMAT_BYTE;
+								}
+								else
+								{
+									++cfg_t_status_down_speed;
+								}
+
+								buf_length = ( ST_L_Download_speed_ > 102 ? 102 : ST_L_Download_speed_ ); // Let's not overflow. 128 - ( ' ' + 22 +  '/' + 's' + NULL ) = 102 remaining bytes for our string.
+								_wmemcpy_s( status_bar_buf, 128, ST_V_Download_speed_, buf_length );
+								status_bar_buf[ buf_length++ ] = ' ';
+								// The maximum length that FormatSizes can return is 22 bytes excluding the NULL terminator.
+								unsigned int length = FormatSizes( status_bar_buf + buf_length, 128 - buf_length, cfg_t_status_down_speed, g_session_downloaded_speed ) + buf_length;
+								status_bar_buf[ length++ ] = L'/';
+								status_bar_buf[ length++ ] = L's';
+								status_bar_buf[ length ] = 0;
+
+								_SendMessageW( g_hWnd_status, SB_SETTEXT, MAKEWPARAM( 0, 0 ), ( LPARAM )status_bar_buf );
 							}
-							else
+							else if ( nm->dwItemSpec == 1 )
 							{
-								++cfg_t_status_downloaded;
+								if ( cfg_t_status_downloaded >= SIZE_FORMAT_AUTO )
+								{
+									cfg_t_status_downloaded = SIZE_FORMAT_BYTE;
+								}
+								else
+								{
+									++cfg_t_status_downloaded;
+								}
+
+								buf_length = ( ST_L_Total_downloaded_ > 104 ? 104 : ST_L_Total_downloaded_ ); // Let's not overflow. 128 - ( ' ' + 22 + NULL ) = 104 remaining bytes for our string.
+								_wmemcpy_s( status_bar_buf, 128, ST_V_Total_downloaded_, buf_length );
+								status_bar_buf[ buf_length++ ] = ' ';
+								// The maximum length that FormatSizes can return is 22 bytes excluding the NULL terminator.
+								FormatSizes( status_bar_buf + buf_length, 128 - buf_length, cfg_t_status_downloaded, g_session_total_downloaded );
+								// NULL terminator is set in FormatSizes.
+
+								_SendMessageW( g_hWnd_status, SB_SETTEXT, MAKEWPARAM( 1, 0 ), ( LPARAM )status_bar_buf );
 							}
+							else if ( nm->dwItemSpec == 2 )
+							{
+								buf_length = ( ST_L_Global_download_speed_limit_ > 102 ? 102 : ST_L_Global_download_speed_limit_ ); // Let's not overflow. 128 - ( ' ' + 22 +  '/' + 's' + NULL ) = 102 remaining bytes for our string.
+								_wmemcpy_s( status_bar_buf, 128, ST_V_Global_download_speed_limit_, buf_length );
+								status_bar_buf[ buf_length++ ] = ' ';
 
-							buf_length = ( ST_L_Total_downloaded_ > 40 ? 40 : ST_L_Total_downloaded_ ); // Let's not overflow. 64 - ( ' ' + 22 + NULL ) = 40 remaining bytes for our string.
-							_wmemcpy_s( status_bar_buf, 64, ST_V_Total_downloaded_, buf_length );
-							status_bar_buf[ buf_length ] = ' ';
-							// The maximum length that FormatSizes can return is 22 bytes excluding the NULL terminator.
-							FormatSizes( status_bar_buf + ( buf_length + 1 ), 64 - ( buf_length + 1 ), cfg_t_status_downloaded, session_total_downloaded );
-							// NULL terminator is set in FormatSizes.
+								if ( cfg_download_speed_limit == 0 )
+								{
+									_wmemcpy_s( status_bar_buf + buf_length, 128 - buf_length, ST_V_Unlimited, ST_L_Unlimited + 1 );
+								}
+								else
+								{
+									if ( cfg_t_status_speed_limit >= SIZE_FORMAT_AUTO )
+									{
+										cfg_t_status_speed_limit = SIZE_FORMAT_BYTE;
+									}
+									else
+									{
+										++cfg_t_status_speed_limit;
+									}
 
-							_SendMessageW( g_hWnd_status, SB_SETTEXT, MAKEWPARAM( 1, 0 ), ( LPARAM )status_bar_buf );
+									// The maximum length that FormatSizes can return is 22 bytes excluding the NULL terminator.
+									unsigned int length = FormatSizes( status_bar_buf + buf_length, 128 - buf_length, cfg_t_status_speed_limit, cfg_download_speed_limit ) + buf_length;
+									status_bar_buf[ length++ ] = L'/';
+									status_bar_buf[ length++ ] = L's';
+									status_bar_buf[ length ] = 0;
+								}
+
+								_SendMessageW( g_hWnd_status, SB_SETTEXT, MAKEWPARAM( 2, 0 ), ( LPARAM )status_bar_buf );
+							}
 						}
 					}
 				}
@@ -2491,11 +2576,25 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 
 				case NM_DBLCLK:
 				{
-					NMITEMACTIVATE *nmitem = ( NMITEMACTIVATE * )lParam;
+					//NMITEMACTIVATE *nmitem = ( NMITEMACTIVATE * )lParam;
+					//NMMOUSE *nm = ( NMMOUSE * )lParam;
 
-					if ( nmitem->hdr.hwndFrom == g_hWnd_files )
+					HWND hwndFrom = ( ( LPNMHDR )lParam )->hwndFrom;
+
+					if ( hwndFrom == g_hWnd_files )
 					{
 						_SendMessageW( hWnd, WM_COMMAND, MENU_OPEN_DIRECTORY, 0 );
+					}
+					else if ( hwndFrom == g_hWnd_status )
+					{
+						// Let NM_CLICK handle fast (double) clicks if Ctrl is down.
+						if ( !( GetKeyState( VK_CONTROL ) & 0x8000 ) )
+						{
+							if ( ( ( NMMOUSE * )lParam )->dwItemSpec == 2 )
+							{
+								_SendMessageW( hWnd, WM_COMMAND, MENU_GLOBAL_SPEED_LIMIT, 0 );
+							}
+						}
 					}
 				}
 				break;
@@ -2567,7 +2666,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 
 							if ( di != NULL )
 							{
-								// The 32-bit version of _snwprintf in ntdll.dll on Windows XP crashes when a %s proceeds two %llu.
+								/*// The 32-bit version of _snwprintf in ntdll.dll on Windows XP crashes when a %s proceeds two %llu.
 								int tooltip_buffer_offset = __snwprintf( tooltip_buffer, 512, L"%s: %s\r\n%s: %llu / ", ST_V_Filename, di->file_path + di->filename_offset, ST_V_Downloaded, di->downloaded );
 
 								if ( di->file_size > 0 )
@@ -2579,16 +2678,16 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 									tooltip_buffer[ tooltip_buffer_offset++ ] = L'?';
 								}
 
-								__snwprintf( tooltip_buffer + tooltip_buffer_offset, 512 - tooltip_buffer_offset, L" bytes\r\n%s: %s", ST_V_Added, di->w_add_time );
+								__snwprintf( tooltip_buffer + tooltip_buffer_offset, 512 - tooltip_buffer_offset, L" bytes\r\n%s: %s", ST_V_Added, di->w_add_time );*/
 
-								/*if ( di->file_size > 0 )
+								if ( di->file_size > 0 )
 								{
-									__snwprintf( tooltip_buffer, 512, L"%s: %s\r\n%s: %llu / %llu bytes\r\n%s: %s", ST_V_Filename, di->file_path + di->filename_offset, ST_V_Downloaded, di->downloaded, di->file_size, ST_V_Added, di->w_add_time );
+									__snwprintf( tooltip_buffer, 512, L"%s: %s\r\n%s: %I64u / %I64u bytes\r\n%s: %s", ST_V_Filename, di->file_path + di->filename_offset, ST_V_Downloaded, di->downloaded, di->file_size, ST_V_Added, di->w_add_time );
 								}
 								else
 								{
-									__snwprintf( tooltip_buffer, 512, L"%s: %s\r\n%s: %llu / ? bytes\r\n%s: %s", ST_V_Filename, di->file_path + di->filename_offset, ST_V_Downloaded, di->downloaded, ST_V_Added, di->w_add_time );
-								}*/
+									__snwprintf( tooltip_buffer, 512, L"%s: %s\r\n%s: %I64u / ? bytes\r\n%s: %s", ST_V_Filename, di->file_path + di->filename_offset, ST_V_Downloaded, di->downloaded, ST_V_Added, di->w_add_time );
+								}
 
 								ti.lpszText = tooltip_buffer;
 
@@ -2612,7 +2711,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 					edit_from_menu = false;
 
 					// If no item is being edited or the filename column is not displayed, then cancel the edit.
-					if ( pdi->item.iItem == -1 || *download_columns[ 8 ] == -1 )
+					if ( pdi->item.iItem == -1 || *download_columns[ COLUMN_FILENAME ] == -1 )
 					{
 						return TRUE;
 					}
@@ -2629,7 +2728,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 					{
 						if ( skip_hit_test )
 						{
-							current_edit_pos.top = GetColumnIndexFromVirtualIndex( *download_columns[ 8 ], download_columns, NUM_COLUMNS );	// Filename column index.
+							current_edit_pos.top = GetColumnIndexFromVirtualIndex( *download_columns[ COLUMN_FILENAME ], download_columns, NUM_COLUMNS );	// Filename column index.
 						}
 						else
 						{
@@ -2640,7 +2739,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 							_SendMessageW( g_hWnd_files, LVM_SUBITEMHITTEST, 0, ( LPARAM )&lvhti );
 
 							// Make sure it's the filename column that we hit.
-							if ( GetVirtualIndexFromColumnIndex( lvhti.iSubItem, download_columns, NUM_COLUMNS ) != 8 )
+							if ( GetVirtualIndexFromColumnIndex( lvhti.iSubItem, download_columns, NUM_COLUMNS ) != COLUMN_FILENAME )
 							{
 								return TRUE;
 							}
@@ -2987,34 +3086,35 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 
 						switch ( arr2[ i ] )
 						{
-							case 0:		// NUM
-							case 2:		// DATE AND TIME ADDED
-							case 3:		// DOWNLOAD DIRECTORY
-							case 8:		// FILENAME
-							case 10:	// SSL / TLS Version
-							case 13:	// URL
+							case COLUMN_NUM:
+							case COLUMN_DATE_AND_TIME_ADDED:
+							case COLUMN_DOWNLOAD_DIRECTORY:
+							case COLUMN_FILENAME:
+							case COLUMN_SSL_TLS_VERSION:
+							case COLUMN_URL:
 							{
 								DT_ALIGN = DT_LEFT;
 							}
 							break;
 
-							case 1:		// ACTIVE PARTS
-							case 4:		// DOWNLOAD SPEED
-							case 5:		// DOWNLOADED
-							case 6:		// FILE SIZE
-							case 11:	// TIME ELAPSED
-							case 12:	// TIME REMAINING
+							case COLUMN_ACTIVE_PARTS:
+							case COLUMN_DOWNLOAD_SPEED:
+							case COLUMN_DOWNLOAD_SPEED_LIMIT:
+							case COLUMN_DOWNLOADED:
+							case COLUMN_FILE_SIZE:
+							case COLUMN_TIME_ELAPSED:
+							case COLUMN_TIME_REMAINING:
 							{
 								DT_ALIGN = DT_RIGHT;
 							}
 							break;
 
-							/*case 7:	// FILE TYPE
+							/*case COLUMN_FILE_TYPE:
 							{
 							}
 							break;*/
 
-							case 9:		// PROGRESS
+							case COLUMN_PROGRESS:
 							{
 								DT_ALIGN = DT_CENTER;
 							}
@@ -3033,7 +3133,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 
 					last_rc = dis->rcItem;
 
-					if ( arr2[ i ] != 9 )	// Not progress column.
+					if ( arr2[ i ] != COLUMN_PROGRESS )	// Not progress column.
 					{
 						// This will adjust the text to fit nicely into the rectangle.
 						last_rc.left = 5 + last_left;
@@ -3086,7 +3186,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 					// Transparent background for text.
 					_SetBkMode( hdcMem, TRANSPARENT );
 
-					if ( arr2[ i ] == 7 )	// File Type
+					if ( arr2[ i ] == COLUMN_FILE_TYPE )	// File Type
 					{
 						if ( di->icon != NULL )
 						{
@@ -3108,40 +3208,8 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 							_DrawIconEx( dis->hDC, dis->rcItem.left + last_rc.left, last_rc.top + icon_top_offset, *di->icon, 0, 0, NULL, NULL, DI_NORMAL );
 						}
 					}
-					else if ( arr2[ i ] == 9 )	// Progress
+					else if ( arr2[ i ] == COLUMN_PROGRESS )	// Progress
 					{
-						_BitBlt( dis->hDC, dis->rcItem.left + last_rc.left, last_rc.top, width, height, hdcMem, 0, 0, WHITENESS );
-
-						RECT rc_clip = rc;
-
-						// Connecting, Downloading, Paused, Queued, Stopped.
-						if ( IS_STATUS( di->status,
-								STATUS_CONNECTING |
-								STATUS_DOWNLOADING |
-								STATUS_STOPPED ) )
-						{
-							if ( di->file_size > 0 )
-							{
-#ifdef _WIN64
-								int i_percentage = ( int )( ( float )width * ( ( float )di->last_downloaded / ( float )di->file_size ) );
-#else
-								// Multiply the floating point division by 100%.
-								float f_percentage = ( float )width * ( ( float )di->last_downloaded / ( float )di->file_size );
-								int i_percentage = 0;
-								__asm
-								{
-									fld f_percentage;	//; Load the floating point value onto the FPU stack.
-									fistp i_percentage;	//; Convert the floating point value into an integer, store it in an integer, and then pop it off the stack.
-								}
-#endif
-								rc_clip.right = i_percentage;
-							}
-							else
-							{
-								rc_clip.right = 0;
-							}
-						}
-
 						COLORREF color_ref_body = 0, color_ref_border = 0, color_ref_background = 0, color_ref_body_text = 0, color_ref_background_text = 0;
 
 						if		( di->status == STATUS_CONNECTING )			{ color_ref_body = cfg_color_4a; color_ref_background = cfg_color_4b; color_ref_body_text = cfg_color_4c; color_ref_background_text = cfg_color_4d; color_ref_border = cfg_color_4e; }
@@ -3160,6 +3228,8 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 						else if	( di->status == STATUS_MOVING_FILE )		{ color_ref_body = cfg_color_8a; color_ref_background = cfg_color_8b; color_ref_body_text = cfg_color_8c; color_ref_background_text = cfg_color_8d; color_ref_border = cfg_color_8e; }
 						else												{ color_ref_body = cfg_color_5a; color_ref_background = cfg_color_5b; color_ref_body_text = cfg_color_5c; color_ref_background_text = cfg_color_5d; color_ref_border = cfg_color_5e; }
 
+						int progress_width = width - 2;
+
 						HBRUSH color = _CreateSolidBrush( color_ref_background );
 						_FillRect( hdcMem, &rc, color );
 						_DeleteObject( color );
@@ -3167,17 +3237,170 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 						_SetTextColor( hdcMem, color_ref_background_text );
 						_DrawTextW( hdcMem, buf, -1, &rc, DT_NOPREFIX | DT_SINGLELINE | DT_CENTER | DT_VCENTER | DT_END_ELLIPSIS );
 
-						_BitBlt( dis->hDC, dis->rcItem.left + last_rc.left, last_rc.top, width, height, hdcMem, 0, 0, SRCCOPY );
+						_BitBlt( dis->hDC, dis->rcItem.left + last_rc.left + 1, last_rc.top, progress_width, height, hdcMem, 0, 0, SRCCOPY );
 
-						color = _CreateSolidBrush( color_ref_body );
-						_FillRect( hdcMem, &rc_clip, color );
-						_DeleteObject( color );
 
-						_SetTextColor( hdcMem, color_ref_body_text );
-						_DrawTextW( hdcMem, buf, -1, &rc, DT_NOPREFIX | DT_SINGLELINE | DT_CENTER | DT_VCENTER | DT_END_ELLIPSIS );
+						////////////////////
 
-						_BitBlt( dis->hDC, dis->rcItem.left + last_rc.left, last_rc.top, ( rc_clip.right - rc_clip.left ), height, hdcMem, 0, 0, SRCCOPY );
 
+						if ( cfg_show_part_progress &&
+							 IS_STATUS( di->status,
+								STATUS_CONNECTING |
+								STATUS_DOWNLOADING |
+								STATUS_STOPPED ) &&
+							 di->print_range_list != NULL )
+						{
+							// We'll pick out sections of this bitmap to paint the progress bar.
+							color = _CreateSolidBrush( color_ref_body );
+							_FillRect( hdcMem, &rc, color );
+							_DeleteObject( color );
+
+							_SetTextColor( hdcMem, color_ref_body_text );
+							_DrawTextW( hdcMem, buf, -1, &rc, DT_NOPREFIX | DT_SINGLELINE | DT_CENTER | DT_VCENTER | DT_END_ELLIPSIS );
+
+							unsigned char range_info_count = 0;
+
+							unsigned long long last_range_end = 0;
+
+							RANGE_INFO *ri;
+							DoublyLinkedList *range_node = di->print_range_list;
+
+							// Determine the number of ranges that still need downloading.
+							while ( range_node != di->range_list_end && range_node->data != NULL )
+							{
+								++range_info_count;
+
+								ri = ( RANGE_INFO * )range_node->data;
+
+								unsigned long long range_end = ri->range_end + 1;
+								unsigned long long range_size = ( range_end - last_range_end );
+								unsigned long long content_offset = ri->content_offset;
+								if ( ri->range_start > last_range_end )
+								{
+									content_offset += ( ri->range_start - last_range_end );
+								}
+
+								int range_offset = 0;
+								if ( di->file_size > 0 )
+								{
+#ifdef _WIN64
+									range_offset = ( int )_ceil( ( double )progress_width * ( ( double )last_range_end / ( double )di->file_size ) );
+#else
+									double f_range_offset = _ceil( ( double )progress_width * ( ( double )last_range_end / ( double )di->file_size ) );
+									__asm
+									{
+										fld f_range_offset;	//; Load the floating point value onto the FPU stack.
+										fistp range_offset;	//; Convert the floating point value into an integer, store it in an integer, and then pop it off the stack.
+									}
+#endif
+								}
+
+								int range_width;
+#ifdef _WIN64
+								range_width = ( int )_ceil( ( double )progress_width * ( ( double )range_size / ( double )di->file_size ) );
+#else
+								double f_range_width = _ceil( ( double )progress_width * ( ( double )range_size / ( double )di->file_size ) );
+								__asm
+								{
+									fld f_range_width;	//; Load the floating point value onto the FPU stack.
+									fistp range_width;	//; Convert the floating point value into an integer, store it in an integer, and then pop it off the stack.
+								}
+#endif
+
+								int range_progress_offset = 0;
+								if ( range_size > 0 )
+								{
+#ifdef _WIN64
+									range_progress_offset = ( int )_ceil( ( double )range_width * ( ( double )content_offset / ( double )range_size ) );
+#else
+									double f_range_progress_offset = _ceil( ( double )range_width * ( ( double )content_offset / ( double )range_size ) );
+									__asm
+									{
+										fld f_range_progress_offset;	//; Load the floating point value onto the FPU stack.
+										fistp range_progress_offset;	//; Convert the floating point value into an integer, store it in an integer, and then pop it off the stack.
+									}
+#endif
+								}
+
+								_BitBlt( dis->hDC, dis->rcItem.left + last_rc.left + 1 + range_offset, last_rc.top, range_progress_offset, height, hdcMem, range_offset, 0, SRCCOPY );
+
+								last_range_end = range_end;
+
+								range_node = range_node->next;
+							}
+
+							// Fill out the remaining progress bar if later parts have completed.
+							if ( ( IS_STATUS_NOT( di->status, STATUS_CONNECTING ) || range_info_count == di->parts ) && last_range_end < di->file_size )
+							{
+								int range_offset = 0;
+								if ( di->file_size > 0 )
+								{
+#ifdef _WIN64
+									range_offset = ( int )_ceil( ( double )progress_width * ( ( double )last_range_end / ( double )di->file_size ) );
+#else
+									double f_range_offset = _ceil( ( double )progress_width * ( ( double )last_range_end / ( double )di->file_size ) );
+									__asm
+									{
+										fld f_range_offset;	//; Load the floating point value onto the FPU stack.
+										fistp range_offset;	//; Convert the floating point value into an integer, store it in an integer, and then pop it off the stack.
+									}
+#endif
+								}
+
+								_BitBlt( dis->hDC, dis->rcItem.left + last_rc.left + 1 + range_offset, last_rc.top, progress_width - range_offset, height, hdcMem, range_offset, 0, SRCCOPY );
+							}
+						}
+						else
+						{
+							//RECT rc_clip = rc;
+							int progress_offset;
+
+							// Connecting, Downloading, Paused, Queued, Stopped.
+							if ( IS_STATUS( di->status,
+									STATUS_CONNECTING |
+									STATUS_DOWNLOADING |
+									STATUS_STOPPED ) )
+							{
+								if ( di->file_size > 0 )
+								{
+									int i_percentage;
+#ifdef _WIN64
+									i_percentage = ( int )_ceil( ( double )progress_width * ( ( double )di->last_downloaded / ( double )di->file_size ) );
+#else
+									// Multiply the floating point division by 100%.
+									double f_percentage = _ceil( ( double )progress_width * ( ( double )di->last_downloaded / ( double )di->file_size ) );
+									__asm
+									{
+										fld f_percentage;	//; Load the floating point value onto the FPU stack.
+										fistp i_percentage;	//; Convert the floating point value into an integer, store it in an integer, and then pop it off the stack.
+									}
+#endif
+									//rc_clip.right = i_percentage;
+									progress_offset = i_percentage;
+								}
+								else
+								{
+									//rc_clip.right = 0;
+									progress_offset = 0;
+								}
+							}
+							else
+							{
+								progress_offset = progress_width;
+							}
+
+							color = _CreateSolidBrush( color_ref_body );
+							_FillRect( hdcMem, &rc/*&rc_clip*/, color );
+							_DeleteObject( color );
+
+							_SetTextColor( hdcMem, color_ref_body_text );
+							_DrawTextW( hdcMem, buf, -1, &rc, DT_NOPREFIX | DT_SINGLELINE | DT_CENTER | DT_VCENTER | DT_END_ELLIPSIS );
+
+							_BitBlt( dis->hDC, dis->rcItem.left + last_rc.left + 1, last_rc.top, progress_offset/*( rc_clip.right - rc_clip.left ) - 2*/, height, hdcMem, 0, 0, SRCCOPY );
+						}
+
+
+						////////////////////
 
 
 						HPEN hPen = _CreatePen( PS_SOLID, 1, color_ref_border );
@@ -3589,15 +3812,6 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 						GlobalFree( range_node );
 					}
 
-					while ( di->range_queue != NULL )
-					{
-						DoublyLinkedList *range_node = di->range_queue;
-						di->range_queue = di->range_queue->next;
-
-						GlobalFree( range_node->data );
-						GlobalFree( range_node );
-					}
-
 					DeleteCriticalSection( &di->shared_cs );
 
 					GlobalFree( di );
@@ -3680,6 +3894,16 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 			}
 
 			return 0;
+		}
+		break;
+
+		case WM_RESET_PROGRESS:
+		{
+			DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )lParam;
+			if ( di != NULL )
+			{
+				di->print_range_list = NULL;
+			}
 		}
 		break;
 

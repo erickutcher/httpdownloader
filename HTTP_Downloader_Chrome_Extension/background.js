@@ -28,6 +28,7 @@ function OnGetOptions( options )
 	if ( typeof options.username == "undefined" ) { options.username = ""; }
 	if ( typeof options.password == "undefined" ) { options.password = ""; }
 	if ( typeof options.parts == "undefined" ) { options.parts = "1"; }
+	if ( typeof options.default_download_speed_limit == "undefined" ) { options.default_download_speed_limit = "0"; }
 	if ( typeof options.default_directory == "undefined" ) { options.default_directory = ""; }
 	if ( typeof options.user_agent == "undefined" ) { options.user_agent = true; }
 	if ( typeof options.referer == "undefined" ) { options.referer = true; }
@@ -53,6 +54,7 @@ function CreateDownloadWindow( download_info, message = "" )
 		var username = g_options.username;
 		var password = g_options.password;
 		var parts = g_options.parts;
+		var speed_limit = g_options.default_download_speed_limit;
 
 		var method = download_info.method;
 		var url = download_info.url;
@@ -68,6 +70,7 @@ function CreateDownloadWindow( download_info, message = "" )
 			username,
 			password,
 			parts,
+			speed_limit,
 			method,
 			url,
 			cookie_string,
@@ -148,13 +151,14 @@ function HandleMessages( request, sender, sendResponse )
 					username: window[ 2 ],
 					password: window[ 3 ],
 					parts: window[ 4 ],
-					method: window[ 5 ],
-					urls: window[ 6 ],
-					cookies: window[ 7 ],
-					headers: window[ 8 ],
-					post_data: window[ 9 ],
-					directory: window[ 10 ],
-					message: window[ 11 ]
+					speed_limit: window[ 5 ],
+					method: window[ 6 ],
+					urls: window[ 7 ],
+					cookies: window[ 8 ],
+					headers: window[ 9 ],
+					post_data: window[ 10 ],
+					directory: window[ 11 ],
+					message: window[ 12 ]
 				} );
 
 				break;
@@ -243,6 +247,7 @@ function SendDownloadToClient( download_info )
 		var username = "";
 		var password = "";
 		var parts = g_options.parts;
+		var speed_limit = g_options.default_download_speed_limit;
 		var download_operations = 0;
 
 		request.onerror = function( e )
@@ -279,6 +284,7 @@ function SendDownloadToClient( download_info )
 					  username + "\x1f" +
 					  password + "\x1f" +
 					  parts + "\x1f" +
+					  speed_limit + "\x1f" +
 					  download_info.directory + "\x1f" +
 					  download_operations + "\x1f" +
 					  download_info.cookie_string + "\x1f" +
@@ -375,7 +381,7 @@ function OnDownloadItemCreated( item )
 		var url = ( item.hasOwnProperty( "finalUrl" ) ? item.finalUrl : item.url );
 		var protocol = url.substring( 0, 8 ).toLowerCase();
 
-		if ( protocol.startsWith( "http:" ) || protocol.startsWith( "https:" ) )
+		if ( protocol.startsWith( "http:" ) || protocol.startsWith( "https:" ) || protocol.startsWith( "ftp:" ) )
 		{
 			var method = 1; // GET
 			var post_data = "";

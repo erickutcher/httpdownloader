@@ -36,41 +36,44 @@ int cfg_column_width4 = 400;
 int cfg_column_width5 = 110;
 int cfg_column_width6 = 110;
 int cfg_column_width7 = 110;
-int cfg_column_width8 = 25;
-int cfg_column_width9 = 200;
+int cfg_column_width8 = 110;
+int cfg_column_width9 = 25;
 int cfg_column_width10 = 200;
-int cfg_column_width11 = 100;
-int cfg_column_width12 = 90;
+int cfg_column_width11 = 200;
+int cfg_column_width12 = 100;
 int cfg_column_width13 = 90;
-int cfg_column_width14 = 1000;
+int cfg_column_width14 = 90;
+int cfg_column_width15 = 1000;
 
-// Column (1-14) / Virtual position (0-13)
-// Set the visible column to the position indicated in the virtual list.
-char cfg_column_order1 = 0;		// 0 # (always 0)
-char cfg_column_order2 = 7;		// 1 Active Parts
-char cfg_column_order3 = 8;		// 2 Date and Time Added
-char cfg_column_order4 = 5;		// 3 Download Directory
-char cfg_column_order5 = 6;		// 4 Download Speed
-char cfg_column_order6 = 9;		// 5 Downloaded
-char cfg_column_order7 = 4;		// 6 File Size
-char cfg_column_order8 = 12;	// 7 File Type
-char cfg_column_order9 = 1;		// 8 Filename
-char cfg_column_order10 = 11;	// 9 Progress
-char cfg_column_order11 = 2;	// 10 SSL / TLS Version
-char cfg_column_order12 = 3;	// 11 Time Elapsed
-char cfg_column_order13 = 10;	// 12 Time Remaining
-char cfg_column_order14 = 13;	// 13 URL
+// Column (1-15) / Virtual position (0-14)
+char cfg_column_order1 = COLUMN_NUM;
+char cfg_column_order2 = COLUMN_FILE_TYPE;
+char cfg_column_order3 = COLUMN_FILENAME;
+char cfg_column_order4 = COLUMN_DOWNLOADED;
+char cfg_column_order5 = COLUMN_FILE_SIZE;
+char cfg_column_order6 = COLUMN_PROGRESS;
+char cfg_column_order7 = COLUMN_DOWNLOAD_SPEED;
+char cfg_column_order8 = COLUMN_TIME_REMAINING;
+char cfg_column_order9 = COLUMN_ACTIVE_PARTS;
+char cfg_column_order10 = COLUMN_TIME_ELAPSED;
+char cfg_column_order11 = COLUMN_DATE_AND_TIME_ADDED;
+char cfg_column_order12 = COLUMN_DOWNLOAD_DIRECTORY;
+char cfg_column_order13 = COLUMN_DOWNLOAD_SPEED_LIMIT;
+char cfg_column_order14 = COLUMN_SSL_TLS_VERSION;
+char cfg_column_order15 = COLUMN_URL;
 
 bool cfg_show_toolbar = false;
 bool cfg_show_column_headers = true;
 bool cfg_show_status_bar = true;
 
-unsigned char cfg_t_downloaded = SIZE_FORMAT_AUTO;	// 0 = Bytes, 1 = KB, 2 = MB, 3 = GB, 4 = auto
-unsigned char cfg_t_file_size = SIZE_FORMAT_AUTO;	// 0 = Bytes, 1 = KB, 2 = MB, 3 = GB, 4 = auto
-unsigned char cfg_t_down_speed = SIZE_FORMAT_AUTO;	// 0 = Bytes, 1 = KB, 2 = MB, 3 = GB, 4 = auto
+unsigned char cfg_t_downloaded = SIZE_FORMAT_AUTO;	// 0 = Bytes, 1 = KB, 2 = MB, 3 = GB, etc.
+unsigned char cfg_t_file_size = SIZE_FORMAT_AUTO;	// 0 = Bytes, 1 = KB, 2 = MB, 3 = GB, etc.
+unsigned char cfg_t_down_speed = SIZE_FORMAT_AUTO;	// 0 = Bytes, 1 = KB, 2 = MB, 3 = GB, etc.
+unsigned char cfg_t_speed_limit = SIZE_FORMAT_AUTO;	// 0 = Bytes, 1 = KB, 2 = MB, 3 = GB, etc.
 
-unsigned char cfg_t_status_downloaded = SIZE_FORMAT_AUTO;	// 0 = Bytes, 1 = KB, 2 = MB, 3 = GB, 4 = auto
-unsigned char cfg_t_status_down_speed = SIZE_FORMAT_AUTO;	// 0 = Bytes, 1 = KB, 2 = MB, 3 = GB, 4 = auto
+unsigned char cfg_t_status_downloaded = SIZE_FORMAT_AUTO;	// 0 = Bytes, 1 = KB, 2 = MB, 3 = GB, etc.
+unsigned char cfg_t_status_down_speed = SIZE_FORMAT_AUTO;	// 0 = Bytes, 1 = KB, 2 = MB, 3 = GB, etc.
+unsigned char cfg_t_status_speed_limit = SIZE_FORMAT_AUTO;	// 0 = Bytes, 1 = KB, 2 = MB, 3 = GB, etc.
 
 int cfg_drop_pos_x = 0;	// URL drop window.
 int cfg_drop_pos_y = 0;	// URL drop window.
@@ -108,6 +111,8 @@ unsigned char cfg_default_ssl_version = 4;	// Default is TLS 1.2.
 unsigned char cfg_default_download_parts = 1;
 
 unsigned char cfg_max_redirects = 10;
+
+unsigned long long cfg_default_speed_limit = 0;	// 0 = Unlimited
 
 wchar_t *cfg_default_download_directory = NULL;
 
@@ -180,7 +185,7 @@ wchar_t *cfg_hostname_socks = NULL;
 unsigned short cfg_port_socks = 1080;
 bool cfg_use_authentication_socks = false;
 bool cfg_resolve_domain_names_v4a = false;		// Proxy server resolves the domain names.
-bool cfg_resolve_domain_names = false;		// Proxy server resolves the domain names.
+bool cfg_resolve_domain_names = false;			// Proxy server resolves the domain names.
 
 wchar_t *cfg_proxy_auth_username_socks = NULL;
 wchar_t *cfg_proxy_auth_password_socks = NULL;
@@ -190,6 +195,10 @@ wchar_t *cfg_proxy_auth_ident_username_socks = NULL;
 //
 
 unsigned short cfg_timeout = 60;
+
+//
+
+unsigned long long cfg_download_speed_limit = 0;	// 0 = Unlimited
 
 //
 
@@ -216,6 +225,7 @@ unsigned char cfg_sorted_direction = 0;	// Sort down.
 bool cfg_sort_added_and_updating_items = false;
 
 bool cfg_show_gridlines = true;
+bool cfg_show_part_progress = false;
 
 FONT_SETTINGS cfg_even_row_font_settings = { NULL };					// COLOR_WINDOWTEXT (set in SetDefaultAppearance)
 FONT_SETTINGS cfg_odd_row_font_settings = { NULL };						// COLOR_WINDOWTEXT (set in SetDefaultAppearance)
@@ -276,7 +286,8 @@ char *download_columns[ NUM_COLUMNS ] = { &cfg_column_order1,
 										  &cfg_column_order11,
 										  &cfg_column_order12,
 										  &cfg_column_order13,
-										  &cfg_column_order14 };
+										  &cfg_column_order14,
+										  &cfg_column_order15 };
 
 int *download_columns_width[ NUM_COLUMNS ] = { &cfg_column_width1,
 											   &cfg_column_width2,
@@ -291,7 +302,8 @@ int *download_columns_width[ NUM_COLUMNS ] = { &cfg_column_width1,
 											   &cfg_column_width11,
 											   &cfg_column_width12,
 											   &cfg_column_width13,
-											   &cfg_column_width14 };
+											   &cfg_column_width14,
+											   &cfg_column_width15 };
 
 HANDLE worker_semaphore = NULL;			// Blocks shutdown while a worker thread is active.
 bool in_worker_thread = false;
@@ -448,20 +460,21 @@ int GetColumnIndexFromVirtualIndex( int virtual_index, char *column_arr[], unsig
 
 void SetDefaultColumnOrder()
 {
-	cfg_column_order1 = 0;		// 0 # (always 0)
-	cfg_column_order2 = 7;		// 1 Active Parts
-	cfg_column_order3 = 8;		// 2 Date and Time Added
-	cfg_column_order4 = 5;		// 3 Download Directory
-	cfg_column_order5 = 6;		// 4 Download Speed
-	cfg_column_order6 = 9;		// 5 Downloaded
-	cfg_column_order7 = 4;		// 6 File Size
-	cfg_column_order8 = 12;		// 7 File Type
-	cfg_column_order9 = 1;		// 8 Filename
-	cfg_column_order10 = 11;	// 9 Progress
-	cfg_column_order11 = 2;		// 10 SSL / TLS Version
-	cfg_column_order12 = 3;		// 11 Time Elapsed
-	cfg_column_order13 = 10;	// 12 Time Remaining
-	cfg_column_order14 = 13;	// 13 URL
+	cfg_column_order1 = COLUMN_NUM;
+	cfg_column_order2 = COLUMN_FILE_TYPE;
+	cfg_column_order3 = COLUMN_FILENAME;
+	cfg_column_order4 = COLUMN_DOWNLOADED;
+	cfg_column_order5 = COLUMN_FILE_SIZE;
+	cfg_column_order6 = COLUMN_PROGRESS;
+	cfg_column_order7 = COLUMN_DOWNLOAD_SPEED;
+	cfg_column_order8 = COLUMN_TIME_REMAINING;
+	cfg_column_order9 = COLUMN_ACTIVE_PARTS;
+	cfg_column_order10 = COLUMN_TIME_ELAPSED;
+	cfg_column_order11 = COLUMN_DATE_AND_TIME_ADDED;
+	cfg_column_order12 = COLUMN_DOWNLOAD_DIRECTORY;
+	cfg_column_order13 = COLUMN_DOWNLOAD_SPEED_LIMIT;
+	cfg_column_order14 = COLUMN_SSL_TLS_VERSION;
+	cfg_column_order15 = COLUMN_URL;
 }
 
 void UpdateColumnOrders()
@@ -530,13 +543,14 @@ void CheckColumnWidths()
 	if ( cfg_column_width5 < 0 || cfg_column_width5 > 2560 ) { cfg_column_width5 = 110; }
 	if ( cfg_column_width6 < 0 || cfg_column_width6 > 2560 ) { cfg_column_width6 = 110; }
 	if ( cfg_column_width7 < 0 || cfg_column_width7 > 2560 ) { cfg_column_width7 = 110; }
-	if ( cfg_column_width8 < 0 || cfg_column_width8 > 2560 ) { cfg_column_width8 = 25; }
-	if ( cfg_column_width9 < 0 || cfg_column_width9 > 2560 ) { cfg_column_width9 = 200; }
+	if ( cfg_column_width8 < 0 || cfg_column_width8 > 2560 ) { cfg_column_width8 = 110; }
+	if ( cfg_column_width9 < 0 || cfg_column_width9 > 2560 ) { cfg_column_width9 = 25; }
 	if ( cfg_column_width10 < 0 || cfg_column_width10 > 2560 ) { cfg_column_width10 = 200; }
-	if ( cfg_column_width11 < 0 || cfg_column_width11 > 2560 ) { cfg_column_width11 = 100; }
-	if ( cfg_column_width12 < 0 || cfg_column_width12 > 2560 ) { cfg_column_width12 = 90; }
+	if ( cfg_column_width11 < 0 || cfg_column_width11 > 2560 ) { cfg_column_width11 = 200; }
+	if ( cfg_column_width12 < 0 || cfg_column_width12 > 2560 ) { cfg_column_width12 = 100; }
 	if ( cfg_column_width13 < 0 || cfg_column_width13 > 2560 ) { cfg_column_width13 = 90; }
-	if ( cfg_column_width14 < 0 || cfg_column_width14 > 2560 ) { cfg_column_width14 = 1000; }
+	if ( cfg_column_width14 < 0 || cfg_column_width14 > 2560 ) { cfg_column_width14 = 90; }
+	if ( cfg_column_width15 < 0 || cfg_column_width15 > 2560 ) { cfg_column_width15 = 1000; }
 }
 
 void SetDefaultAppearance()
@@ -785,6 +799,90 @@ unsigned long long strtoull( char *str, bool base16 )
 				mov		uli.HighPart, edx		;// Store the high order bits.
 				mov		uli.LowPart, eax		;// Store the low order bits.
 			}*/
+
+			if ( uli.QuadPart > ( ULLONG_MAX - digit ) )
+			{
+				uli.QuadPart = ULLONG_MAX;
+				break;
+			}
+
+			uli.QuadPart += digit;
+
+			++p;
+		}
+	}
+
+	return uli.QuadPart;
+}
+
+// Default is base 10.
+unsigned long long wcstoull( wchar_t *str, bool base16 )
+{
+	if ( str == NULL )
+	{
+		return 0;
+	}
+
+	wchar_t *p = str;
+
+	ULARGE_INTEGER uli;
+	uli.QuadPart = 0;
+
+	wchar_t digit = 0;
+
+	if ( !base16 )
+	{
+		while ( *p && ( *p >= L'0' && *p <= L'9' ) )
+		{
+			if ( uli.QuadPart > ( ULLONG_MAX / 10 ) )
+			{
+				uli.QuadPart = ULLONG_MAX;
+				break;
+			}
+
+			uli.QuadPart *= 10;
+
+			digit = *p - L'0';
+
+			if ( uli.QuadPart > ( ULLONG_MAX - digit ) )
+			{
+				uli.QuadPart = ULLONG_MAX;
+				break;
+			}
+
+			uli.QuadPart += digit;
+
+			++p;
+		}
+	}
+	else
+	{
+		while ( *p )
+		{
+			if ( *p >= L'0' && *p <= L'9' )
+			{
+				digit = *p - L'0';
+			}
+			else if ( *p >= L'a' && *p <= L'f' )
+			{
+				digit = *p - L'a' + 10;
+			}
+			else if ( *p >= L'A' && *p <= L'F' )
+			{
+				digit = *p - L'A' + 10;
+			}
+			else
+			{
+				break;
+			}
+
+			if ( uli.QuadPart > ( ULLONG_MAX / 16 ) )
+			{
+				uli.QuadPart = ULLONG_MAX;
+				break;
+			}
+
+			uli.QuadPart *= 16;
 
 			if ( uli.QuadPart > ( ULLONG_MAX - digit ) )
 			{
@@ -2014,13 +2112,13 @@ void ConstructRequest( SOCKET_CONTEXT *context, bool use_connect )
 		   ( context->header_info.range_info->range_start > 0 &&
 			 context->header_info.range_info->range_end > 0 ) )
 		{
-			// The 32-bit version of _snprintf in ntdll.dll on Windows XP doesn't like two %llu.
+			/*// The 32-bit version of _snprintf in ntdll.dll on Windows XP doesn't like two %llu.
 			request_length += __snprintf( context->wsabuf.buf + request_length, context->buffer_size - request_length,
 					"Range: bytes=%llu-", context->header_info.range_info->range_start );
 			request_length += __snprintf( context->wsabuf.buf + request_length, context->buffer_size - request_length,
-					"%llu\r\n", context->header_info.range_info->range_end );
-			/*request_length += __snprintf( context->wsabuf.buf + request_length, context->buffer_size - request_length,
-					"Range: bytes=%llu-%llu\r\n", context->header_info.range_info->range_start, context->header_info.range_info->range_end );*/
+					"%llu\r\n", context->header_info.range_info->range_end );*/
+			request_length += __snprintf( context->wsabuf.buf + request_length, context->buffer_size - request_length,
+					"Range: bytes=%I64u-%I64u\r\n", context->header_info.range_info->range_start, context->header_info.range_info->range_end );
 		}
 
 		/*if ( context->header_info.etag )

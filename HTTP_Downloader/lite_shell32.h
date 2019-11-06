@@ -143,4 +143,7 @@
 
 #endif
 
+int _StrCmpA( PCSTR psz1, PCSTR psz2 );
+int _StrCmpW( PCWSTR psz1, PCWSTR psz2 );
+
 #endif

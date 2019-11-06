@@ -32,6 +32,7 @@
 #include "login_manager_utilities.h"
 #include "list_operations.h"
 
+#include "string_tables.h"
 #include "cmessagebox.h"
 
 #include "menus.h"
@@ -965,7 +966,7 @@ SECURITY_STATUS DecryptRecv( SOCKET_CONTEXT *context, DWORD &io_size )
 
 THREAD_RETURN RenameFilePrompt( void *pArguments )
 {
-	DOWNLOAD_INFO *di = NULL;
+	SOCKET_CONTEXT *context = NULL;
 
 	unsigned char rename_only = ( unsigned char )pArguments;
 
@@ -975,28 +976,23 @@ THREAD_RETURN RenameFilePrompt( void *pArguments )
 	{
 		EnterCriticalSection( &rename_file_prompt_list_cs );
 
-		DoublyLinkedList *di_node = rename_file_prompt_list;
+		DoublyLinkedList *context_node = rename_file_prompt_list;
 
-		DLL_RemoveNode( &rename_file_prompt_list, di_node );
+		DLL_RemoveNode( &rename_file_prompt_list, context_node );
 
-		if ( di_node != NULL )
+		if ( context_node != NULL )
 		{
-			di = ( DOWNLOAD_INFO * )di_node->data;
+			context = ( SOCKET_CONTEXT * )context_node->data;
 
-			GlobalFree( di_node );
+			GlobalFree( context_node );
 		}
 
 		LeaveCriticalSection( &rename_file_prompt_list_cs );
 
+		DOWNLOAD_INFO *di = context->download_info;
 		if ( di != NULL )
 		{
-			SOCKET_CONTEXT *context;
-
-			EnterCriticalSection( &di->shared_cs );
-
-			context = ( SOCKET_CONTEXT * )di->parts_list->data;
-
-			wchar_t prompt_message[ MAX_PATH + 100 ];
+			wchar_t prompt_message[ MAX_PATH + 512 ];
 			wchar_t file_path[ MAX_PATH ];
 
 			int filename_offset;
@@ -1017,14 +1013,12 @@ THREAD_RETURN RenameFilePrompt( void *pArguments )
 				GetDownloadFilePath( di, file_path );
 			}
 
-			LeaveCriticalSection( &di->shared_cs );
-
 			if ( rename_only == 0 )
 			{
 				// If the last return value was not set to remember our choice, then prompt again.
 				if ( g_rename_file_cmb_ret != CMBIDRENAMEALL && g_rename_file_cmb_ret != CMBIDOVERWRITEALL && g_rename_file_cmb_ret != CMBIDSKIPALL )
 				{
-					__snwprintf( prompt_message, MAX_PATH + 100, L"%s already exists.\r\n\r\nWhat operation would you like to perform?", file_path );
+					__snwprintf( prompt_message, MAX_PATH + 512, ST_V_PROMPT___already_exists, file_path );
 
 					g_rename_file_cmb_ret = CMessageBoxW( g_hWnd_main, prompt_message, PROGRAM_CAPTION, CMB_ICONWARNING | CMB_RENAMEOVERWRITESKIPALL );
 				}
@@ -1051,7 +1045,7 @@ THREAD_RETURN RenameFilePrompt( void *pArguments )
 				{
 					if ( g_rename_file_cmb_ret2 != CMBIDOKALL && !( di->download_operations & DOWNLOAD_OPERATION_OVERRIDE_PROMPTS ) )
 					{
-						__snwprintf( prompt_message, MAX_PATH + 100, L"%s could not be renamed.\r\n\r\nYou will need to choose a different save directory.", file_path );
+						__snwprintf( prompt_message, MAX_PATH + 512, ST_V_PROMPT___could_not_be_renamed, file_path );
 
 						g_rename_file_cmb_ret2 = CMessageBoxW( g_hWnd_main, prompt_message, PROGRAM_CAPTION, CMB_ICONWARNING | CMB_OKALL );
 					}
@@ -1138,7 +1132,7 @@ THREAD_RETURN RenameFilePrompt( void *pArguments )
 
 THREAD_RETURN FileSizePrompt( void *pArguments )
 {
-	DOWNLOAD_INFO *di = NULL;
+	SOCKET_CONTEXT *context = NULL;
 
 	bool skip_processing = false;
 
@@ -1146,25 +1140,22 @@ THREAD_RETURN FileSizePrompt( void *pArguments )
 	{
 		EnterCriticalSection( &file_size_prompt_list_cs );
 
-		DoublyLinkedList *di_node = file_size_prompt_list;
+		DoublyLinkedList *context_node = file_size_prompt_list;
 
-		DLL_RemoveNode( &file_size_prompt_list, di_node );
+		DLL_RemoveNode( &file_size_prompt_list, context_node );
 
-		if ( di_node != NULL )
+		if ( context_node != NULL )
 		{
-			di = ( DOWNLOAD_INFO * )di_node->data;
+			context = ( SOCKET_CONTEXT * )context_node->data;
 
-			GlobalFree( di_node );
+			GlobalFree( context_node );
 		}
 
 		LeaveCriticalSection( &file_size_prompt_list_cs );
 
+		DOWNLOAD_INFO *di = context->download_info;
 		if ( di != NULL )
 		{
-			SOCKET_CONTEXT *context;
-
-			EnterCriticalSection( &di->shared_cs );
-
 			// If we don't want to prevent all large downloads, then prompt the user.
 			if ( g_file_size_cmb_ret != CMBIDNOALL && g_file_size_cmb_ret != CMBIDYESALL )
 			{
@@ -1178,14 +1169,10 @@ THREAD_RETURN FileSizePrompt( void *pArguments )
 					GetDownloadFilePath( di, file_path );
 				}
 
-				wchar_t prompt_message[ MAX_PATH + 100 ];
-				__snwprintf( prompt_message, MAX_PATH + 100, L"%s will be %llu bytes in size.\r\n\r\nDo you want to continue downloading this file?", file_path, di->file_size );
+				wchar_t prompt_message[ MAX_PATH + 512 ];
+				__snwprintf( prompt_message, MAX_PATH + 512, ST_V_PROMPT___will_be___size, file_path, di->file_size );
 				g_file_size_cmb_ret = CMessageBoxW( g_hWnd_main, prompt_message, PROGRAM_CAPTION, CMB_ICONWARNING | CMB_YESNOALL );
 			}
-
-			context = ( SOCKET_CONTEXT * )di->parts_list->data;
-
-			LeaveCriticalSection( &di->shared_cs );
 
 			EnterCriticalSection( &context->context_cs );
 
@@ -1242,7 +1229,7 @@ THREAD_RETURN FileSizePrompt( void *pArguments )
 
 THREAD_RETURN LastModifiedPrompt( void *pArguments )
 {
-	DOWNLOAD_INFO *di = NULL;
+	SOCKET_CONTEXT *context = NULL;
 
 	unsigned char restart_only = ( unsigned char )pArguments;
 
@@ -1252,28 +1239,23 @@ THREAD_RETURN LastModifiedPrompt( void *pArguments )
 	{
 		EnterCriticalSection( &last_modified_prompt_list_cs );
 
-		DoublyLinkedList *di_node = last_modified_prompt_list;
+		DoublyLinkedList *context_node = last_modified_prompt_list;
 
-		DLL_RemoveNode( &last_modified_prompt_list, di_node );
+		DLL_RemoveNode( &last_modified_prompt_list, context_node );
 
-		if ( di_node != NULL )
+		if ( context_node != NULL )
 		{
-			di = ( DOWNLOAD_INFO * )di_node->data;
+			context = ( SOCKET_CONTEXT * )context_node->data;
 
-			GlobalFree( di_node );
+			GlobalFree( context_node );
 		}
 
 		LeaveCriticalSection( &last_modified_prompt_list_cs );
 
+		DOWNLOAD_INFO *di = context->download_info;
 		if ( di != NULL )
 		{
-			SOCKET_CONTEXT *context;
-
-			EnterCriticalSection( &di->shared_cs );
-
-			context = ( SOCKET_CONTEXT * )di->parts_list->data;
-
-			wchar_t prompt_message[ MAX_PATH + 100 ];
+			wchar_t prompt_message[ MAX_PATH + 512 ];
 
 			wchar_t file_path[ MAX_PATH ];
 			if ( cfg_use_temp_download_directory )
@@ -1285,14 +1267,12 @@ THREAD_RETURN LastModifiedPrompt( void *pArguments )
 				GetDownloadFilePath( di, file_path );
 			}
 
-			LeaveCriticalSection( &di->shared_cs );
-
 			if ( restart_only == 0 )
 			{
 				// If the last return value was not set to remember our choice, then prompt again.
 				if ( g_last_modified_cmb_ret != CMBIDCONTINUEALL && g_last_modified_cmb_ret != CMBIDRESTARTALL && g_last_modified_cmb_ret != CMBIDSKIPALL )
 				{
-					__snwprintf( prompt_message, MAX_PATH + 100, L"%s has been modified.\r\n\r\nWhat operation would you like to perform?", file_path );
+					__snwprintf( prompt_message, MAX_PATH + 512, ST_V_PROMPT___has_been_modified, file_path );
 
 					g_last_modified_cmb_ret = CMessageBoxW( g_hWnd_main, prompt_message, PROGRAM_CAPTION, CMB_ICONWARNING | CMB_CONTINUERESTARTSKIPALL );
 				}
@@ -1520,6 +1500,22 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 						context->current_bytes_read = io_size;
 
 						context->is_paused = true;	// Tells us how to stop the download if it's pausing/paused.
+
+						skip_process = true;
+					}
+					else if ( ( cfg_download_speed_limit > 0 &&
+							  ( g_session_total_downloaded - g_session_last_total_downloaded ) > cfg_download_speed_limit ) ||
+							  ( context->download_info != NULL &&
+								context->download_info->download_speed_limit > 0 &&
+							  ( context->download_info->downloaded - context->download_info->last_downloaded ) > context->download_info->download_speed_limit ) ) // Preempt the next receive.
+					{
+						Sleep( 1 );	// Prevents high CPU usage for some reason.
+
+						context->current_bytes_read = io_size;
+
+						InterlockedIncrement( &context->pending_operations );
+
+						PostQueuedCompletionStatus( hIOCP, context->current_bytes_read, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
 
 						skip_process = true;
 					}
@@ -2718,7 +2714,7 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 					LeaveCriticalSection( &context->download_info->shared_cs );
 
 					EnterCriticalSection( &session_totals_cs );
-					session_total_downloaded += io_size;
+					g_session_total_downloaded += io_size;
 					LeaveCriticalSection( &session_totals_cs );
 
 					context->header_info.range_info->file_write_offset += io_size;	// The size of the non-encoded/decoded data that we're writing to the file.
@@ -3334,12 +3330,16 @@ void UpdateRangeList( DOWNLOAD_INFO *di )
 		return;
 	}
 
-	RANGE_INFO *ri = NULL;
+	RANGE_INFO *ri;
+	RANGE_INFO *ri_copy;
 	DoublyLinkedList *range_node = di->range_list;
+	DoublyLinkedList *range_node_copy;
 
 	if ( range_node != NULL )
 	{
 		unsigned char range_info_count = 0;
+
+		DoublyLinkedList *active_range_list = NULL;
 
 		// Determine the number of ranges that still need downloading.
 		while ( range_node != NULL )
@@ -3351,151 +3351,114 @@ void UpdateRangeList( DOWNLOAD_INFO *di )
 			{
 				++range_info_count;
 
-				range_node = range_node->next;
+				RANGE_INFO *ri_copy = ( RANGE_INFO * )GlobalAlloc( GMEM_FIXED, sizeof( RANGE_INFO ) );
+
+				ri_copy->content_length = ri->content_length;
+				ri_copy->content_offset = ri->content_offset;
+				ri_copy->file_write_offset = ri->file_write_offset;
+				ri_copy->range_end = ri->range_end;
+				ri_copy->range_start = ri->range_start;
+
+				DoublyLinkedList *new_range_node = DLL_CreateNode( ( void * )ri_copy );
+				DLL_AddNode( &active_range_list, new_range_node, -1 );
 			}
-			else	// Remove the range if there's nothing to download.
-			{
-				DoublyLinkedList *tmp_range_node = range_node;
 
-				range_node = range_node->next;
-
-				DLL_RemoveNode( &di->range_list, tmp_range_node );
-
-				GlobalFree( tmp_range_node->data );
-				GlobalFree( tmp_range_node );
-			}
-		}
-
-		unsigned char total_rem_parts;
-		unsigned char parts;
-
-		if ( di->parts_limit > 0 )
-		{
-			total_rem_parts = di->parts_limit;
-			parts = di->parts_limit;
-		}
-		else
-		{
-			total_rem_parts = di->parts;
-			parts = di->parts;
+			range_node = range_node->next;
 		}
 
 		// Can we split any remaining parts to fill the total?
-		if ( range_info_count > 0 && range_info_count < parts )
+		if ( range_info_count > 0 && range_info_count < di->parts )
 		{
-			unsigned char rem_parts = 0;
+			unsigned char parts = di->parts / range_info_count;
+			unsigned char rem_parts = di->parts % range_info_count;
+			unsigned char total_parts = di->parts - rem_parts;
 
-#ifdef _WIN64
-			rem_parts = parts % range_info_count;
-			parts /= range_info_count;
-#else
-			// Avoids having to do a mod to get the remainder.
-			__asm
-			{
-				mov		al, parts			;// Dividend
-				mov		ah, 0				;// Remainder
-				div		range_info_count	;// Divide the 8bit byte by an 8bit byte
-				mov		parts, al			;// Store the results
-				mov		rem_parts, ah		;// Store the remainder
-			}
-#endif
-
-			DoublyLinkedList *range_list = NULL;
 			range_node = di->range_list;
+			range_node_copy = active_range_list;
 
-			// Go through each available unfinished range.
-			for ( unsigned char i = 0; i < range_info_count && range_node != NULL; ++i )
+			while ( range_node_copy != NULL )
 			{
 				unsigned char t_parts = parts;
 
-				// Distribute any remainder parts amongst the remaining ranges.
-				if ( rem_parts > 0 )
+				if ( rem_parts > 0 )	// Distribute any remainder parts amongst the remaining ranges.
 				{
 					++t_parts;
 					--rem_parts;
 				}
 
-				DoublyLinkedList *tmp_range_node = range_node;
+				ri_copy = ( RANGE_INFO * )range_node_copy->data;
 
-				ri = ( RANGE_INFO * )range_node->data;
-
-				range_node = range_node->next;
-
-				// Reuse the range node.
-				tmp_range_node->next = NULL;
-				tmp_range_node->prev = NULL;
-				DLL_AddNode( &range_list, tmp_range_node, -1 );
-
-				unsigned long long remaining_length = ( ( ri->range_end - ri->range_start ) + 1 ) - ri->content_offset;
+				unsigned long long remaining_length = ( ( ri_copy->range_end - ri_copy->range_start ) + 1 ) - ri_copy->content_offset;
 
 				// We'll only use 1 part for this range since it's too small to split up and the remainder of parts will be used for the next range.
 				if ( remaining_length < t_parts )
 				{
-					--total_rem_parts;
-
-					unsigned char rem_range_info_count = range_info_count - ( i + 1 );
-
-					if ( rem_range_info_count > 0 )
-					{
-#ifdef _WIN64
-						rem_parts = total_rem_parts % rem_range_info_count;
-						parts = total_rem_parts / rem_range_info_count;
-#else
-						// Avoids having to do a mod to get the remainder.
-						__asm
-						{
-							mov		al, total_rem_parts		;// Dividend
-							mov		ah, 0					;// Remainder
-							div		rem_range_info_count	;// Divide the 8bit byte by an 8bit byte
-							mov		parts, al				;// Store the results
-							mov		rem_parts, ah			;// Store the remainder
-						}
-#endif
-					}
+					rem_parts += ( t_parts - 1 );
+					t_parts = 1;
 				}
-				else
+
+				unsigned long long range_size = remaining_length / t_parts;
+				unsigned long long range_offset = ri_copy->range_start + ri_copy->content_offset;
+				unsigned long long range_end = ri_copy->range_end;
+
+				for ( unsigned char i = 1; i <= t_parts; ++i )
 				{
-					total_rem_parts -= t_parts;
-
-					unsigned long long range_size = remaining_length / t_parts;
-					unsigned long long range_offset = ri->range_start + ri->content_offset;
-
-					unsigned long long range_end = ri->range_end;
+					ri = ( RANGE_INFO * )range_node->data;
 
 					// Reuse this range info.
 					ri->content_length = 0;
 					ri->content_offset = 0;
-					ri->range_start = range_offset;
-					ri->range_end = range_offset + range_size;
+
+					if ( i == 1 )
+					{
+						ri->range_start = range_offset;
+					}
+					else
+					{
+						ri->range_start = range_offset + 1;
+					}
+
+					if ( i < t_parts )
+					{
+						range_offset += range_size;
+						ri->range_end = range_offset;
+					}
+					else	// Make sure we have an accurate range end for the last part.
+					{
+						ri->range_end = range_end;
+					}
+
 					ri->file_write_offset = ri->range_start;
 
-					range_offset += range_size;
-
-					for ( unsigned char j = 2; j <= t_parts; ++j )
-					{
-						ri = ( RANGE_INFO * )GlobalAlloc( GPTR, sizeof( RANGE_INFO ) );
-
-						ri->range_start = range_offset + 1;
-
-						if ( j < t_parts )
-						{
-							range_offset += range_size;
-							ri->range_end = range_offset;
-						}
-						else	// Make sure we have an accurate range end for the last part.
-						{
-							ri->range_end = range_end;
-						}
-
-						ri->file_write_offset = ri->range_start;
-
-						DoublyLinkedList *new_range_node = DLL_CreateNode( ( void * )ri );
-						DLL_AddNode( &range_list, new_range_node, -1 );
-					}
+					range_node = range_node->next;
 				}
+
+				range_node_copy = range_node_copy->next;
 			}
 
-			di->range_list = range_list;
+			di->range_list_end = range_node;
+
+			// Zero out the unused range info.
+			/*while ( range_node != NULL )
+			{
+				ri = ( RANGE_INFO * )range_node->data;
+				ri->content_length = 0;
+				ri->content_offset = 0;
+				ri->file_write_offset = 0;
+				ri->range_end = 0;
+				ri->range_start = 0;
+
+				range_node = range_node->next;
+			}*/
+		}
+
+		while ( active_range_list != NULL )
+		{
+			range_node = active_range_list;
+			active_range_list = active_range_list->next;
+
+			GlobalFree( range_node->data );
+			GlobalFree( range_node );
 		}
 	}
 	else
@@ -3526,7 +3489,7 @@ void StartDownload( DOWNLOAD_INFO *di, bool check_if_file_exists )
 
 		EnterCriticalSection( &di->shared_cs );
 
-		wchar_t prompt_message[ MAX_PATH + 100 ];
+		wchar_t prompt_message[ MAX_PATH + 512 ];
 		wchar_t file_path[ MAX_PATH ];
 
 		int filename_offset;
@@ -3564,7 +3527,7 @@ void StartDownload( DOWNLOAD_INFO *di, bool check_if_file_exists )
 					 g_rename_file_cmb_ret != CMBIDOVERWRITEALL &&
 					 g_rename_file_cmb_ret != CMBIDSKIPALL )
 				{
-					__snwprintf( prompt_message, MAX_PATH + 100, L"%s already exists.\r\n\r\nWhat operation would you like to perform?", file_path );
+					__snwprintf( prompt_message, MAX_PATH + 512, ST_V_PROMPT___already_exists, file_path );
 
 					g_rename_file_cmb_ret = CMessageBoxW( g_hWnd_main, prompt_message, PROGRAM_CAPTION, CMB_ICONWARNING | CMB_RENAMEOVERWRITESKIPALL );
 				}
@@ -3586,7 +3549,7 @@ void StartDownload( DOWNLOAD_INFO *di, bool check_if_file_exists )
 					{
 						if ( g_rename_file_cmb_ret2 != CMBIDOKALL && !( di->download_operations & DOWNLOAD_OPERATION_OVERRIDE_PROMPTS ) )
 						{
-							__snwprintf( prompt_message, MAX_PATH + 100, L"%s could not be renamed.\r\n\r\nYou will need to choose a different save directory.", file_path );
+							__snwprintf( prompt_message, MAX_PATH + 512, ST_V_PROMPT___could_not_be_renamed, file_path );
 
 							g_rename_file_cmb_ret2 = CMessageBoxW( g_hWnd_main, prompt_message, PROGRAM_CAPTION, CMB_ICONWARNING | CMB_OKALL );
 						}
@@ -3690,25 +3653,16 @@ void StartDownload( DOWNLOAD_INFO *di, bool check_if_file_exists )
 
 	EnterCriticalSection( &cleanup_cs );
 
-	// Move all queued ranges to our active list.
-	// We'll queue what needs to be queued in the loop below, but after we've updated the range list.
-	if ( di->range_queue != NULL )
-	{
-		DoublyLinkedList *last_queue_node = ( di->range_queue->prev != NULL ? di->range_queue->prev : di->range_queue );
-		DoublyLinkedList *last_list_node = ( di->range_list->prev != NULL ? di->range_list->prev : di->range_list );
-
-		di->range_queue->prev = last_list_node;
-		last_list_node->next = di->range_queue;
-		di->range_list->prev = last_queue_node;
-	}
-
 	// If the number of ranges is less than the total number of parts that's been set for the download,
 	// then the remaining ranges will be split to equal the total number of parts.
 	UpdateRangeList( di );
 
+	di->print_range_list = di->range_list;
+	di->range_queue = NULL;
+
 	DoublyLinkedList *range_node = di->range_list;
 
-	while ( range_node != NULL )
+	while ( range_node != di->range_list_end )
 	{
 		RANGE_INFO *ri = ( RANGE_INFO * )range_node->data;
 
@@ -3718,34 +3672,7 @@ void StartDownload( DOWNLOAD_INFO *di, bool check_if_file_exists )
 			// Split the remaining range_list off into the range_queue.
 			if ( di->parts_limit > 0 && part > di->parts_limit )
 			{
-				DoublyLinkedList *last_list_node = di->range_list->prev;
-
-				if ( di->range_list == range_node->prev )
-				{
-					di->range_list->prev = NULL;
-					di->range_list->next = NULL;
-				}
-				else
-				{
-					di->range_list->prev = range_node->prev;
-
-					if ( range_node->prev != NULL )
-					{
-						di->range_list->prev->next = NULL;
-					}
-				}
-
 				di->range_queue = range_node;
-
-				if ( di->range_queue == last_list_node )
-				{
-					di->range_queue->prev = NULL;
-					di->range_queue->next = NULL;	// This should already be NULL.
-				}
-				else
-				{
-					di->range_queue->prev = last_list_node;
-				}
 
 				break;
 			}
@@ -3869,9 +3796,6 @@ void StartDownload( DOWNLOAD_INFO *di, bool check_if_file_exists )
 					}
 				}
 
-				// Self reference so we can free the range info in our cleanup code.
-				context->range_node = range_node;
-
 				// Add to the parts list.
 				context->parts_node.data = context;
 				DLL_AddNode( &context->download_info->parts_list, &context->parts_node, -1 );
@@ -3912,20 +3836,9 @@ void StartDownload( DOWNLOAD_INFO *di, bool check_if_file_exists )
 			}
 
 			++part;
-
-			range_node = range_node->next;
 		}
-		else	// Remove the range if there's nothing to download.
-		{
-			DoublyLinkedList *tmp_range_node = range_node;
 
-			range_node = range_node->next;
-
-			DLL_RemoveNode( &di->range_list, tmp_range_node );
-
-			GlobalFree( tmp_range_node->data );
-			GlobalFree( tmp_range_node );
-		}
+		range_node = range_node->next;
 	}
 
 	LeaveCriticalSection( &cleanup_cs );
@@ -4475,6 +4388,8 @@ DWORD WINAPI AddURL( void *add_info )
 
 			di->parts = ai->parts;
 
+			di->download_speed_limit = ai->download_speed_limit;
+
 			di->ssl_version = ai->ssl_version;
 
 			di->download_operations = ai->download_operations;
@@ -4574,11 +4489,6 @@ DWORD WINAPI AddURL( void *add_info )
 
 			__snwprintf( di->w_add_time, buffer_length, L"%s, %s %d, %04d %d:%02d:%02d %s", GetDay( st.wDayOfWeek ), GetMonth( st.wMonth ), st.wDay, st.wYear, ( st.wHour > 12 ? st.wHour - 12 : ( st.wHour != 0 ? st.wHour : 12 ) ), st.wMinute, st.wSecond, ( st.wHour >= 12 ? L"PM" : L"AM" ) );
 
-			// Add our range info to the download info.
-			/*RANGE_INFO *ri = ( RANGE_INFO * )GlobalAlloc( GPTR, sizeof( RANGE_INFO ) );
-			DoublyLinkedList *range_node = DLL_CreateNode( ( void * )ri );
-			DLL_AddNode( &di->range_info, range_node, -1 );*/
-
 			EnterCriticalSection( &cleanup_cs );
 
 			LVITEM lvi;
@@ -4630,7 +4540,7 @@ DWORD WINAPI AddURL( void *add_info )
 	GlobalFree( ai );
 
 	if ( cfg_sort_added_and_updating_items &&
-		 cfg_sorted_column_index != 0 )	// #
+		 cfg_sorted_column_index != COLUMN_NUM )	// #
 	{
 		SORT_INFO si;
 		si.column = GetColumnIndexFromVirtualIndex( cfg_sorted_column_index, download_columns, NUM_COLUMNS );
@@ -4799,7 +4709,7 @@ THREAD_RETURN ProcessMoveQueue( void *pArguments )
 
 	bool skip_processing = false;
 
-	wchar_t prompt_message[ MAX_PATH + 100 ];
+	wchar_t prompt_message[ MAX_PATH + 512 ];
 	wchar_t file_path[ MAX_PATH ];
 
 	do
@@ -4847,7 +4757,7 @@ THREAD_RETURN ProcessMoveQueue( void *pArguments )
 								 g_rename_file_cmb_ret != CMBIDOVERWRITEALL &&
 								 g_rename_file_cmb_ret != CMBIDSKIPALL )
 							{
-								__snwprintf( prompt_message, MAX_PATH + 100, L"%s already exists.\r\n\r\nWhat operation would you like to perform?", di->file_path );
+								__snwprintf( prompt_message, MAX_PATH + 512, ST_V_PROMPT___already_exists, di->file_path );
 
 								g_rename_file_cmb_ret = CMessageBoxW( g_hWnd_main, prompt_message, PROGRAM_CAPTION, CMB_ICONWARNING | CMB_RENAMEOVERWRITESKIPALL );
 							}
@@ -4869,7 +4779,7 @@ THREAD_RETURN ProcessMoveQueue( void *pArguments )
 								{
 									if ( g_rename_file_cmb_ret2 != CMBIDOKALL && !( di->download_operations & DOWNLOAD_OPERATION_OVERRIDE_PROMPTS ) )
 									{
-										__snwprintf( prompt_message, MAX_PATH + 100, L"%s could not be renamed.\r\n\r\nYou will need to choose a different save directory.", file_path );
+										__snwprintf( prompt_message, MAX_PATH + 512, ST_V_PROMPT___could_not_be_renamed, file_path );
 
 										g_rename_file_cmb_ret2 = CMessageBoxW( g_hWnd_main, prompt_message, PROGRAM_CAPTION, CMB_ICONWARNING | CMB_OKALL );
 									}
@@ -5234,14 +5144,6 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 
 					DLL_RemoveNode( &context->download_info->parts_list, &context->parts_node );
 
-					// Let's not remove the range info if the part hasn't completed.
-					if ( !incomplete_part )
-					{
-						DLL_RemoveNode( &context->download_info->range_list, context->range_node );
-						GlobalFree( context->range_node->data );
-						GlobalFree( context->range_node );
-					}
-
 					if ( context->download_info->active_parts > 0 )
 					{
 						// If incomplete_part is tested below and is true and the new range fails, then the download will stop.
@@ -5252,15 +5154,14 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 								STATUS_REMOVE |
 								STATUS_RESTART |
 								STATUS_UPDATING ) &&
-							 context->download_info->range_queue != NULL )
+							 context->download_info->range_queue != NULL &&
+							 context->download_info->range_queue != context->download_info->range_list_end )
 						{
+							// Add back to the parts list.
+							DLL_AddNode( &context->download_info->parts_list, &context->parts_node, -1 );
+
 							DoublyLinkedList *range_queue_node = context->download_info->range_queue;
-
-							DLL_RemoveNode( &context->download_info->range_queue, range_queue_node );
-							range_queue_node->prev = NULL;
-							range_queue_node->next = NULL;
-
-							DLL_AddNode( &context->download_info->range_list, range_queue_node, -1 );
+							context->download_info->range_queue = context->download_info->range_queue->next;
 
 							context->retries = 0;
 
@@ -5282,8 +5183,6 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 							DLL_AddNode( &g_context_list, &context->context_node, 0 );
 
 							LeaveCriticalSection( &context_list_cs );
-
-							context->range_node = range_queue_node;
 
 							// If we're going to restart the download, then we need to reset these values.
 							context->header_info.chunk_length = 0;
@@ -5342,11 +5241,11 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 						// There are no more active connections.
 						if ( context->download_info->active_parts == 0 )
 						{
-							/*bool incomplete_download = false;
+							bool incomplete_download = false;
 
 							// Go through our range list and see if any connections have not fully completed.
 							DoublyLinkedList *range_node = context->download_info->range_list;
-							while ( range_node != NULL )
+							while ( range_node != context->download_info->range_list_end )
 							{
 								RANGE_INFO *range_info = ( RANGE_INFO * )range_node->data;
 								if ( range_info->content_offset < ( ( range_info->range_end - range_info->range_start ) + 1 ) )
@@ -5357,9 +5256,7 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 								}
 								
 								range_node = range_node->next;
-							}*/
-
-							bool incomplete_download = ( ( context->download_info->range_list != NULL || context->download_info->range_queue != NULL ) ? true : false );
+							}
 
 							if ( incomplete_download )
 							{
@@ -5457,19 +5354,11 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 								GlobalFree( context->download_info->auth_info.username );
 								GlobalFree( context->download_info->auth_info.password );
 
+								// Safe to free this here since the listview item will have been removed.
 								while ( context->download_info->range_list != NULL )
 								{
 									DoublyLinkedList *range_node = context->download_info->range_list;
 									context->download_info->range_list = context->download_info->range_list->next;
-
-									GlobalFree( range_node->data );
-									GlobalFree( range_node );
-								}
-
-								while ( context->download_info->range_queue != NULL )
-								{
-									DoublyLinkedList *range_node = context->download_info->range_queue;
-									context->download_info->range_queue = context->download_info->range_queue->next;
 
 									GlobalFree( range_node->data );
 									GlobalFree( range_node );
@@ -5506,19 +5395,11 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 							}
 							else if ( IS_STATUS( context->status, STATUS_RESTART ) )
 							{
+								// Safe to free this here since the print_range_list will have been reset.
 								while ( context->download_info->range_list != NULL )
 								{
 									DoublyLinkedList *range_node = context->download_info->range_list;
 									context->download_info->range_list = context->download_info->range_list->next;
-
-									GlobalFree( range_node->data );
-									GlobalFree( range_node );
-								}
-
-								while ( context->download_info->range_queue != NULL )
-								{
-									DoublyLinkedList *range_node = context->download_info->range_queue;
-									context->download_info->range_queue = context->download_info->range_queue->next;
 
 									GlobalFree( range_node->data );
 									GlobalFree( range_node );
@@ -5560,27 +5441,6 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 								else if ( context->download_info->status == STATUS_COMPLETED )
 								{
 									SetSessionStatusCount( context->download_info->status );
-
-									// All of this is safe to clean up when the download state is complete.
-									// For every other state we'll keep these in case we want to resume/restart the download.
-
-									while ( context->download_info->range_list != NULL )
-									{
-										DoublyLinkedList *range_node = context->download_info->range_list;
-										context->download_info->range_list = context->download_info->range_list->next;
-
-										GlobalFree( range_node->data );
-										GlobalFree( range_node );
-									}
-
-									while ( context->download_info->range_queue != NULL )
-									{
-										DoublyLinkedList *range_node = context->download_info->range_queue;
-										context->download_info->range_queue = context->download_info->range_queue->next;
-
-										GlobalFree( range_node->data );
-										GlobalFree( range_node );
-									}
 
 									if ( cfg_use_temp_download_directory &&
 									  !( context->download_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
@@ -5715,6 +5575,7 @@ void FreePOSTInfo( POST_INFO **post_info )
 		if ( ( *post_info )->headers != NULL ) { GlobalFree( ( *post_info )->headers ); }
 		if ( ( *post_info )->data != NULL ) { GlobalFree( ( *post_info )->data ); }
 		if ( ( *post_info )->parts != NULL ) { GlobalFree( ( *post_info )->parts ); }
+		if ( ( *post_info )->download_speed_limit != NULL ) { GlobalFree( ( *post_info )->download_speed_limit ); }
 		if ( ( *post_info )->directory != NULL ) { GlobalFree( ( *post_info )->directory ); }
 		if ( ( *post_info )->download_operations != NULL ) { GlobalFree( ( *post_info )->download_operations ); }
 

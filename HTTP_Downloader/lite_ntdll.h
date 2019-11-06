@@ -40,6 +40,7 @@
 	//#define __ftol2		_ftol2
 	
 	#define _abs			abs
+	#define _ceil			ceil
 
 	#define _memcpy			memcpy
 	#define _memset			memset
@@ -91,6 +92,7 @@
 	//typedef long ( WINAPIV *p_ftol2 )( float v );
 	
 	typedef int ( WINAPIV *pabs )( int n );
+	typedef double ( WINAPIV *pceil )( double n );
 
 	typedef void * ( WINAPIV *pmemcpy )( void *dest, const void *src, size_t count );
 	typedef void * ( WINAPIV *pmemset )( void *dest, int c, size_t count );
@@ -127,6 +129,7 @@
 	//extern p_ftol2		__ftol2;
 	
 	extern pabs				_abs;
+	extern pceil			_ceil;
 
 	extern pmemcpy			_memcpy;
 	extern pmemset			_memset;

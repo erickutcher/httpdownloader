@@ -71,6 +71,7 @@ int GetTemporaryFilePath( DOWNLOAD_INFO *di, wchar_t file_path[] );
 char *escape_csv( const char *string );
 
 unsigned long long strtoull( char *str, bool base16 = false );
+unsigned long long wcstoull( wchar_t *str, bool base16 = false );
 
 char *GetUTF8Domain( wchar_t *domain );
 
@@ -95,5 +96,7 @@ void CreateBasicAuthorizationKey( char *username, int username_length, char *pas
 bool VerifyDigestAuthorization( char *username, unsigned long username_length, char *password, unsigned long password_length, char *nonce, unsigned long nonce_length, char *opaque, unsigned long opaque_length, char *method, unsigned long method_length, AUTH_INFO *auth_info );
 void ConstructRequest( SOCKET_CONTEXT *context, bool use_connect );
 void ConstructSOCKSRequest( SOCKET_CONTEXT *context, unsigned char request_type );
+
+unsigned int FormatSizes( wchar_t *buffer, unsigned int buffer_size, unsigned char toggle_type, unsigned long long data_size );
 
 #endif

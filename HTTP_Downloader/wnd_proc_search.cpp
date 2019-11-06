@@ -17,7 +17,6 @@
 */
 
 #include "globals.h"
-#include "lite_gdi32.h"
 #include "connection.h"
 #include "list_operations.h"
 #include "string_tables.h"
@@ -36,6 +35,7 @@
 #define BTN_REGULAR_EXPRESSION	1008
 
 HWND g_hWnd_search = NULL;
+
 HWND g_hWnd_static_search_for = NULL;
 HWND g_hWnd_search_for = NULL;
 HWND g_hWnd_chk_type_filename = NULL;

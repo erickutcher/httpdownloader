@@ -3243,8 +3243,6 @@ char HandleRedirect( SOCKET_CONTEXT *context )
 
 		//
 
-		redirect_context->range_node = context->range_node;
-
 		redirect_context->context_node.data = redirect_context;
 
 		EnterCriticalSection( &context_list_cs );
@@ -3343,7 +3341,12 @@ char MakeRangeRequest( SOCKET_CONTEXT *context )
 						ri->file_write_offset = ri->range_start;
 
 						DoublyLinkedList *range_node = DLL_CreateNode( ( void * )ri );
-						DLL_AddNode( &context->download_info->range_queue, range_node, -1 );
+						DLL_AddNode( &context->download_info->range_list, range_node, -1 );
+
+						if ( context->download_info->range_queue == NULL )
+						{
+							context->download_info->range_queue = range_node;
+						}
 
 						skip_context_creation = true;
 					}
@@ -3448,8 +3451,7 @@ char MakeRangeRequest( SOCKET_CONTEXT *context )
 					++( new_context->download_info->active_parts );
 
 					DoublyLinkedList *range_node = DLL_CreateNode( ( void * )ri );
-					new_context->range_node = range_node;
-					DLL_AddNode( &new_context->download_info->range_list, new_context->range_node, -1 );
+					DLL_AddNode( &new_context->download_info->range_list, range_node, -1 );
 
 					new_context->parts_node.data = new_context;
 					DLL_AddNode( &new_context->download_info->parts_list, &new_context->parts_node, -1 );
@@ -3604,8 +3606,6 @@ char MakeRequest( SOCKET_CONTEXT *context, IO_OPERATION next_operation, bool use
 			context->header_info.proxy_digest_info = NULL;
 
 			//
-
-			new_context->range_node = context->range_node;
 
 			new_context->context_node.data = new_context;
 
@@ -3982,8 +3982,8 @@ char HandleRenamePrompt( SOCKET_CONTEXT *context )
 			// Add item to prompt queue and continue.
 			EnterCriticalSection( &rename_file_prompt_list_cs );
 
-			DoublyLinkedList *di_node = DLL_CreateNode( ( void * )context->download_info );
-			DLL_AddNode( &rename_file_prompt_list, di_node, -1 );
+			DoublyLinkedList *context_node = DLL_CreateNode( ( void * )context );
+			DLL_AddNode( &rename_file_prompt_list, context_node, -1 );
 
 			if ( !rename_file_prompt_active )
 			{
@@ -3994,8 +3994,8 @@ char HandleRenamePrompt( SOCKET_CONTEXT *context )
 				// Make sure our thread spawned.
 				if ( handle_prompt == NULL )
 				{
-					DLL_RemoveNode( &rename_file_prompt_list, di_node );
-					GlobalFree( di_node );
+					DLL_RemoveNode( &rename_file_prompt_list, context_node );
+					GlobalFree( context_node );
 
 					rename_file_prompt_active = false;
 
@@ -4051,8 +4051,8 @@ char HandleFileSizePrompt( SOCKET_CONTEXT *context )
 			// Add item to prompt queue and continue.
 			EnterCriticalSection( &file_size_prompt_list_cs );
 
-			DoublyLinkedList *di_node = DLL_CreateNode( ( void * )context->download_info );
-			DLL_AddNode( &file_size_prompt_list, di_node, -1 );
+			DoublyLinkedList *context_node = DLL_CreateNode( ( void * )context );
+			DLL_AddNode( &file_size_prompt_list, context_node, -1 );
 
 			if ( !file_size_prompt_active )
 			{
@@ -4063,8 +4063,8 @@ char HandleFileSizePrompt( SOCKET_CONTEXT *context )
 				// Make sure our thread spawned.
 				if ( handle_prompt == NULL )
 				{
-					DLL_RemoveNode( &file_size_prompt_list, di_node );
-					GlobalFree( di_node );
+					DLL_RemoveNode( &file_size_prompt_list, context_node );
+					GlobalFree( context_node );
 
 					file_size_prompt_active = false;
 
@@ -4115,8 +4115,8 @@ char HandleLastModifiedPrompt( SOCKET_CONTEXT *context )
 			// Add item to prompt queue and continue.
 			EnterCriticalSection( &last_modified_prompt_list_cs );
 
-			DoublyLinkedList *di_node = DLL_CreateNode( ( void * )context->download_info );
-			DLL_AddNode( &last_modified_prompt_list, di_node, -1 );
+			DoublyLinkedList *context_node = DLL_CreateNode( ( void * )context );
+			DLL_AddNode( &last_modified_prompt_list, context_node, -1 );
 
 			if ( !last_modified_prompt_active )
 			{
@@ -4127,8 +4127,8 @@ char HandleLastModifiedPrompt( SOCKET_CONTEXT *context )
 				// Make sure our thread spawned.
 				if ( handle_prompt == NULL )
 				{
-					DLL_RemoveNode( &last_modified_prompt_list, di_node );
-					GlobalFree( di_node );
+					DLL_RemoveNode( &last_modified_prompt_list, context_node );
+					GlobalFree( context_node );
 
 					last_modified_prompt_active = false;
 
@@ -4511,7 +4511,7 @@ char GetHTTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, uns
 					LeaveCriticalSection( &context->download_info->shared_cs );
 
 					EnterCriticalSection( &session_totals_cs );
-					session_total_downloaded += context->write_wsabuf.len;
+					g_session_total_downloaded += context->write_wsabuf.len;
 					LeaveCriticalSection( &session_totals_cs );
 
 					context->header_info.range_info->content_offset += context->content_offset;	// The true amount that was downloaded. Allows us to resume if we stop the download.
@@ -4626,7 +4626,7 @@ char GetHTTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, uns
 				LeaveCriticalSection( &context->download_info->shared_cs );
 
 				EnterCriticalSection( &session_totals_cs );
-				session_total_downloaded += output_buffer_length;
+				g_session_total_downloaded += output_buffer_length;
 				LeaveCriticalSection( &session_totals_cs );
 
 				context->header_info.range_info->content_offset += response_buffer_length;	// The true amount that was downloaded. Allows us to resume if we stop the download.
@@ -4730,19 +4730,20 @@ char ParsePOSTData( SOCKET_CONTEXT *context, char *post_data, unsigned int post_
 		context->post_info = ( POST_INFO * )GlobalAlloc( GPTR, sizeof( POST_INFO ) );
 	}
 
-	char **value_buf[ 10 ];
+	char **value_buf[ 11 ];
 	value_buf[ 0 ] = &context->post_info->method;
 	value_buf[ 1 ] = &context->post_info->urls;
 	value_buf[ 2 ] = &context->post_info->username;
 	value_buf[ 3 ] = &context->post_info->password;
 	value_buf[ 4 ] = &context->post_info->parts;
-	value_buf[ 5 ] = &context->post_info->directory;
-	value_buf[ 6 ] = &context->post_info->download_operations;
-	value_buf[ 7 ] = &context->post_info->cookies;
-	value_buf[ 8 ] = &context->post_info->headers;
-	value_buf[ 9 ] = &context->post_info->data;
+	value_buf[ 5 ] = &context->post_info->download_speed_limit;
+	value_buf[ 6 ] = &context->post_info->directory;
+	value_buf[ 7 ] = &context->post_info->download_operations;
+	value_buf[ 8 ] = &context->post_info->cookies;
+	value_buf[ 9 ] = &context->post_info->headers;
+	value_buf[ 10 ] = &context->post_info->data;
 
-	for ( unsigned char i = 0; i < 10; ++i )
+	for ( unsigned char i = 0; i < 11; ++i )
 	{
 		if ( *value_buf[ i ] == NULL )
 		{
@@ -4994,6 +4995,12 @@ char GetHTTPRequestContent( SOCKET_CONTEXT *context, char *request_buffer, unsig
 					parts = ( unsigned int )_strtoul( context->post_info->parts, NULL, 10 );
 				}
 
+				unsigned long long download_speed_limit = 0;
+				if ( context->post_info->download_speed_limit != NULL )
+				{
+					download_speed_limit = ( unsigned long long )strtoull( context->post_info->download_speed_limit );
+				}
+
 				unsigned char download_operations = 0;
 				if ( context->post_info->download_operations != NULL )
 				{
@@ -5042,6 +5049,7 @@ char GetHTTPRequestContent( SOCKET_CONTEXT *context, char *request_buffer, unsig
 				{
 					ai->parts = ( unsigned char )parts;
 				}
+				ai->download_speed_limit = download_speed_limit;
 				ai->auth_info.username = context->post_info->username;
 				ai->auth_info.password = context->post_info->password;
 				ai->ssl_version = cfg_default_ssl_version;

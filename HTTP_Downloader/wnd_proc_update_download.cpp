@@ -19,6 +19,7 @@
 #include "globals.h"
 #include "lite_gdi32.h"
 #include "lite_uxtheme.h"
+#include "utilities.h"
 #include "connection.h"
 #include "list_operations.h"
 #include "string_tables.h"
@@ -26,9 +27,10 @@
 #include "wnd_proc.h"
 
 #define EDIT_UPDATE_DOWNLOAD_PARTS	1000
-#define CHK_UPDATE_SEND_DATA		1001
-#define BTN_UPDATE_DOWNLOAD			1002
-#define BTN_UPDATE_CANCEL			1003
+#define EDIT_UPDATE_SPEED_LIMIT		1001
+#define CHK_UPDATE_SEND_DATA		1002
+#define BTN_UPDATE_DOWNLOAD			1003
+#define BTN_UPDATE_CANCEL			1004
 
 DOWNLOAD_INFO *g_update_download_info = NULL;	// The current item that we want to update.
 
@@ -39,6 +41,9 @@ HWND g_hWnd_edit_update_url = NULL;
 HWND g_hWnd_static_update_download_parts = NULL;
 HWND g_hWnd_update_download_parts = NULL;
 HWND g_hWnd_ud_update_download_parts = NULL;
+
+HWND g_hWnd_static_update_speed_limit = NULL;
+HWND g_hWnd_update_speed_limit = NULL;
 
 HWND g_hWnd_static_update_ssl_version = NULL;
 HWND g_hWnd_update_ssl_version = NULL;
@@ -72,6 +77,9 @@ unsigned char current_parts_num = 0;
 
 HBRUSH g_update_tab_brush = NULL;
 bool g_update_use_theme = true;
+
+wchar_t update_limit_tooltip_text[ 32 ];
+HWND g_hWnd_update_limit_tooltip = NULL;
 
 LRESULT CALLBACK UpdateSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
 {
@@ -233,6 +241,32 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 			_SetWindowPos( g_hWnd_update_download_parts, HWND_TOP, 0, 0, 85, 23, SWP_NOZORDER | SWP_NOMOVE );
 			_SetWindowPos( g_hWnd_ud_update_download_parts, HWND_TOP, 95, 73, 0, 0, SWP_NOZORDER | SWP_NOSIZE );
 
+
+
+
+			g_hWnd_static_update_speed_limit = _CreateWindowW( WC_STATIC, ST_V_Download_speed_limit_bytes_, WS_CHILD | WS_VISIBLE, 10, 106, 200, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_update_speed_limit = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 10, 121, 200, 23, hWnd, ( HMENU )EDIT_UPDATE_SPEED_LIMIT, NULL, NULL );
+
+			_SendMessageW( g_hWnd_update_speed_limit, EM_LIMITTEXT, 20, 0 );
+
+
+			g_hWnd_update_limit_tooltip = _CreateWindowExW( WS_EX_TOPMOST, TOOLTIPS_CLASS, 0, WS_POPUP | TTS_NOPREFIX | TTS_ALWAYSTIP, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+
+			update_limit_tooltip_text[ 0 ] = 0;
+
+			TOOLINFO tti;
+			_memzero( &tti, sizeof( TOOLINFO ) );
+			tti.cbSize = sizeof( TOOLINFO );
+			tti.uFlags = TTF_SUBCLASS;
+			tti.hwnd = g_hWnd_update_speed_limit;
+			tti.lpszText = update_limit_tooltip_text;
+
+			_GetClientRect( hWnd, &tti.rect );
+			_SendMessageW( g_hWnd_update_limit_tooltip, TTM_ADDTOOL, 0, ( LPARAM )&tti );
+
+
+
+
 			g_hWnd_static_update_ssl_version = _CreateWindowW( WC_STATIC, ST_V_SSL___TLS_version_, WS_CHILD | WS_VISIBLE, 130, 58, 115, 15, hWnd, NULL, NULL, NULL );
 			g_hWnd_update_ssl_version = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_COMBOBOX, NULL, CBS_AUTOHSCROLL | CBS_DROPDOWNLIST | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE, 130, 73, 100, 23, hWnd, NULL, NULL, NULL );
 			_SendMessageW( g_hWnd_update_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_V_SSL_2_0 );
@@ -287,6 +321,8 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 			_SendMessageW( g_hWnd_static_paused_download, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 			_SendMessageW( g_hWnd_static_update_ssl_version, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 			_SendMessageW( g_hWnd_update_ssl_version, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_static_update_speed_limit, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_update_speed_limit, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 			_SendMessageW( g_hWnd_static_update_download_parts, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 			_SendMessageW( g_hWnd_update_download_parts, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 			_SendMessageW( hWnd_static_update_url, WM_SETFONT, ( WPARAM )g_hFont, 0 );
@@ -351,7 +387,7 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 
 			_DeferWindowPos( hdwp, g_hWnd_edit_update_url, HWND_TOP, 10, 25, rc.right - 20, 23, SWP_NOZORDER );
 
-			_DeferWindowPos( hdwp, g_hWnd_update_tab, HWND_TOP, 10, 123, rc.right - 20, rc.bottom - 165, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_update_tab, HWND_TOP, 10, 158, rc.right - 20, rc.bottom - 200, SWP_NOZORDER );
 
 			//
 
@@ -373,7 +409,7 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 			// Create a memory buffer to draw to.
 			HDC hdcMem = _CreateCompatibleDC( hDC );
 
-			HBITMAP hbm = _CreateCompatibleBitmap( hDC, rc.right - 20, rc.bottom - 165 );
+			HBITMAP hbm = _CreateCompatibleBitmap( hDC, rc.right - 20, rc.bottom - 200 );
 			HBITMAP ohbm = ( HBITMAP )_SelectObject( hdcMem, hbm );
 			_DeleteObject( ohbm );
 
@@ -399,7 +435,7 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 		{
 			// Set the minimum dimensions that the window can be sized to.
 			( ( MINMAXINFO * )lParam )->ptMinTrackSize.x = 525;
-			( ( MINMAXINFO * )lParam )->ptMinTrackSize.y = 385;
+			( ( MINMAXINFO * )lParam )->ptMinTrackSize.y = 420;
 
 			return 0;
 		}
@@ -444,13 +480,16 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 
 					ai->method = ( _SendMessageW( g_hWnd_chk_update_send_data, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? METHOD_POST : METHOD_GET );
 
-					char value[ 11 ];
+					char value[ 21 ];
 					_SendMessageA( g_hWnd_update_download_parts, WM_GETTEXT, 11, ( LPARAM )value );
 					unsigned char parts_limit = ( unsigned char )_strtoul( value, NULL, 10 );
 					if ( parts_limit != current_parts_num )
 					{
 						ai->parts = parts_limit;
 					}
+
+					_SendMessageA( g_hWnd_update_speed_limit, WM_GETTEXT, 21, ( LPARAM )value );
+					ai->download_speed_limit = strtoull( value );
 
 					// Username
 					edit_length = ( unsigned int )_SendMessageW( g_hWnd_edit_update_username, WM_GETTEXTLENGTH, 0, 0 );
@@ -624,6 +663,47 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 					}
 				}
 				break;
+
+				case EDIT_UPDATE_SPEED_LIMIT:
+				{
+					if ( HIWORD( wParam ) == EN_UPDATE )
+					{
+						DWORD sel_start;
+
+						char value[ 21 ];
+						_SendMessageA( ( HWND )lParam, WM_GETTEXT, 21, ( LPARAM )value );
+						unsigned long long num = strtoull( value );
+
+						if ( num == 0xFFFFFFFFFFFFFFFF )
+						{
+							_SendMessageA( ( HWND )lParam, EM_GETSEL, ( WPARAM )&sel_start, NULL );
+
+							_SendMessageA( ( HWND )lParam, WM_SETTEXT, 0, ( LPARAM )"18446744073709551615" );
+
+							_SendMessageA( ( HWND )lParam, EM_SETSEL, sel_start, sel_start );
+						}
+
+						if ( num > 0 )
+						{
+							unsigned int length = FormatSizes( update_limit_tooltip_text, 32, SIZE_FORMAT_AUTO, num );
+							update_limit_tooltip_text[ length++ ] = L'/';
+							update_limit_tooltip_text[ length++ ] = L's';
+							update_limit_tooltip_text[ length ] = 0;
+						}
+						else
+						{
+							_wmemcpy_s( update_limit_tooltip_text, 32, ST_V_Unlimited, ST_L_Unlimited + 1 );
+						}
+
+						TOOLINFO ti;
+						_memzero( &ti, sizeof( TOOLINFO ) );
+						ti.cbSize = sizeof( TOOLINFO );
+						ti.hwnd = g_hWnd_update_speed_limit;
+						ti.lpszText = update_limit_tooltip_text;
+						_SendMessageW( g_hWnd_update_limit_tooltip, TTM_UPDATETIPTEXT, 0, ( LPARAM )&ti );
+					}
+				}
+				break;
 			}
 
 			return 0;
@@ -680,6 +760,11 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 				_EnableWindow( g_hWnd_static_update_download_parts, enable );
 				_EnableWindow( g_hWnd_update_download_parts, enable );
 				_EnableWindow( g_hWnd_ud_update_download_parts, enable ); // This actually disables itself if the range is 1.
+
+				char value[ 21 ];
+				_memzero( value, sizeof( char ) * 21 );
+				__snprintf( value, 21, "%I64u", di->download_speed_limit );
+				_SendMessageA( g_hWnd_update_speed_limit, WM_SETTEXT, 0, ( LPARAM )value );
 
 				_SendMessageW( g_hWnd_update_ssl_version, CB_SETCURSEL, di->ssl_version, 0 );
 

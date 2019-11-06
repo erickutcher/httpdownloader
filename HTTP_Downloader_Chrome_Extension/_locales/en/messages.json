@@ -63,6 +63,10 @@
 		"message": "Password:"
 	},
 
+	"download_speed_limit_": {
+		"message": "Download speed limit (bytes/s):"
+	},
+
 	"cookies": {
 		"message": "Cookies"
 	},
@@ -117,6 +121,10 @@
 
 	"default_download_parts_": {
 		"message": "Default download parts:"
+	},
+
+	"default_download_speed_limit_": {
+		"message": "Default download speed limit (bytes/s):"
 	},
 
 	"default_download_directory_": {

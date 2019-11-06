@@ -79,9 +79,12 @@ extern HWND g_hWnd_timeout;
 
 extern HWND g_hWnd_max_redirects;
 
+extern HWND g_hWnd_default_speed_limit;
+
 extern HWND g_hWnd_default_ssl_version;
 extern HWND g_hWnd_default_download_parts;
 
+// Web Server Tab
 extern HWND g_hWnd_chk_enable_server;
 extern HWND g_hWnd_static_hoz1;
 extern HWND g_hWnd_chk_type_server_hostname;
@@ -247,6 +250,7 @@ extern HWND g_hWnd_thread_count;
 // Appearance Tab
 
 extern HWND g_hWnd_chk_show_gridlines;
+extern HWND g_hWnd_chk_show_part_progress;
 
 extern HWND g_hWnd_chk_sort_added_and_updating_items;
 

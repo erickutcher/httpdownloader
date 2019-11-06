@@ -1,3 +1,15 @@
+Version:	1.0.2.9
+Released:	2019-11-05
+
+Added global and per-download speed limiter.
+Added option to display the progress of each part.
+Fixed prompts being displayed for each part.
+Better handling of queued ranges.
+Download History file has a new format. Upgrade it with the latest History Editor.
+Settings file has a new format and will be reset.
+Updated extensions to include download speed limiter.
+Fixed extensions not recognizing FTP URLs.
+
 Version:	1.0.2.8
 Released:	2019-09-22
 

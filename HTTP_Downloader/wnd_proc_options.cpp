@@ -587,18 +587,18 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 			_SendMessageW( g_hWnd_options_tree, TVM_INSERTITEM, 0, ( LPARAM )&tvis );
 
+			// WS_EX_CONTROLPARENT for tab key access.
+			g_hWnd_general_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"general_tab", NULL, WS_CHILD | WS_TABSTOP | WS_VISIBLE, 140, 10, rc.right - 150, rc.bottom - 50, hWnd, NULL, NULL, NULL );
+			g_hWnd_appearance_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"appearance_tab", NULL, WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, rc.bottom - 50, hWnd, NULL, NULL, NULL );
+			g_hWnd_connection_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"connection_tab", NULL, WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, rc.bottom - 50, hWnd, NULL, NULL, NULL );
+			g_hWnd_web_server_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"web_server_tab", NULL, WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, rc.bottom - 50, hWnd, NULL, NULL, NULL );
+			g_hWnd_ftp_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"ftp_tab", NULL, WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, rc.bottom - 50, hWnd, NULL, NULL, NULL );
+			g_hWnd_proxy_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"proxy_tab", NULL, WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, rc.bottom - 50, hWnd, NULL, NULL, NULL );
+			g_hWnd_advanced_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"advanced_tab", NULL, WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, rc.bottom - 50, hWnd, NULL, NULL, NULL );
+
 			g_hWnd_options_ok = _CreateWindowW( WC_BUTTON, ST_V_OK, BS_DEFPUSHBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 260, rc.bottom - 32, 80, 23, hWnd, ( HMENU )BTN_OK, NULL, NULL );
 			g_hWnd_options_cancel = _CreateWindowW( WC_BUTTON, ST_V_Cancel, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 175, rc.bottom - 32, 80, 23, hWnd, ( HMENU )BTN_CANCEL, NULL, NULL );
 			g_hWnd_options_apply = _CreateWindowW( WC_BUTTON, ST_V_Apply, WS_CHILD | WS_DISABLED | WS_TABSTOP | WS_VISIBLE, rc.right - 90, rc.bottom - 32, 80, 23, hWnd, ( HMENU )BTN_APPLY, NULL, NULL );
-
-			g_hWnd_general_tab = _CreateWindowW( L"general_tab", NULL, WS_CHILD | WS_TABSTOP | WS_VISIBLE, 140, 10, rc.right - 150, rc.bottom - 50, hWnd, NULL, NULL, NULL );
-			g_hWnd_appearance_tab = _CreateWindowW( L"appearance_tab", NULL, WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, rc.bottom - 50, hWnd, NULL, NULL, NULL );
-			g_hWnd_connection_tab = _CreateWindowW( L"connection_tab", NULL, WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, rc.bottom - 50, hWnd, NULL, NULL, NULL );
-			g_hWnd_web_server_tab = _CreateWindowW( L"web_server_tab", NULL, WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, rc.bottom - 50, hWnd, NULL, NULL, NULL );
-			g_hWnd_ftp_tab = _CreateWindowW( L"ftp_tab", NULL, WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, rc.bottom - 50, hWnd, NULL, NULL, NULL );
-			g_hWnd_proxy_tab = _CreateWindowW( L"proxy_tab", NULL, WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, rc.bottom - 50, hWnd, NULL, NULL, NULL );
-			g_hWnd_advanced_tab = _CreateWindowW( L"advanced_tab", NULL, WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, rc.bottom - 50, hWnd, NULL, NULL, NULL );
-
 
 			_SendMessageW( g_hWnd_options_ok, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 			_SendMessageW( g_hWnd_options_cancel, WM_SETFONT, ( WPARAM )g_hFont, 0 );
@@ -769,9 +769,10 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 						if ( g_hWnd_main != NULL ){ _SetWindowPos( g_hWnd_main, ( cfg_always_on_top ? HWND_TOPMOST : HWND_NOTOPMOST ), 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE ); }
 						if ( g_hWnd_add_urls != NULL ){ _SetWindowPos( g_hWnd_add_urls, ( cfg_always_on_top ? HWND_TOPMOST : HWND_NOTOPMOST ), 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE ); }
-						if ( g_hWnd_options != NULL ){ _SetWindowPos( g_hWnd_options, ( cfg_always_on_top ? HWND_TOPMOST : HWND_NOTOPMOST ), 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE ); }
 						if ( g_hWnd_update_download != NULL ){ _SetWindowPos( g_hWnd_update_download, ( cfg_always_on_top ? HWND_TOPMOST : HWND_NOTOPMOST ), 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE ); }
 						if ( g_hWnd_search != NULL ){ _SetWindowPos( g_hWnd_search, ( cfg_always_on_top ? HWND_TOPMOST : HWND_NOTOPMOST ), 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE ); }
+						if ( g_hWnd_download_speed_limit != NULL ){ _SetWindowPos( g_hWnd_download_speed_limit, ( cfg_always_on_top ? HWND_TOPMOST : HWND_NOTOPMOST ), 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE ); }
+						if ( g_hWnd_options != NULL ){ _SetWindowPos( g_hWnd_options, ( cfg_always_on_top ? HWND_TOPMOST : HWND_NOTOPMOST ), 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE ); }
 					}
 
 					cfg_enable_download_history = ( _SendMessageW( g_hWnd_chk_download_history, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
@@ -859,6 +860,8 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 						cfg_show_gridlines = show_gridlines;
 					}
 
+					cfg_show_part_progress = ( _SendMessageW( g_hWnd_chk_show_part_progress, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
+
 					SetAppearanceSettings();
 
 					_SendMessageA( g_hWnd_max_downloads, WM_GETTEXT, 11, ( LPARAM )value );
@@ -896,6 +899,9 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 					_SendMessageA( g_hWnd_default_download_parts, WM_GETTEXT, 11, ( LPARAM )value );
 					cfg_default_download_parts = ( unsigned char )_strtoul( value, NULL, 10 );
+
+					_SendMessageA( g_hWnd_default_speed_limit, WM_GETTEXT, 21, ( LPARAM )value );
+					cfg_default_speed_limit = strtoull( value );
 
 					_SendMessageA( g_hWnd_thread_count, WM_GETTEXT, 11, ( LPARAM )value );
 					unsigned long thread_count = _strtoul( value, NULL, 10 );

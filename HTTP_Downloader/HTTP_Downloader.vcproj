@@ -522,6 +522,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\wnd_proc_download_speed_limit.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\wnd_proc_login_manager.cpp"
 				>
 			</File>
@@ -578,6 +582,26 @@
 				>
 				<File
 					RelativePath=".\asm\llmul.asm"
+					>
+					<FileConfiguration
+						Name="Debug|x64"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="MASM"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Release|x64"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="MASM"
+						/>
+					</FileConfiguration>
+				</File>
+				<File
+					RelativePath=".\asm\llshl.asm"
 					>
 					<FileConfiguration
 						Name="Debug|x64"

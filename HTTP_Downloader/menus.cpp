@@ -131,7 +131,7 @@ void UpdateMenus( bool enable )
 			}
 
 			// Make sure our Filename column is visible.
-			if ( *download_columns[ 8 ] != -1 )
+			if ( *download_columns[ COLUMN_FILENAME ] != -1 )
 			{
 				_EnableMenuItem( g_hMenuSub_download, MENU_RENAME, MF_ENABLED );
 				_EnableMenuItem( g_hMenuSub_edit, MENU_RENAME, MF_ENABLED );
@@ -368,12 +368,15 @@ void UpdateMenus( bool enable )
 			_EnableMenuItem( g_hMenuSub_edit, MENU_REMOVE_COMPLETED, MF_GRAYED );
 		}
 
+		_EnableMenuItem( g_hMenuSub_download, MENU_ADD_URLS, MF_ENABLED );
+
 		_EnableMenuItem( g_hMenuSub_download, MENU_SELECT_ALL, ( sel_count != item_count ? MF_ENABLED : MF_GRAYED ) );
 
 		_EnableMenuItem( g_hMenuSub_edit, MENU_SELECT_ALL, ( sel_count != item_count ? MF_ENABLED : MF_GRAYED ) );
 	}
 	else
 	{
+		_EnableMenuItem( g_hMenuSub_download, MENU_ADD_URLS, MF_GRAYED );
 		_EnableMenuItem( g_hMenuSub_download, MENU_OPEN_FILE, MF_GRAYED );
 		_EnableMenuItem( g_hMenuSub_download, MENU_OPEN_DIRECTORY, MF_GRAYED );
 		_EnableMenuItem( g_hMenuSub_download, MENU_START, MF_GRAYED );
@@ -466,105 +469,114 @@ void CreateMenus()
 
 	// DOWNLOAD MENU (right click)
 
+	mii.dwTypeData = ST_V_Add_URL_s____;
+	mii.cch = ST_L_Add_URL_s____;
+	mii.wID = MENU_ADD_URLS;
+	_InsertMenuItemW( g_hMenuSub_download, 0, TRUE, &mii );
+
+	mii.fType = MFT_SEPARATOR;
+	_InsertMenuItemW( g_hMenuSub_download, 1, TRUE, &mii );
+
+	mii.fType = MFT_STRING;
 	mii.dwTypeData = ST_V_Open_File;
 	mii.cch = ST_L_Open_File;
 	mii.wID = MENU_OPEN_FILE;
-	_InsertMenuItemW( g_hMenuSub_download, 0, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_download, 2, TRUE, &mii );
 
 	mii.dwTypeData = ST_V_Open_Directory;
 	mii.cch = ST_L_Open_Directory;
 	mii.wID = MENU_OPEN_DIRECTORY;
-	_InsertMenuItemW( g_hMenuSub_download, 1, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_download, 3, TRUE, &mii );
 
 	mii.fType = MFT_SEPARATOR;
-	_InsertMenuItemW( g_hMenuSub_download, 2, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_download, 4, TRUE, &mii );
 	
 	mii.fType = MFT_STRING;
 	mii.dwTypeData = ST_V_Start;
 	mii.cch = ST_L_Start;
 	mii.wID = MENU_START;
-	_InsertMenuItemW( g_hMenuSub_download, 3, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_download, 5, TRUE, &mii );
 
 	mii.dwTypeData = ST_V_Pause;
 	mii.cch = ST_L_Pause;
 	mii.wID = MENU_PAUSE;
-	_InsertMenuItemW( g_hMenuSub_download, 4, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_download, 6, TRUE, &mii );
 
 	mii.dwTypeData = ST_V_Stop;
 	mii.cch = ST_L_Stop;
 	mii.wID = MENU_STOP;
-	_InsertMenuItemW( g_hMenuSub_download, 5, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_download, 7, TRUE, &mii );
 
 	mii.dwTypeData = ST_V_Restart;
 	mii.cch = ST_L_Restart;
 	mii.wID = MENU_RESTART;
-	_InsertMenuItemW( g_hMenuSub_download, 6, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_download, 8, TRUE, &mii );
 
 	mii.fType = MFT_SEPARATOR;
-	_InsertMenuItemW( g_hMenuSub_download, 7, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_download, 9, TRUE, &mii );
 
 	mii.fType = MFT_STRING;
 	mii.dwTypeData = ST_V_Update_Download___;
 	mii.cch = ST_L_Update_Download___;
 	mii.wID = MENU_UPDATE_DOWNLOAD;
-	_InsertMenuItemW( g_hMenuSub_download, 8, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_download, 10, TRUE, &mii );
 
 	mii.fType = MFT_SEPARATOR;
-	_InsertMenuItemW( g_hMenuSub_download, 9, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_download, 11, TRUE, &mii );
 
 	mii.fMask = MIIM_TYPE | MIIM_SUBMENU;
 	mii.fType = MFT_STRING;
 	mii.dwTypeData = ST_V_Queue;
 	mii.cch = ST_L_Queue;
 	mii.hSubMenu = g_hMenuSub_queue;
-	_InsertMenuItemW( g_hMenuSub_download, 10, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_download, 12, TRUE, &mii );
 
 	mii.fMask = MIIM_TYPE | MIIM_ID | MIIM_STATE;
 	mii.fType = MFT_SEPARATOR;
-	_InsertMenuItemW( g_hMenuSub_download, 11, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_download, 13, TRUE, &mii );
 
 	mii.fType = MFT_STRING;
 	mii.dwTypeData = ST_V_Remove;
 	mii.cch = ST_L_Remove;
 	mii.wID = MENU_REMOVE;
-	_InsertMenuItemW( g_hMenuSub_download, 12, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_download, 14, TRUE, &mii );
 
 	mii.dwTypeData = ST_V_Remove_and_Delete;
 	mii.cch = ST_L_Remove_and_Delete;
 	mii.wID = MENU_REMOVE_AND_DELETE;
-	_InsertMenuItemW( g_hMenuSub_download, 13, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_download, 15, TRUE, &mii );
 
 	mii.fType = MFT_SEPARATOR;
-	_InsertMenuItemW( g_hMenuSub_download, 14, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_download, 16, TRUE, &mii );
 
 	mii.fType = MFT_STRING;
 	mii.dwTypeData = ST_V_Delete;
 	mii.cch = ST_L_Delete;
 	mii.wID = MENU_DELETE;
-	_InsertMenuItemW( g_hMenuSub_download, 15, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_download, 17, TRUE, &mii );
 
 	mii.dwTypeData = ST_V_Rename;
 	mii.cch = ST_L_Rename;
 	mii.wID = MENU_RENAME;
-	_InsertMenuItemW( g_hMenuSub_download, 16, TRUE, &mii );
-
-	mii.fType = MFT_SEPARATOR;
-	_InsertMenuItemW( g_hMenuSub_download, 17, TRUE, &mii );
-
-	mii.fType = MFT_STRING;
-	mii.dwTypeData = ST_V_Copy_URL_s_;
-	mii.cch = ST_L_Copy_URL_s_;
-	mii.wID = MENU_COPY_URLS;
 	_InsertMenuItemW( g_hMenuSub_download, 18, TRUE, &mii );
 
 	mii.fType = MFT_SEPARATOR;
 	_InsertMenuItemW( g_hMenuSub_download, 19, TRUE, &mii );
 
 	mii.fType = MFT_STRING;
+	mii.dwTypeData = ST_V_Copy_URL_s_;
+	mii.cch = ST_L_Copy_URL_s_;
+	mii.wID = MENU_COPY_URLS;
+	_InsertMenuItemW( g_hMenuSub_download, 20, TRUE, &mii );
+
+	mii.fType = MFT_SEPARATOR;
+	_InsertMenuItemW( g_hMenuSub_download, 21, TRUE, &mii );
+
+	mii.fType = MFT_STRING;
 	mii.dwTypeData = ST_V_Select_All;
 	mii.cch = ST_L_Select_All;
 	mii.wID = MENU_SELECT_ALL;
-	_InsertMenuItemW( g_hMenuSub_download, 20, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_download, 22, TRUE, &mii );
 
 	//
 
@@ -598,59 +610,65 @@ void CreateMenus()
 	mii.fState = ( cfg_column_order5 != -1 ? MFS_CHECKED | ( g_total_columns > 1 ? MFS_ENABLED : MFS_DISABLED ) : MFS_UNCHECKED );
 	_InsertMenuItemW( g_hMenuSub_column, 4, TRUE, &mii );
 
+	mii.dwTypeData = ST_V_Download_Speed_Limit;
+	mii.cch = ST_L_Download_Speed_Limit;
+	mii.wID = MENU_DOWNLOAD_SPEED_LIMIT;
+	mii.fState = ( cfg_column_order6 != -1 ? MFS_CHECKED | ( g_total_columns > 1 ? MFS_ENABLED : MFS_DISABLED ) : MFS_UNCHECKED );
+	_InsertMenuItemW( g_hMenuSub_column, 5, TRUE, &mii );
+
 	mii.dwTypeData = ST_V_Downloaded;
 	mii.cch = ST_L_Downloaded;
 	mii.wID = MENU_DOWNLOADED;
-	mii.fState = ( cfg_column_order6 != -1 ? MFS_CHECKED | ( g_total_columns > 1 ? MFS_ENABLED : MFS_DISABLED ) : MFS_UNCHECKED );
-	_InsertMenuItemW( g_hMenuSub_column, 5, TRUE, &mii );
+	mii.fState = ( cfg_column_order7 != -1 ? MFS_CHECKED | ( g_total_columns > 1 ? MFS_ENABLED : MFS_DISABLED ) : MFS_UNCHECKED );
+	_InsertMenuItemW( g_hMenuSub_column, 6, TRUE, &mii );
 
 	mii.dwTypeData = ST_V_File_Size;
 	mii.cch = ST_L_File_Size;
 	mii.wID = MENU_FILE_SIZE;
-	mii.fState = ( cfg_column_order7 != -1 ? MFS_CHECKED | ( g_total_columns > 1 ? MFS_ENABLED : MFS_DISABLED ) : MFS_UNCHECKED );
-	_InsertMenuItemW( g_hMenuSub_column, 6, TRUE, &mii );
+	mii.fState = ( cfg_column_order8 != -1 ? MFS_CHECKED | ( g_total_columns > 1 ? MFS_ENABLED : MFS_DISABLED ) : MFS_UNCHECKED );
+	_InsertMenuItemW( g_hMenuSub_column, 7, TRUE, &mii );
 
 	mii.dwTypeData = ST_V_File_Type;
 	mii.cch = ST_L_File_Type;
 	mii.wID = MENU_FILE_TYPE;
-	mii.fState = ( cfg_column_order8 != -1 ? MFS_CHECKED | ( g_total_columns > 1 ? MFS_ENABLED : MFS_DISABLED ) : MFS_UNCHECKED );
-	_InsertMenuItemW( g_hMenuSub_column, 7, TRUE, &mii );
+	mii.fState = ( cfg_column_order9 != -1 ? MFS_CHECKED | ( g_total_columns > 1 ? MFS_ENABLED : MFS_DISABLED ) : MFS_UNCHECKED );
+	_InsertMenuItemW( g_hMenuSub_column, 8, TRUE, &mii );
 
 	mii.dwTypeData = ST_V_Filename;
 	mii.cch = ST_L_Filename;
 	mii.wID = MENU_FILENAME;
-	mii.fState = ( cfg_column_order9 != -1 ? MFS_CHECKED | ( g_total_columns > 1 ? MFS_ENABLED : MFS_DISABLED ) : MFS_UNCHECKED );
-	_InsertMenuItemW( g_hMenuSub_column, 8, TRUE, &mii );
+	mii.fState = ( cfg_column_order10 != -1 ? MFS_CHECKED | ( g_total_columns > 1 ? MFS_ENABLED : MFS_DISABLED ) : MFS_UNCHECKED );
+	_InsertMenuItemW( g_hMenuSub_column, 9, TRUE, &mii );
 
 	mii.dwTypeData = ST_V_Progress;
 	mii.cch = ST_L_Progress;
 	mii.wID = MENU_PROGRESS;
-	mii.fState = ( cfg_column_order10 != -1 ? MFS_CHECKED | ( g_total_columns > 1 ? MFS_ENABLED : MFS_DISABLED ) : MFS_UNCHECKED );
-	_InsertMenuItemW( g_hMenuSub_column, 9, TRUE, &mii );
+	mii.fState = ( cfg_column_order11 != -1 ? MFS_CHECKED | ( g_total_columns > 1 ? MFS_ENABLED : MFS_DISABLED ) : MFS_UNCHECKED );
+	_InsertMenuItemW( g_hMenuSub_column, 10, TRUE, &mii );
 
 	mii.dwTypeData = ST_V_SSL___TLS_Version;
 	mii.cch = ST_L_SSL___TLS_Version;
 	mii.wID = MENU_SSL_TLS_VERSION;
-	mii.fState = ( cfg_column_order11 != -1 ? MFS_CHECKED | ( g_total_columns > 1 ? MFS_ENABLED : MFS_DISABLED ) : MFS_UNCHECKED );
-	_InsertMenuItemW( g_hMenuSub_column, 10, TRUE, &mii );
+	mii.fState = ( cfg_column_order12 != -1 ? MFS_CHECKED | ( g_total_columns > 1 ? MFS_ENABLED : MFS_DISABLED ) : MFS_UNCHECKED );
+	_InsertMenuItemW( g_hMenuSub_column, 11, TRUE, &mii );
 
 	mii.dwTypeData = ST_V_Time_Elapsed;
 	mii.cch = ST_L_Time_Elapsed;
 	mii.wID = MENU_TIME_ELAPSED;
-	mii.fState = ( cfg_column_order12 != -1 ? MFS_CHECKED | ( g_total_columns > 1 ? MFS_ENABLED : MFS_DISABLED ) : MFS_UNCHECKED );
-	_InsertMenuItemW( g_hMenuSub_column, 11, TRUE, &mii );
+	mii.fState = ( cfg_column_order13 != -1 ? MFS_CHECKED | ( g_total_columns > 1 ? MFS_ENABLED : MFS_DISABLED ) : MFS_UNCHECKED );
+	_InsertMenuItemW( g_hMenuSub_column, 12, TRUE, &mii );
 
 	mii.dwTypeData = ST_V_Time_Remaining;
 	mii.cch = ST_L_Time_Remaining;
 	mii.wID = MENU_TIME_REMAINING;
-	mii.fState = ( cfg_column_order13 != -1 ? MFS_CHECKED | ( g_total_columns > 1 ? MFS_ENABLED : MFS_DISABLED ) : MFS_UNCHECKED );
-	_InsertMenuItemW( g_hMenuSub_column, 12, TRUE, &mii );
+	mii.fState = ( cfg_column_order14 != -1 ? MFS_CHECKED | ( g_total_columns > 1 ? MFS_ENABLED : MFS_DISABLED ) : MFS_UNCHECKED );
+	_InsertMenuItemW( g_hMenuSub_column, 13, TRUE, &mii );
 
 	mii.dwTypeData = ST_V_URL;
 	mii.cch = ST_L_URL;
 	mii.wID = MENU_URL;
-	mii.fState = ( cfg_column_order14 != -1 ? MFS_CHECKED | ( g_total_columns > 1 ? MFS_ENABLED : MFS_DISABLED ) : MFS_UNCHECKED );
-	_InsertMenuItemW( g_hMenuSub_column, 13, TRUE, &mii );
+	mii.fState = ( cfg_column_order15 != -1 ? MFS_CHECKED | ( g_total_columns > 1 ? MFS_ENABLED : MFS_DISABLED ) : MFS_UNCHECKED );
+	_InsertMenuItemW( g_hMenuSub_column, 14, TRUE, &mii );
 
 	//
 
@@ -921,10 +939,19 @@ void CreateMenus()
 	_InsertMenuItemW( hMenuSub_tools, 1, TRUE, &mii );
 
 	mii.fType = MFT_STRING;
+	mii.dwTypeData = ST_V_Global_Download_Speed__Limit___;
+	mii.cch = ST_L_Global_Download_Speed__Limit___;
+	mii.wID = MENU_GLOBAL_SPEED_LIMIT;
+	_InsertMenuItemW( hMenuSub_tools, 2, TRUE, &mii );
+
+	mii.fType = MFT_SEPARATOR;
+	_InsertMenuItemW( hMenuSub_tools, 3, TRUE, &mii );
+
+	mii.fType = MFT_STRING;
 	mii.dwTypeData = ST_V__Options____;
 	mii.cch = ST_L__Options____;
 	mii.wID = MENU_OPTIONS;
-	_InsertMenuItemW( hMenuSub_tools, 2, TRUE, &mii );
+	_InsertMenuItemW( hMenuSub_tools, 4, TRUE, &mii );
 
 
 	// HELP MENU
@@ -997,30 +1024,31 @@ void UpdateColumns( unsigned int menu_id )
 
 			switch ( menu_index )
 			{
-				case 0:
+				case COLUMN_NUM:
 				{
 					index = 0;
 				}
 				break;
 
-				case 1:
-				case 2:
-				case 3:
-				case 4:
-				case 5:
-				case 6:
-				case 7:
-				case 8:
-				case 9:
-				case 10:
-				case 11:
-				case 12:
+				case COLUMN_ACTIVE_PARTS:
+				case COLUMN_DATE_AND_TIME_ADDED:
+				case COLUMN_DOWNLOAD_DIRECTORY:
+				case COLUMN_DOWNLOAD_SPEED:
+				case COLUMN_DOWNLOAD_SPEED_LIMIT:
+				case COLUMN_DOWNLOADED:
+				case COLUMN_FILE_SIZE:
+				case COLUMN_FILE_TYPE:
+				case COLUMN_FILENAME:
+				case COLUMN_PROGRESS:
+				case COLUMN_SSL_TLS_VERSION:
+				case COLUMN_TIME_ELAPSED:
+				case COLUMN_TIME_REMAINING:
 				{
 					index = GetColumnIndexFromVirtualIndex( *download_columns[ menu_index ], download_columns, NUM_COLUMNS );
 				}
 				break;
 
-				case 13:
+				case COLUMN_URL:
 				{
 					index = g_total_columns;
 				}
@@ -1069,7 +1097,7 @@ void UpdateColumns( unsigned int menu_id )
 
 			switch ( menu_index )
 			{
-				case 0:
+				case COLUMN_NUM:
 				{
 					*download_columns[ menu_index ] = 0;
 
@@ -1084,25 +1112,26 @@ void UpdateColumns( unsigned int menu_id )
 				}
 				break;
 
-				case 1:
-				case 2:
-				case 3:
-				case 4:
-				case 5:
-				case 6:
-				case 7:
-				case 8:
-				case 9:
-				case 10:
-				case 11:
-				case 12:
+				case COLUMN_ACTIVE_PARTS:
+				case COLUMN_DATE_AND_TIME_ADDED:
+				case COLUMN_DOWNLOAD_DIRECTORY:
+				case COLUMN_DOWNLOAD_SPEED:
+				case COLUMN_DOWNLOAD_SPEED_LIMIT:
+				case COLUMN_DOWNLOADED:
+				case COLUMN_FILE_SIZE:
+				case COLUMN_FILE_TYPE:
+				case COLUMN_FILENAME:
+				case COLUMN_PROGRESS:
+				case COLUMN_SSL_TLS_VERSION:
+				case COLUMN_TIME_ELAPSED:
+				case COLUMN_TIME_REMAINING:
 				{
 					*download_columns[ menu_index ] = g_total_columns;
 					index = GetColumnIndexFromVirtualIndex( *download_columns[ menu_index ], download_columns, NUM_COLUMNS );
 				}
 				break;
 
-				case 13:
+				case COLUMN_URL:
 				{
 					*download_columns[ menu_index ] = g_total_columns;
 					index = g_total_columns;

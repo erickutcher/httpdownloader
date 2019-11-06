@@ -52,17 +52,16 @@ bool show_drop_progress = false;
 
 void UpdateDropWindow( unsigned long long start, unsigned long long end, COLORREF border_color, COLORREF progress_color, bool show_progress )
 {
-	int i_percentage = 0;
+	int i_percentage;
 
 	show_drop_progress = show_progress;
 
 	if ( end > 0 )
 	{
 	#ifdef _WIN64
-		i_percentage = ( int )( 44.0f * ( ( float )start / ( float )end ) );
+		i_percentage = ( int )( 44.0 * ( ( double )start / ( double )end ) );
 	#else
-		float f_percentage = 44.0f * ( ( float )start / ( float )end );
-		i_percentage = 0;
+		double f_percentage = 44.0 * ( ( double )start / ( double )end );
 		__asm
 		{
 			fld f_percentage;	//; Load the floating point value onto the FPU stack.
@@ -106,7 +105,7 @@ LRESULT CALLBACK URLDropWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			if ( hbm_background == NULL )
 			{
 				// Need to delete the object when destroying this window.
-				hbm_background = ( HBITMAP )_LoadImageW( GetModuleHandle( NULL ), MAKEINTRESOURCE( IDB_BITMAP_DROP ), IMAGE_BITMAP, 48, 48, 0 );
+				hbm_background = ( HBITMAP )_LoadImageW( GetModuleHandleW( NULL ), MAKEINTRESOURCE( IDB_BITMAP_DROP ), IMAGE_BITMAP, 48, 48, 0 );
 			}
 
 			#ifndef OLE32_USE_STATIC_LIB

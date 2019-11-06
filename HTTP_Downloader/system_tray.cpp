@@ -61,7 +61,7 @@ void InitializeIconValues( HWND hWnd )
 {
 	if ( !is_icon_initialized )
 	{
-		_GetIconInfo( ( HICON )_LoadImageW( GetModuleHandle( NULL ), MAKEINTRESOURCE( IDI_ICON_TRAY ), IMAGE_ICON, 16, 16, LR_SHARED ), &g_icon_info );
+		_GetIconInfo( ( HICON )_LoadImageW( GetModuleHandleW( NULL ), MAKEINTRESOURCE( IDI_ICON_TRAY ), IMAGE_ICON, 16, 16, LR_SHARED ), &g_icon_info );
 
 		HDC hDC = _GetDC( hWnd );
 		g_icon_hdcmem = _CreateCompatibleDC( hDC );
@@ -96,15 +96,14 @@ void UninitializeIconValues()
 
 HICON CreateSystemTrayIcon( unsigned long long start, unsigned long long end, COLORREF border_color, COLORREF progress_color )
 {
-	int i_percentage = 0;
+	int i_percentage;
 
 	if ( end > 0 )
 	{
 	#ifdef _WIN64
-		i_percentage = ( int )( 14.0f * ( ( float )start / ( float )end ) );
+		i_percentage = ( int )( 14.0 * ( ( double )start / ( double )end ) );
 	#else
-		float f_percentage = 14.0f * ( ( float )start / ( float )end );
-		i_percentage = 0;
+		double f_percentage = 14.0 * ( ( double )start / ( double )end );
 		__asm
 		{
 			fld f_percentage;	//; Load the floating point value onto the FPU stack.

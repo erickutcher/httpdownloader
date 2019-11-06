@@ -17,6 +17,7 @@
 */
 
 #include "options.h"
+#include "utilities.h"
 
 #define EDIT_MAX_DOWNLOADS				1000
 #define EDIT_RETRY_DOWNLOADS_COUNT		1001
@@ -24,9 +25,10 @@
 #define EDIT_RETRY_PARTS_COUNT			1003
 #define EDIT_TIMEOUT					1004
 #define EDIT_MAX_REDIRECTS				1005
-#define CB_DEFAULT_SSL_VERSION			1006
+#define EDIT_DEFAULT_SPEED_LIMIT		1006
+#define CB_DEFAULT_SSL_VERSION			1007
 
-#define BTN_LOGIN_MANAGER				1007
+#define BTN_LOGIN_MANAGER				1008
 
 // Connection Tab
 HWND g_hWnd_max_downloads = NULL;
@@ -43,11 +45,16 @@ HWND g_hWnd_ud_timeout = NULL;
 HWND g_hWnd_max_redirects = NULL;
 HWND g_hWnd_ud_max_redirects = NULL;
 
+HWND g_hWnd_default_speed_limit = NULL;
+
 HWND g_hWnd_default_ssl_version = NULL;
 HWND g_hWnd_default_download_parts = NULL;
 HWND g_hWnd_default_ud_download_parts = NULL;
 
 HWND g_hWnd_btn_login_manager = NULL;
+
+wchar_t default_limit_tooltip_text[ 32 ];
+HWND g_hWnd_default_limit_tooltip = NULL;
 
 LRESULT CALLBACK ConnectionTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
 {
@@ -156,8 +163,36 @@ LRESULT CALLBACK ConnectionTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 
 			//
 
-			HWND hWnd_static_ssl_version = _CreateWindowW( WC_STATIC, ST_V_Default_SSL___TLS_version_, WS_CHILD | WS_VISIBLE, 0, 172, 190, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_default_ssl_version = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_COMBOBOX, NULL, CBS_AUTOHSCROLL | CBS_DROPDOWNLIST | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE, rc.right - 100, 168, 100, 23, hWnd, ( HMENU )CB_DEFAULT_SSL_VERSION, NULL, NULL );
+			HWND hWnd_static_default_speed_limit = _CreateWindowW( WC_STATIC, ST_V_Default_download_speed_limit_, WS_CHILD | WS_VISIBLE, 0, 172, 320, 15, hWnd, NULL, NULL, NULL );
+
+			g_hWnd_default_speed_limit = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 100, 168, 100, 23, hWnd, ( HMENU )EDIT_DEFAULT_SPEED_LIMIT, NULL, NULL );
+
+			_SendMessageW( g_hWnd_default_speed_limit, EM_LIMITTEXT, 20, 0 );
+
+			g_hWnd_default_limit_tooltip = _CreateWindowExW( WS_EX_TOPMOST, TOOLTIPS_CLASS, 0, WS_POPUP | TTS_NOPREFIX | TTS_ALWAYSTIP, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+
+			default_limit_tooltip_text[ 0 ] = 0;
+
+			TOOLINFO ti;
+			_memzero( &ti, sizeof( TOOLINFO ) );
+			ti.cbSize = sizeof( TOOLINFO );
+			ti.uFlags = TTF_SUBCLASS;
+			ti.hwnd = g_hWnd_default_speed_limit;
+			ti.lpszText = default_limit_tooltip_text;
+
+			_GetClientRect( hWnd, &ti.rect );
+			_SendMessageW( g_hWnd_default_limit_tooltip, TTM_ADDTOOL, 0, ( LPARAM )&ti );
+
+
+			char value[ 21 ];
+			_memzero( value, sizeof( char ) * 21 );
+			__snprintf( value, 21, "%I64u", cfg_default_speed_limit );
+			_SendMessageA( g_hWnd_default_speed_limit, WM_SETTEXT, 0, ( LPARAM )value );
+
+			//
+
+			HWND hWnd_static_ssl_version = _CreateWindowW( WC_STATIC, ST_V_Default_SSL___TLS_version_, WS_CHILD | WS_VISIBLE, 0, 200, 190, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_default_ssl_version = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_COMBOBOX, NULL, CBS_AUTOHSCROLL | CBS_DROPDOWNLIST | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE, rc.right - 100, 196, 100, 23, hWnd, ( HMENU )CB_DEFAULT_SSL_VERSION, NULL, NULL );
 			_SendMessageW( g_hWnd_default_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_V_SSL_2_0 );
 			_SendMessageW( g_hWnd_default_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_V_SSL_3_0 );
 			_SendMessageW( g_hWnd_default_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_V_TLS_1_0 );
@@ -168,7 +203,7 @@ LRESULT CALLBACK ConnectionTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 
 			//
 
-			g_hWnd_btn_login_manager = _CreateWindowW( WC_BUTTON, ST_V_Login_Manager___, WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 195, 120, 23, hWnd, ( HMENU )BTN_LOGIN_MANAGER, NULL, NULL );
+			g_hWnd_btn_login_manager = _CreateWindowW( WC_BUTTON, ST_V_Login_Manager___, WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 223, 120, 23, hWnd, ( HMENU )BTN_LOGIN_MANAGER, NULL, NULL );
 
 			//
 
@@ -192,6 +227,9 @@ LRESULT CALLBACK ConnectionTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 
 			_SendMessageW( hWnd_static_max_redirects, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 			_SendMessageW( g_hWnd_max_redirects, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+
+			_SendMessageW( hWnd_static_default_speed_limit, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_default_speed_limit, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 
 			_SendMessageW( g_hWnd_btn_login_manager, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 
@@ -360,6 +398,53 @@ LRESULT CALLBACK ConnectionTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 						}
 
 						if ( num != cfg_default_download_parts )
+						{
+							options_state_changed = true;
+							_EnableWindow( g_hWnd_options_apply, TRUE );
+						}
+					}
+				}
+				break;
+
+				case EDIT_DEFAULT_SPEED_LIMIT:
+				{
+					if ( HIWORD( wParam ) == EN_UPDATE )
+					{
+						DWORD sel_start;
+
+						char value[ 21 ];
+						_SendMessageA( ( HWND )lParam, WM_GETTEXT, 21, ( LPARAM )value );
+						unsigned long long num = strtoull( value );
+
+						if ( num == 0xFFFFFFFFFFFFFFFF )
+						{
+							_SendMessageA( ( HWND )lParam, EM_GETSEL, ( WPARAM )&sel_start, NULL );
+
+							_SendMessageA( ( HWND )lParam, WM_SETTEXT, 0, ( LPARAM )"18446744073709551615" );
+
+							_SendMessageA( ( HWND )lParam, EM_SETSEL, sel_start, sel_start );
+						}
+
+						if ( num > 0 )
+						{
+							unsigned int length = FormatSizes( default_limit_tooltip_text, 32, SIZE_FORMAT_AUTO, num );
+							default_limit_tooltip_text[ length++ ] = L'/';
+							default_limit_tooltip_text[ length++ ] = L's';
+							default_limit_tooltip_text[ length ] = 0;
+						}
+						else
+						{
+							_wmemcpy_s( default_limit_tooltip_text, 32, ST_V_Unlimited, ST_L_Unlimited + 1 );
+						}
+
+						TOOLINFO ti;
+						_memzero( &ti, sizeof( TOOLINFO ) );
+						ti.cbSize = sizeof( TOOLINFO );
+						ti.hwnd = g_hWnd_default_speed_limit;
+						ti.lpszText = default_limit_tooltip_text;
+						_SendMessageW( g_hWnd_default_limit_tooltip, TTM_UPDATETIPTEXT, 0, ( LPARAM )&ti );
+
+						if ( num != cfg_default_speed_limit )
 						{
 							options_state_changed = true;
 							_EnableWindow( g_hWnd_options_apply, TRUE );

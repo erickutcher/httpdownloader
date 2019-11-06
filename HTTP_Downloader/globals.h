@@ -37,8 +37,8 @@
 
 #include "resource.h"
 
-#define MIN_WIDTH			640
-#define MIN_HEIGHT			480
+#define MIN_WIDTH			800
+#define MIN_HEIGHT			600
 
 #define SNAP_WIDTH			10		// The minimum distance at which our windows will attach together.
 
@@ -47,13 +47,31 @@
 #define WM_CHANGE_CURSOR	WM_APP + 2	// Updates the window cursor.
 #define WM_FILTER_TEXT		WM_APP + 3
 
-#define WM_TRAY_NOTIFY		WM_APP + 3
-#define WM_EXIT				WM_APP + 4
-#define WM_ALERT			WM_APP + 5
+#define WM_TRAY_NOTIFY		WM_APP + 4
+#define WM_EXIT				WM_APP + 5
+#define WM_ALERT			WM_APP + 6
+
+#define WM_RESET_PROGRESS	WM_APP + 7
 
 #define FILETIME_TICKS_PER_SECOND	10000000LL
 
-#define NUM_COLUMNS			14
+#define NUM_COLUMNS			15
+
+#define COLUMN_NUM					0
+#define COLUMN_ACTIVE_PARTS			1
+#define COLUMN_DATE_AND_TIME_ADDED	2
+#define COLUMN_DOWNLOAD_DIRECTORY	3
+#define COLUMN_DOWNLOAD_SPEED		4
+#define COLUMN_DOWNLOAD_SPEED_LIMIT	5
+#define COLUMN_DOWNLOADED			6
+#define COLUMN_FILE_SIZE			7
+#define COLUMN_FILE_TYPE			8
+#define COLUMN_FILENAME				9
+#define COLUMN_PROGRESS				10
+#define COLUMN_SSL_TLS_VERSION		11
+#define COLUMN_TIME_ELAPSED			12
+#define COLUMN_TIME_REMAINING		13
+#define COLUMN_URL					14
 
 #define NUM_COLORS			75
 
@@ -85,7 +103,10 @@
 #define SIZE_FORMAT_KILOBYTE	1
 #define SIZE_FORMAT_MEGABYTE	2
 #define SIZE_FORMAT_GIGABYTE	3
-#define SIZE_FORMAT_AUTO		4
+#define SIZE_FORMAT_TERABYTE	4
+#define SIZE_FORMAT_PETABYTE	5
+#define SIZE_FORMAT_EXABYTE		6
+#define SIZE_FORMAT_AUTO		7
 
 #define SHUTDOWN_ACTION_NONE				0
 #define SHUTDOWN_ACTION_LOG_OFF				1
@@ -136,6 +157,7 @@ union QFILETIME
 
 struct CL_ARGS
 {
+	unsigned long long download_speed_limit;
 	wchar_t *download_directory;
 	wchar_t *download_history_file;
 	wchar_t *url_list_file;
@@ -175,12 +197,14 @@ extern HWND g_hWnd_add_urls;
 extern HWND g_hWnd_options;
 extern HWND g_hWnd_update_download;
 extern HWND g_hWnd_search;
+extern HWND g_hWnd_download_speed_limit;
 extern HWND g_hWnd_url_drop_window;
 
 extern HWND g_hWnd_login_manager;
 extern HWND g_hWnd_login_list;
 
 extern HWND g_hWnd_toolbar;
+extern HWND g_hWnd_status;
 extern HWND g_hWnd_files;
 
 extern HWND g_hWnd_active;				// Handle to the active window. Used to handle tab stops.
@@ -225,11 +249,11 @@ extern unsigned int g_temp_download_directory_length;
 
 extern UINT CF_HTML;	// Clipboard format.
 
-extern unsigned long long session_total_downloaded;
-extern unsigned long long session_downloaded_speed;
+extern unsigned long long g_session_total_downloaded;
+extern unsigned long long g_session_downloaded_speed;
 
-extern unsigned long long last_session_total_downloaded;
-extern unsigned long long last_session_downloaded_speed;
+extern unsigned long long g_session_last_total_downloaded;
+extern unsigned long long g_session_last_downloaded_speed;
 
 // Settings
 
@@ -254,6 +278,7 @@ extern int cfg_column_width11;
 extern int cfg_column_width12;
 extern int cfg_column_width13;
 extern int cfg_column_width14;
+extern int cfg_column_width15;
 
 extern char cfg_column_order1;
 extern char cfg_column_order2;
@@ -269,17 +294,20 @@ extern char cfg_column_order11;
 extern char cfg_column_order12;
 extern char cfg_column_order13;
 extern char cfg_column_order14;
+extern char cfg_column_order15;
 
 extern bool cfg_show_toolbar;
 extern bool cfg_show_column_headers;
 extern bool cfg_show_status_bar;
 
-extern unsigned char cfg_t_downloaded;	// 0 = Bytes, 1 = KB, 2 = MB, 3 = GB, 4 = auto
-extern unsigned char cfg_t_file_size;	// 0 = Bytes, 1 = KB, 2 = MB, 3 = GB, 4 = auto
-extern unsigned char cfg_t_down_speed;	// 0 = Bytes, 1 = KB, 2 = MB, 3 = GB, 4 = auto
+extern unsigned char cfg_t_downloaded;	// 0 = Bytes, 1 = KB, 2 = MB, 3 = GB, etc.
+extern unsigned char cfg_t_file_size;	// 0 = Bytes, 1 = KB, 2 = MB, 3 = GB, etc.
+extern unsigned char cfg_t_down_speed;	// 0 = Bytes, 1 = KB, 2 = MB, 3 = GB, etc.
+extern unsigned char cfg_t_speed_limit;	// 0 = Bytes, 1 = KB, 2 = MB, 3 = GB, etc.
 
-extern unsigned char cfg_t_status_downloaded;	// 0 = Bytes, 1 = KB, 2 = MB, 3 = GB, 4 = auto
-extern unsigned char cfg_t_status_down_speed;	// 0 = Bytes, 1 = KB, 2 = MB, 3 = GB, 4 = auto
+extern unsigned char cfg_t_status_downloaded;	// 0 = Bytes, 1 = KB, 2 = MB, 3 = GB, etc.
+extern unsigned char cfg_t_status_down_speed;	// 0 = Bytes, 1 = KB, 2 = MB, 3 = GB, etc.
+extern unsigned char cfg_t_status_speed_limit;	// 0 = Bytes, 1 = KB, 2 = MB, 3 = GB, etc.
 
 extern int cfg_drop_pos_x;	// URL drop window.
 extern int cfg_drop_pos_y;	// URL drop window.
@@ -317,6 +345,8 @@ extern unsigned char cfg_default_ssl_version;
 extern unsigned char cfg_default_download_parts;
 
 extern unsigned char cfg_max_redirects;
+
+extern unsigned long long cfg_default_speed_limit;
 
 extern wchar_t *cfg_default_download_directory;
 
@@ -420,6 +450,10 @@ extern unsigned short cfg_timeout;
 
 //
 
+extern unsigned long long cfg_download_speed_limit;
+
+//
+
 extern bool cfg_resume_downloads;
 
 extern unsigned long long cfg_max_file_size;
@@ -445,6 +479,7 @@ extern unsigned char cfg_sorted_direction;
 extern bool cfg_sort_added_and_updating_items;
 
 extern bool cfg_show_gridlines;
+extern bool cfg_show_part_progress;
 
 extern FONT_SETTINGS cfg_even_row_font_settings;
 extern FONT_SETTINGS cfg_odd_row_font_settings;

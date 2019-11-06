@@ -103,7 +103,7 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 #endif
 {
 	#ifndef NTDLL_USE_STATIC_LIB
-		HINSTANCE hInstance = GetModuleHandle( NULL );
+		HINSTANCE hInstance = GetModuleHandleW( NULL );
 	#endif
 
 	#ifndef USER32_USE_STATIC_LIB
@@ -274,6 +274,13 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 					}
 
 					cla->parts = parts;
+				}
+				else if ( ( arg + 1 ) < argCount &&
+						  arg_name_length == 11 && _StrCmpNIW( arg_name, L"speed-limit", 11 ) == 0 )	// Download speed limit.
+				{
+					++arg;
+
+					cla->download_speed_limit = ( unsigned long long )wcstoull( szArgList[ arg ] );
 				}
 				else if ( ( arg + 1 ) < argCount &&
 						  arg_name_length == 10 && _StrCmpNIW( arg_name, L"encryption", 10 ) == 0 )	// SSL / TLS version.
@@ -1016,6 +1023,15 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 
 	wcex.lpfnWndProc    = SearchWndProc;
 	wcex.lpszClassName  = L"search";
+
+	if ( !_RegisterClassExW( &wcex ) )
+	{
+		fail_type = 1;
+		goto CLEANUP;
+	}
+
+	wcex.lpfnWndProc    = DownloadSpeedLimitWndProc;
+	wcex.lpszClassName  = L"download_speed_limit";
 
 	if ( !_RegisterClassExW( &wcex ) )
 	{

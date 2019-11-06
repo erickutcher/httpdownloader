@@ -30,11 +30,6 @@
 				border: 1px solid grey;
 			}
 
-			.tab
-			{
-				background-color: white;
-			}
-
 			.tab > input[type="radio"]
 			{
 				display: none;
@@ -67,6 +62,7 @@
 			.tab_frame
 			{
 				position: relative;
+				background-color: white;
 				border: 1px solid grey;
 				z-index: 1;
 			}
@@ -93,99 +89,105 @@
 		<input type="hidden" id="last_urls" value="">
 		<div style="display: flex; flex-flow: column; height: 100%; min-width: 580px;">
 			<div style="flex: 1; display: flex; flex-flow: column; height: 100%; margin: 15px 15px 0px 15px;">
-				<div style="flex: 1; display: flex; flex-flow: column; height: 100%; padding: 15px; background-color: Window; border: 1px solid grey;">
-					<div style="flex: 1; display: flex; flex-flow: column; height: 100%;">
-						<div style="display: flex; flex-flow: row;">
-							<div style="margin-top: auto;">
-								<label for="urls" data-i18n="url_s__">URL(s):</label>
-							</div>
-							<div style="flex: 1; display: flex; flex-flow: row; text-align: right; margin-bottom: 5px;">
-								<label for="filter" style="margin: auto 0px auto 70px; white-space: nowrap;" data-i18n="regex_filter_">RegEx filter:</label>
-								<select id="filter_presets" style="margin-left: 5px;">
-									<option selected="selected" data-i18n="custom">Custom</option>
-									<option data-i18n="images">Images</option>
-									<option data-i18n="music">Music</option>
-									<option data-i18n="videos">Videos</option>
-								</select>
-								<input type="text" id="filter" list="filter_presets" value="" style="flex: 1; width: 100%; margin-left: 5px;"><button type="button" id="apply_filter" style="margin-left: 5px;" data-i18n="apply">Apply</button><button type="button" id="revert_filter" style="margin-left: 5px;" data-i18n="revert">Revert</button>
-							</div>
+				<div style="flex: 1; display: flex; flex-flow: column; height: 100%;">
+					<div style="display: flex; flex-flow: row;">
+						<div style="margin-top: auto;">
+							<label for="urls" data-i18n="url_s__">URL(s):</label>
 						</div>
-						<textarea id="urls" rows="4" style="flex: 1;"></textarea>
-						<div style="margin-top: 10px;">
+						<div style="flex: 1; display: flex; flex-flow: row; text-align: right; margin-bottom: 5px;">
+							<label for="filter" style="margin: auto 0px auto 70px; white-space: nowrap;" data-i18n="regex_filter_">RegEx filter:</label>
+							<select id="filter_presets" style="margin-left: 5px;">
+								<option selected="selected" data-i18n="custom">Custom</option>
+								<option data-i18n="images">Images</option>
+								<option data-i18n="music">Music</option>
+								<option data-i18n="videos">Videos</option>
+							</select>
+							<input type="text" id="filter" list="filter_presets" value="" style="flex: 1; width: 100%; margin-left: 5px;"><button type="button" id="apply_filter" style="margin-left: 5px;" data-i18n="apply">Apply</button><button type="button" id="revert_filter" style="margin-left: 5px;" data-i18n="revert">Revert</button>
+						</div>
+					</div>
+					<textarea id="urls" rows="4" style="flex: 1;"></textarea>
+					<div style="margin-top: 10px;">
+						<div style="margin-top: auto;">
+							<label for="directory" data-i18n="download_directory_">Download directory:</label>
+						</div>
+						<div>
+							<input type="text" id="directory" value="" data-i18n="_use_program_default_" placeholder="[Use Program Default]" style="box-sizing: border-box; width: 100%;">
+						</div>
+					</div>
+				</div>
+				<div id="advanced_info" style="display: none; margin-top: 15px;">
+					<div style="display: flex; flex-flow: row wrap;">
+						<div style="margin-right: 15px;">
 							<div style="margin-top: auto;">
-								<label for="directory" data-i18n="download_directory_">Download directory:</label>
+								<label for="parts" data-i18n="download_parts_">Download parts:</label>
 							</div>
 							<div>
-								<input type="text" id="directory" value="" data-i18n="_use_program_default_" placeholder="[Use Program Default]" style="box-sizing: border-box; width: 100%;">
+								<input type="number" id="parts" value="" min="0" max="100" style="text-align: center;">
+							</div>
+						</div>
+						<div style="flex: 1;">
+							<fieldset>
+								<legend data-i18n="authentication">Authentication</legend>
+								<div style="display: flex; flex-flow: row wrap;">
+									<div style="margin-right: 10px;">
+										<div style="margin-top: auto;">
+											<label for="username" data-i18n="username_">Username:</label>
+										</div>
+										<div>
+											<input type="text" id="username" value="">
+										</div>
+									</div>
+									<div style="flex: 1;">
+										<div style="margin-top: auto;">
+											<label for="password" data-i18n="password_">Password:</label>
+										</div>
+										<div>
+											<input type="password" id="password" value="">
+										</div>
+									</div>
+								</div>
+							</fieldset>
+						</div>
+					</div>
+					<div style="margin-top: 15px;">
+						<div style="margin-top: auto;">
+							<label for="speed_limit" data-i18n="download_speed_limit_">Download speed limit (bytes/s):</label>
+						</div>
+						<div>
+							<input type="text" id="speed_limit" size="40" value="0" style="text-align: center;">
+						</div>
+					</div>
+					<div class="tab" style="margin-top: 15px;">
+						<input type="radio" name="tabs" id="tab_cookies" checked><label for="tab_cookies" data-i18n="cookies">Cookies</label><input type="radio" name="tabs" id="tab_headers"><label for="tab_headers" data-i18n="headers">Headers</label><input type="radio" name="tabs" id="tab_post_data"><label for="tab_post_data" data-i18n="post_data">POST Data</label>
+						<div class="tab_frame">
+							<div class="tab_panel" style="margin: 10px;">
+								<div style="margin-top: auto;">
+									<label for="cookies" data-i18n="cookies_">Cookies:</label>
+								</div>
+								<div>
+									<textarea id="cookies" rows="5"></textarea>
+								</div>
+							</div>
+							<div class="tab_panel" style="margin: 10px;">
+								<div style="margin-top: auto;">
+									<label for="headers" data-i18n="headers_">Headers:</label>
+								</div>
+								<div>
+									<textarea id="headers" rows="5"></textarea>
+								</div>
+							</div>
+							<div class="tab_panel" style="margin: 5px 10px 10px 10px;">
+								<div style="margin-top: auto;">
+									<input type="checkbox" id="method"><label for="method" data-i18n="send_post_data_">Send POST Data:</label>
+								</div>
+								<div>
+									<textarea id="post_data" rows="5"></textarea>
+								</div>
 							</div>
 						</div>
 					</div>
-					<div id="advanced_info" style="display: none; margin-top: 15px;">
-						<div style="display: flex; flex-flow: row wrap;">
-							<div style="margin-right: 15px;">
-								<div style="margin-top: auto;">
-									<label for="parts" data-i18n="download_parts_">Download parts:</label>
-								</div>
-								<div>
-									<input type="number" id="parts" value="" min="0" max="100" style="text-align: center;">
-								</div>
-							</div>
-							<div style="flex: 1;">
-								<fieldset>
-									<legend data-i18n="authentication">Authentication</legend>
-									<div style="display: flex; flex-flow: row wrap;">
-										<div style="margin-right: 10px;">
-											<div style="margin-top: auto;">
-												<label for="username" data-i18n="username_">Username:</label>
-											</div>
-											<div>
-												<input type="text" id="username" value="">
-											</div>
-										</div>
-										<div style="flex: 1;">
-											<div style="margin-top: auto;">
-												<label for="password" data-i18n="password_">Password:</label>
-											</div>
-											<div>
-												<input type="password" id="password" value="">
-											</div>
-										</div>
-									</div>
-								</fieldset>
-							</div>
-						</div>
-						<div class="tab" style="margin-top: 15px;">
-							<input type="radio" name="tabs" id="tab_cookies" checked><label for="tab_cookies" data-i18n="cookies">Cookies</label><input type="radio" name="tabs" id="tab_headers"><label for="tab_headers" data-i18n="headers">Headers</label><input type="radio" name="tabs" id="tab_post_data"><label for="tab_post_data" data-i18n="post_data">POST Data</label>
-							<div class="tab_frame">
-								<div class="tab_panel" style="margin: 10px;">
-									<div style="margin-top: auto;">
-										<label for="cookies" data-i18n="cookies_">Cookies:</label>
-									</div>
-									<div>
-										<textarea id="cookies" rows="5"></textarea>
-									</div>
-								</div>
-								<div class="tab_panel" style="margin: 10px;">
-									<div style="margin-top: auto;">
-										<label for="headers" data-i18n="headers_">Headers:</label>
-									</div>
-									<div>
-										<textarea id="headers" rows="5"></textarea>
-									</div>
-								</div>
-								<div class="tab_panel" style="margin: 5px 10px 10px 10px;">
-									<div style="margin-top: auto;">
-										<input type="checkbox" id="method"><label for="method" data-i18n="send_post_data_">Send POST Data:</label>
-									</div>
-									<div>
-										<textarea id="post_data" rows="5"></textarea>
-									</div>
-								</div>
-							</div>
-						</div>
-						<div style="margin-top: 15px;">
-							<input type="checkbox" id="simulate_download"><label for="simulate_download" data-i18n="simulate_download">Simulate download</label>
-						</div>
+					<div style="margin-top: 15px;">
+						<input type="checkbox" id="simulate_download"><label for="simulate_download" data-i18n="simulate_download">Simulate download</label>
 					</div>
 				</div>
 				<div style="display: flex; flex-flow: row; margin-top: 15px; margin-bottom: 15px;">

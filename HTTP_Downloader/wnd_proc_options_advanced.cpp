@@ -74,6 +74,9 @@ HWND g_hWnd_ud_thread_count = NULL;
 wchar_t *t_default_download_directory = NULL;
 wchar_t *t_temp_download_directory = NULL;
 
+wchar_t file_size_tooltip_text[ 32 ];
+HWND g_hWnd_file_size_tooltip = NULL;
+
 LRESULT CALLBACK AdvancedTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
 {
     switch ( msg )
@@ -126,10 +129,26 @@ LRESULT CALLBACK AdvancedTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 
 			_SendMessageW( g_hWnd_max_file_size, EM_LIMITTEXT, 20, 0 );
 
+			g_hWnd_file_size_tooltip = _CreateWindowExW( WS_EX_TOPMOST, TOOLTIPS_CLASS, 0, WS_POPUP | TTS_NOPREFIX | TTS_ALWAYSTIP, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+
+			file_size_tooltip_text[ 0 ] = 0;
+
+			TOOLINFO ti;
+			_memzero( &ti, sizeof( TOOLINFO ) );
+			ti.cbSize = sizeof( TOOLINFO );
+			ti.uFlags = TTF_SUBCLASS;
+			ti.hwnd = g_hWnd_max_file_size;
+			ti.lpszText = file_size_tooltip_text;
+
+			_GetClientRect( hWnd, &ti.rect );
+			_SendMessageW( g_hWnd_file_size_tooltip, TTM_ADDTOOL, 0, ( LPARAM )&ti );
+
+
 			char value[ 21 ];
 			_memzero( value, sizeof( char ) * 21 );
-			__snprintf( value, 21, "%llu", cfg_max_file_size );
-			_SendMessageA( g_hWnd_max_file_size, WM_SETTEXT, 21, ( LPARAM )value );
+			__snprintf( value, 21, "%I64u", cfg_max_file_size );
+			_SendMessageA( g_hWnd_max_file_size, WM_SETTEXT, 0, ( LPARAM )value );
+
 
 			g_hWnd_prompt_file_size = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_COMBOBOX, NULL, CBS_AUTOHSCROLL | CBS_DROPDOWNLIST | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE, rc.right - 150, 209, 150, 23, hWnd, ( HMENU )CB_PROMPT_FILE_SIZE, NULL, NULL );
 			_SendMessageW( g_hWnd_prompt_file_size, CB_ADDSTRING, 0, ( LPARAM )ST_V_Display_Prompt );
@@ -297,6 +316,8 @@ LRESULT CALLBACK AdvancedTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 						}
 						else if ( num == 0 )
 						{
+							num = 1;
+
 							_SendMessageA( ( HWND )lParam, EM_GETSEL, ( WPARAM )&sel_start, NULL );
 
 							_SendMessageA( ( HWND )lParam, WM_SETTEXT, 0, ( LPARAM )"1" );
@@ -304,12 +325,21 @@ LRESULT CALLBACK AdvancedTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 							_SendMessageA( ( HWND )lParam, EM_SETSEL, sel_start, sel_start );
 						}
 
+						unsigned int length = FormatSizes( file_size_tooltip_text, 32, SIZE_FORMAT_AUTO, num );
+						file_size_tooltip_text[ length ] = 0;
+
+						TOOLINFO ti;
+						_memzero( &ti, sizeof( TOOLINFO ) );
+						ti.cbSize = sizeof( TOOLINFO );
+						ti.hwnd = g_hWnd_max_file_size;
+						ti.lpszText = file_size_tooltip_text;
+						_SendMessageW( g_hWnd_file_size_tooltip, TTM_UPDATETIPTEXT, 0, ( LPARAM )&ti );
+
 						if ( num != cfg_max_file_size )
 						{
 							options_state_changed = true;
 							_EnableWindow( g_hWnd_options_apply, TRUE );
 						}
-
 					}
 				}
 				break;

@@ -11,12 +11,24 @@ function SaveOptions()
 		s_parts = "100";	// Max.
 	}
 
+	var s_speed_limit = document.getElementById( "speed_limit" ).value;
+	var i_speed_limit = parseInt( s_speed_limit );
+	if ( isNaN( i_speed_limit ) || i_speed_limit < 0 )
+	{
+		s_speed_limit = "0";	// Default.
+	}
+	else if ( i_speed_limit > 18446744073709551615 )
+	{
+		s_speed_limit = "18446744073709551615";	// Max.
+	}
+
 	browser.storage.local.set(
 	{
 		server: document.getElementById( "server" ).value,
 		username: btoa( document.getElementById( "username" ).value ),
 		password: btoa( document.getElementById( "password" ).value ),
 		parts: s_parts,
+		default_download_speed_limit: s_speed_limit,
 		default_directory: document.getElementById( "default_directory" ).value,
 		user_agent: document.getElementById( "user_agent" ).checked,
 		referer: document.getElementById( "referer" ).checked,
@@ -42,6 +54,7 @@ function RestoreOptions()
 		if ( typeof options.username == "undefined" ) { options.username = ""; }
 		if ( typeof options.password == "undefined" ) { options.password = ""; }
 		if ( typeof options.parts == "undefined" ) { options.parts = "1"; }
+		if ( typeof options.default_download_speed_limit == "undefined" ) { options.default_download_speed_limit = "0"; }
 		if ( typeof options.default_directory == "undefined" ) { options.default_directory = ""; }
 		if ( typeof options.user_agent == "undefined" ) { options.user_agent = true; }
 		if ( typeof options.referer == "undefined" ) { options.referer = true; }
@@ -52,6 +65,7 @@ function RestoreOptions()
 		document.getElementById( "username" ).value = atob( options.username );
 		document.getElementById( "password" ).value = atob( options.password );
 		document.getElementById( "parts" ).value = options.parts;
+		document.getElementById( "speed_limit" ).value = options.default_download_speed_limit;
 		document.getElementById( "default_directory" ).value = atob( options.default_directory );
 		document.getElementById( "user_agent" ).checked = options.user_agent;
 		document.getElementById( "referer" ).checked = options.referer;

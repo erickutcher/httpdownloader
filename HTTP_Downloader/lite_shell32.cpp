@@ -121,3 +121,51 @@
 	}
 
 #endif
+
+int _StrCmpA( PCSTR psz1, PCSTR psz2 )
+{
+	if ( psz1 == NULL && psz2 == NULL )
+	{
+		return 0;
+	}
+	else if ( psz1 == NULL )
+	{
+		return 1;
+	}
+	else if ( psz2 == NULL )
+	{
+		return -1;
+	}
+
+	while ( *psz1 && *psz1 == *psz2 )
+	{
+		++psz1;
+		++psz2;
+	}
+
+	return ( *psz1 - *psz2 );
+}
+
+int _StrCmpW( PCWSTR psz1, PCWSTR psz2 )
+{
+	if ( psz1 == NULL && psz2 == NULL )
+	{
+		return 0;
+	}
+	else if ( psz1 == NULL )
+	{
+		return 1;
+	}
+	else if ( psz2 == NULL )
+	{
+		return -1;
+	}
+
+	while ( *psz1 && *psz1 == *psz2 )
+	{
+		++psz1;
+		++psz2;
+	}
+
+	return ( *psz1 - *psz2 );
+}

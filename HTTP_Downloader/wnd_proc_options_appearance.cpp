@@ -28,8 +28,9 @@
 #define LB_PROGRESS_COLOR_OPTIONS	1002
 
 #define BTN_SHOW_GRID_LINES			1003
+#define BTN_SHOW_PART_PROGRESS		1004
 
-#define BTN_SORT_ADDED_AND_UPDATING_ITEMS	1004
+#define BTN_SORT_ADDED_AND_UPDATING_ITEMS	1005
 
 // Appearance Tab
 HWND g_hWnd_row_options_list = NULL;
@@ -40,6 +41,7 @@ HWND g_hWnd_static_example_progress = NULL;
 HWND g_hWnd_progress_color_options_list = NULL;
 
 HWND g_hWnd_chk_show_gridlines = NULL;
+HWND g_hWnd_chk_show_part_progress = NULL;
 
 HWND g_hWnd_chk_sort_added_and_updating_items = NULL;
 
@@ -94,7 +96,7 @@ LRESULT CALLBACK AppearanceTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 			_GetClientRect( hWnd, &rc );
 
 			HWND hWnd_static_row_options = _CreateWindowW( WC_STATIC, ST_V_Download_list_, WS_CHILD | WS_VISIBLE, 0, 0, rc.right, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_row_options_list = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_LISTBOX, NULL, LBS_NOTIFY | LBS_NOINTEGRALHEIGHT | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE, 0, 15, 250, 85, hWnd, ( HMENU )LB_ROW_OPTIONS, NULL, NULL );
+			g_hWnd_row_options_list = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_LISTBOX, NULL, LBS_NOTIFY | LBS_NOINTEGRALHEIGHT | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE, 0, 15, 250, 95, hWnd, ( HMENU )LB_ROW_OPTIONS, NULL, NULL );
 			_SendMessageW( g_hWnd_row_options_list, LB_ADDSTRING, 0, ( LPARAM )ST_V_Odd_Row_Font );
 			_SendMessageW( g_hWnd_row_options_list, LB_ADDSTRING, 0, ( LPARAM )ST_V_Odd_Row_Background_Color );
 			_SendMessageW( g_hWnd_row_options_list, LB_ADDSTRING, 0, ( LPARAM )ST_V_Odd_Row_Font_Color );
@@ -108,11 +110,9 @@ LRESULT CALLBACK AppearanceTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 
 			g_hWnd_static_example_row = _CreateWindowW( WC_STATIC, NULL, SS_OWNERDRAW | WS_BORDER | WS_CHILD | WS_VISIBLE, 255, 15, 130, 50, hWnd, NULL, NULL, NULL );
 
-			g_hWnd_chk_show_gridlines = _CreateWindowW( WC_BUTTON, ST_V_Show_gridlines_in_download_list, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 255, 85, rc.right - 205, 20, hWnd, ( HMENU )BTN_SHOW_GRID_LINES, NULL, NULL );
 
-
-			HWND hWnd_static_progress_color = _CreateWindowW( WC_STATIC, ST_V_Progress_bar_, WS_CHILD | WS_VISIBLE, 0, 105, rc.right, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_progress_color_list = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_LISTBOX, NULL, LBS_NOTIFY | LBS_NOINTEGRALHEIGHT | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE, 0, 120, 250, 85, hWnd, ( HMENU )LB_PROGRESS_COLOR, NULL, NULL );
+			HWND hWnd_static_progress_color = _CreateWindowW( WC_STATIC, ST_V_Progress_bar_, WS_CHILD | WS_VISIBLE, 0, 115, rc.right, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_progress_color_list = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_LISTBOX, NULL, LBS_NOTIFY | LBS_NOINTEGRALHEIGHT | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE, 0, 130, 250, 95, hWnd, ( HMENU )LB_PROGRESS_COLOR, NULL, NULL );
 			_SendMessageW( g_hWnd_progress_color_list, LB_ADDSTRING, 0, ( LPARAM )ST_V_Allocating_File );
 			_SendMessageW( g_hWnd_progress_color_list, LB_ADDSTRING, 0, ( LPARAM )ST_V_Authorization_Required );
 			_SendMessageW( g_hWnd_progress_color_list, LB_ADDSTRING, 0, ( LPARAM )ST_V_Completed );
@@ -129,17 +129,18 @@ LRESULT CALLBACK AppearanceTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 			_SendMessageW( g_hWnd_progress_color_list, LB_ADDSTRING, 0, ( LPARAM )ST_V_Stopped );
 			_SendMessageW( g_hWnd_progress_color_list, LB_ADDSTRING, 0, ( LPARAM )ST_V_Timed_Out );
 
-			g_hWnd_progress_color_options_list = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_LISTBOX, NULL, LBS_NOTIFY | LBS_NOINTEGRALHEIGHT | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE, 255, 120, 160, 85, hWnd, ( HMENU )LB_PROGRESS_COLOR_OPTIONS, NULL, NULL );
+			g_hWnd_progress_color_options_list = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_LISTBOX, NULL, LBS_NOTIFY | LBS_NOINTEGRALHEIGHT | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE, 255, 130, 160, 95, hWnd, ( HMENU )LB_PROGRESS_COLOR_OPTIONS, NULL, NULL );
 			_SendMessageW( g_hWnd_progress_color_options_list, LB_ADDSTRING, 0, ( LPARAM )ST_V_Progress_Color );
 			_SendMessageW( g_hWnd_progress_color_options_list, LB_ADDSTRING, 0, ( LPARAM )ST_V_Background_Color );
 			_SendMessageW( g_hWnd_progress_color_options_list, LB_ADDSTRING, 0, ( LPARAM )ST_V_Progress_Font_Color );
 			_SendMessageW( g_hWnd_progress_color_options_list, LB_ADDSTRING, 0, ( LPARAM )ST_V_Background_Font_Color );
 			_SendMessageW( g_hWnd_progress_color_options_list, LB_ADDSTRING, 0, ( LPARAM )ST_V_Border_Color );
 
-			g_hWnd_static_example_progress = _CreateWindowW( WC_STATIC, NULL, SS_OWNERDRAW | WS_BORDER | WS_CHILD | WS_VISIBLE, 420, 120, 130/*rc.right - 420*/, 50, hWnd, NULL, NULL, NULL );
+			g_hWnd_static_example_progress = _CreateWindowW( WC_STATIC, NULL, SS_OWNERDRAW | WS_BORDER | WS_CHILD | WS_VISIBLE, 420, 130, 130/*rc.right - 420*/, 50, hWnd, NULL, NULL, NULL );
 
-
-			g_hWnd_chk_sort_added_and_updating_items = _CreateWindowW( WC_BUTTON, ST_V_Sort_added_and_updating_items, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 210, rc.right, 20, hWnd, ( HMENU )BTN_SORT_ADDED_AND_UPDATING_ITEMS, NULL, NULL );
+			g_hWnd_chk_show_gridlines = _CreateWindowW( WC_BUTTON, ST_V_Show_gridlines_in_download_list, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 230, rc.right - 205, 20, hWnd, ( HMENU )BTN_SHOW_GRID_LINES, NULL, NULL );
+			g_hWnd_chk_show_part_progress = _CreateWindowW( WC_BUTTON, ST_V_Show_progress_for_each_part, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 250, rc.right, 20, hWnd, ( HMENU )BTN_SHOW_PART_PROGRESS, NULL, NULL );
+			g_hWnd_chk_sort_added_and_updating_items = _CreateWindowW( WC_BUTTON, ST_V_Sort_added_and_updating_items, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 270, rc.right, 20, hWnd, ( HMENU )BTN_SORT_ADDED_AND_UPDATING_ITEMS, NULL, NULL );
 
 
 			_SendMessageW( hWnd_static_row_options, WM_SETFONT, ( WPARAM )g_hFont, 0 );
@@ -150,10 +151,12 @@ LRESULT CALLBACK AppearanceTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 			_SendMessageW( g_hWnd_progress_color_options_list, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 			_SendMessageW( g_hWnd_static_example_progress, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 			_SendMessageW( g_hWnd_chk_show_gridlines, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_chk_show_part_progress, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 			_SendMessageW( g_hWnd_chk_sort_added_and_updating_items, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 
 
 			_SendMessageW( g_hWnd_chk_show_gridlines, BM_SETCHECK, ( cfg_show_gridlines ? BST_CHECKED : BST_UNCHECKED ), 0 );
+			_SendMessageW( g_hWnd_chk_show_part_progress, BM_SETCHECK, ( cfg_show_part_progress ? BST_CHECKED : BST_UNCHECKED ), 0 );
 
 			_SendMessageW( g_hWnd_chk_sort_added_and_updating_items, BM_SETCHECK, ( cfg_sort_added_and_updating_items ? BST_CHECKED : BST_UNCHECKED ), 0 );
 
@@ -331,6 +334,7 @@ LRESULT CALLBACK AppearanceTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 				break;
 
 				case BTN_SHOW_GRID_LINES:
+				case BTN_SHOW_PART_PROGRESS:
 				case BTN_SORT_ADDED_AND_UPDATING_ITEMS:
 				{
 					options_state_changed = true;

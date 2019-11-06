@@ -40,6 +40,7 @@ function SendDownloadToClient( add_type )
 		var username = document.getElementById( "username" ).value;
 		var password = document.getElementById( "password" ).value;
 		var parts = document.getElementById( "parts" ).value;
+		var speed_limit = document.getElementById( "speed_limit" ).value;
 		var directory = document.getElementById( "directory" ).value;
 		var download_operations = add_type | ( document.getElementById( "simulate_download" ).checked ? 1 : 0 );
 
@@ -104,6 +105,7 @@ function SendDownloadToClient( add_type )
 					  username + "\x1f" +
 					  password + "\x1f" +
 					  parts + "\x1f" +
+					  speed_limit + "\x1f" +
 					  directory + "\x1f" +
 					  download_operations + "\x1f" +
 					  cookies + "\x1f" +
@@ -166,6 +168,7 @@ function GetDownloadInfo( id )
 		document.getElementById( "cookies" ).value = ( info.cookies ? info.cookies : "" );
 		document.getElementById( "headers" ).value = ( info.headers ? info.headers : "" );
 		document.getElementById( "parts" ).value = info.parts;
+		document.getElementById( "speed_limit" ).value = info.speed_limit;
 		document.getElementById( "directory" ).value = ( info.directory ? info.directory : "" );
 		var enable_post = ( info.method == 2 ? true : false );
 		document.getElementById( "method" ).checked = enable_post;

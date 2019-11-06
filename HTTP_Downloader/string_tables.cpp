@@ -60,6 +60,7 @@ STRING_TABLE_DATA download_string_table[] =
 	{ L"Date and Time Added", 19 },
 	{ L"Download Directory", 18 },
 	{ L"Download Speed", 14 },
+	{ L"Download Speed Limit", 20 },
 	{ L"Downloaded", 10 },
 	{ L"File Size", 9 },
 	{ L"File Type", 9 },
@@ -87,6 +88,7 @@ STRING_TABLE_DATA menu_string_table[] =
 	{ L"Delete", 6 },
 	{ L"Download Directory", 18 },
 	{ L"Download Speed", 14 },
+	{ L"Download Speed Limit", 20 },
 	{ L"Downloaded", 10 },
 	{ L"&Edit", 5 },
 	{ L"E&xit", 5 },
@@ -96,6 +98,7 @@ STRING_TABLE_DATA menu_string_table[] =
 	{ L"File Size", 9 },
 	{ L"File Type", 9 },
 	{ L"Filename", 8 },
+	{ L"Global Download Speed &Limit...\tCtrl+L", 38 },
 	{ L"&Help", 5 },
 	{ L"HTTP Downloader &Home Page", 26 },
 	{ L"&Import Download History...", 27 },
@@ -207,6 +210,7 @@ STRING_TABLE_DATA options_appearance_string_table[] =
 	{ L"Progress bar:", 13 },
 	{ L"Progress Font Color", 19 },
 	{ L"Show gridlines in download list", 31 },
+	{ L"Show progress for each part", 27 },
 	{ L"Sort added and updating items", 29 }
 };
 
@@ -358,16 +362,17 @@ STRING_TABLE_DATA common_string_table[] =
 	{ L"Cancel", 6 },
 	{ L"Completed", 9 },
 	{ L"Connecting", 10 },
-	{ L"Download speed: ", 16 },
-	{ L"Download speed: 0 B/s", 21 },
-	{ L"Download speed: 0.00 GB/s", 25 },
-	{ L"Download speed: 0.00 KB/s", 25 },
-	{ L"Download speed: 0.00 MB/s", 25 },
+	{ L"Default download speed limit (bytes/s):", 39 },
+	{ L"Download speed:", 15 },
+	{ L"Download speed limit (bytes/s):", 31 },
 	{ L"Downloading", 11 },
 	{ L"Downloads Have Finished", 23 },
 	{ L"Export Download History", 23 },
 	{ L"Failed", 6 },
 	{ L"File IO Error", 13 },
+	{ L"Global Download Speed Limit", 27 },
+	{ L"Global download speed limit:", 28 },
+	{ L"Global download speed limit (bytes/s):", 38 },
 	{ L"Import Download History", 23 },
 	{ L"Login Manager", 13 },
 	{ L"Moving File", 11 },
@@ -377,6 +382,7 @@ STRING_TABLE_DATA common_string_table[] =
 	{ L"Queued", 6 },
 	{ L"Restarting", 10 },
 	{ L"Save Download History", 21 },
+	{ L"Set", 3 },
 	{ L"Skipped", 7 },
 	{ L"Stopped", 7 },
 	{ L"SSL 2.0", 7 },
@@ -385,14 +391,11 @@ STRING_TABLE_DATA common_string_table[] =
 	{ L"TLS 1.0", 7 },
 	{ L"TLS 1.1", 7 },
 	{ L"TLS 1.2", 7 },
-	{ L"Total downloaded: ", 18 },
-	{ L"Total downloaded: 0 B", 21 },
-	{ L"Total downloaded: 0.00 GB", 25 },
-	{ L"Total downloaded: 0.00 KB", 25 },
-	{ L"Total downloaded: 0.00 MB", 25 },
-	{ L"URL:", 4 },
+	{ L"Total downloaded:", 17 },
+	{ L"Unlimited", 9 },
 	{ L"Update", 6 },
-	{ L"Update Download", 15 }
+	{ L"Update Download", 15 },
+	{ L"URL:", 4 }
 };
 
 STRING_TABLE_DATA common_message_string_table[] =
@@ -430,6 +433,14 @@ STRING_TABLE_DATA about_string_table[] =
 	{ L"Copyright", 9 },
 	{ L"HTTP Downloader is made free under the GPLv3 license.", 53 },
 	{ L"Version", 7 }
+};
+
+STRING_TABLE_DATA dynamic_message_string_table[] =
+{
+	{ L"%s already exists.\r\n\r\nWhat operation would you like to perform?", 63 },
+	{ L"%s could not be renamed.\r\n\r\nYou will need to choose a different save directory.", 79 },
+	{ L"%s has been modified.\r\n\r\nWhat operation would you like to perform?", 66 },
+	{ L"%s will be %I64u bytes in size.\r\n\r\nDo you want to continue downloading this file?", 81 }
 };
 
 void InitializeLocaleValues()
@@ -561,6 +572,7 @@ void InitializeLocaleValues()
 		for ( i = 0; i < COMMON_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = common_string_table[ i ]; }
 		for ( i = 0; i < COMMON_MESSAGE_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = common_message_string_table[ i ]; }
 		for ( i = 0; i < ABOUT_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = about_string_table[ i ]; }
+		for ( i = 0; i < DYNAMIC_MESSAGE_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = dynamic_message_string_table[ i ]; }
 
 		/*
 		// Quick locale generation.

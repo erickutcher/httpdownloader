@@ -448,7 +448,12 @@ char MakeRangeDataRequest( SOCKET_CONTEXT *context )
 					ri->file_write_offset = ri->range_start;
 
 					DoublyLinkedList *range_node = DLL_CreateNode( ( void * )ri );
-					DLL_AddNode( &context->download_info->range_queue, range_node, -1 );
+					DLL_AddNode( &context->download_info->range_list, range_node, -1 );
+
+					if ( context->download_info->range_queue == NULL )
+					{
+						context->download_info->range_queue = range_node;
+					}
 
 					skip_context_creation = true;
 				}
@@ -523,8 +528,7 @@ char MakeRangeDataRequest( SOCKET_CONTEXT *context )
 				++( new_context->download_info->active_parts );
 
 				DoublyLinkedList *range_node = DLL_CreateNode( ( void * )ri );
-				new_context->range_node = range_node;
-				DLL_AddNode( &new_context->download_info->range_list, new_context->range_node, -1 );
+				DLL_AddNode( &new_context->download_info->range_list, range_node, -1 );
 
 				new_context->parts_node.data = new_context;
 				DLL_AddNode( &new_context->download_info->parts_list, &new_context->parts_node, -1 );
@@ -586,8 +590,6 @@ void SetDataContextValues( SOCKET_CONTEXT *context, SOCKET_CONTEXT *new_context 
 		new_context->header_info.range_info = context->header_info.range_info;
 
 		//
-
-		new_context->range_node = context->range_node;
 
 		new_context->context_node.data = new_context;
 
@@ -776,7 +778,7 @@ char MakeFTPResponse( SOCKET_CONTEXT *context )
 			case FTP_CONTENT_STATUS_SEND_REST:
 			{
 				context->wsabuf.len = __snprintf( context->wsabuf.buf, context->buffer_size,
-					"REST %llu\r\n", context->header_info.range_info->range_start );
+					"REST %I64u\r\n", context->header_info.range_info->range_start );
 			}
 			break;
 
@@ -1849,7 +1851,7 @@ char GetFTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, unsi
 				LeaveCriticalSection( &context->download_info->shared_cs );
 
 				EnterCriticalSection( &session_totals_cs );
-				session_total_downloaded += output_buffer_length;
+				g_session_total_downloaded += output_buffer_length;
 				LeaveCriticalSection( &session_totals_cs );
 
 				context->header_info.range_info->content_offset += response_buffer_length;	// The true amount that was downloaded. Allows us to resume if we stop the download.

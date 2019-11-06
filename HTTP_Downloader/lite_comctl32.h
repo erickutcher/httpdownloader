@@ -37,6 +37,8 @@
 	#define _ImageList_LoadImageW	ImageList_LoadImageW
 	//#define _ImageList_ReplaceIcon	ImageList_ReplaceIcon
 
+	//#define _InitCommonControlsEx	InitCommonControlsEx
+
 #else
 
 	#define COMCTL32_STATE_SHUTDOWN		0
@@ -48,11 +50,15 @@
 	typedef HIMAGELIST ( WINAPI *pImageList_LoadImageW )( HINSTANCE hi, LPCWSTR lpbmp, int cx, int cGrow, COLORREF crMask, UINT uType, UINT uFlags );
 	//typedef int ( WINAPI *pImageList_ReplaceIcon )( HIMAGELIST himl, int i, HICON hicon );
 
+	//typedef BOOL ( WINAPI *pInitCommonControlsEx )( const INITCOMMONCONTROLSEX *picce );
+
 	//extern pImageList_Create		_ImageList_Create;
 	extern pImageList_Destroy		_ImageList_Destroy;
 	//extern pImageList_Add			_ImageList_Add;
 	extern pImageList_LoadImageW	_ImageList_LoadImageW;
 	//extern pImageList_ReplaceIcon	_ImageList_ReplaceIcon;
+
+	//extern pInitCommonControlsEx	_InitCommonControlsEx;
 
 	extern unsigned char comctl32_state;
 

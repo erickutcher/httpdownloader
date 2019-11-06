@@ -22,6 +22,7 @@ Active Parts
 Date and Time Added
 Download Directory
 Download Speed
+Download Speed Limit
 Downloaded
 File Size
 File Type
@@ -45,6 +46,7 @@ Date and Time Added
 Delete
 Download Directory
 Download Speed
+Download Speed Limit
 Downloaded
 &Edit
 E&xit
@@ -54,6 +56,7 @@ Exit
 File Size
 File Type
 Filename
+Global Download Speed &Limit...\tCtrl+L
 &Help
 HTTP Downloader &Home Page
 &Import Download History...
@@ -153,6 +156,7 @@ Progress Color
 Progress bar:
 Progress Font Color
 Show gridlines in download list
+Show progress for each part
 Sort added and updating items
 Active download limit:
 Default download parts:
@@ -264,16 +268,17 @@ Authorization Required
 Cancel
 Completed
 Connecting
-Download speed: 
-Download speed: 0 B/s
-Download speed: 0.00 GB/s
-Download speed: 0.00 KB/s
-Download speed: 0.00 MB/s
+Default download speed limit (bytes/s):
+Download speed:
+Download speed limit (bytes/s):
 Downloading
 Downloads Have Finished
 Export Download History
 Failed
 File IO Error
+Global Download Speed Limit
+Global download speed limit:
+Global download speed limit (bytes/s):
 Import Download History
 Login Manager
 Moving File
@@ -283,6 +288,7 @@ Proxy Authentication Required
 Queued
 Restarting
 Save Download History
+Set
 Skipped
 Stopped
 SSL 2.0
@@ -291,14 +297,11 @@ Timed Out
 TLS 1.0
 TLS 1.1
 TLS 1.2
-Total downloaded: 
-Total downloaded: 0 B
-Total downloaded: 0.00 GB
-Total downloaded: 0.00 KB
-Total downloaded: 0.00 MB
-URL:
+Total downloaded:
+Unlimited
 Update
 Update Download
+URL:
 A protocol (HTTP or HTTPS) must be supplied.
 A restart is required for these changes to take effect.
 A restart is required to enable quick file allocation.
@@ -328,3 +331,7 @@ Built on
 Copyright
 HTTP Downloader is made free under the GPLv3 license.
 Version
+%s already exists.\r\n\r\nWhat operation would you like to perform?
+%s could not be renamed.\r\n\r\nYou will need to choose a different save directory.
+%s has been modified.\r\n\r\nWhat operation would you like to perform?
+%s will be %I64u bytes in size.\r\n\r\nDo you want to continue downloading this file?

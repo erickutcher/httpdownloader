@@ -39,6 +39,7 @@
 	//p_ftol2		__ftol2;
 
 	pabs			_abs;
+	pceil			_ceil;
 
 	pmemcpy			_memcpy;
 	pmemset			_memset;
@@ -93,6 +94,7 @@
 		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_ntdll, ( void ** )&__ftol2, "_ftol" ) )
 
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_ntdll, ( void ** )&_abs, "abs" ) )
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_ntdll, ( void ** )&_ceil, "ceil" ) )
 
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_ntdll, ( void ** )&_memcpy, "memcpy" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_ntdll, ( void ** )&_memset, "memset" ) )

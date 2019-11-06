@@ -56,27 +56,20 @@ void ResetDownload( DOWNLOAD_INFO *di, bool from_beginning, bool check_if_file_e
 {
 	if ( di != NULL )
 	{
-		DoublyLinkedList *range_node;
-
 		if ( from_beginning )
 		{
+			_SendMessageW( g_hWnd_main, WM_RESET_PROGRESS, 0, ( LPARAM )di );
+
 			while ( di->range_list != NULL )
 			{
-				range_node = di->range_list;
+				DoublyLinkedList *range_node = di->range_list;
 				di->range_list = di->range_list->next;
 
 				GlobalFree( range_node->data );
 				GlobalFree( range_node );
 			}
 
-			while ( di->range_queue != NULL )
-			{
-				range_node = di->range_queue;
-				di->range_queue = di->range_queue->next;
-
-				GlobalFree( range_node->data );
-				GlobalFree( range_node );
-			}
+			di->range_list_end = NULL;
 
 			di->processed_header = false;
 
@@ -247,6 +240,8 @@ THREAD_RETURN remove_items( void *pArguments )
 				_SendMessageW( g_hWnd_update_download, WM_DESTROY_ALT, 0, 0 );
 			}
 
+			_SendMessageW( g_hWnd_main, WM_RESET_PROGRESS, 0, ( LPARAM )di );
+
 			EnterCriticalSection( &di->shared_cs );
 
 			DoublyLinkedList *context_node = di->parts_list;
@@ -326,15 +321,6 @@ THREAD_RETURN remove_items( void *pArguments )
 				{
 					DoublyLinkedList *range_node = di->range_list;
 					di->range_list = di->range_list->next;
-
-					GlobalFree( range_node->data );
-					GlobalFree( range_node );
-				}
-
-				while ( di->range_queue != NULL )
-				{
-					DoublyLinkedList *range_node = di->range_queue;
-					di->range_queue = di->range_queue->next;
 
 					GlobalFree( range_node->data );
 					GlobalFree( range_node );
@@ -701,15 +687,6 @@ THREAD_RETURN handle_download_list( void *pArguments )
 					{
 						DoublyLinkedList *range_node = di->range_list;
 						di->range_list = di->range_list->next;
-
-						GlobalFree( range_node->data );
-						GlobalFree( range_node );
-					}
-
-					while ( di->range_queue != NULL )
-					{
-						DoublyLinkedList *range_node = di->range_queue;
-						di->range_queue = di->range_queue->next;
 
 						GlobalFree( range_node->data );
 						GlobalFree( range_node );
@@ -1375,53 +1352,70 @@ THREAD_RETURN handle_download_update( void *pArguments )
 		{
 			EnterCriticalSection( &di->shared_cs );
 
-			// Swap values and free below.
-			char *tmp_ptr = di->headers;
-			di->headers = ai->utf8_headers;
-			ai->utf8_headers = tmp_ptr;
+			di->download_speed_limit = ai->download_speed_limit;
 
-			tmp_ptr = di->cookies;
-			di->cookies = ai->utf8_cookies;
-			ai->utf8_cookies = tmp_ptr;
-
-			tmp_ptr = di->data;
-			di->data = ai->utf8_data;
-			ai->utf8_data = tmp_ptr;
-
-			tmp_ptr = di->auth_info.username;
-			di->auth_info.username = ai->auth_info.username;
-			ai->auth_info.username = tmp_ptr;
-
-			tmp_ptr = di->auth_info.password;
-			di->auth_info.password = ai->auth_info.password;
-			ai->auth_info.password = tmp_ptr;
-
-			di->ssl_version = ai->ssl_version;
-			di->parts_limit = ai->parts;
-			di->method = ai->method;
-
-			if ( ai->urls != NULL )
+			if ( di->parts_limit != ai->parts ||
+			   ( ai->urls != NULL && _StrCmpW( di->url, ai->urls ) != 0 ) ||
+				 _StrCmpA( di->headers, ai->utf8_headers ) != 0 ||
+				 _StrCmpA( di->cookies, ai->utf8_cookies ) != 0 ||
+				 _StrCmpA( di->data, ai->utf8_data ) != 0 ||
+				 _StrCmpA( di->auth_info.username, ai->auth_info.username ) != 0 ||
+				 _StrCmpA( di->auth_info.password, ai->auth_info.password ) != 0 ||
+				 di->ssl_version != ai->ssl_version ||
+				 di->method != ai->method )
 			{
-				wchar_t *tmp_ptr_w = di->url;
-				di->url = ai->urls;
-				ai->urls = tmp_ptr_w;
-			}
+				// Swap values and free below.
+				char *tmp_ptr = di->headers;
+				di->headers = ai->utf8_headers;
+				ai->utf8_headers = tmp_ptr;
 
-			DoublyLinkedList *context_node = di->parts_list;
+				tmp_ptr = di->cookies;
+				di->cookies = ai->utf8_cookies;
+				ai->utf8_cookies = tmp_ptr;
 
-			// Download is active, close the connection.
-			if ( di->download_node.data != NULL )
-			{
-				LeaveCriticalSection( &di->shared_cs );
+				tmp_ptr = di->data;
+				di->data = ai->utf8_data;
+				ai->utf8_data = tmp_ptr;
 
-				// di->status will be set to STATUS_UPDATING in CleanupConnection().
-				while ( context_node != NULL )
+				tmp_ptr = di->auth_info.username;
+				di->auth_info.username = ai->auth_info.username;
+				ai->auth_info.username = tmp_ptr;
+
+				tmp_ptr = di->auth_info.password;
+				di->auth_info.password = ai->auth_info.password;
+				ai->auth_info.password = tmp_ptr;
+
+				di->ssl_version = ai->ssl_version;
+				di->parts_limit = ai->parts;
+				di->method = ai->method;
+
+				if ( ai->urls != NULL )
 				{
-					SOCKET_CONTEXT *context = ( SOCKET_CONTEXT * )context_node->data;
+					wchar_t *tmp_ptr_w = di->url;
+					di->url = ai->urls;
+					ai->urls = tmp_ptr_w;
+				}
 
-					context_node = context_node->next;
+				DoublyLinkedList *context_node = di->parts_list;
 
-					SetContextStatus( context, STATUS_UPDATING );
+				// Download is active, close the connection.
+				if ( di->download_node.data != NULL )
+				{
+					LeaveCriticalSection( &di->shared_cs );
+
+					// di->status will be set to STATUS_UPDATING in CleanupConnection().
+					while ( context_node != NULL )
+					{
+						SOCKET_CONTEXT *context = ( SOCKET_CONTEXT * )context_node->data;
+
+						context_node = context_node->next;
+
+						SetContextStatus( context, STATUS_UPDATING );
+					}
+				}
+				else
+				{
+					LeaveCriticalSection( &di->shared_cs );
 				}
 			}
 			else
@@ -1431,9 +1425,9 @@ THREAD_RETURN handle_download_update( void *pArguments )
 
 			// Sort only the values that can be updated.
 			if ( cfg_sort_added_and_updating_items &&
-			   ( cfg_sorted_column_index == 1 ||	// Active Parts
-				 cfg_sorted_column_index == 10 ||	// SSL / TLS Version
-				 cfg_sorted_column_index == 13 ) )	// URL
+			   ( cfg_sorted_column_index == COLUMN_ACTIVE_PARTS ||
+				 cfg_sorted_column_index == COLUMN_SSL_TLS_VERSION ||
+				 cfg_sorted_column_index == COLUMN_URL ) )
 			{
 				SORT_INFO si;
 				si.column = GetColumnIndexFromVirtualIndex( cfg_sorted_column_index, download_columns, NUM_COLUMNS );
@@ -2559,6 +2553,7 @@ THREAD_RETURN process_command_line_args( void *pArguments )
 			}
 
 			ai->parts = ( cla->parts != 0 ? cla->parts : cfg_default_download_parts );
+			ai->download_speed_limit = cla->download_speed_limit;
 			ai->ssl_version = ( cla->ssl_version != -1 ? cla->ssl_version : cfg_default_ssl_version );
 
 			if ( cla->urls != NULL )
