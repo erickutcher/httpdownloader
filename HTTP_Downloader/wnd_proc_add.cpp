@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S) and FTP(S) connections.
-	Copyright (C) 2015-2019 Eric Kutcher
+	Copyright (C) 2015-2020 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -1113,49 +1113,6 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 		case WM_PROPAGATE:
 		{
-			// Reset to default.
-
-			_SendMessageW( g_hWnd_edit_add, WM_SETTEXT, 0, NULL );
-			_EnableWindow( g_hWnd_btn_download, FALSE );
-			if ( !use_add_split )
-			{
-				_EnableWindow( g_hWnd_btn_add_download, FALSE );
-			}
-
-			_SendMessageW( g_hWnd_btn_download, BM_SETSTYLE, BS_DEFPUSHBUTTON, TRUE );
-			_SendMessageW( g_hWnd_cancel, BM_SETSTYLE, 0, TRUE );
-			_SendMessageW( g_hWnd_btn_download_directory, BM_SETSTYLE, 0, TRUE );
-			_SendMessageW( g_hWnd_btn_apply_filter, BM_SETSTYLE, 0, TRUE );
-
-			// Let's retain the last directory.
-			//_SendMessageW( g_hWnd_download_directory, WM_SETTEXT, 0, ( LPARAM )cfg_default_download_directory );
-
-			_SendMessageW( g_hWnd_ud_download_parts, UDM_SETPOS, 0, cfg_default_download_parts );
-			_SendMessageW( g_hWnd_ssl_version, CB_SETCURSEL, cfg_default_ssl_version, 0 );
-
-			char value[ 21 ];
-			_memzero( value, sizeof( char ) * 21 );
-			__snprintf( value, 21, "%I64u", cfg_default_speed_limit );
-			_SendMessageA( g_hWnd_add_speed_limit, WM_SETTEXT, 0, ( LPARAM )value );
-
-			_SendMessageW( g_hWnd_edit_username, WM_SETTEXT, 0, NULL );
-			_SendMessageW( g_hWnd_edit_password, WM_SETTEXT, 0, NULL );
-
-			_SendMessageW( g_hWnd_edit_cookies, WM_SETTEXT, 0, NULL );
-			_SendMessageW( g_hWnd_edit_headers, WM_SETTEXT, 0, NULL );
-			_SendMessageW( g_hWnd_edit_data, WM_SETTEXT, 0, NULL );
-
-			_SendMessageW( g_hWnd_chk_send_data, BM_SETCHECK, BST_UNCHECKED, 0 );
-			_EnableWindow( g_hWnd_edit_data, FALSE );
-
-			_SendMessageW( g_hWnd_chk_simulate_download, BM_SETCHECK, BST_UNCHECKED, 0 );
-			_EnableWindow( g_hWnd_download_directory, TRUE );
-			_EnableWindow( g_hWnd_btn_download_directory, TRUE );
-
-			_SendMessageW( g_hWnd_advanced_add_tab, TCM_SETCURFOCUS, 0, 0 );
-
-			//
-
 			if ( wParam == -1 )
 			{
 				CL_ARGS *cla = ( CL_ARGS * )lParam;
@@ -1202,6 +1159,8 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 						_SendMessageW( g_hWnd_ud_download_parts, UDM_SETPOS, 0, cla->parts );
 					}
 
+					char value[ 21 ];
+					_memzero( value, sizeof( char ) * 21 );
 					__snprintf( value, 21, "%I64u", cla->download_speed_limit );
 					_SendMessageA( g_hWnd_add_speed_limit, WM_SETTEXT, 0, ( LPARAM )value );
 
@@ -1387,6 +1346,50 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 		case WM_CLOSE:
 		{
 			_ShowWindow( hWnd, SW_HIDE );
+
+			_SendMessageW( g_hWnd_edit_add, WM_SETTEXT, 0, NULL );
+
+			// Reset to default.
+
+			_EnableWindow( g_hWnd_btn_download, FALSE );
+			if ( !use_add_split )
+			{
+				_EnableWindow( g_hWnd_btn_add_download, FALSE );
+			}
+
+			_SendMessageW( g_hWnd_btn_download, BM_SETSTYLE, BS_DEFPUSHBUTTON, TRUE );
+			_SendMessageW( g_hWnd_cancel, BM_SETSTYLE, 0, TRUE );
+			_SendMessageW( g_hWnd_btn_download_directory, BM_SETSTYLE, 0, TRUE );
+			_SendMessageW( g_hWnd_btn_apply_filter, BM_SETSTYLE, 0, TRUE );
+
+			// Let's retain the last directory.
+			//_SendMessageW( g_hWnd_download_directory, WM_SETTEXT, 0, ( LPARAM )cfg_default_download_directory );
+
+			_SendMessageW( g_hWnd_ud_download_parts, UDM_SETPOS, 0, cfg_default_download_parts );
+			_SendMessageW( g_hWnd_ssl_version, CB_SETCURSEL, cfg_default_ssl_version, 0 );
+
+			char value[ 21 ];
+			_memzero( value, sizeof( char ) * 21 );
+			__snprintf( value, 21, "%I64u", cfg_default_speed_limit );
+			_SendMessageA( g_hWnd_add_speed_limit, WM_SETTEXT, 0, ( LPARAM )value );
+
+			_SendMessageW( g_hWnd_edit_username, WM_SETTEXT, 0, NULL );
+			_SendMessageW( g_hWnd_edit_password, WM_SETTEXT, 0, NULL );
+
+			_SendMessageW( g_hWnd_edit_cookies, WM_SETTEXT, 0, NULL );
+			_SendMessageW( g_hWnd_edit_headers, WM_SETTEXT, 0, NULL );
+			_SendMessageW( g_hWnd_edit_data, WM_SETTEXT, 0, NULL );
+
+			_SendMessageW( g_hWnd_chk_send_data, BM_SETCHECK, BST_UNCHECKED, 0 );
+			_EnableWindow( g_hWnd_edit_data, FALSE );
+
+			_SendMessageW( g_hWnd_chk_simulate_download, BM_SETCHECK, BST_UNCHECKED, 0 );
+			_EnableWindow( g_hWnd_download_directory, TRUE );
+			_EnableWindow( g_hWnd_btn_download_directory, TRUE );
+
+			_SendMessageW( g_hWnd_advanced_add_tab, TCM_SETCURFOCUS, 0, 0 );
+
+			//
 
 			return 0;
 		}

@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S) and FTP(S) connections.
-	Copyright (C) 2015-2019 Eric Kutcher
+	Copyright (C) 2015-2020 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -812,8 +812,20 @@ THREAD_RETURN handle_connection( void *pArguments )
 					if ( di->status == STATUS_CONNECTING ||
 						 di->status == STATUS_DOWNLOADING )
 					{
-						if ( status == STATUS_STOPPED )	// Stop (close) the active connection.
+						if ( status == STATUS_STOPPED ||
+							 status == STATUS_RESTART )	// Stop (close) the active connection.
 						{
+							if ( status == STATUS_RESTART )
+							{
+								di->status = STATUS_STOPPED | STATUS_RESTART;
+
+								tmp_status = di->status;
+							}
+							else
+							{
+								tmp_status = STATUS_STOPPED;
+							}
+
 							LeaveCriticalSection( &di->shared_cs );
 
 							// di->status will be set to STATUS_STOPPED in CleanupConnection().
@@ -827,7 +839,7 @@ THREAD_RETURN handle_connection( void *pArguments )
 								{
 									EnterCriticalSection( &context->context_cs );
 
-									context->status = STATUS_STOPPED;
+									context->status = tmp_status;
 
 									if ( context->cleanup == 0 )
 									{
@@ -844,17 +856,9 @@ THREAD_RETURN handle_connection( void *pArguments )
 								}
 							}
 						}
-						else if ( status == STATUS_PAUSED ||
-								  status == STATUS_RESTART )
+						else if ( status == STATUS_PAUSED )
 						{
-							if ( status == STATUS_RESTART )
-							{
-								di->status = STATUS_STOPPED | STATUS_RESTART;
-							}
-							else
-							{
-								di->status |= STATUS_PAUSED;
-							}
+							di->status |= STATUS_PAUSED;
 
 							tmp_status = di->status;
 

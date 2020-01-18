@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S) and FTP(S) connections.
-	Copyright (C) 2015-2019 Eric Kutcher
+	Copyright (C) 2015-2020 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -104,8 +104,17 @@ LRESULT CALLBACK URLDropWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 			if ( hbm_background == NULL )
 			{
-				// Need to delete the object when destroying this window.
-				hbm_background = ( HBITMAP )_LoadImageW( GetModuleHandleW( NULL ), MAKEINTRESOURCE( IDB_BITMAP_DROP ), IMAGE_BITMAP, 48, 48, 0 );
+				_wmemcpy_s( g_program_directory + g_program_directory_length, MAX_PATH - g_program_directory_length, L"\\drop.bmp\0", 10 );
+				if ( GetFileAttributesW( g_program_directory ) != INVALID_FILE_ATTRIBUTES )
+				{
+					// Need to delete the object when destroying this window.
+					hbm_background = ( HBITMAP )_LoadImageW( GetModuleHandleW( NULL ), g_program_directory, IMAGE_BITMAP, 48, 48, LR_LOADFROMFILE );
+				}
+				else
+				{
+					// Need to delete the object when destroying this window.
+					hbm_background = ( HBITMAP )_LoadImageW( GetModuleHandleW( NULL ), MAKEINTRESOURCE( IDB_BITMAP_DROP ), IMAGE_BITMAP, 48, 48, 0 );
+				}
 			}
 
 			#ifndef OLE32_USE_STATIC_LIB

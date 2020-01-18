@@ -339,7 +339,9 @@ function OnDownloadItemChange( item )
 	{
 		if ( item.filename.current != "" )
 		{
-			download_info.directory = item.filename.current.substring( 0, item.filename.current.lastIndexOf( "\\" ) );
+			var filepath_length = item.filename.current.lastIndexOf( "\\" );
+			download_info.url = "[" + item.filename.current.substring( filepath_length + 1 ) + "]" + download_info.url;
+			download_info.directory = item.filename.current.substring( 0, filepath_length );
 		}
 
 		download_info.have_everything = true;
@@ -541,6 +543,26 @@ function OnMenuClicked( info, tab )
 	}
 }
 
+function HandleCommand( command )
+{
+	if ( command === "override_download_manager" )
+	{
+		g_options.override = !g_options.override;
+
+		chrome.storage.local.set(
+		{
+			override: g_options.override
+		}, function()
+		{
+			HandleMessages( { type: "refresh_options" }, null, ()=>{} );
+		} );
+	}
+	else if ( command === "add_urls_window" )
+	{
+		CreateDownloadWindow( { show_add_window: true, id: null, method: "1", url: "", cookie_string: "", headers: "", directory: "", post_data: "" } );
+	}
+}
+
 chrome.storage.local.get( null, function( options )
 {
 	g_options = OnGetOptions( options );
@@ -618,6 +640,8 @@ chrome.storage.local.get( null, function( options )
 	chrome.contextMenus.onClicked.addListener( OnMenuClicked );
 
 	chrome.runtime.onMessage.addListener( HandleMessages );
+
+	chrome.commands.onCommand.addListener( HandleCommand );
 
 	if ( g_options.override )
 	{

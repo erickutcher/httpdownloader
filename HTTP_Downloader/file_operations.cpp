@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S) and FTP(S) connections.
-	Copyright (C) 2015-2019 Eric Kutcher
+	Copyright (C) 2015-2020 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -2223,7 +2223,12 @@ char read_download_history( wchar_t *file_path )
 					_wmemcpy_s( di->file_path + di->filename_offset, MAX_PATH - di->filename_offset, filename, filename_length + 1 );
 					di->file_path[ di->filename_offset + filename_length + 1 ] = 0;	// Sanity.
 
-					di->file_extension_offset = di->filename_offset + get_file_extension_offset( di->file_path + di->filename_offset, filename_length );
+					di->file_extension_offset = di->filename_offset + ( ( di->download_operations & DOWNLOAD_OPERATION_GET_EXTENSION ) ? filename_length : get_file_extension_offset( di->file_path + di->filename_offset, filename_length ) );
+
+					if ( di->file_extension_offset == ( di->filename_offset + filename_length ) )
+					{
+						di->download_operations |= DOWNLOAD_OPERATION_GET_EXTENSION;
+					}
 
 					// Cache our file's icon.
 					ICON_INFO *ii = CacheIcon( di, sfi );
@@ -2492,7 +2497,7 @@ char save_download_history( wchar_t *file_path )
 			}
 
 			// See if the next entry can fit in the buffer. If it can't, then we dump the buffer.
-			if ( ( signed )( pos + sizeof( unsigned char ) + ( sizeof( unsigned long long ) * 5 ) ) > size )
+			if ( ( signed )( pos + sizeof( unsigned char ) + ( range_count * ( ( sizeof( unsigned long long ) * 5 ) ) ) ) > size )
 			{
 				// Dump the buffer.
 				WriteFile( hFile_downloads, write_buf, pos, &write, NULL );

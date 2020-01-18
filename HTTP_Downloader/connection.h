@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S) and FTP(S) connections.
-	Copyright (C) 2015-2019 Eric Kutcher
+	Copyright (C) 2015-2020 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -112,10 +112,12 @@
 #define LA_STATUS_UNKNOWN				0
 #define LA_STATUS_OK					1
 
-#define DOWNLOAD_OPERATION_NONE				0x00
-#define DOWNLOAD_OPERATION_SIMULATE			0x01
-#define DOWNLOAD_OPERATION_OVERRIDE_PROMPTS	0x02
-#define DOWNLOAD_OPERATION_ADD_STOPPED		0x04
+#define DOWNLOAD_OPERATION_NONE					0x00
+#define DOWNLOAD_OPERATION_SIMULATE				0x01
+#define DOWNLOAD_OPERATION_OVERRIDE_PROMPTS		0x02
+#define DOWNLOAD_OPERATION_ADD_STOPPED			0x04
+#define DOWNLOAD_OPERATION_OVERRIDE_FILENAME	0x08
+#define DOWNLOAD_OPERATION_GET_EXTENSION		0x10
 
 enum PROTOCOL
 {

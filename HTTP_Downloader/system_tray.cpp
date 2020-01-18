@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S) and FTP(S) connections.
-	Copyright (C) 2015-2019 Eric Kutcher
+	Copyright (C) 2015-2020 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -61,7 +61,15 @@ void InitializeIconValues( HWND hWnd )
 {
 	if ( !is_icon_initialized )
 	{
-		_GetIconInfo( ( HICON )_LoadImageW( GetModuleHandleW( NULL ), MAKEINTRESOURCE( IDI_ICON_TRAY ), IMAGE_ICON, 16, 16, LR_SHARED ), &g_icon_info );
+		_wmemcpy_s( g_program_directory + g_program_directory_length, MAX_PATH - g_program_directory_length, L"\\tray.ico\0", 10 );
+		if ( GetFileAttributesW( g_program_directory ) != INVALID_FILE_ATTRIBUTES )
+		{
+			_GetIconInfo( ( HICON )_LoadImageW( GetModuleHandleW( NULL ), g_program_directory, IMAGE_ICON, 16, 16, LR_LOADFROMFILE ), &g_icon_info );
+		}
+		else
+		{
+			_GetIconInfo( ( HICON )_LoadImageW( GetModuleHandleW( NULL ), MAKEINTRESOURCE( IDI_ICON_TRAY ), IMAGE_ICON, 16, 16, LR_SHARED ), &g_icon_info );
+		}
 
 		HDC hDC = _GetDC( hWnd );
 		g_icon_hdcmem = _CreateCompatibleDC( hDC );

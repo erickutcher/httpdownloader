@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S) and FTP(S) connections.
-	Copyright (C) 2015-2019 Eric Kutcher
+	Copyright (C) 2015-2020 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -542,7 +542,11 @@ char MakeRangeDataRequest( SOCKET_CONTEXT *context )
 			{
 				new_context->status = STATUS_FAILED;
 
-				CleanupConnection( new_context );
+				InterlockedIncrement( &new_context->pending_operations );
+
+				new_context->overlapped.current_operation = IO_Close;
+
+				PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )new_context, ( OVERLAPPED * )&new_context->overlapped );
 			}
 		}
 
@@ -633,7 +637,11 @@ char MakeDataRequest( SOCKET_CONTEXT *context )
 		{
 			new_context->status = STATUS_FAILED;
 
-			CleanupConnection( new_context );
+			InterlockedIncrement( &new_context->pending_operations );
+
+			new_context->overlapped.current_operation = IO_Close;
+
+			PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )new_context, ( OVERLAPPED * )&new_context->overlapped );
 		}
 
 		content_status = FTP_CONTENT_STATUS_NONE;

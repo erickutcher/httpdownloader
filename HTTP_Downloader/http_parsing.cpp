@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S) and FTP(S) connections.
-	Copyright (C) 2015-2019 Eric Kutcher
+	Copyright (C) 2015-2020 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -1489,6 +1489,95 @@ unsigned char GetContentEncoding( char *header )
 	return CONTENT_ENCODING_NONE;
 }
 
+bool GetContentType( char *header, wchar_t *extension_buffer, unsigned int extension_buffer_size )
+{
+	char *content_encoding_header = NULL;
+	char *content_encoding_header_end = NULL;
+
+	if ( GetHeaderValue( header, "Content-Type", 12, &content_encoding_header, &content_encoding_header_end ) != NULL )
+	{
+		char tmp_end = *content_encoding_header_end;
+		*content_encoding_header_end = 0;	// Sanity
+
+		char *parameter_start = _StrChrA( content_encoding_header, ';' );
+
+		*content_encoding_header_end = tmp_end;	// Restore.
+
+		if ( parameter_start != NULL )
+		{
+			content_encoding_header_end = parameter_start;
+		}
+
+		if ( ( content_encoding_header_end - content_encoding_header ) == 9 && _StrCmpNIA( content_encoding_header, "text/html", 9 ) == 0 )
+		{
+			if ( extension_buffer_size >= 6 ) { _wmemcpy_s( extension_buffer, extension_buffer_size, L".html\0", 6 ); }
+		}
+		else if ( ( content_encoding_header_end - content_encoding_header ) == 15 && _StrCmpNIA( content_encoding_header, "text/javascript", 15 ) == 0 )
+		{
+			if ( extension_buffer_size >= 4 ) { _wmemcpy_s( extension_buffer, extension_buffer_size, L".js\0", 4 ); }
+		}
+		else if ( ( content_encoding_header_end - content_encoding_header ) == 8 && _StrCmpNIA( content_encoding_header, "text/css", 8 ) == 0 )
+		{
+			if ( extension_buffer_size >= 5 ) { _wmemcpy_s( extension_buffer, extension_buffer_size, L".css\0", 5 ); }
+		}
+		else if ( ( content_encoding_header_end - content_encoding_header ) == 16 && _StrCmpNIA( content_encoding_header, "application/json", 16 ) == 0 )
+		{
+			if ( extension_buffer_size >= 6 ) { _wmemcpy_s( extension_buffer, extension_buffer_size, L".json\0", 6 ); }
+		}
+		else if ( ( content_encoding_header_end - content_encoding_header ) == 10 && _StrCmpNIA( content_encoding_header, "text/plain", 10 ) == 0 )
+		{
+			if ( extension_buffer_size >= 5 ) { _wmemcpy_s( extension_buffer, extension_buffer_size, L".txt\0", 5 ); }
+		}
+		else if ( ( content_encoding_header_end - content_encoding_header ) == 10 && _StrCmpNIA( content_encoding_header, "image/jpeg", 10 ) == 0 )
+		{
+			if ( extension_buffer_size >= 5 ) { _wmemcpy_s( extension_buffer, extension_buffer_size, L".jpg\0", 5 ); }
+		}
+		else if ( ( content_encoding_header_end - content_encoding_header ) == 9 && _StrCmpNIA( content_encoding_header, "image/gif", 9 ) == 0 )
+		{
+			if ( extension_buffer_size >= 5 ) { _wmemcpy_s( extension_buffer, extension_buffer_size, L".gif\0", 5 ); }
+		}
+		else if ( ( content_encoding_header_end - content_encoding_header ) == 9 && _StrCmpNIA( content_encoding_header, "image/png", 9 ) == 0 )
+		{
+			if ( extension_buffer_size >= 5 ) { _wmemcpy_s( extension_buffer, extension_buffer_size, L".png\0", 5 ); }
+		}
+		else if ( ( content_encoding_header_end - content_encoding_header ) == 10 && _StrCmpNIA( content_encoding_header, "audio/mpeg", 10 ) == 0 )
+		{
+			if ( extension_buffer_size >= 5 ) { _wmemcpy_s( extension_buffer, extension_buffer_size, L".mp3\0", 5 ); }
+		}
+		else if ( ( content_encoding_header_end - content_encoding_header ) == 10 && _StrCmpNIA( content_encoding_header, "video/mpeg", 10 ) == 0 )
+		{
+			if ( extension_buffer_size >= 6 ) { _wmemcpy_s( extension_buffer, extension_buffer_size, L".mpeg\0", 6 ); }
+		}
+		else if ( ( content_encoding_header_end - content_encoding_header ) == 15 && _StrCmpNIA( content_encoding_header, "application/zip", 15 ) == 0 )
+		{
+			if ( extension_buffer_size >= 5 ) { _wmemcpy_s( extension_buffer, extension_buffer_size, L".zip\0", 5 ); }
+		}
+		else if ( ( content_encoding_header_end - content_encoding_header ) == 16 && _StrCmpNIA( content_encoding_header, "application/gzip", 16 ) == 0 )
+		{
+			if ( extension_buffer_size >= 4 ) { _wmemcpy_s( extension_buffer, extension_buffer_size, L".gz\0", 4 ); }
+		}
+		else if ( ( content_encoding_header_end - content_encoding_header ) == 13 && _StrCmpNIA( content_encoding_header, "image/svg+xml", 13 ) == 0 )
+		{
+			if ( extension_buffer_size >= 5 ) { _wmemcpy_s( extension_buffer, extension_buffer_size, L".svg\0", 5 ); }
+		}
+		else if ( ( content_encoding_header_end - content_encoding_header ) == 15 && _StrCmpNIA( content_encoding_header, "application/pdf", 15 ) == 0 )
+		{
+			if ( extension_buffer_size >= 5 ) { _wmemcpy_s( extension_buffer, extension_buffer_size, L".pdf\0", 5 ); }
+		}
+		else if ( ( ( content_encoding_header_end - content_encoding_header ) == 15 && _StrCmpNIA( content_encoding_header, "application/xml", 15 ) == 0 ) ||
+				  ( ( content_encoding_header_end - content_encoding_header ) == 8 && _StrCmpNIA( content_encoding_header, "text/xml", 8 ) == 0 ) )
+		{
+			if ( extension_buffer_size >= 5 ) { _wmemcpy_s( extension_buffer, extension_buffer_size, L".xml\0", 5 ); }
+		}
+		else if ( ( content_encoding_header_end - content_encoding_header ) == 21 && _StrCmpNIA( content_encoding_header, "application/xhtml+xml", 21 ) == 0 )
+		{
+			if ( extension_buffer_size >= 7 ) { _wmemcpy_s( extension_buffer, extension_buffer_size, L".xhtml\0", 7 ); }
+		}
+	}
+
+	return ( extension_buffer[ 0 ] != 0 ? true : false );
+}
+
 void GetAuthorization( char *header, AUTH_INFO *auth_info )
 {
 	char *authorization_header = NULL;
@@ -2561,6 +2650,91 @@ char ParseHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int
 			context->header_info.content_encoding = GetContentEncoding( header_buffer );
 		}
 
+		if ( context->download_info != NULL &&
+		  !( context->download_info->download_operations & DOWNLOAD_OPERATION_OVERRIDE_FILENAME ) &&
+		   ( context->download_info->download_operations & DOWNLOAD_OPERATION_GET_EXTENSION ) )
+		{
+			context->download_info->download_operations &= ~DOWNLOAD_OPERATION_GET_EXTENSION;
+
+			if ( GetContentType( header_buffer, context->download_info->file_path + context->download_info->file_extension_offset, MAX_PATH - context->download_info->file_extension_offset ) )
+			{
+				EnterCriticalSection( &icon_cache_cs );
+				// Find the icon info
+				dllrbt_iterator *itr = dllrbt_find( g_icon_handles, ( void * )L"", false );
+
+				// Free its values and remove it from the tree if there are no other items using it.
+				if ( itr != NULL )
+				{
+					ICON_INFO *ii = ( ICON_INFO * )( ( node_type * )itr )->val;
+					if ( ii != NULL )
+					{
+						if ( --ii->count == 0 )
+						{
+							DestroyIcon( ii->icon );
+							GlobalFree( ii->file_extension );
+							GlobalFree( ii );
+
+							dllrbt_remove( g_icon_handles, itr );
+						}
+					}
+					else
+					{
+						dllrbt_remove( g_icon_handles, itr );
+					}
+				}
+				LeaveCriticalSection( &icon_cache_cs );
+
+				int w_filename_length = lstrlenW( context->download_info->file_path + context->download_info->filename_offset );
+
+				// Make sure any existing file hasn't started downloading.
+				if ( !( context->download_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) && context->download_info->downloaded == 0 )
+				{
+					wchar_t file_path[ MAX_PATH ];
+					if ( cfg_use_temp_download_directory )
+					{
+						//int filename_length = lstrlenW( context->download_info->file_path + context->download_info->filename_offset );
+
+						_wmemcpy_s( file_path, MAX_PATH, cfg_temp_download_directory, g_temp_download_directory_length );
+						file_path[ g_temp_download_directory_length ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
+						_wmemcpy_s( file_path + ( g_temp_download_directory_length + 1 ), MAX_PATH - ( g_temp_download_directory_length - 1 ), context->download_info->file_path + context->download_info->filename_offset, w_filename_length );
+						file_path[ g_temp_download_directory_length + w_filename_length + 1 ] = 0;	// Sanity.
+					}
+					else
+					{
+						GetDownloadFilePath( context->download_info, file_path );
+					}
+
+					if ( GetFileAttributesW( file_path ) != INVALID_FILE_ATTRIBUTES )
+					{
+						context->got_filename = 2;
+					}
+					else	// No need to rename.
+					{
+						context->got_filename = 1;
+					}
+				}
+				else	// No need to rename.
+				{
+					context->got_filename = 1;
+				}
+
+				LeaveCriticalSection( &context->download_info->shared_cs );
+
+				SHFILEINFO *sfi = ( SHFILEINFO * )GlobalAlloc( GMEM_FIXED, sizeof( SHFILEINFO ) );
+
+				// Cache our file's icon.
+				ICON_INFO *ii = CacheIcon( context->download_info, sfi );
+
+				EnterCriticalSection( &context->download_info->shared_cs );
+
+				context->download_info->icon = ( ii != NULL ? &ii->icon : NULL );
+
+				LeaveCriticalSection( &context->download_info->shared_cs );
+
+				GlobalFree( sfi );
+			}
+		}
+
 		if ( context->header_info.http_status == 401 )
 		{
 			if ( context->header_info.digest_info == NULL )
@@ -2593,7 +2767,9 @@ char ParseHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int
 			}
 		}
 
-		if ( context->got_filename == 0 )
+		if ( context->got_filename == 0 &&
+			 context->download_info != NULL &&
+		  !( context->download_info->download_operations & DOWNLOAD_OPERATION_OVERRIDE_FILENAME ) )
 		{
 			unsigned int filename_length = 0;
 
@@ -2611,99 +2787,96 @@ char ParseHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int
 					}
 				}
 
-				if ( context->download_info != NULL )
+				EnterCriticalSection( &context->download_info->shared_cs );
+
+				context->download_info->icon = NULL;
+
+				LeaveCriticalSection( &context->download_info->shared_cs );
+
+				EnterCriticalSection( &icon_cache_cs );
+				// Find the icon info
+				dllrbt_iterator *itr = dllrbt_find( g_icon_handles, ( void * )( context->download_info->file_path + context->download_info->file_extension_offset ), false );
+
+				// Free its values and remove it from the tree if there are no other items using it.
+				if ( itr != NULL )
 				{
-					EnterCriticalSection( &context->download_info->shared_cs );
-
-					context->download_info->icon = NULL;
-
-					LeaveCriticalSection( &context->download_info->shared_cs );
-
-					EnterCriticalSection( &icon_cache_cs );
-					// Find the icon info
-					dllrbt_iterator *itr = dllrbt_find( g_icon_handles, ( void * )( context->download_info->file_path + context->download_info->file_extension_offset ), false );
-
-					// Free its values and remove it from the tree if there are no other items using it.
-					if ( itr != NULL )
+					ICON_INFO *ii = ( ICON_INFO * )( ( node_type * )itr )->val;
+					if ( ii != NULL )
 					{
-						ICON_INFO *ii = ( ICON_INFO * )( ( node_type * )itr )->val;
-						if ( ii != NULL )
+						if ( --ii->count == 0 )
 						{
-							if ( --ii->count == 0 )
-							{
-								DestroyIcon( ii->icon );
-								GlobalFree( ii->file_extension );
-								GlobalFree( ii );
+							DestroyIcon( ii->icon );
+							GlobalFree( ii->file_extension );
+							GlobalFree( ii );
 
-								dllrbt_remove( g_icon_handles, itr );
-							}
-						}
-						else
-						{
 							dllrbt_remove( g_icon_handles, itr );
 						}
 					}
-					LeaveCriticalSection( &icon_cache_cs );
-
-					EnterCriticalSection( &context->download_info->shared_cs );
-
-					int w_filename_length = MultiByteToWideChar( CP_UTF8, 0, tmp_filename, -1, context->download_info->file_path + context->download_info->filename_offset, MAX_PATH - context->download_info->filename_offset - 1 ) - 1;
-					if ( w_filename_length == -1 && GetLastError() == ERROR_INSUFFICIENT_BUFFER )
+					else
 					{
-						w_filename_length = MAX_PATH - context->download_info->filename_offset - 1;
+						dllrbt_remove( g_icon_handles, itr );
+					}
+				}
+				LeaveCriticalSection( &icon_cache_cs );
+
+				EnterCriticalSection( &context->download_info->shared_cs );
+
+				int w_filename_length = MultiByteToWideChar( CP_UTF8, 0, tmp_filename, -1, context->download_info->file_path + context->download_info->filename_offset, MAX_PATH - context->download_info->filename_offset - 1 ) - 1;
+				if ( w_filename_length == -1 && GetLastError() == ERROR_INSUFFICIENT_BUFFER )
+				{
+					w_filename_length = MAX_PATH - context->download_info->filename_offset - 1;
+				}
+
+				EscapeFilename( context->download_info->file_path + context->download_info->filename_offset );
+
+				context->download_info->file_extension_offset = context->download_info->filename_offset + get_file_extension_offset( context->download_info->file_path + context->download_info->filename_offset, w_filename_length );
+
+				// Make sure any existing file hasn't started downloading.
+				if ( !( context->download_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) && context->download_info->downloaded == 0 )
+				{
+					wchar_t file_path[ MAX_PATH ];
+					if ( cfg_use_temp_download_directory )
+					{
+						//int filename_length = lstrlenW( context->download_info->file_path + context->download_info->filename_offset );
+
+						_wmemcpy_s( file_path, MAX_PATH, cfg_temp_download_directory, g_temp_download_directory_length );
+						file_path[ g_temp_download_directory_length ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
+						_wmemcpy_s( file_path + ( g_temp_download_directory_length + 1 ), MAX_PATH - ( g_temp_download_directory_length - 1 ), context->download_info->file_path + context->download_info->filename_offset, w_filename_length );
+						file_path[ g_temp_download_directory_length + w_filename_length + 1 ] = 0;	// Sanity.
+					}
+					else
+					{
+						GetDownloadFilePath( context->download_info, file_path );
 					}
 
-					EscapeFilename( context->download_info->file_path + context->download_info->filename_offset );
-
-					context->download_info->file_extension_offset = context->download_info->filename_offset + get_file_extension_offset( context->download_info->file_path + context->download_info->filename_offset, w_filename_length );
-
-					// Make sure any existing file hasn't started downloading.
-					if ( !( context->download_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) && context->download_info->downloaded == 0 )
+					if ( GetFileAttributesW( file_path ) != INVALID_FILE_ATTRIBUTES )
 					{
-						wchar_t file_path[ MAX_PATH ];
-						if ( cfg_use_temp_download_directory )
-						{
-							//int filename_length = lstrlenW( context->download_info->file_path + context->download_info->filename_offset );
-
-							_wmemcpy_s( file_path, MAX_PATH, cfg_temp_download_directory, g_temp_download_directory_length );
-							file_path[ g_temp_download_directory_length ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
-							_wmemcpy_s( file_path + ( g_temp_download_directory_length + 1 ), MAX_PATH - ( g_temp_download_directory_length - 1 ), context->download_info->file_path + context->download_info->filename_offset, w_filename_length );
-							file_path[ g_temp_download_directory_length + w_filename_length + 1 ] = 0;	// Sanity.
-						}
-						else
-						{
-							GetDownloadFilePath( context->download_info, file_path );
-						}
-
-						if ( GetFileAttributes( file_path ) != INVALID_FILE_ATTRIBUTES )
-						{
-							context->got_filename = 2;
-						}
-						else	// No need to rename.
-						{
-							context->got_filename = 1;
-						}
+						context->got_filename = 2;
 					}
 					else	// No need to rename.
 					{
 						context->got_filename = 1;
 					}
-
-					LeaveCriticalSection( &context->download_info->shared_cs );
-
-					SHFILEINFO *sfi = ( SHFILEINFO * )GlobalAlloc( GMEM_FIXED, sizeof( SHFILEINFO ) );
-
-					// Cache our file's icon.
-					ICON_INFO *ii = CacheIcon( context->download_info, sfi );
-
-					EnterCriticalSection( &context->download_info->shared_cs );
-
-					context->download_info->icon = ( ii != NULL ? &ii->icon : NULL );
-
-					LeaveCriticalSection( &context->download_info->shared_cs );
-
-					GlobalFree( sfi );
 				}
+				else	// No need to rename.
+				{
+					context->got_filename = 1;
+				}
+
+				LeaveCriticalSection( &context->download_info->shared_cs );
+
+				SHFILEINFO *sfi = ( SHFILEINFO * )GlobalAlloc( GMEM_FIXED, sizeof( SHFILEINFO ) );
+
+				// Cache our file's icon.
+				ICON_INFO *ii = CacheIcon( context->download_info, sfi );
+
+				EnterCriticalSection( &context->download_info->shared_cs );
+
+				context->download_info->icon = ( ii != NULL ? &ii->icon : NULL );
+
+				LeaveCriticalSection( &context->download_info->shared_cs );
+
+				GlobalFree( sfi );
 
 				GlobalFree( filename );
 			}
@@ -2826,7 +2999,9 @@ char GetHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int h
 			 cfg_max_redirects > 0 && context->request_info.redirect_count < cfg_max_redirects )
 		{
 			// If we're going to redirect, then allow the file to be renamed, but not if we've already processed (essentially allocated the file) our header information.
-			if ( !context->processed_header )
+			if ( !context->processed_header &&
+				  context->download_info != NULL &&
+			   !( context->download_info->download_operations & DOWNLOAD_OPERATION_OVERRIDE_FILENAME ) )
 			{
 				unsigned int filename_length = lstrlenA( context->header_info.url_location.resource );
 
@@ -2882,102 +3057,106 @@ char GetHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int h
 							{
 								current_directory = "NO_FILENAME";
 							}
+
+							context->download_info->download_operations |= DOWNLOAD_OPERATION_GET_EXTENSION;
 						}
 					}
 
-					if ( context->download_info != NULL )
+					EnterCriticalSection( &context->download_info->shared_cs );
+
+					context->download_info->icon = NULL;
+
+					LeaveCriticalSection( &context->download_info->shared_cs );
+
+					EnterCriticalSection( &icon_cache_cs );
+					// Find the icon info
+					dllrbt_iterator *itr = dllrbt_find( g_icon_handles, ( void * )( context->download_info->file_path + context->download_info->file_extension_offset ), false );
+
+					// Free its values and remove it from the tree if there are no other items using it.
+					if ( itr != NULL )
 					{
-						EnterCriticalSection( &context->download_info->shared_cs );
-
-						context->download_info->icon = NULL;
-
-						LeaveCriticalSection( &context->download_info->shared_cs );
-
-						EnterCriticalSection( &icon_cache_cs );
-						// Find the icon info
-						dllrbt_iterator *itr = dllrbt_find( g_icon_handles, ( void * )( context->download_info->file_path + context->download_info->file_extension_offset ), false );
-
-						// Free its values and remove it from the tree if there are no other items using it.
-						if ( itr != NULL )
+						ICON_INFO *ii = ( ICON_INFO * )( ( node_type * )itr )->val;
+						if ( ii != NULL )
 						{
-							ICON_INFO *ii = ( ICON_INFO * )( ( node_type * )itr )->val;
-							if ( ii != NULL )
+							if ( --ii->count == 0 )
 							{
-								if ( --ii->count == 0 )
-								{
-									DestroyIcon( ii->icon );
-									GlobalFree( ii->file_extension );
-									GlobalFree( ii );
+								DestroyIcon( ii->icon );
+								GlobalFree( ii->file_extension );
+								GlobalFree( ii );
 
-									dllrbt_remove( g_icon_handles, itr );
-								}
-							}
-							else
-							{
 								dllrbt_remove( g_icon_handles, itr );
 							}
 						}
-						LeaveCriticalSection( &icon_cache_cs );
-
-						EnterCriticalSection( &context->download_info->shared_cs );
-
-						int w_filename_length = MultiByteToWideChar( CP_UTF8, 0, current_directory, -1, context->download_info->file_path + context->download_info->filename_offset, MAX_PATH - context->download_info->filename_offset - 1 ) - 1;
-						if ( w_filename_length == -1 && GetLastError() == ERROR_INSUFFICIENT_BUFFER )
+						else
 						{
-							w_filename_length = MAX_PATH - context->download_info->filename_offset - 1;
+							dllrbt_remove( g_icon_handles, itr );
+						}
+					}
+					LeaveCriticalSection( &icon_cache_cs );
+
+					EnterCriticalSection( &context->download_info->shared_cs );
+
+					int w_filename_length = MultiByteToWideChar( CP_UTF8, 0, current_directory, -1, context->download_info->file_path + context->download_info->filename_offset, MAX_PATH - context->download_info->filename_offset - 1 ) - 1;
+					if ( w_filename_length == -1 && GetLastError() == ERROR_INSUFFICIENT_BUFFER )
+					{
+						w_filename_length = MAX_PATH - context->download_info->filename_offset - 1;
+					}
+
+					EscapeFilename( context->download_info->file_path + context->download_info->filename_offset );
+
+					context->download_info->file_extension_offset = context->download_info->filename_offset + ( ( context->download_info->download_operations & DOWNLOAD_OPERATION_GET_EXTENSION ) ? w_filename_length : get_file_extension_offset( context->download_info->file_path + context->download_info->filename_offset, w_filename_length ) );
+
+					if ( context->download_info->file_extension_offset == ( context->download_info->filename_offset + w_filename_length ) )
+					{
+						context->download_info->download_operations |= DOWNLOAD_OPERATION_GET_EXTENSION;
+					}
+
+					// Make sure any existing file hasn't started downloading.
+					if ( !( context->download_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) && context->download_info->downloaded == 0 )
+					{
+						wchar_t file_path[ MAX_PATH ];
+						if ( cfg_use_temp_download_directory )
+						{
+							//int filename_length = lstrlenW( context->download_info->file_path + context->download_info->filename_offset );
+
+							_wmemcpy_s( file_path, MAX_PATH, cfg_temp_download_directory, g_temp_download_directory_length );
+							file_path[ g_temp_download_directory_length ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
+							_wmemcpy_s( file_path + ( g_temp_download_directory_length + 1 ), MAX_PATH - ( g_temp_download_directory_length - 1 ), context->download_info->file_path + context->download_info->filename_offset, w_filename_length );
+							file_path[ g_temp_download_directory_length + w_filename_length + 1 ] = 0;	// Sanity.
+						}
+						else
+						{
+							GetDownloadFilePath( context->download_info, file_path );
 						}
 
-						EscapeFilename( context->download_info->file_path + context->download_info->filename_offset );
-
-						context->download_info->file_extension_offset = context->download_info->filename_offset + get_file_extension_offset( context->download_info->file_path + context->download_info->filename_offset, w_filename_length );
-
-						// Make sure any existing file hasn't started downloading.
-						if ( !( context->download_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) && context->download_info->downloaded == 0 )
+						if ( GetFileAttributesW( file_path ) != INVALID_FILE_ATTRIBUTES )
 						{
-							wchar_t file_path[ MAX_PATH ];
-							if ( cfg_use_temp_download_directory )
-							{
-								//int filename_length = lstrlenW( context->download_info->file_path + context->download_info->filename_offset );
-
-								_wmemcpy_s( file_path, MAX_PATH, cfg_temp_download_directory, g_temp_download_directory_length );
-								file_path[ g_temp_download_directory_length ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
-								_wmemcpy_s( file_path + ( g_temp_download_directory_length + 1 ), MAX_PATH - ( g_temp_download_directory_length - 1 ), context->download_info->file_path + context->download_info->filename_offset, w_filename_length );
-								file_path[ g_temp_download_directory_length + w_filename_length + 1 ] = 0;	// Sanity.
-							}
-							else
-							{
-								GetDownloadFilePath( context->download_info, file_path );
-							}
-
-							if ( GetFileAttributes( file_path ) != INVALID_FILE_ATTRIBUTES )
-							{
-								context->got_filename = 2;
-							}
-							else	// No need to rename.
-							{
-								context->got_filename = 1;
-							}
+							context->got_filename = 2;
 						}
 						else	// No need to rename.
 						{
 							context->got_filename = 1;
 						}
-
-						LeaveCriticalSection( &context->download_info->shared_cs );
-
-						SHFILEINFO *sfi = ( SHFILEINFO * )GlobalAlloc( GMEM_FIXED, sizeof( SHFILEINFO ) );
-
-						// Cache our file's icon.
-						ICON_INFO *ii = CacheIcon( context->download_info, sfi );
-
-						EnterCriticalSection( &context->download_info->shared_cs );
-
-						context->download_info->icon = ( ii != NULL ? &ii->icon : NULL );
-
-						LeaveCriticalSection( &context->download_info->shared_cs );
-
-						GlobalFree( sfi );
 					}
+					else	// No need to rename.
+					{
+						context->got_filename = 1;
+					}
+
+					LeaveCriticalSection( &context->download_info->shared_cs );
+
+					SHFILEINFO *sfi = ( SHFILEINFO * )GlobalAlloc( GMEM_FIXED, sizeof( SHFILEINFO ) );
+
+					// Cache our file's icon.
+					ICON_INFO *ii = CacheIcon( context->download_info, sfi );
+
+					EnterCriticalSection( &context->download_info->shared_cs );
+
+					context->download_info->icon = ( ii != NULL ? &ii->icon : NULL );
+
+					LeaveCriticalSection( &context->download_info->shared_cs );
+
+					GlobalFree( sfi );
 
 					GlobalFree( filename );
 				}
@@ -3273,7 +3452,11 @@ char HandleRedirect( SOCKET_CONTEXT *context )
 		{
 			redirect_context->status = STATUS_FAILED;
 
-			CleanupConnection( redirect_context );
+			InterlockedIncrement( &redirect_context->pending_operations );
+
+			redirect_context->overlapped.current_operation = IO_Close;
+
+			PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )redirect_context, ( OVERLAPPED * )&redirect_context->overlapped );
 		}
 
 		InterlockedIncrement( &context->pending_operations );
@@ -3465,7 +3648,11 @@ char MakeRangeRequest( SOCKET_CONTEXT *context )
 				{
 					new_context->status = STATUS_FAILED;
 
-					CleanupConnection( new_context );
+					InterlockedIncrement( &new_context->pending_operations );
+
+					new_context->overlapped.current_operation = IO_Close;
+
+					PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )new_context, ( OVERLAPPED * )&new_context->overlapped );
 				}
 			}
 		}
@@ -3638,7 +3825,11 @@ char MakeRequest( SOCKET_CONTEXT *context, IO_OPERATION next_operation, bool use
 			{
 				new_context->status = STATUS_FAILED;
 
-				CleanupConnection( new_context );
+				InterlockedIncrement( &new_context->pending_operations );
+
+				new_context->overlapped.current_operation = IO_Close;
+
+				PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )new_context, ( OVERLAPPED * )&new_context->overlapped );
 			}
 
 			InterlockedIncrement( &context->pending_operations );
@@ -3817,7 +4008,7 @@ char AllocateFile( SOCKET_CONTEXT *context )
 				}
 
 				// If the file already exists and has been partially downloaded, then open it to resume downloading.
-				if ( GetFileAttributes( file_path ) != INVALID_FILE_ATTRIBUTES && context->download_info->downloaded > 0 )
+				if ( GetFileAttributesW( file_path ) != INVALID_FILE_ATTRIBUTES && context->download_info->downloaded > 0 )
 				{
 					// If the file has downloaded data (we're resuming), then open it, otherwise truncate its size to 0.
 					context->download_info->hFile = CreateFile( file_path, GENERIC_WRITE | FILE_WRITE_ATTRIBUTES | DELETE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED, NULL );

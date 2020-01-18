@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S) and FTP(S) connections.
-	Copyright (C) 2015-2019 Eric Kutcher
+	Copyright (C) 2015-2020 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -589,13 +589,13 @@ DWORD WINAPI UpdateWindow( LPVOID WorkThreadContext )
 
 				if ( all_paused == 1 )
 				{
-					border_color = RGB( 0x40, 0x40, 0x00 );
-					progress_color = RGB( 0xFF, 0xFF, 0x00 );
+					border_color = cfg_color_9e;//RGB( 0x40, 0x40, 0x00 );
+					progress_color = cfg_color_9a;//RGB( 0xFF, 0xFF, 0x00 );
 				}
 				else
 				{
-					border_color = RGB( 0x00, 0x40, 0x00 );
-					progress_color = RGB( 0x00, 0xFF, 0x00 );
+					border_color = cfg_color_5e;//RGB( 0x00, 0x40, 0x00 );
+					progress_color = cfg_color_5a;//RGB( 0x00, 0xFF, 0x00 );
 				}
 
 				if ( cfg_enable_drop_window && cfg_show_drop_window_progress )
@@ -668,8 +668,8 @@ DWORD WINAPI UpdateWindow( LPVOID WorkThreadContext )
 			g_progress_info.download_state = 1;	// Completed.
 
 			bool error = ( ( g_session_status_count[ 2 ] > 0 || g_session_status_count[ 3 ] > 0 || g_session_status_count[ 4 ] > 0 ) ? true : false );
-			border_color = RGB( 0x40, 0x00, 0x00 );
-			progress_color = RGB( 0xFF, 0x00, 0x00 );
+			border_color = cfg_color_6e;//RGB( 0x40, 0x00, 0x00 );
+			progress_color = cfg_color_6a;//RGB( 0xFF, 0x00, 0x00 );
 
 			if ( g_taskbar != NULL )
 			{
@@ -1234,13 +1234,30 @@ LRESULT CALLBACK ListViewSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPa
 							int index = ( int )_SendMessageW( hWnd, LVM_GETTOPINDEX, 0, 0 );
 							int index_end = ( int )_SendMessageW( hWnd, LVM_GETCOUNTPERPAGE, 0, 0 ) + index;
 
+							bool switch_fonts = ( cfg_even_row_font_settings.lf.lfHeight != cfg_odd_row_font_settings.lf.lfHeight );
+
 							RECT rc;
 							HDC hDC = _GetDC( hWnd );
-							HFONT ohf = ( HFONT )_SelectObject( hDC, g_hFont );
-							_DeleteObject( ohf );
+
+							if ( !switch_fonts )
+							{
+								HFONT ohf = ( HFONT )_SelectObject( hDC, g_hFont );
+								_DeleteObject( ohf );
+							}
 
 							for ( ; index <= index_end; ++index )
 							{
+								if ( switch_fonts )
+								{
+									HFONT *hFont = ( index & 1 ? &cfg_even_row_font_settings.font : &cfg_odd_row_font_settings.font );
+
+									HFONT ohf = ( HFONT )_SelectObject( hDC, *hFont );
+									if ( ohf != cfg_even_row_font_settings.font && ohf != cfg_odd_row_font_settings.font )
+									{
+										_DeleteObject( ohf );
+									}
+								}
+
 								lvi.iItem = index;
 								lvi.mask = LVIF_PARAM;
 								if ( _SendMessageW( hWnd, LVM_GETITEM, 0, ( LPARAM )&lvi ) == TRUE )
@@ -1822,9 +1839,9 @@ void HandleCommand( HWND hWnd, WPARAM wParam, LPARAM lParam )
 		{
 			wchar_t msg[ 512 ];
 			__snwprintf( msg, 512, L"%s\r\n\r\n" \
-								   L"%s 1.0.2.9 (%u-bit)\r\n\r\n" \
+								   L"%s 1.0.3.0 (%u-bit)\r\n\r\n" \
 								   L"%s %s, %s %d, %04d %d:%02d:%02d %s (UTC)\r\n\r\n" \
-								   L"%s \xA9 2015-2019 Eric Kutcher",
+								   L"%s \xA9 2015-2020 Eric Kutcher",
 								   ST_V_LICENSE,
 								   ST_V_VERSION,
 #ifdef _WIN64
@@ -1883,10 +1900,10 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 			HWND hWnd_toolbar_tooltip = _CreateWindowExW( WS_EX_TOPMOST, TOOLTIPS_CLASS, NULL, WS_POPUP | TTS_NOPREFIX | TTS_ALWAYSTIP, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, g_hWnd_toolbar, NULL, NULL, NULL );
 			_SendMessageW( g_hWnd_toolbar, TB_SETTOOLTIPS, ( WPARAM )hWnd_toolbar_tooltip, 0 );
 
-			_wmemcpy_s( base_directory + base_directory_length, MAX_PATH - base_directory_length, L"\\toolbar.bmp\0", 13 );
-			if ( GetFileAttributesW( base_directory ) != INVALID_FILE_ATTRIBUTES )
+			_wmemcpy_s( g_program_directory + g_program_directory_length, MAX_PATH - g_program_directory_length, L"\\toolbar.bmp\0", 13 );
+			if ( GetFileAttributesW( g_program_directory ) != INVALID_FILE_ATTRIBUTES )
 			{
-				g_toolbar_imagelist = _ImageList_LoadImageW( NULL, base_directory, 24, 0, ( COLORREF )RGB( 0xFF, 0x00, 0xFF ), IMAGE_BITMAP, LR_LOADFROMFILE | LR_CREATEDIBSECTION );
+				g_toolbar_imagelist = _ImageList_LoadImageW( NULL, g_program_directory, 24, 0, ( COLORREF )RGB( 0xFF, 0x00, 0xFF ), IMAGE_BITMAP, LR_LOADFROMFILE | LR_CREATEDIBSECTION );
 			}
 			else
 			{
@@ -2057,8 +2074,6 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 			_SendMessageW( g_hWnd_files, LVM_SETCOLUMNORDERARRAY, g_total_columns, ( LPARAM )arr );
 
 			g_hWnd_files_columns = ( HWND )_SendMessageW( g_hWnd_files, LVM_GETHEADER, 0, 0 );
-
-			g_default_tray_icon = ( HICON )_LoadImageW( GetModuleHandleW( NULL ), MAKEINTRESOURCE( IDI_ICON ), IMAGE_ICON, 16, 16, LR_SHARED );
 
 			if ( cfg_tray_icon )
 			{
@@ -2639,7 +2654,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 
 					_SendMessageW( g_hWnd_files, LVM_HITTEST, 0, ( LPARAM )&lvhti );
 
-					if ( lvhti.iItem != last_tooltip_item )
+					if ( lvhti.iItem != last_tooltip_item && !in_worker_thread )
 					{
 						// Save the last item that was hovered so we don't have to keep calling everything below.
 						last_tooltip_item = lvhti.iItem;

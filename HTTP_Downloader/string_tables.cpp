@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S) and FTP(S) connections.
-	Copyright (C) 2015-2019 Eric Kutcher
+	Copyright (C) 2015-2020 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -451,17 +451,17 @@ void InitializeLocaleValues()
 
 	_memzero( g_locale_table, sizeof( STRING_TABLE_DATA ) * TOTAL_LOCALE_STRINGS );
 
-	wchar_t directory[ MAX_PATH ];
+	//wchar_t directory[ MAX_PATH ];
 	//int directory_length = GetCurrentDirectoryW( MAX_PATH, directory );
-	int directory_length = GetModuleFileNameW( NULL, directory, MAX_PATH );
-	while ( directory_length != 0 && directory[ --directory_length ] != L'\\' );
-	directory[ directory_length ] = 0;	// Sanity.
+	//int directory_length = GetModuleFileNameW( NULL, directory, MAX_PATH );
+	//while ( directory_length != 0 && directory[ --directory_length ] != L'\\' );
+	//directory[ directory_length ] = 0;	// Sanity.
 
 	// Find the default locale.
-	_wmemcpy_s( directory + directory_length, MAX_PATH - directory_length, L"\\locale\\default\0", 16 );
-	directory[ directory_length + 15 ] = 0;	// Sanity.
+	_wmemcpy_s( g_program_directory + g_program_directory_length, MAX_PATH - g_program_directory_length, L"\\locale\\default\0", 16 );
+	g_program_directory[ g_program_directory_length + 15 ] = 0;	// Sanity.
 
-	if ( GetFileAttributesW( directory ) == INVALID_FILE_ATTRIBUTES )
+	if ( GetFileAttributesW( g_program_directory ) == INVALID_FILE_ATTRIBUTES )
 	{
 		int locale_length = 0;
 
@@ -470,8 +470,8 @@ void InitializeLocaleValues()
 		{
 			// LOCALE_NAME_MAX_LENGTH
 			// Find a specific locale based on the system's default.
-			locale_length = _GetUserDefaultLocaleName( directory + directory_length + 8, MAX_PATH - ( directory_length + 8 ) );
-			directory[ directory_length + 8 + locale_length - 1 ] = 0;	// Sanity.
+			locale_length = _GetUserDefaultLocaleName( g_program_directory + g_program_directory_length + 8, MAX_PATH - ( g_program_directory_length + 8 ) );
+			g_program_directory[ g_program_directory_length + 8 + locale_length - 1 ] = 0;	// Sanity.
 		}
 
 		if ( locale_length == 0 )
@@ -482,7 +482,7 @@ void InitializeLocaleValues()
 
 	if ( use_locale_file )
 	{
-		HANDLE hFile_locale = CreateFile( directory, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL );
+		HANDLE hFile_locale = CreateFile( g_program_directory, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL );
 		if ( hFile_locale != INVALID_HANDLE_VALUE )
 		{
 			unsigned char *locale_buf = NULL;

@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S) and FTP(S) connections.
-	Copyright (C) 2015-2019 Eric Kutcher
+	Copyright (C) 2015-2020 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -136,6 +136,8 @@ int g_rename_file_cmb_ret2 = 0;	// Message box prompt to rename files.
 
 bool last_modified_prompt_active = false;
 int g_last_modified_cmb_ret = 0;	// Message box prompt for modified files.
+
+int g_file_not_exist_cmb_ret = 0;	// Message box prompt for non existent file.
 
 bool move_file_process_active = false;
 
@@ -1402,7 +1404,11 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 
 		InterlockedExchange( &context->timeout, 0 );	// Reset timeout counter.
 
+		EnterCriticalSection( &context->context_cs );
+
 		InterlockedDecrement( &context->pending_operations );
+
+		LeaveCriticalSection( &context->context_cs );
 
 		use_ssl = ( context->ssl != NULL ? true : false );
 
@@ -2603,6 +2609,10 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 
 						// SEC_I_CONTEXT_EXPIRED may occur here.
 					}
+					else if ( context->status == STATUS_ALLOCATING_FILE )
+					{
+						context->status = STATUS_FILE_IO_ERROR;
+					}
 
 					if ( content_status == CONTENT_STATUS_FAILED )
 					{
@@ -3403,7 +3413,18 @@ void UpdateRangeList( DOWNLOAD_INFO *di )
 
 				for ( unsigned char i = 1; i <= t_parts; ++i )
 				{
-					ri = ( RANGE_INFO * )range_node->data;
+					// Download was restarted before a range list was created.
+					if ( range_node == NULL )
+					{
+						ri = ( RANGE_INFO * )GlobalAlloc( GPTR, sizeof( RANGE_INFO ) );
+
+						range_node = DLL_CreateNode( ( void * )ri );
+						DLL_AddNode( &di->range_list, range_node, -1 );
+					}
+					else
+					{
+						ri = ( RANGE_INFO * )range_node->data;
+					}
 
 					// Reuse this range info.
 					ri->content_length = 0;
@@ -3483,35 +3504,35 @@ void StartDownload( DOWNLOAD_INFO *di, bool check_if_file_exists )
 	wchar_t *resource = NULL;
 	unsigned short port = 0;
 
-	if ( check_if_file_exists )
+	bool skip_start = false;
+
+	EnterCriticalSection( &di->shared_cs );
+
+	wchar_t prompt_message[ MAX_PATH + 512 ];
+	wchar_t file_path[ MAX_PATH ];
+
+	int filename_offset;
+	int file_extension_offset;
+
+	if ( cfg_use_temp_download_directory )
 	{
-		bool skip_start = false;
+		int filename_length = GetTemporaryFilePath( di, file_path );
 
-		EnterCriticalSection( &di->shared_cs );
+		filename_offset = g_temp_download_directory_length + 1;
+		file_extension_offset = filename_offset + get_file_extension_offset( di->file_path + di->filename_offset, filename_length );
+	}
+	else
+	{
+		GetDownloadFilePath( di, file_path );
 
-		wchar_t prompt_message[ MAX_PATH + 512 ];
-		wchar_t file_path[ MAX_PATH ];
+		filename_offset = di->filename_offset;
+		file_extension_offset = di->file_extension_offset;
+	}
 
-		int filename_offset;
-		int file_extension_offset;
-
-		if ( cfg_use_temp_download_directory )
-		{
-			int filename_length = GetTemporaryFilePath( di, file_path );
-
-			filename_offset = g_temp_download_directory_length + 1;
-			file_extension_offset = filename_offset + get_file_extension_offset( di->file_path + di->filename_offset, filename_length );
-		}
-		else
-		{
-			GetDownloadFilePath( di, file_path );
-
-			filename_offset = di->filename_offset;
-			file_extension_offset = di->file_extension_offset;
-		}
-
-		// See if the file exits.
-		if ( GetFileAttributes( file_path ) != INVALID_FILE_ATTRIBUTES )
+	// See if the file exits.
+	if ( GetFileAttributesW( file_path ) != INVALID_FILE_ATTRIBUTES )
+	{
+		if ( check_if_file_exists )
 		{
 			if ( cfg_prompt_rename == 0 && di->download_operations & DOWNLOAD_OPERATION_OVERRIDE_PROMPTS )
 			{
@@ -3570,13 +3591,56 @@ void StartDownload( DOWNLOAD_INFO *di, bool check_if_file_exists )
 				}
 			}
 		}
-
-		LeaveCriticalSection( &di->shared_cs );
-
-		if ( skip_start )
+	}
+	else if ( !( di->download_operations & DOWNLOAD_OPERATION_SIMULATE ) &&
+				 di->downloaded > 0 )	// If the file doesn't exist and it's been partially downloaded, then ask to restart.
+	{
+		if ( g_file_not_exist_cmb_ret != CMBIDNOALL && g_file_not_exist_cmb_ret != CMBIDYESALL )
 		{
-			return;
+			g_file_not_exist_cmb_ret = CMessageBoxW( g_hWnd_main, ST_V_PROMPT_The_specified_file_was_not_found, PROGRAM_CAPTION, CMB_ICONWARNING | CMB_YESNOALL );
 		}
+
+		if ( g_file_not_exist_cmb_ret == CMBIDYES || g_file_not_exist_cmb_ret == CMBIDYESALL )
+		{
+			_SendMessageW( g_hWnd_main, WM_RESET_PROGRESS, 0, ( LPARAM )di );
+
+			while ( di->range_list != NULL )
+			{
+				DoublyLinkedList *range_node = di->range_list;
+				di->range_list = di->range_list->next;
+
+				GlobalFree( range_node->data );
+				GlobalFree( range_node );
+			}
+
+			di->range_list_end = NULL;
+
+			di->processed_header = false;
+
+			di->downloaded = 0;
+
+			di->last_modified.QuadPart = 0;
+
+			// If we manually start a download, then set the incomplete retry attempts back to 0.
+			di->retries = 0;
+			di->start_time.QuadPart = 0;
+
+			// If we manually start a download that was added remotely, then allow the prompts to display.
+			di->download_operations &= ~DOWNLOAD_OPERATION_OVERRIDE_PROMPTS;
+		}
+		else
+		{
+			di->status = STATUS_SKIPPED;
+
+			skip_start = true;
+		}
+	}
+
+	LeaveCriticalSection( &di->shared_cs );
+
+	if ( skip_start )
+	{
+		return;
 	}
 
 	unsigned int host_length = 0;
@@ -3651,7 +3715,7 @@ void StartDownload( DOWNLOAD_INFO *di, bool check_if_file_exists )
 
 	unsigned char part = 1;
 
-	EnterCriticalSection( &cleanup_cs );
+	//EnterCriticalSection( &cleanup_cs );
 
 	// If the number of ranges is less than the total number of parts that's been set for the download,
 	// then the remaining ranges will be split to equal the total number of parts.
@@ -3796,24 +3860,31 @@ void StartDownload( DOWNLOAD_INFO *di, bool check_if_file_exists )
 					}
 				}
 
+				//
+
 				// Add to the parts list.
 				context->parts_node.data = context;
-				DLL_AddNode( &context->download_info->parts_list, &context->parts_node, -1 );
-
-				context->context_node.data = context;
-
-				EnterCriticalSection( &context_list_cs );
-
-				// Add to the global download list.
-				DLL_AddNode( &g_context_list, &context->context_node, 0 );
-
-				LeaveCriticalSection( &context_list_cs );
 
 				EnterCriticalSection( &di->shared_cs );
+
+				DLL_AddNode( &di->parts_list, &context->parts_node, -1 );
 
 				++( di->active_parts );
 
 				LeaveCriticalSection( &di->shared_cs );
+
+				//
+
+				// Add to the global download list.
+				context->context_node.data = context;
+
+				EnterCriticalSection( &context_list_cs );
+
+				DLL_AddNode( &g_context_list, &context->context_node, 0 );
+
+				LeaveCriticalSection( &context_list_cs );
+
+				//
 
 				context->status = STATUS_CONNECTING;
 
@@ -3821,7 +3892,11 @@ void StartDownload( DOWNLOAD_INFO *di, bool check_if_file_exists )
 				{
 					context->status = STATUS_FAILED;
 
-					CleanupConnection( context );
+					InterlockedIncrement( &context->pending_operations );
+
+					context->overlapped.current_operation = IO_Close;
+
+					PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped );
 				}
 			}
 			else if ( add_state == 2 )
@@ -3841,7 +3916,7 @@ void StartDownload( DOWNLOAD_INFO *di, bool check_if_file_exists )
 		range_node = range_node->next;
 	}
 
-	LeaveCriticalSection( &cleanup_cs );
+	//LeaveCriticalSection( &cleanup_cs );
 
 	GlobalFree( host );
 	GlobalFree( resource );
@@ -3955,7 +4030,7 @@ bool RenameFile( DOWNLOAD_INFO *di, dllrbt_tree *filename_tree, wchar_t *file_pa
 			GlobalFree( filename );
 		}
 	}
-	while ( GetFileAttributes( new_file_path ) != INVALID_FILE_ATTRIBUTES );
+	while ( GetFileAttributesW( new_file_path ) != INVALID_FILE_ATTRIBUTES );
 
 	// Set the new filename.
 	_wmemcpy_s( di->file_path + di->filename_offset, MAX_PATH - di->filename_offset, new_file_path + filename_offset, MAX_PATH - di->filename_offset );
@@ -4114,14 +4189,48 @@ DWORD WINAPI AddURL( void *add_info )
 			break;
 		}
 
-		// Find the end of the current url.
-		wchar_t *current_url = url_list;
+		// See if we're overwriting the filename.
+		wchar_t *filename_start = url_list;
+		wchar_t *filename_end;
+
+		unsigned int w_filename_length = 0;
+
+		if ( *filename_start == L'[' )
+		{
+			++filename_start;
+			url_list = filename_start;
+
+			while ( *url_list != 0 )
+			{
+				if ( *url_list == L']' )
+				{
+					filename_end = url_list;
+
+					w_filename_length = ( unsigned int )( filename_end - filename_start );
+
+					*url_list = 0;	// Sanity.
+
+					EscapeFilename( filename_start );
+
+					++url_list;
+
+					url_list = url_list;
+
+					break;
+				}
+
+				++url_list;
+			}
+		}
 
 		// Remove anything before our URL (spaces, tabs, newlines, etc.)
-		while ( *current_url != 0 && ( ( *current_url != L'h' && *current_url != L'H' ) && ( *current_url != L'f' && *current_url != L'F' ) ) )
+		while ( *url_list != 0 && ( ( *url_list != L'h' && *url_list != L'H' ) && ( *url_list != L'f' && *url_list != L'F' ) ) )
 		{
-			++current_url;
+			++url_list;
 		}
+
+		// Find the end of the current url.
+		wchar_t *current_url = url_list;
 
 		int current_url_length = 0;
 
@@ -4275,91 +4384,108 @@ DWORD WINAPI AddURL( void *add_info )
 				di->filename_offset = 1;
 			}
 
-			wchar_t *directory = NULL;
-
-			if ( decode_converted_resource )
+			if ( w_filename_length > 0 )
 			{
-				int val_length = WideCharToMultiByte( CP_UTF8, 0, resource, resource_length + 1, NULL, 0, NULL, NULL );
-				char *utf8_val = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * val_length ); // Size includes the null character.
-				WideCharToMultiByte( CP_UTF8, 0, resource, resource_length + 1, utf8_val, val_length, NULL, NULL );
+				w_filename_length = min( w_filename_length, ( int )( MAX_PATH - di->filename_offset - 1 ) );
 
-				unsigned int directory_length = 0;
-				char *c_directory = url_decode_a( utf8_val, val_length - 1, &directory_length );
-				GlobalFree( utf8_val );
+				_wmemcpy_s( di->file_path + di->filename_offset, MAX_PATH - di->filename_offset, filename_start, w_filename_length );
+				di->file_path[ di->filename_offset + w_filename_length ] = 0;	// Sanity.
 
-				val_length = MultiByteToWideChar( CP_UTF8, 0, c_directory, directory_length + 1, NULL, 0 );	// Include the NULL terminator.
-				directory = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * val_length );
-				MultiByteToWideChar( CP_UTF8, 0, c_directory, directory_length + 1, directory, val_length );
-
-				GlobalFree( c_directory );	
+				di->download_operations |= DOWNLOAD_OPERATION_OVERRIDE_FILENAME;
 			}
 			else
 			{
-				directory = url_decode_w( resource, resource_length, NULL );
-			}
+				wchar_t *directory = NULL;
 
-			unsigned int w_filename_length = 0;
-
-			// Try to create a filename from the resource path.
-			if ( directory != NULL )
-			{
-				wchar_t *directory_ptr = directory;
-				wchar_t *current_directory = directory;
-				wchar_t *last_directory = NULL;
-
-				// Iterate forward because '/' can be found after '#'.
-				while ( *directory_ptr != NULL )
+				if ( decode_converted_resource )
 				{
-					if ( *directory_ptr == L'?' || *directory_ptr == L'#' )
-					{
-						*directory_ptr = 0;	// Sanity.
+					int val_length = WideCharToMultiByte( CP_UTF8, 0, resource, resource_length + 1, NULL, 0, NULL, NULL );
+					char *utf8_val = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * val_length ); // Size includes the null character.
+					WideCharToMultiByte( CP_UTF8, 0, resource, resource_length + 1, utf8_val, val_length, NULL, NULL );
 
-						break;
-					}
-					else if ( *directory_ptr == L'/' )
-					{
-						last_directory = current_directory;
-						current_directory = directory_ptr + 1; 
-					}
+					unsigned int directory_length = 0;
+					char *c_directory = url_decode_a( utf8_val, val_length - 1, &directory_length );
+					GlobalFree( utf8_val );
 
-					++directory_ptr;
-				}
+					val_length = MultiByteToWideChar( CP_UTF8, 0, c_directory, directory_length + 1, NULL, 0 );	// Include the NULL terminator.
+					directory = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * val_length );
+					MultiByteToWideChar( CP_UTF8, 0, c_directory, directory_length + 1, directory, val_length );
 
-				if ( *current_directory == NULL )
-				{
-					// Adjust for '/'. current_directory will always be at least 1 greater than last_directory.
-					if ( last_directory != NULL && ( current_directory - 1 ) - last_directory > 0 )
-					{
-						w_filename_length = ( unsigned int )( ( current_directory - 1 ) - last_directory );
-						current_directory = last_directory;
-					}
-					else	// No filename could be made from the resource path. Use the host name instead.
-					{
-						w_filename_length = host_length;
-						current_directory = host;
-					}
+					GlobalFree( c_directory );	
 				}
 				else
 				{
-					w_filename_length = ( unsigned int )( directory_ptr - current_directory );
+					directory = url_decode_w( resource, resource_length, NULL );
 				}
 
-				w_filename_length = min( w_filename_length, ( int )( MAX_PATH - di->filename_offset - 1 ) );
+				// Try to create a filename from the resource path.
+				if ( directory != NULL )
+				{
+					wchar_t *directory_ptr = directory;
+					wchar_t *current_directory = directory;
+					wchar_t *last_directory = NULL;
 
-				_wmemcpy_s( di->file_path + di->filename_offset, MAX_PATH - di->filename_offset, current_directory, w_filename_length );
-				di->file_path[ di->filename_offset + w_filename_length ] = 0;	// Sanity.
+					// Iterate forward because '/' can be found after '#'.
+					while ( *directory_ptr != NULL )
+					{
+						if ( *directory_ptr == L'?' || *directory_ptr == L'#' )
+						{
+							*directory_ptr = 0;	// Sanity.
 
-				EscapeFilename( di->file_path + di->filename_offset );
+							break;
+						}
+						else if ( *directory_ptr == L'/' )
+						{
+							last_directory = current_directory;
+							current_directory = directory_ptr + 1; 
+						}
 
-				GlobalFree( directory );
+						++directory_ptr;
+					}
+
+					if ( *current_directory == NULL )
+					{
+						// Adjust for '/'. current_directory will always be at least 1 greater than last_directory.
+						if ( last_directory != NULL && ( current_directory - 1 ) - last_directory > 0 )
+						{
+							w_filename_length = ( unsigned int )( ( current_directory - 1 ) - last_directory );
+							current_directory = last_directory;
+						}
+						else	// No filename could be made from the resource path. Use the host name instead.
+						{
+							w_filename_length = host_length;
+							current_directory = host;
+
+							di->download_operations |= DOWNLOAD_OPERATION_GET_EXTENSION;
+						}
+					}
+					else
+					{
+						w_filename_length = ( unsigned int )( directory_ptr - current_directory );
+					}
+
+					w_filename_length = min( w_filename_length, ( int )( MAX_PATH - di->filename_offset - 1 ) );
+
+					_wmemcpy_s( di->file_path + di->filename_offset, MAX_PATH - di->filename_offset, current_directory, w_filename_length );
+					di->file_path[ di->filename_offset + w_filename_length ] = 0;	// Sanity.
+
+					EscapeFilename( di->file_path + di->filename_offset );
+
+					GlobalFree( directory );
+				}
+				else	// Shouldn't happen.
+				{
+					w_filename_length = 11;
+					_wmemcpy_s( di->file_path + di->filename_offset, MAX_PATH - di->filename_offset, L"NO_FILENAME\0", 12 );
+				}
 			}
-			else	// Shouldn't happen.
+
+			di->file_extension_offset = di->filename_offset + ( ( di->download_operations & DOWNLOAD_OPERATION_GET_EXTENSION ) ? w_filename_length : get_file_extension_offset( di->file_path + di->filename_offset, w_filename_length ) );
+
+			if ( di->file_extension_offset == ( di->filename_offset + w_filename_length ) )
 			{
-				w_filename_length = 11;
-				_wmemcpy_s( di->file_path + di->filename_offset, MAX_PATH - di->filename_offset, L"NO_FILENAME\0", 12 );
+				di->download_operations |= DOWNLOAD_OPERATION_GET_EXTENSION;
 			}
-
-			di->file_extension_offset = di->filename_offset + get_file_extension_offset( di->file_path + di->filename_offset, w_filename_length );
 
 			di->hFile = INVALID_HANDLE_VALUE;
 
@@ -4392,7 +4518,7 @@ DWORD WINAPI AddURL( void *add_info )
 
 			di->ssl_version = ai->ssl_version;
 
-			di->download_operations = ai->download_operations;
+			di->download_operations |= ai->download_operations;
 
 			if ( ai->download_operations & DOWNLOAD_OPERATION_ADD_STOPPED )
 			{
@@ -4489,7 +4615,7 @@ DWORD WINAPI AddURL( void *add_info )
 
 			__snwprintf( di->w_add_time, buffer_length, L"%s, %s %d, %04d %d:%02d:%02d %s", GetDay( st.wDayOfWeek ), GetMonth( st.wMonth ), st.wDay, st.wYear, ( st.wHour > 12 ? st.wHour - 12 : ( st.wHour != 0 ? st.wHour : 12 ) ), st.wMinute, st.wSecond, ( st.wHour >= 12 ? L"PM" : L"AM" ) );
 
-			EnterCriticalSection( &cleanup_cs );
+			//EnterCriticalSection( &cleanup_cs );
 
 			LVITEM lvi;
 			_memzero( &lvi, sizeof( LVITEM ) );
@@ -4506,7 +4632,7 @@ DWORD WINAPI AddURL( void *add_info )
 
 			download_history_changed = true;
 
-			LeaveCriticalSection( &cleanup_cs );
+			//LeaveCriticalSection( &cleanup_cs );
 		}
 
 		GlobalFree( current_url_encoded );
@@ -4590,7 +4716,11 @@ void StartQueuedItem()
 				DLL_RemoveNode( &download_queue, &di->queue_node );
 				di->queue_node.data = NULL;
 
+				LeaveCriticalSection( &download_queue_cs );
+
 				StartDownload( di, false );
+
+				EnterCriticalSection( &download_queue_cs );
 
 				// Exit the loop if we've hit our maximum allowed active downloads.
 				if ( total_downloading >= cfg_max_downloads )
@@ -4603,7 +4733,6 @@ void StartQueuedItem()
 
 	LeaveCriticalSection( &download_queue_cs );
 }
-
 
 bool RetryTimedOut( SOCKET_CONTEXT *context )
 {
@@ -5455,25 +5584,6 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 
 								LeaveCriticalSection( &context->download_info->shared_cs );
 							}
-
-							// Start any items that are in our download queue.
-							if ( total_downloading < cfg_max_downloads )
-							{
-								StartQueuedItem();
-							}
-
-							// Turn off our timers if we're not currently downloading, or moving anything.
-							if ( total_downloading == 0 )
-							{
-								EnterCriticalSection( &move_file_queue_cs );
-
-								if ( !move_file_process_active )
-								{
-									EnableTimers( false );
-								}
-
-								LeaveCriticalSection( &move_file_queue_cs );
-							}
 						}
 						else
 						{
@@ -5560,6 +5670,30 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 		}
 
 		LeaveCriticalSection( &cleanup_cs );
+	}
+
+	//
+
+	if ( !g_end_program )
+	{
+		// Start any items that are in our download queue.
+		if ( total_downloading < cfg_max_downloads )
+		{
+			StartQueuedItem();
+		}
+
+		// Turn off our timers if we're not currently downloading, or moving anything.
+		if ( total_downloading == 0 )
+		{
+			EnterCriticalSection( &move_file_queue_cs );
+
+			if ( !move_file_process_active )
+			{
+				EnableTimers( false );
+			}
+
+			LeaveCriticalSection( &move_file_queue_cs );
+		}
 	}
 }
 

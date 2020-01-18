@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S) and FTP(S) connections.
-	Copyright (C) 2015-2019 Eric Kutcher
+	Copyright (C) 2015-2020 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -49,6 +49,8 @@
 
 #include "login_manager_utilities.h"
 
+#include "system_tray.h"
+
 //#define USE_DEBUG_DIRECTORY
 
 #ifdef USE_DEBUG_DIRECTORY
@@ -85,6 +87,9 @@ int g_default_row_height = 0;
 wchar_t *base_directory = NULL;
 unsigned int base_directory_length = 0;
 
+wchar_t *g_program_directory = NULL;
+unsigned int g_program_directory_length = 0;
+
 dllrbt_tree *g_icon_handles = NULL;
 
 dllrbt_tree *g_login_info = NULL;
@@ -95,6 +100,8 @@ bool g_is_windows_8_or_higher = false;
 
 bool g_can_perform_shutdown_action = false;
 bool g_perform_shutdown_action = false;
+
+bool g_clean_tray_icon = false;
 
 #ifndef NTDLL_USE_STATIC_LIB
 int APIENTRY _WinMain()
@@ -209,6 +216,11 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 	CL_ARGS *cla = NULL;
 
 	base_directory = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * MAX_PATH );
+
+	g_program_directory = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * MAX_PATH );
+	g_program_directory_length = GetModuleFileNameW( NULL, g_program_directory, MAX_PATH );
+	while ( g_program_directory_length != 0 && g_program_directory[ --g_program_directory_length ] != L'\\' );
+	g_program_directory[ g_program_directory_length ] = 0;	// Sanity.
 
 	// Get the new base directory if the user supplied a path.
 	bool default_directory = true;
@@ -458,9 +470,11 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 	// Use our default directory if none was supplied or check if there's a "portable" file in the same directory.
 	if ( default_directory )
 	{
-		base_directory_length = GetModuleFileNameW( NULL, base_directory, MAX_PATH );
-		while ( base_directory_length != 0 && base_directory[ --base_directory_length ] != L'\\' );
-		base_directory[ base_directory_length ] = 0;	// Sanity.
+		//base_directory_length = GetModuleFileNameW( NULL, base_directory, MAX_PATH );
+		//while ( base_directory_length != 0 && base_directory[ --base_directory_length ] != L'\\' );
+		//base_directory[ base_directory_length ] = 0;	// Sanity.
+		_wmemcpy_s( base_directory, MAX_PATH, g_program_directory, g_program_directory_length );
+		base_directory_length = g_program_directory_length;
 		_wmemcpy_s( base_directory + base_directory_length, MAX_PATH - base_directory_length, L"\\portable\0", 10 );
 
 		// If there's a portable file in the same directory, then we'll use that directory as our base.
@@ -539,6 +553,17 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 	}
 
 	SetDefaultAppearance();
+
+	_wmemcpy_s( g_program_directory + g_program_directory_length, MAX_PATH - g_program_directory_length, L"\\main.ico\0", 10 );
+	if ( GetFileAttributesW( g_program_directory ) != INVALID_FILE_ATTRIBUTES )
+	{
+		g_clean_tray_icon = true;
+		g_default_tray_icon = ( HICON )_LoadImageW( GetModuleHandleW( NULL ), g_program_directory, IMAGE_ICON, 16, 16, LR_LOADFROMFILE );
+	}
+	else
+	{
+		g_default_tray_icon = ( HICON )_LoadImageW( GetModuleHandleW( NULL ), MAKEINTRESOURCE( IDI_ICON ), IMAGE_ICON, 16, 16, LR_SHARED );
+	}
 
 	// Default position if no settings were saved.
 	cfg_pos_x = ( ( _GetSystemMetrics( SM_CXSCREEN ) - MIN_WIDTH ) / 2 );
@@ -976,7 +1001,7 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 	wcex.cbClsExtra     = 0;
 	wcex.cbWndExtra     = 0;
 	wcex.hInstance      = hInstance;
-	wcex.hIcon          = _LoadIconW( hInstance, MAKEINTRESOURCE( IDI_ICON ) );
+	wcex.hIcon          = g_default_tray_icon;//_LoadIconW( hInstance, MAKEINTRESOURCE( IDI_ICON ) );
 	wcex.hCursor        = _LoadCursorW( NULL, IDC_ARROW );
 	wcex.hbrBackground  = ( HBRUSH )( COLOR_3DFACE + 1 );
 	wcex.lpszMenuName   = NULL;
@@ -1211,6 +1236,7 @@ CLEANUP:
 	}
 
 	if ( base_directory != NULL ) { GlobalFree( base_directory ); }
+	if ( g_program_directory != NULL ) { GlobalFree( g_program_directory ); }
 	if ( cfg_default_download_directory != NULL ) { GlobalFree( cfg_default_download_directory ); }
 	if ( cfg_temp_download_directory != NULL ) { GlobalFree( cfg_temp_download_directory ); }
 	if ( cfg_sound_file_path != NULL ) { GlobalFree( cfg_sound_file_path ); }
@@ -1306,6 +1332,11 @@ CLEANUP:
 
 	// Delete our font.
 	_DeleteObject( g_hFont );
+
+	if ( g_clean_tray_icon )
+	{
+		_DestroyIcon( g_default_tray_icon );
+	}
 
 	if ( fail_type == 1 )
 	{

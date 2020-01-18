@@ -3,7 +3,7 @@
 	"description": "__MSG_extension_description__",
 	"manifest_version": 2,
 	"name": "HTTP Downloader",
-	"version": "1.0.1.3",
+	"version": "1.0.1.4",
 	"homepage_url": "https://erickutcher.github.io/#HTTP_Downloader",
 
 	"icons":
@@ -37,6 +37,26 @@
 		"default_icon": "icons/icon-64.png",
 		"default_title": "HTTP Downloader",
 		"default_popup": "options.html"
+	},
+
+	"commands":
+	{
+		"override_download_manager":
+		{
+			"suggested_key":
+			{
+				"default": "Alt+O"
+			},
+			"description": "Toggle the overriding of the browser's download manager."
+		},
+		"add_urls_window":
+		{
+			"suggested_key":
+			{
+				"default": "Alt+U"
+			},
+			"description": "Open an Add URL(s) window."
+		}
 	},
 
 	"permissions":

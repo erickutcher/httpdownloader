@@ -1,3 +1,24 @@
+Version:	1.0.3.0
+Released:	2020-01-18
+
+Added the ability to rename downloads in the Add URL(s) window by including [filename] before the URL.
+Added file extension detection from Content-Type header value.
+Added restart prompt for partially downloaded files that have been deleted and resumed.
+Custom main.ico and tray.ico (in the same folder as the program) will override the default icons.
+Custom drop.bmp in program folder for URL drop window.
+Custom toolbar.bmp location is now the same folder as the program.
+Tray and drop window progress colors use the Downloading, Paused, and Failed colors in the Appearance options.
+Fixed text being replaced when drag and dropping text into the Add URL(s) window.
+Fixed crash when saving large download history.
+Fixed range list access crash when restarting download.
+Fixed crash when an empty line is in added URL list.
+Fixed stack overflow crash when starting queued downloads after connection lost.
+Fixed cleanup crash caused by race condition.
+Fixed columns not resizing to custom font size.
+Fixed failed file allocation from stalling.
+Updated extensions to support file renaming.
+Updated extensions to use shortcut keys.
+
 Version:	1.0.2.9
 Released:	2019-11-05
 

@@ -329,9 +329,22 @@ function OnDownloadItemCreated( item )
 			browser.downloads.cancel( item.id )
 			.then ( function()
 			{
+				var url;
+				var directory;
+
+				if ( item.filename != "" )
+				{
+					var filepath_length = item.filename.lastIndexOf( "\\" );
+					url = "[" + item.filename.substring( filepath_length + 1 ) + "]" + item.url;
+					directory = item.filename.substring( 0, filepath_length );
+				}
+				else
+				{
+					url = item.url;
+					directory = g_options.default_directory;
+				}
+
 				var id = item.id;
-				var url = item.url;
-				var directory = ( item.filename != "" ? item.filename.substring( 0, item.filename.lastIndexOf( "\\" ) ) : g_options.default_directory );
 				var show_add_window = g_options.show_add_window;
 
 				var headers = "";
@@ -482,6 +495,27 @@ function OnMenuClicked( info, tab )
 	}
 }
 
+function HandleCommand( command )
+{
+	if ( command === "override_download_manager" )
+	{
+		g_options.override = !g_options.override;
+
+		browser.storage.local.set(
+		{
+			override: g_options.override
+		} )
+		.then( function()
+		{
+			HandleMessages( { type: "refresh_options" }, null, ()=>{} );
+		} );
+	}
+	else if ( command === "add_urls_window" )
+	{
+		CreateDownloadWindow( { show_add_window: true, id: null, method: "1", url: "", cookie_string: "", headers: "", directory: "", post_data: "" } );
+	}
+}
+
 browser.storage.local.get().then( OnGetOptions )
 .then( function( options )
 {
@@ -560,6 +594,8 @@ browser.storage.local.get().then( OnGetOptions )
 	browser.contextMenus.onClicked.addListener( OnMenuClicked );
 
 	browser.runtime.onMessage.addListener( HandleMessages );
+
+	browser.commands.onCommand.addListener( HandleCommand );
 
 	if ( g_options.override )
 	{
