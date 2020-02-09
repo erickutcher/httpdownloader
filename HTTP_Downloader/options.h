@@ -43,6 +43,8 @@ extern COLORREF t_even_row_highlight_font_color;
 
 extern COLORREF t_progress_colors[ NUM_COLORS ];
 
+extern COLORREF t_td_progress_colors[ TD_NUM_COLORS ];
+
 // Free these when done.
 extern wchar_t *certificate_pkcs_file_name;
 extern wchar_t *certificate_cer_file_name;

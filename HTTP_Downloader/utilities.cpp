@@ -239,6 +239,23 @@ COLORREF cfg_odd_row_highlight_color = RGB( 0x33, 0x99, 0xFF );			// COLOR_HIGHL
 COLORREF cfg_even_row_highlight_font_color = RGB( 0xFF, 0xFF, 0xFF );	// COLOR_HIGHLIGHTTEXT (set in SetDefaultAppearance)
 COLORREF cfg_odd_row_highlight_font_color = RGB( 0xFF, 0xFF, 0xFF );	// COLOR_HIGHLIGHTTEXT (set in SetDefaultAppearance)
 
+COLORREF cfg_color_t_d_p = RGB( 0x00, 0xFF, 0x00 );	// Tray downloading progress
+COLORREF cfg_color_t_d_b = RGB( 0x00, 0x40, 0x00 );	// Tray downloading border
+COLORREF cfg_color_t_p_p = RGB( 0xFF, 0xFF, 0x00 );	// Tray paused progress
+COLORREF cfg_color_t_p_b = RGB( 0x40, 0x40, 0x00 );	// Tray paused border
+COLORREF cfg_color_t_e_p = RGB( 0xFF, 0x00, 0x00 );	// Tray error progress
+COLORREF cfg_color_t_e_b = RGB( 0x40, 0x00, 0x00 );	// Tray error border
+
+COLORREF cfg_color_d_d_p = RGB( 0x00, 0xFF, 0x00 );	// Drop downloading progress
+COLORREF cfg_color_d_d_b = RGB( 0x00, 0x40, 0x00 );	// Drop downloading border
+COLORREF cfg_color_d_p_p = RGB( 0xFF, 0xFF, 0x00 );	// Drop paused progress
+COLORREF cfg_color_d_p_b = RGB( 0x40, 0x40, 0x00 );	// Drop paused border
+COLORREF cfg_color_d_e_p = RGB( 0xFF, 0x00, 0x00 );	// Drop error progress
+COLORREF cfg_color_d_e_b = RGB( 0x40, 0x00, 0x00 );	// Drop error border
+
+COLORREF *td_progress_colors[ TD_NUM_COLORS ] = { &cfg_color_t_d_p, &cfg_color_t_d_b, &cfg_color_t_p_p, &cfg_color_t_p_b, &cfg_color_t_e_p, &cfg_color_t_e_b,
+												  &cfg_color_d_d_p, &cfg_color_d_d_b, &cfg_color_d_p_p, &cfg_color_d_p_b, &cfg_color_d_e_p, &cfg_color_d_e_b };
+
 // a = Progress Color, b = Background Color, c = Progress Font Color, d = Background Font Color, e = Border Color
 // b = COLOR_WINDOW (set in SetDefaultAppearance)
 COLORREF cfg_color_1a = RGB( 0x40, 0xC0, 0x40 ), cfg_color_1b = RGB( 0xFF, 0xFF, 0xFF ), cfg_color_1c = RGB( 0xFF, 0xFF, 0xFF ), cfg_color_1d = RGB( 0x00, 0x00, 0x00 ), cfg_color_1e = RGB( 0x00, 0x80, 0x00 );		//STATUS_ALLOCATING_FILE

@@ -19,7 +19,7 @@
 #ifndef _FILE_OPERATIONS_H
 #define _FILE_OPERATIONS_H
 
-#define MAGIC_ID_SETTINGS		"HDM\x04"	// Version 5
+#define MAGIC_ID_SETTINGS		"HDM\x05"	// Version 6
 #define MAGIC_ID_DOWNLOADS		"HDM\x14"	// Version 5
 #define MAGIC_ID_LOGINS			"HDM\x20"	// Version 1
 

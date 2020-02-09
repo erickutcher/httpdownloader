@@ -152,12 +152,19 @@ Odd Row Font
 Odd Row Font Color
 Odd Row Highlight Color
 Odd Row Highlight Font Color
+Other progress bars:
 Progress Color
 Progress bar:
 Progress Font Color
 Show gridlines in download list
 Show progress for each part
 Sort added and updating items
+System Tray Icon Downloading
+System Tray Icon Paused
+System Tray Icon Error
+URL Drop Window Downloading
+URL Drop Window Paused
+URL Drop Window Error
 Active download limit:
 Default download parts:
 Default SSL / TLS version:
@@ -273,6 +280,7 @@ Download speed:
 Download speed limit (bytes/s):
 Downloading
 Downloads Have Finished
+Error
 Export Download History
 Failed
 File IO Error

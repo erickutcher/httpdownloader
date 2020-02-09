@@ -8,20 +8,6 @@ const g_height = 300;
 const g_top = Math.round( ( screen.height - g_height ) / 2 );
 const g_left = Math.round( ( screen.width - g_width ) / 2 );
 
-function GetDomain( url )
-{
-	var parsed_url = document.createElement( "a" );
-	parsed_url.href = url;
-	var domain = parsed_url.hostname;
-	var domain_parts = domain.split( "." );
-	if ( domain_parts.length > 2 )
-	{
-		domain = domain_parts[ domain_parts.length - 2 ] + "." + domain_parts[ domain_parts.length - 1 ];
-	}
-
-	return domain;
-}
-
 function OnGetOptions( options )
 {
 	if ( typeof options.server == "undefined" ) { options.server = "http://localhost:80/"; }
@@ -34,6 +20,7 @@ function OnGetOptions( options )
 	if ( typeof options.referer == "undefined" ) { options.referer = true; }
 	if ( typeof options.override == "undefined" ) { options.override = false; }
 	if ( typeof options.show_add_window == "undefined" ) { options.show_add_window = false; }
+	if ( typeof options.from_current_domain == "undefined" ) { options.from_current_domain = false; }
 
 	return options;
 }
@@ -85,13 +72,12 @@ function CreateDownloadWindow( download_info, message = "" )
 function OnGetCookieString( cookies )
 {
 	var cookie_string = "";
-	var cookies_length = cookies.length;
 
-	if ( cookies_length > 0 )
+	if ( cookies.length > 0 )
 	{
 		cookie_string = cookies[ 0 ].name + "=" + cookies[ 0 ].value;
 
-		for ( var i = 1; i < cookies_length; ++i )
+		for ( var i = 1; i < cookies.length; ++i )
 		{
 			cookie_string += "; " + cookies[ i ].name + "=" + cookies[ i ].value;
 		}
@@ -100,17 +86,48 @@ function OnGetCookieString( cookies )
 	return cookie_string;
 }
 
+function OnGetCookieDomain( cookies )
+{
+	var cookie_domain = "";
+
+	if ( cookies.length > 0 )
+	{
+		cookie_domain = cookies[ 0 ].domain;
+
+		for ( var i = 1; i < cookies.length; ++i )
+		{
+			if ( cookies[ i ].domain.length < cookie_domain.length )
+			{
+				cookie_domain = cookies[ i ].domain;
+			}
+		}
+	}
+
+	return cookie_domain;
+}
+
 // Recursively find a cookie string in our cookie stores.
 function GetCookies( cookie_info, download_info )
 {
-	chrome.cookies.getAll( { domain: "." + cookie_info.domain, storeId: cookie_info.cookie_stores[ cookie_info.index ].id }, function( cookies )
+	var request;
+
+	if ( typeof cookie_info.domain != "undefined" )
+	{
+		request = { domain: cookie_info.domain, storeId: cookie_info.cookie_stores[ cookie_info.index ].id };
+	}
+	else
+	{
+		request = { url: cookie_info.url, storeId: cookie_info.cookie_stores[ cookie_info.index ].id };
+	}
+
+	chrome.cookies.getAll( request, function( cookies )
 	{
 		var cookie_string = OnGetCookieString( cookies );
 
 		// No cookie string? Look in the next cookie store.
 		if ( cookie_string == "" && ( ++cookie_info.index < cookie_info.cookie_stores.length ) )
 		{
-			GetCookies( cookie_info, download_info )
+			GetCookies( cookie_info, download_info );
 		}
 		else	// We've exhausted all cookie stores, or we've found a string.
 		{
@@ -130,6 +147,25 @@ function GetCookies( cookie_info, download_info )
 				// Erase it from the download manager's history.
 				chrome.downloads.erase( { id: download_info.id } );
 			}
+		}
+	} );
+}
+
+function GetCookieDomain( cookie_info, download_info )
+{
+	chrome.cookies.getAll( { url: cookie_info.url, storeId: cookie_info.cookie_stores[ cookie_info.index ].id }, function( cookies )
+	{
+		var domain = OnGetCookieDomain( cookies );
+
+		// No cookie domain? Look in the next cookie store.
+		if ( domain == "" && ( ++cookie_info.index < cookie_info.cookie_stores.length ) )
+		{
+			GetCookieDomain( cookie_info, download_info );
+		}
+		else	// We've exhausted all cookie stores, or we've found a domain.
+		{
+			cookie_info.domain = domain;
+			GetCookies( cookie_info, download_info );
 		}
 	} );
 }
@@ -228,6 +264,8 @@ function HandleMessages( request, sender, sendResponse )
 					chrome.downloads.onChanged.addListener( OnDownloadItemChange );
 				}
 			}
+
+			chrome.browserAction.setIcon( ( g_options.override ? { path: "icons/icon-e-64.png" } : { path: "icons/icon-d-64.png" } ) );
 		} );
 
 		sendResponse( {} );
@@ -302,9 +340,7 @@ function InitializeDownload( download_info )
 	// Need to go through each cookie store if we're incognito/private browsing. Dumb!
 	chrome.cookies.getAllCookieStores( function( cookie_stores )
 	{
-		var domain = GetDomain( download_info.url );
-
-		GetCookies( { domain: domain, cookie_stores: cookie_stores, index: 0 }, download_info );
+		GetCookies( { url: download_info.url, cookie_stores: cookie_stores, index: 0 }, download_info );
 	} );
 }
 
@@ -509,8 +545,73 @@ function OnMenuClicked( info, tab )
 				urls = "";
 			}
 
-			CreateDownloadWindow( { show_add_window: true, id: null, method: "1", url: urls, cookie_string: "", headers: headers, directory: directory, post_data: "" } );
+			var new_urls = "";
+			var get_cookies = true;
+
+			if ( urls.length > 0 )
+			{
+				var page_hostname = new URL( info.pageUrl ).hostname;
+				var last_hostname = null;
+
+				var url_array = urls[ 0 ].split( "\r\n" );
+				for ( var i = 0; i < url_array.length; ++i )
+				{
+					if ( url_array[ i ] != "" )
+					{
+						var hostname = new URL( url_array[ i ] ).hostname;
+						if ( hostname != "" )
+						{
+							if ( g_options.from_current_domain )
+							{
+								if ( hostname == page_hostname )
+								{
+									new_urls += url_array[ i ] + "\r\n"
+								}
+							}
+							else
+							{
+								if ( last_hostname == null )
+								{
+									last_hostname = hostname;
+								}
+								else if ( last_hostname != hostname )
+								{
+									get_cookies = false;
+
+									break;
+								}
+							}
+						}
+					}
+				}
+			}
+
+			if ( new_urls != "" )
+			{
+				urls = new_urls;
+			}
+
+			if ( get_cookies )
+			{
+				chrome.cookies.getAllCookieStores( function( cookie_stores )
+				{
+					var directory = g_options.default_directory;
+
+					GetCookieDomain( { url: info.pageUrl, cookie_stores: cookie_stores, index: 0 },
+									 { show_add_window: true, id: null, method: "1", url: urls, cookie_string: "", headers: headers, directory: directory, post_data: "" } );
+				} );
+			}
+			else
+			{
+				CreateDownloadWindow( { show_add_window: true, id: null, method: "1", url: urls, cookie_string: "", headers: headers, directory: directory, post_data: "" } );
+			}
 		} );
+	}
+	else if ( info.menuItemId == "from-current-domain" )
+	{
+		g_options.from_current_domain = !g_options.from_current_domain;
+
+		chrome.storage.local.set( { from_current_domain: g_options.from_current_domain } );
 	}
 	else
 	{
@@ -534,10 +635,9 @@ function OnMenuClicked( info, tab )
 		// Need to go through each cookie store if we're incognito/private browsing. Dumb!
 		chrome.cookies.getAllCookieStores( function( cookie_stores )
 		{
-			var domain = GetDomain( url );
 			var directory = g_options.default_directory;
 
-			GetCookies( { domain: domain, cookie_stores: cookie_stores, index: 0 },
+			GetCookies( { url: url, cookie_stores: cookie_stores, index: 0 },
 						{ show_add_window: true, id: null, method: "1", url: url, cookie_string: "", headers: headers, directory: directory, post_data: "" } );
 		} );
 	}
@@ -570,28 +670,28 @@ chrome.storage.local.get( null, function( options )
 	chrome.contextMenus.create(
 	{
 		id: "download-link",
-		title: "Download Link...",
+		title: chrome.i18n.getMessage( "menu_download_link" ),
 		contexts: [ "link" ]
 	} );
 
 	chrome.contextMenus.create(
 	{
 		id: "download-image",
-		title: "Download Image...",
+		title: chrome.i18n.getMessage( "menu_download_image" ),
 		contexts: [ "image" ]
 	} );
 
 	chrome.contextMenus.create(
 	{
 		id: "download-audio",
-		title: "Download Audio...",
+		title: chrome.i18n.getMessage( "menu_download_audio" ),
 		contexts: [ "audio" ]
 	} );
 
 	chrome.contextMenus.create(
 	{
 		id: "download-video",
-		title: "Download Video...",
+		title: chrome.i18n.getMessage( "menu_download_video" ),
 		contexts: [ "video" ]
 	} );
 
@@ -605,21 +705,30 @@ chrome.storage.local.get( null, function( options )
 	chrome.contextMenus.create(
 	{
 		id: "download-all-images",
-		title: "Download All Images...",
+		title: chrome.i18n.getMessage( "menu_download_all_images" ),
 		contexts: [ "page", "frame", "link", "image", "audio", "video" ]
 	} );
 
 	chrome.contextMenus.create(
 	{
 		id: "download-all-media",
-		title: "Download All Media...",
+		title: chrome.i18n.getMessage( "menu_download_all_media" ),
 		contexts: [ "page", "frame", "link", "image", "audio", "video" ]
 	} );
 
 	chrome.contextMenus.create(
 	{
 		id: "download-all-links",
-		title: "Download All Links...",
+		title: chrome.i18n.getMessage( "menu_download_all_links" ),
+		contexts: [ "page", "frame", "link", "image", "audio", "video" ]
+	} );
+
+	chrome.contextMenus.create(
+	{
+		id: "from-current-domain",
+		title: chrome.i18n.getMessage( "menu_from_current_domain" ),
+		type: "checkbox",
+		checked: g_options.from_current_domain,
 		contexts: [ "page", "frame", "link", "image", "audio", "video" ]
 	} );
 
@@ -633,7 +742,7 @@ chrome.storage.local.get( null, function( options )
 	chrome.contextMenus.create(
 	{
 		id: "download-page",
-		title: "Download Page...",
+		title: chrome.i18n.getMessage( "menu_download_page" ),
 		contexts: [ "page", "frame", "link", "image", "audio", "video" ]
 	} );
 
@@ -645,6 +754,7 @@ chrome.storage.local.get( null, function( options )
 
 	if ( g_options.override )
 	{
+		chrome.browserAction.setIcon( { path: "icons/icon-e-64.png" } );
 		chrome.webRequest.onBeforeRequest.addListener( GetURLRequest, { urls: [ "<all_urls>" ] }, [ "requestBody" ] );
 		chrome.downloads.onCreated.addListener( OnDownloadItemCreated );
 		chrome.downloads.onChanged.addListener( OnDownloadItemChange );

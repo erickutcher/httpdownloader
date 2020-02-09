@@ -74,6 +74,7 @@
 #define COLUMN_URL					14
 
 #define NUM_COLORS			75
+#define TD_NUM_COLORS		12
 
 #define MAX_DOMAIN_LENGTH	253
 
@@ -496,6 +497,20 @@ extern COLORREF cfg_odd_row_highlight_color;
 extern COLORREF cfg_even_row_highlight_font_color;
 extern COLORREF cfg_odd_row_highlight_font_color;
 
+extern COLORREF cfg_color_t_d_p;	// Tray downloading progress
+extern COLORREF cfg_color_t_d_b;	// Tray downloading border
+extern COLORREF cfg_color_t_p_p;	// Tray paused progress
+extern COLORREF cfg_color_t_p_b;	// Tray paused border
+extern COLORREF cfg_color_t_e_p;	// Tray error progress
+extern COLORREF cfg_color_t_e_b;	// Tray error border
+
+extern COLORREF cfg_color_d_d_p;	// Drop downloading progress
+extern COLORREF cfg_color_d_d_b;	// Drop downloading border
+extern COLORREF cfg_color_d_p_p;	// Drop paused progress
+extern COLORREF cfg_color_d_p_b;	// Drop paused border
+extern COLORREF cfg_color_d_e_p;	// Drop error progress
+extern COLORREF cfg_color_d_e_b;	// Drop error border
+
 extern COLORREF cfg_color_1a, cfg_color_1b, cfg_color_1c, cfg_color_1d, cfg_color_1e;
 extern COLORREF cfg_color_2a, cfg_color_2b, cfg_color_2c, cfg_color_2d, cfg_color_2e;
 extern COLORREF cfg_color_3a, cfg_color_3b, cfg_color_3c, cfg_color_3d, cfg_color_3e;
@@ -515,6 +530,7 @@ extern COLORREF cfg_color_15a, cfg_color_15b, cfg_color_15c, cfg_color_15d, cfg_
 //
 
 extern COLORREF *progress_colors[ NUM_COLORS ];
+extern COLORREF *td_progress_colors[ TD_NUM_COLORS ];
 
 extern char *download_columns[ NUM_COLUMNS ];
 extern int *download_columns_width[ NUM_COLUMNS ];

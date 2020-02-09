@@ -1786,6 +1786,13 @@ char GetFTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, unsi
 		char *output_buffer = response_buffer;
 		unsigned int output_buffer_length = response_buffer_length;
 
+		// Make sure the server isn't feeding us more data than they claim.
+		if ( context->header_info.range_info->content_length > 0 &&
+		   ( ( ( context->header_info.range_info->file_write_offset - context->header_info.range_info->range_start ) + output_buffer_length ) > ( ( context->header_info.range_info->range_end - context->header_info.range_info->range_start ) + 1 ) ) )
+		{
+			output_buffer_length -= ( unsigned int )( ( ( context->header_info.range_info->file_write_offset - context->header_info.range_info->range_start ) + output_buffer_length ) - ( ( context->header_info.range_info->range_end - context->header_info.range_info->range_start ) + 1 ) );
+		}
+
 		// Write buffer to file.
 
 		if ( context->download_info != NULL )
@@ -1861,6 +1868,8 @@ char GetFTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, unsi
 				EnterCriticalSection( &session_totals_cs );
 				g_session_total_downloaded += output_buffer_length;
 				LeaveCriticalSection( &session_totals_cs );
+
+				context->header_info.range_info->file_write_offset += output_buffer_length;	// The size of the non-encoded/decoded data that we would have written to a file.
 
 				context->header_info.range_info->content_offset += response_buffer_length;	// The true amount that was downloaded. Allows us to resume if we stop the download.
 

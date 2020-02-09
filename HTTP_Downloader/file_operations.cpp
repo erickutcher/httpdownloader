@@ -71,9 +71,11 @@ char read_config()
 			cfg_buf[ fz ] = 0;	// Guarantee a NULL terminated buffer.
 
 			// Read the config. It must be in the order specified below.
-			if ( read == fz && _memcmp( cfg_buf, MAGIC_ID_SETTINGS, 4 ) == 0 )
+			if ( read == fz && _memcmp( cfg_buf, MAGIC_ID_SETTINGS, 3 ) == 0 )
 			{
-				reserved = 1024 - 588;
+				char version = cfg_buf[ 3 ];
+
+				reserved = 1024 - ( version == 5 ? 636 : 588 );
 
 				char *next = cfg_buf + 4;
 
@@ -450,6 +452,15 @@ char read_config()
 
 				_memcpy_s( &cfg_thread_count, sizeof( unsigned long ), next, sizeof( unsigned long ) );
 				next += sizeof( unsigned long );
+
+				if ( version >= 5 )
+				{
+					for ( unsigned char i = 0; i < TD_NUM_COLORS; ++i )
+					{
+						_memcpy_s( td_progress_colors[ i ], sizeof( COLORREF ), next, sizeof( COLORREF ) );
+						next += sizeof( COLORREF );
+					}
+				}
 
 
 				//
@@ -1041,12 +1052,49 @@ char read_config()
 	{
 		cfg_default_download_directory = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * MAX_PATH );
 
-		_SHGetFolderPathW( NULL, CSIDL_MYDOCUMENTS, NULL, 0, cfg_default_download_directory );
+		// Saves into C:\Users\[USER]\Downloads
+		if ( shell32_state == SHELL32_STATE_RUNNING )
+		{
+			_SHGetKnownFolderPath = ( pSHGetKnownFolderPath )GetProcAddress( hModule_shell32, "SHGetKnownFolderPath" );
+			if ( _SHGetKnownFolderPath != NULL )
+			{
+				bool free_memory = true;
+				#ifndef OLE32_USE_STATIC_LIB
+					if ( ole32_state == OLE32_STATE_SHUTDOWN )
+					{
+						free_memory = InitializeOle32();
+					}
+				#endif
 
-		g_default_download_directory_length = lstrlenW( cfg_default_download_directory );
-		_wmemcpy_s( cfg_default_download_directory + g_default_download_directory_length, MAX_PATH - g_default_download_directory_length, L"\\Downloads\0", 11 );
-		g_default_download_directory_length += 10;
-		cfg_default_download_directory[ g_default_download_directory_length ] = 0;	// Sanity.
+				// Make sure we can call CoTaskMemFree.
+				if ( free_memory )
+				{
+					wchar_t *folder_path = NULL;
+					if ( _SHGetKnownFolderPath( ( REFKNOWNFOLDERID )_FOLDERID_Downloads, 0, ( HANDLE )NULL, &folder_path ) == S_OK )
+					{
+						g_default_download_directory_length = min( MAX_PATH - 1, lstrlenW( folder_path ) );
+						_wmemcpy_s( cfg_default_download_directory, MAX_PATH, folder_path, g_default_download_directory_length );
+						cfg_default_download_directory[ g_default_download_directory_length ] = 0;
+					}
+
+					if ( folder_path != NULL )
+					{
+						_CoTaskMemFree( folder_path );
+					}
+				}
+			}
+		}
+
+		// Saves into C:\Users\[USER]\Documents\Downloads
+		if ( g_default_download_directory_length == 0 )
+		{
+			_SHGetFolderPathW( NULL, CSIDL_MYDOCUMENTS, NULL, 0, cfg_default_download_directory );
+
+			g_default_download_directory_length = lstrlenW( cfg_default_download_directory );
+			_wmemcpy_s( cfg_default_download_directory + g_default_download_directory_length, MAX_PATH - g_default_download_directory_length, L"\\Downloads\0", 11 );
+			g_default_download_directory_length += 10;
+			cfg_default_download_directory[ g_default_download_directory_length ] = 0;	// Sanity.
+		}
 
 		// Check to see if the new path exists and create it if it doesn't.
 		if ( GetFileAttributesW( cfg_default_download_directory ) == INVALID_FILE_ATTRIBUTES )
@@ -1119,7 +1167,7 @@ char save_config()
 	HANDLE hFile_cfg = CreateFile( base_directory, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL );
 	if ( hFile_cfg != INVALID_HANDLE_VALUE )
 	{
-		int reserved = 1024 - 588;
+		int reserved = 1024 - 636;
 		int size = ( sizeof( int ) * 22 ) +
 				   ( sizeof( unsigned short ) * 7 ) +
 				   ( sizeof( char ) * 50 ) +
@@ -1127,7 +1175,7 @@ char save_config()
 				   ( sizeof( unsigned long ) * 6 ) +
 				   ( sizeof( LONG ) * 4 ) +
 				   ( sizeof( BYTE ) * 6 ) +
-				   ( sizeof( COLORREF ) * ( NUM_COLORS + 8 ) ) +
+				   ( sizeof( COLORREF ) * ( NUM_COLORS + 8 + TD_NUM_COLORS ) ) +
 				   ( sizeof( unsigned long long ) * 3 ) + reserved;
 		int pos = 0;
 
@@ -1509,6 +1557,14 @@ char save_config()
 
 		_memcpy_s( write_buf + pos, size - pos, &cfg_thread_count, sizeof( unsigned long ) );
 		pos += sizeof( unsigned long );
+
+		// Tray and URL Drop window progress colors.
+
+		for ( unsigned char i = 0; i < TD_NUM_COLORS; ++i )
+		{
+			_memcpy_s( write_buf + pos, size - pos, td_progress_colors[ i ], sizeof( COLORREF ) );
+			pos += sizeof( COLORREF );
+		}
 
 
 		//

@@ -386,8 +386,8 @@ DWORD WINAPI UpdateWindow( LPVOID WorkThreadContext )
 	bool run_timer = g_timers_running;
 	unsigned char standby_counter = 0;
 
-	COLORREF border_color;
-	COLORREF progress_color;
+	COLORREF border_color_t, border_color_d;		// Tray and Drop window
+	COLORREF progress_color_t, progress_color_d;	// Tray and Drop window
 
 	unsigned char all_paused = 0;	// 0 = No state, 1 = all downloads are paused, 2 = a download is not paused
 
@@ -589,25 +589,31 @@ DWORD WINAPI UpdateWindow( LPVOID WorkThreadContext )
 
 				if ( all_paused == 1 )
 				{
-					border_color = cfg_color_9e;//RGB( 0x40, 0x40, 0x00 );
-					progress_color = cfg_color_9a;//RGB( 0xFF, 0xFF, 0x00 );
+					progress_color_t = cfg_color_t_p_p;
+					border_color_t = cfg_color_t_p_b;
+
+					progress_color_d = cfg_color_d_p_p;
+					border_color_d = cfg_color_d_p_b;
 				}
 				else
 				{
-					border_color = cfg_color_5e;//RGB( 0x00, 0x40, 0x00 );
-					progress_color = cfg_color_5a;//RGB( 0x00, 0xFF, 0x00 );
+					progress_color_t = cfg_color_t_d_p;
+					border_color_t = cfg_color_t_d_b;
+
+					progress_color_d = cfg_color_d_d_p;
+					border_color_d = cfg_color_d_d_b;
 				}
 
 				if ( cfg_enable_drop_window && cfg_show_drop_window_progress )
 				{
-					UpdateDropWindow( g_progress_info.current_total_downloaded, g_progress_info.current_total_file_size, border_color, progress_color );
+					UpdateDropWindow( g_progress_info.current_total_downloaded, g_progress_info.current_total_file_size, border_color_d, progress_color_d );
 				}
 
 				if ( cfg_tray_icon )
 				{
 					if ( cfg_show_tray_progress )
 					{
-						g_nid.hIcon = CreateSystemTrayIcon( g_progress_info.current_total_downloaded, g_progress_info.current_total_file_size, border_color, progress_color );
+						g_nid.hIcon = CreateSystemTrayIcon( g_progress_info.current_total_downloaded, g_progress_info.current_total_file_size, border_color_t, progress_color_t );
 					}
 					else
 					{
@@ -668,8 +674,11 @@ DWORD WINAPI UpdateWindow( LPVOID WorkThreadContext )
 			g_progress_info.download_state = 1;	// Completed.
 
 			bool error = ( ( g_session_status_count[ 2 ] > 0 || g_session_status_count[ 3 ] > 0 || g_session_status_count[ 4 ] > 0 ) ? true : false );
-			border_color = cfg_color_6e;//RGB( 0x40, 0x00, 0x00 );
-			progress_color = cfg_color_6a;//RGB( 0xFF, 0x00, 0x00 );
+			progress_color_t = cfg_color_t_e_p;
+			border_color_t = cfg_color_t_e_b;
+
+			progress_color_d = cfg_color_d_e_p;
+			border_color_d = cfg_color_d_e_b;
 
 			if ( g_taskbar != NULL )
 			{
@@ -690,7 +699,7 @@ DWORD WINAPI UpdateWindow( LPVOID WorkThreadContext )
 			{
 				if ( error )
 				{
-					UpdateDropWindow( 1, 1, border_color, progress_color );
+					UpdateDropWindow( 1, 1, border_color_d, progress_color_d );
 				}
 				else
 				{
@@ -702,7 +711,7 @@ DWORD WINAPI UpdateWindow( LPVOID WorkThreadContext )
 			{
 				if ( cfg_show_tray_progress && error )
 				{
-					g_nid.hIcon = CreateSystemTrayIcon( 1, 1, border_color, progress_color );
+					g_nid.hIcon = CreateSystemTrayIcon( 1, 1, border_color_t, progress_color_t );
 				}
 				else
 				{
@@ -1445,7 +1454,8 @@ void HandleCommand( HWND hWnd, WPARAM wParam, LPARAM lParam )
 			_memzero( &ofn, sizeof( OPENFILENAME ) );
 			ofn.lStructSize = sizeof( OPENFILENAME );
 			ofn.hwndOwner = hWnd;
-			ofn.lpstrFilter = L"Download History\0*.*\0";
+			ofn.lpstrFilter = L"Download History (*.hdh)\0*.hdh\0";
+			ofn.lpstrDefExt = L"hdh";
 			ofn.lpstrTitle = ST_V_Import_Download_History;
 			ofn.lpstrFile = file_name;
 			ofn.nMaxFile = MAX_PATH * MAX_PATH;
@@ -1485,8 +1495,8 @@ void HandleCommand( HWND hWnd, WPARAM wParam, LPARAM lParam )
 			_memzero( &ofn, sizeof( OPENFILENAME ) );
 			ofn.lStructSize = sizeof( OPENFILENAME );
 			ofn.hwndOwner = hWnd;
-			ofn.lpstrFilter = L"Download History\0*.*\0";
-			//ofn.lpstrDefExt = L"txt";
+			ofn.lpstrFilter = L"Download History (*.hdh)\0*.hdh\0";
+			ofn.lpstrDefExt = L"hdh";
 			ofn.lpstrTitle = ST_V_Export_Download_History;
 			ofn.lpstrFile = file_name;
 			ofn.nMaxFile = MAX_PATH;
@@ -1839,7 +1849,7 @@ void HandleCommand( HWND hWnd, WPARAM wParam, LPARAM lParam )
 		{
 			wchar_t msg[ 512 ];
 			__snwprintf( msg, 512, L"%s\r\n\r\n" \
-								   L"%s 1.0.3.0 (%u-bit)\r\n\r\n" \
+								   L"%s 1.0.3.1 (%u-bit)\r\n\r\n" \
 								   L"%s %s, %s %d, %04d %d:%02d:%02d %s (UTC)\r\n\r\n" \
 								   L"%s \xA9 2015-2020 Eric Kutcher",
 								   ST_V_LICENSE,

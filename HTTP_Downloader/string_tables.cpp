@@ -206,12 +206,19 @@ STRING_TABLE_DATA options_appearance_string_table[] =
 	{ L"Odd Row Font Color", 18 },
 	{ L"Odd Row Highlight Color", 23 },
 	{ L"Odd Row Highlight Font Color", 28 },
+	{ L"Other progress bars:", 20 },
 	{ L"Progress Color", 14 },
 	{ L"Progress bar:", 13 },
 	{ L"Progress Font Color", 19 },
 	{ L"Show gridlines in download list", 31 },
 	{ L"Show progress for each part", 27 },
-	{ L"Sort added and updating items", 29 }
+	{ L"Sort added and updating items", 29 },
+	{ L"System Tray Icon Downloading", 28 },
+	{ L"System Tray Icon Paused", 23 },
+	{ L"System Tray Icon Error", 22 },
+	{ L"URL Drop Window Downloading", 27 },
+	{ L"URL Drop Window Paused", 22 },
+	{ L"URL Drop Window Error", 21 }
 };
 
 STRING_TABLE_DATA options_connection_string_table[] =
@@ -367,6 +374,7 @@ STRING_TABLE_DATA common_string_table[] =
 	{ L"Download speed limit (bytes/s):", 31 },
 	{ L"Downloading", 11 },
 	{ L"Downloads Have Finished", 23 },
+	{ L"Error", 5 },
 	{ L"Export Download History", 23 },
 	{ L"Failed", 6 },
 	{ L"File IO Error", 13 },

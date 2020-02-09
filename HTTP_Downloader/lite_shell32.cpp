@@ -42,6 +42,7 @@
 
 	pSHGetFileInfoW			_SHGetFileInfoW;
 	pSHGetFolderPathW		_SHGetFolderPathW;
+	pSHGetKnownFolderPath	_SHGetKnownFolderPath;
 
 	pSHOpenFolderAndSelectItems	_SHOpenFolderAndSelectItems;
 	pILCreateFromPathW	_ILCreateFromPathW;
@@ -92,6 +93,7 @@
 
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_shell32, ( void ** )&_SHGetFileInfoW, "SHGetFileInfoW" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_shell32, ( void ** )&_SHGetFolderPathW, "SHGetFolderPathW" ) )
+		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_shell32, ( void ** )&_SHGetKnownFolderPath, "SHGetKnownFolderPath" ) )
 
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_shell32, ( void ** )&_SHOpenFolderAndSelectItems, "SHOpenFolderAndSelectItems" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_shell32, ( void ** )&_ILCreateFromPathW, "ILCreateFromPathW" ) )

@@ -1,3 +1,15 @@
+Version:	1.0.3.1
+Released:	2020-02-09
+
+Prevented over-downloading URLs with misreported Content-Length values.
+Added color options for System Tray icon and URL Drop window progress bars.
+Download history files are now saved with .hdh file extension and can be loaded on click.
+Default download folder for Windows XP is ...\Documents\Downloads and ...\Downloads for Windows Vista and above.
+Extensions display different menu icon when download manager override is enabled.
+Extensions can now get cookies when selecting "Download All Images/Media/Links..." and all URLs share the same domain.
+Firefox extension: Force all URLs from the same domain by holding Ctrl before clicking menu item.
+Chrome extension: Force all URLs by checking "From Current Domain" menu item.
+
 Version:	1.0.3.0
 Released:	2020-01-18
 

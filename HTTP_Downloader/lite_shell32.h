@@ -56,6 +56,7 @@
 
 	#define _SHGetFileInfoW		SHGetFileInfoW
 	#define _SHGetFolderPathW	SHGetFolderPathW
+	#define _SHGetKnownFolderPath	SHGetKnownFolderPath;
 
 	#define _SHOpenFolderAndSelectItems SHOpenFolderAndSelectItems
 	#define _ILCreateFromPathW	ILCreateFromPathW
@@ -93,6 +94,7 @@
 
 	typedef DWORD_PTR ( WINAPI *pSHGetFileInfoW )( LPCTSTR pszPath, DWORD dwFileAttributes, SHFILEINFO *psfi, UINT cbFileInfo, UINT uFlags );
 	typedef HRESULT ( WINAPI *pSHGetFolderPathW )( HWND hwndOwner, int nFolder, HANDLE hToken, DWORD dwFlags, LPTSTR pszPath );
+	typedef HRESULT ( WINAPI *pSHGetKnownFolderPath )( REFKNOWNFOLDERID rfid, DWORD dwFlags, HANDLE hToken, PWSTR *ppszPath );
 
 	typedef HRESULT ( WINAPI *pSHOpenFolderAndSelectItems )( PCIDLIST_ABSOLUTE pidlFolder, UINT cidl, PCUITEMID_CHILD_ARRAY apidl, DWORD dwFlags ); // Returns an HRESULT but is documented/defined as SHSTDAPI.
 	typedef PIDLIST_ABSOLUTE ( WINAPI *pILCreateFromPathW )( PCWSTR pszPath );
@@ -125,6 +127,7 @@
 
 	extern pSHGetFileInfoW		_SHGetFileInfoW;
 	extern pSHGetFolderPathW	_SHGetFolderPathW;
+	extern pSHGetKnownFolderPath	_SHGetKnownFolderPath;
 
 	extern pSHOpenFolderAndSelectItems	_SHOpenFolderAndSelectItems;
 	extern pILCreateFromPathW	_ILCreateFromPathW;
@@ -142,6 +145,10 @@
 	bool UnInitializeShell32();
 
 #endif
+
+extern HMODULE hModule_shell32;
+
+const GUID _FOLDERID_Downloads = { 0x374de290, 0x123f, 0x4565, { 0x91, 0x64, 0x39, 0xc4, 0x92, 0x5e, 0x46, 0x7b } };
 
 int _StrCmpA( PCSTR psz1, PCSTR psz2 );
 int _StrCmpW( PCWSTR psz1, PCWSTR psz2 );

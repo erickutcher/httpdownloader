@@ -437,6 +437,11 @@ void SetAppearanceSettings()
 		*progress_colors[ i ] = t_progress_colors[ i ];
 	}
 
+	for ( unsigned char i = 0; i < TD_NUM_COLORS; ++i )
+	{
+		*td_progress_colors[ i ] = t_td_progress_colors[ i ];
+	}
+
 	HFONT tmp_font = cfg_odd_row_font_settings.font;
 	cfg_odd_row_font_settings.font = _CreateFontIndirectW( &t_odd_row_font_settings.lf );
 	_DeleteObject( tmp_font );

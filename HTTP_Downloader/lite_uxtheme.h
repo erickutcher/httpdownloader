@@ -32,9 +32,9 @@
 
 	//__pragma( comment( lib, "uxtheme.lib" ) )
 
-	#define _OpenThemeData			OpenThemeData
-	#define _CloseThemeData			CloseThemeData
-	#define _DrawThemeBackground	DrawThemeBackground
+	//#define _OpenThemeData			OpenThemeData
+	//#define _CloseThemeData			CloseThemeData
+	//#define _DrawThemeBackground	DrawThemeBackground
 	//#define _GetThemeColor			GetThemeColor
 	#define _IsThemeActive			IsThemeActive
 	//#define _EnableThemeDialogTexture	EnableThemeDialogTexture
@@ -45,17 +45,17 @@
 	#define UXTHEME_STATE_SHUTDOWN		0
 	#define UXTHEME_STATE_RUNNING		1
 
-	typedef HTHEME ( WINAPI *pOpenThemeData )( HWND hwnd, LPCWSTR pszClassList );
-	typedef HRESULT ( WINAPI *pCloseThemeData )( HTHEME hTheme );
-	typedef HRESULT ( WINAPI *pDrawThemeBackground )( HTHEME hTheme, HDC hdc, int iPartId, int iStateId, const RECT *pRect, const RECT *pClipRect );
+	//typedef HTHEME ( WINAPI *pOpenThemeData )( HWND hwnd, LPCWSTR pszClassList );
+	//typedef HRESULT ( WINAPI *pCloseThemeData )( HTHEME hTheme );
+	//typedef HRESULT ( WINAPI *pDrawThemeBackground )( HTHEME hTheme, HDC hdc, int iPartId, int iStateId, const RECT *pRect, const RECT *pClipRect );
 	//typedef HRESULT ( WINAPI *pGetThemeColor )( HTHEME hTheme, int iPartId, int iStateId, int iPropId, COLORREF *pColor );
 	typedef BOOL ( WINAPI *pIsThemeActive )();
 	//typedef HRESULT ( WINAPI *pEnableThemeDialogTexture )( HWND hwnd, DWORD dwFlags );
 	//typedef HRESULT ( WINAPI *pDrawThemeParentBackground )( HWND hwnd, HDC hdc, const RECT *prc );
 
-	extern pOpenThemeData			_OpenThemeData;
-	extern pCloseThemeData			_CloseThemeData;
-	extern pDrawThemeBackground		_DrawThemeBackground;
+	//extern pOpenThemeData			_OpenThemeData;
+	//extern pCloseThemeData			_CloseThemeData;
+	//extern pDrawThemeBackground		_DrawThemeBackground;
 	//extern pGetThemeColor			_GetThemeColor;
 	extern pIsThemeActive			_IsThemeActive;
 	//extern pEnableThemeDialogTexture	_EnableThemeDialogTexture;

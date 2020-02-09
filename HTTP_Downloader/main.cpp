@@ -461,6 +461,26 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 					}
 				}
 			}
+			else
+			{
+				int file_length = lstrlenW( szArgList[ arg ] );
+				unsigned int extension_offset = get_file_extension_offset( szArgList[ arg ], file_length );
+
+				if ( ( file_length - extension_offset ) == 4 && _StrCmpNIW( szArgList[ arg ] + extension_offset, L".hdh", 4 ) == 0 )
+				{
+					if ( cla->download_history_file != NULL )
+					{
+						GlobalFree( cla->download_history_file );
+						cla->download_history_file = NULL;
+					}
+
+					cla->download_history_file = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( file_length + 1 ) );
+					_wmemcpy_s( cla->download_history_file, file_length + 1, szArgList[ arg ], file_length );
+					cla->download_history_file[ file_length ] = 0;	// Sanity.
+
+					cla->download_history_file_length = file_length;
+				}
+			}
 		}
 
 		// Free the parameter list.

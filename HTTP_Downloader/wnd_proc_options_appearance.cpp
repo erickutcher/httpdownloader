@@ -27,10 +27,13 @@
 #define LB_PROGRESS_COLOR			1001
 #define LB_PROGRESS_COLOR_OPTIONS	1002
 
-#define BTN_SHOW_GRID_LINES			1003
-#define BTN_SHOW_PART_PROGRESS		1004
+#define LB_TD_PROGRESS_COLOR			1003
+#define LB_TD_PROGRESS_COLOR_OPTIONS	1004
 
-#define BTN_SORT_ADDED_AND_UPDATING_ITEMS	1005
+#define BTN_SHOW_GRID_LINES			1005
+#define BTN_SHOW_PART_PROGRESS		1006
+
+#define BTN_SORT_ADDED_AND_UPDATING_ITEMS	1007
 
 // Appearance Tab
 HWND g_hWnd_row_options_list = NULL;
@@ -39,6 +42,10 @@ HWND g_hWnd_progress_color_list = NULL;
 HWND g_hWnd_static_example_progress = NULL;
 
 HWND g_hWnd_progress_color_options_list = NULL;
+
+HWND g_hWnd_td_progress_color_list = NULL;
+HWND g_hWnd_td_progress_color_options_list = NULL;
+HWND g_hWnd_static_example_td_progress = NULL;
 
 HWND g_hWnd_chk_show_gridlines = NULL;
 HWND g_hWnd_chk_show_part_progress = NULL;
@@ -56,6 +63,8 @@ COLORREF t_even_row_highlight_font_color;
 
 COLORREF t_progress_colors[ NUM_COLORS ];
 
+COLORREF t_td_progress_colors[ TD_NUM_COLORS ];
+
 FONT_SETTINGS t_odd_row_font_settings;
 FONT_SETTINGS t_even_row_font_settings;
 
@@ -64,6 +73,11 @@ void SetAppearance()
 	for ( unsigned char i = 0; i < NUM_COLORS; ++i )
 	{
 		t_progress_colors[ i ] = *progress_colors[ i ];
+	}
+
+	for ( unsigned char i = 0; i < TD_NUM_COLORS; ++i )
+	{
+		t_td_progress_colors[ i ] = *td_progress_colors[ i ];
 	}
 
 	t_odd_row_background_color = cfg_odd_row_background_color;
@@ -138,9 +152,28 @@ LRESULT CALLBACK AppearanceTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 
 			g_hWnd_static_example_progress = _CreateWindowW( WC_STATIC, NULL, SS_OWNERDRAW | WS_BORDER | WS_CHILD | WS_VISIBLE, 420, 130, 130/*rc.right - 420*/, 50, hWnd, NULL, NULL, NULL );
 
-			g_hWnd_chk_show_gridlines = _CreateWindowW( WC_BUTTON, ST_V_Show_gridlines_in_download_list, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 230, rc.right - 205, 20, hWnd, ( HMENU )BTN_SHOW_GRID_LINES, NULL, NULL );
-			g_hWnd_chk_show_part_progress = _CreateWindowW( WC_BUTTON, ST_V_Show_progress_for_each_part, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 250, rc.right, 20, hWnd, ( HMENU )BTN_SHOW_PART_PROGRESS, NULL, NULL );
-			g_hWnd_chk_sort_added_and_updating_items = _CreateWindowW( WC_BUTTON, ST_V_Sort_added_and_updating_items, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 270, rc.right, 20, hWnd, ( HMENU )BTN_SORT_ADDED_AND_UPDATING_ITEMS, NULL, NULL );
+
+
+			HWND hWnd_static_td_progress_color = _CreateWindowW( WC_STATIC, ST_V_Other_progress_bars_, WS_CHILD | WS_VISIBLE, 0, 230, rc.right, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_td_progress_color_list = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_LISTBOX, NULL, LBS_NOTIFY | LBS_NOINTEGRALHEIGHT | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE, 0, 245, 250, 80, hWnd, ( HMENU )LB_TD_PROGRESS_COLOR, NULL, NULL );
+			_SendMessageW( g_hWnd_td_progress_color_list, LB_ADDSTRING, 0, ( LPARAM )ST_V_System_Tray_Icon_Downloading );
+			_SendMessageW( g_hWnd_td_progress_color_list, LB_ADDSTRING, 0, ( LPARAM )ST_V_System_Tray_Icon_Paused );
+			_SendMessageW( g_hWnd_td_progress_color_list, LB_ADDSTRING, 0, ( LPARAM )ST_V_System_Tray_Icon_Error );
+			_SendMessageW( g_hWnd_td_progress_color_list, LB_ADDSTRING, 0, ( LPARAM )ST_V_URL_Drop_Window_Downloading );
+			_SendMessageW( g_hWnd_td_progress_color_list, LB_ADDSTRING, 0, ( LPARAM )ST_V_URL_Drop_Window_Paused );
+			_SendMessageW( g_hWnd_td_progress_color_list, LB_ADDSTRING, 0, ( LPARAM )ST_V_URL_Drop_Window_Error );
+
+			g_hWnd_td_progress_color_options_list = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_LISTBOX, NULL, LBS_NOTIFY | LBS_NOINTEGRALHEIGHT | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE, 255, 245, 160, 60, hWnd, ( HMENU )LB_TD_PROGRESS_COLOR_OPTIONS, NULL, NULL );
+			_SendMessageW( g_hWnd_td_progress_color_options_list, LB_ADDSTRING, 0, ( LPARAM )ST_V_Progress_Color );
+			_SendMessageW( g_hWnd_td_progress_color_options_list, LB_ADDSTRING, 0, ( LPARAM )ST_V_Border_Color );
+
+			g_hWnd_static_example_td_progress = _CreateWindowW( WC_STATIC, NULL, SS_OWNERDRAW | WS_BORDER | WS_CHILD | WS_VISIBLE, 420, 245, 130/*rc.right - 420*/, 50, hWnd, NULL, NULL, NULL );
+
+
+
+			g_hWnd_chk_show_gridlines = _CreateWindowW( WC_BUTTON, ST_V_Show_gridlines_in_download_list, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 330, rc.right - 205, 20, hWnd, ( HMENU )BTN_SHOW_GRID_LINES, NULL, NULL );
+			g_hWnd_chk_show_part_progress = _CreateWindowW( WC_BUTTON, ST_V_Show_progress_for_each_part, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 350, rc.right, 20, hWnd, ( HMENU )BTN_SHOW_PART_PROGRESS, NULL, NULL );
+			g_hWnd_chk_sort_added_and_updating_items = _CreateWindowW( WC_BUTTON, ST_V_Sort_added_and_updating_items, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 370, rc.right, 20, hWnd, ( HMENU )BTN_SORT_ADDED_AND_UPDATING_ITEMS, NULL, NULL );
 
 
 			_SendMessageW( hWnd_static_row_options, WM_SETFONT, ( WPARAM )g_hFont, 0 );
@@ -150,6 +183,10 @@ LRESULT CALLBACK AppearanceTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 			_SendMessageW( g_hWnd_progress_color_list, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 			_SendMessageW( g_hWnd_progress_color_options_list, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 			_SendMessageW( g_hWnd_static_example_progress, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( hWnd_static_td_progress_color, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_td_progress_color_list, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_td_progress_color_options_list, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_static_example_td_progress, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 			_SendMessageW( g_hWnd_chk_show_gridlines, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 			_SendMessageW( g_hWnd_chk_show_part_progress, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 			_SendMessageW( g_hWnd_chk_sort_added_and_updating_items, WM_SETFONT, ( WPARAM )g_hFont, 0 );
@@ -164,6 +201,7 @@ LRESULT CALLBACK AppearanceTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 
 			_SendMessageW( g_hWnd_row_options_list, LB_SETCURSEL, 0, 0 );
 			_SendMessageW( g_hWnd_progress_color_list, LB_SETCURSEL, 0, 0 );
+			_SendMessageW( g_hWnd_td_progress_color_list, LB_SETCURSEL, 0, 0 );
 
 			return 0;
 		}
@@ -178,6 +216,15 @@ LRESULT CALLBACK AppearanceTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 					if ( HIWORD( wParam ) == LBN_SELCHANGE )
 					{
 						_InvalidateRect( g_hWnd_static_example_progress, NULL, TRUE );
+					}
+				}
+				break;
+
+				case LB_TD_PROGRESS_COLOR:
+				{
+					if ( HIWORD( wParam ) == LBN_SELCHANGE )
+					{
+						_InvalidateRect( g_hWnd_static_example_td_progress, NULL, TRUE );
 					}
 				}
 				break;
@@ -289,7 +336,6 @@ LRESULT CALLBACK AppearanceTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 							int option_index = ( int )_SendMessageW( g_hWnd_progress_color_options_list, LB_GETCURSEL, 0, 0 );
 							if ( option_index != LB_ERR )
 							{
-
 								index *= 5;
 
 								CHOOSECOLOR cc;
@@ -323,6 +369,53 @@ LRESULT CALLBACK AppearanceTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 									}
 
 									_InvalidateRect( g_hWnd_static_example_progress, NULL, TRUE );
+
+									options_state_changed = true;
+									_EnableWindow( g_hWnd_options_apply, TRUE );
+								}
+							}
+						}
+					}
+				}
+				break;
+
+				case LB_TD_PROGRESS_COLOR_OPTIONS:
+				{
+					if ( HIWORD( wParam ) == LBN_SELCHANGE )
+					{
+						int index = ( int )_SendMessageW( g_hWnd_td_progress_color_list, LB_GETCURSEL, 0, 0 );
+						if ( index != LB_ERR )
+						{
+							int option_index = ( int )_SendMessageW( g_hWnd_td_progress_color_options_list, LB_GETCURSEL, 0, 0 );
+							if ( option_index != LB_ERR )
+							{
+								index *= 2;
+
+								CHOOSECOLOR cc;
+								_memzero( &cc, sizeof( CHOOSECOLOR ) );
+								static COLORREF CustomColors[ 16 ];
+								_memzero( &CustomColors, sizeof( CustomColors ) );
+
+								cc.lStructSize = sizeof( CHOOSECOLOR );
+								cc.Flags = CC_FULLOPEN | CC_RGBINIT;
+								cc.lpCustColors = CustomColors;
+								cc.hwndOwner = hWnd;
+
+								switch ( option_index )
+								{
+									case 0: { cc.rgbResult = t_td_progress_colors[ index ]; } break;		// Progress Color
+									case 1: { cc.rgbResult = t_td_progress_colors[ index + 1 ]; } break;	// Border Color
+								}
+
+								if ( _ChooseColorW( &cc ) == TRUE )
+								{
+									switch ( option_index )
+									{
+										case 0: { t_td_progress_colors[ index ] = cc.rgbResult; } break;		// Progress Color
+										case 1: { t_td_progress_colors[ index + 1 ] = cc.rgbResult; } break;	// Border Color
+									}
+
+									_InvalidateRect( g_hWnd_static_example_td_progress, NULL, TRUE );
 
 									options_state_changed = true;
 									_EnableWindow( g_hWnd_options_apply, TRUE );
@@ -484,6 +577,29 @@ LRESULT CALLBACK AppearanceTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 
 						// Delete our back buffer.
 						_DeleteDC( hdcMem );
+					}
+				}
+				else if ( dis->hwndItem == g_hWnd_static_example_td_progress )
+				{
+					index = ( int )_SendMessageW( g_hWnd_td_progress_color_list, LB_GETCURSEL, 0, 0 );
+					if ( index != LB_ERR )
+					{
+						index *= 2;
+
+						int width = dis->rcItem.right - dis->rcItem.left;
+						int height = dis->rcItem.bottom - dis->rcItem.top;
+
+						// Progress Color
+						HBRUSH color = _CreateSolidBrush( t_td_progress_colors[ index ] );
+						_FillRect( dis->hDC, &dis->rcItem, color );
+						_DeleteObject( color );
+
+						// Border Color
+						HPEN hPen = _CreatePen( PS_SOLID, 4, t_td_progress_colors[ index + 1 ] );
+						_SelectObject( dis->hDC, hPen );
+						_SelectObject( dis->hDC, _GetStockObject( NULL_BRUSH ) );
+						_Rectangle( dis->hDC, dis->rcItem.left, dis->rcItem.top, width, height );
+						_DeleteObject( hPen );
 					}
 				}
 			}

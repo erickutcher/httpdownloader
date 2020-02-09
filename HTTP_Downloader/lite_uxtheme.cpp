@@ -21,9 +21,9 @@
 
 #ifndef UXTHEME_USE_STATIC_LIB
 
-	pOpenThemeData			_OpenThemeData;
-	pCloseThemeData			_CloseThemeData;
-	pDrawThemeBackground	_DrawThemeBackground;
+	//pOpenThemeData			_OpenThemeData;
+	//pCloseThemeData			_CloseThemeData;
+	//pDrawThemeBackground	_DrawThemeBackground;
 	//pGetThemeColor			_GetThemeColor;
 	pIsThemeActive			_IsThemeActive;
 	//pEnableThemeDialogTexture	_EnableThemeDialogTexture;
@@ -47,9 +47,9 @@
 			return false;
 		}
 
-		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_uxtheme, ( void ** )&_OpenThemeData, "OpenThemeData" ) )
-		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_uxtheme, ( void ** )&_CloseThemeData, "CloseThemeData" ) )
-		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_uxtheme, ( void ** )&_DrawThemeBackground, "DrawThemeBackground" ) )
+		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_uxtheme, ( void ** )&_OpenThemeData, "OpenThemeData" ) )
+		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_uxtheme, ( void ** )&_CloseThemeData, "CloseThemeData" ) )
+		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_uxtheme, ( void ** )&_DrawThemeBackground, "DrawThemeBackground" ) )
 		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_uxtheme, ( void ** )&_GetThemeColor, "GetThemeColor" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_uxtheme, ( void ** )&_IsThemeActive, "IsThemeActive" ) )
 		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_uxtheme, ( void ** )&_EnableThemeDialogTexture, "EnableThemeDialogTexture" ) )

@@ -3,7 +3,7 @@
 	"description": "__MSG_extension_description__",
 	"manifest_version": 2,
 	"name": "HTTP Downloader",
-	"version": "1.0.1.4",
+	"version": "1.0.1.5",
 	"homepage_url": "https://erickutcher.github.io/#HTTP_Downloader",
 
 	"applications":
@@ -17,7 +17,7 @@
 
 	"icons":
 	{
-		"64": "icons/icon-64.png"
+		"64": "icons/icon-d-64.png"
 	},
 
 	"content_scripts":
@@ -45,7 +45,7 @@
 	"browser_action":
 	{
 		"browser_style": true,
-		"default_icon": "icons/icon-64.png",
+		"default_icon": "icons/icon-d-64.png",
 		"default_title": "HTTP Downloader",
 		"default_popup": "options.html"
 	},

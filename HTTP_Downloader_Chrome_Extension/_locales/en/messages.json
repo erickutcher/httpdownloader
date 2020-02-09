@@ -155,6 +155,42 @@
 		"message": "Apply"
 	},
 
+	"menu_download_link": {
+		"message": "Download Link..."
+	},
+
+	"menu_download_image": {
+		"message": "Download Image..."
+	},
+
+	"menu_download_audio": {
+		"message": "Download Audio..."
+	},
+
+	"menu_download_video": {
+		"message": "Download Video..."
+	},
+
+	"menu_download_all_images": {
+		"message": "Download All Images..."
+	},
+
+	"menu_download_all_media": {
+		"message": "Download All Media..."
+	},
+
+	"menu_download_all_links": {
+		"message": "Download All Links..."
+	},
+
+	"menu_from_current_domain": {
+		"message": "From Current Domain"
+	},
+
+	"menu_download_page": {
+		"message": "Download Page..."
+	},
+
 	"SEND_FAILED": {
 		"message": "An error occurred while sending the download request."
 	},
