@@ -49,6 +49,7 @@ function CreateDownloadWindow( download_info, message = "" )
 		var headers = download_info.headers;
 		var post_data = download_info.post_data;
 		var directory = download_info.directory;
+		var filename = download_info.filename;
 
 		g_open_windows.push(
 		[
@@ -64,6 +65,7 @@ function CreateDownloadWindow( download_info, message = "" )
 			headers,
 			post_data,
 			directory,
+			filename,
 			message
 		] );
 	} );
@@ -73,7 +75,7 @@ function OnGetCookieString( cookies )
 {
 	var cookie_string = "";
 
-	if ( cookies.length > 0 )
+	if ( typeof cookies != "undefined" && cookies.length > 0 )
 	{
 		cookie_string = cookies[ 0 ].name + "=" + cookies[ 0 ].value;
 
@@ -90,7 +92,7 @@ function OnGetCookieDomain( cookies )
 {
 	var cookie_domain = "";
 
-	if ( cookies.length > 0 )
+	if ( typeof cookies != "undefined" && cookies.length > 0 )
 	{
 		cookie_domain = cookies[ 0 ].domain;
 
@@ -194,7 +196,8 @@ function HandleMessages( request, sender, sendResponse )
 					headers: window[ 9 ],
 					post_data: window[ 10 ],
 					directory: window[ 11 ],
-					message: window[ 12 ]
+					filename: window[ 12 ],
+					message: window[ 13 ]
 				} );
 
 				break;
@@ -287,6 +290,16 @@ function SendDownloadToClient( download_info )
 		var parts = g_options.parts;
 		var speed_limit = g_options.default_download_speed_limit;
 		var download_operations = 0;
+		var url;
+
+		if ( download_info.filename != "" )
+		{
+			url = "[" + download_info.filename + "]" + download_info.url;
+		}
+		else
+		{
+			url = download_info.url;
+		}
 
 		request.onerror = function( e )
 		{
@@ -318,7 +331,7 @@ function SendDownloadToClient( download_info )
 		request.timeout = 30000;	// 30 second timeout.
 		request.setRequestHeader( "Content-Type", "application/octet-stream" );
 		request.send( download_info.method + "\x1f" +
-					  download_info.url + "\x1f" +
+					  url + "\x1f" +
 					  username + "\x1f" +
 					  password + "\x1f" +
 					  parts + "\x1f" +
@@ -346,7 +359,7 @@ function InitializeDownload( download_info )
 
 function GetDownloadInfoIndex( id )
 {
-	for ( i = 0; i < g_download_info.length; ++i )
+	for ( var i = 0; i < g_download_info.length; ++i )
 	{
 		if ( g_download_info[ i ].id == id )
 		{
@@ -376,7 +389,7 @@ function OnDownloadItemChange( item )
 		if ( item.filename.current != "" )
 		{
 			var filepath_length = item.filename.current.lastIndexOf( "\\" );
-			download_info.url = "[" + item.filename.current.substring( filepath_length + 1 ) + "]" + download_info.url;
+			download_info.filename = item.filename.current.substring( filepath_length + 1 );
 			download_info.directory = item.filename.current.substring( 0, filepath_length );
 		}
 
@@ -468,6 +481,7 @@ function OnDownloadItemCreated( item )
 									headers: headers,
 									post_data: post_data,
 									directory: directory,
+									filename: "",
 									show_add_window: show_add_window } );
 		}
 	}
@@ -517,6 +531,8 @@ function OnMenuClicked( info, tab )
 		headers += "Referer: " + info.pageUrl.split( '#' )[ 0 ] + "\r\n";
 	}
 
+	var directory = g_options.default_directory;
+
 	if ( info.menuItemId == "download-all-images" ||
 		 info.menuItemId == "download-all-media" ||
 		 info.menuItemId == "download-all-links" )
@@ -538,8 +554,6 @@ function OnMenuClicked( info, tab )
 
 		chrome.tabs.executeScript( { file: script_file }, function( urls )
 		{
-			var directory = g_options.default_directory;
-
 			if ( typeof urls == "undefined" )
 			{
 				urls = "";
@@ -595,15 +609,13 @@ function OnMenuClicked( info, tab )
 			{
 				chrome.cookies.getAllCookieStores( function( cookie_stores )
 				{
-					var directory = g_options.default_directory;
-
 					GetCookieDomain( { url: info.pageUrl, cookie_stores: cookie_stores, index: 0 },
-									 { show_add_window: true, id: null, method: "1", url: urls, cookie_string: "", headers: headers, directory: directory, post_data: "" } );
+									 { show_add_window: true, id: null, method: "1", url: urls, cookie_string: "", headers: headers, directory: directory, filename: "", post_data: "" } );
 				} );
 			}
 			else
 			{
-				CreateDownloadWindow( { show_add_window: true, id: null, method: "1", url: urls, cookie_string: "", headers: headers, directory: directory, post_data: "" } );
+				CreateDownloadWindow( { show_add_window: true, id: null, method: "1", url: urls, cookie_string: "", headers: headers, directory: directory, filename: "", post_data: "" } );
 			}
 		} );
 	}
@@ -635,10 +647,8 @@ function OnMenuClicked( info, tab )
 		// Need to go through each cookie store if we're incognito/private browsing. Dumb!
 		chrome.cookies.getAllCookieStores( function( cookie_stores )
 		{
-			var directory = g_options.default_directory;
-
 			GetCookies( { url: url, cookie_stores: cookie_stores, index: 0 },
-						{ show_add_window: true, id: null, method: "1", url: url, cookie_string: "", headers: headers, directory: directory, post_data: "" } );
+						{ show_add_window: true, id: null, method: "1", url: url, cookie_string: "", headers: headers, directory: directory, filename: "", post_data: "" } );
 		} );
 	}
 }
@@ -659,7 +669,7 @@ function HandleCommand( command )
 	}
 	else if ( command === "add_urls_window" )
 	{
-		CreateDownloadWindow( { show_add_window: true, id: null, method: "1", url: "", cookie_string: "", headers: "", directory: "", post_data: "" } );
+		CreateDownloadWindow( { show_add_window: true, id: null, method: "1", url: "", cookie_string: "", headers: "", directory: "", filename: "", post_data: "" } );
 	}
 }
 

@@ -161,12 +161,23 @@ function GetDownloadInfo( id )
 	} )
 	.then( function( info )
 	{
+		var urls;
+
+		if ( info.filename != "" )
+		{
+			urls = "[" + info.filename + "]" + info.urls;
+		}
+		else
+		{
+			urls = info.urls;
+		}
+
 		document.getElementById( "window_id" ).value = id;
 		document.getElementById( "server" ).value = info.server;
 		document.getElementById( "server_username" ).value = atob( info.username );
 		document.getElementById( "server_password" ).value = atob( info.password );
-		document.getElementById( "last_urls" ).value = info.urls;
-		document.getElementById( "urls" ).value = info.urls;
+		document.getElementById( "last_urls" ).value = urls;
+		document.getElementById( "urls" ).value = urls;
 		document.getElementById( "cookies" ).value = ( info.cookies ? info.cookies : "" );
 		document.getElementById( "headers" ).value = ( info.headers ? info.headers : "" );
 		document.getElementById( "parts" ).value = info.parts;
