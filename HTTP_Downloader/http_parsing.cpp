@@ -24,6 +24,7 @@
 
 #include "lite_ole32.h"
 #include "lite_zlib1.h"
+#include "lite_normaliz.h"
 
 #include "cmessagebox.h"
 
@@ -2581,12 +2582,12 @@ char ParseHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int
 			{
 				if ( context->download_info != NULL )
 				{
-					EnterCriticalSection( &context->download_info->shared_cs );
+					EnterCriticalSection( &context->download_info->di_cs );
 
 					GlobalFree( context->download_info->cookies );
 					context->download_info->cookies = GlobalStrDupA( new_cookies );
 
-					LeaveCriticalSection( &context->download_info->shared_cs );
+					LeaveCriticalSection( &context->download_info->di_cs );
 				}
 
 				// If it's not, then free the old cookie and update it to the new one.
@@ -2650,91 +2651,6 @@ char ParseHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int
 			context->header_info.content_encoding = GetContentEncoding( header_buffer );
 		}
 
-		if ( context->download_info != NULL &&
-		  !( context->download_info->download_operations & DOWNLOAD_OPERATION_OVERRIDE_FILENAME ) &&
-		   ( context->download_info->download_operations & DOWNLOAD_OPERATION_GET_EXTENSION ) )
-		{
-			context->download_info->download_operations &= ~DOWNLOAD_OPERATION_GET_EXTENSION;
-
-			if ( GetContentType( header_buffer, context->download_info->file_path + context->download_info->file_extension_offset, MAX_PATH - context->download_info->file_extension_offset ) )
-			{
-				EnterCriticalSection( &icon_cache_cs );
-				// Find the icon info
-				dllrbt_iterator *itr = dllrbt_find( g_icon_handles, ( void * )L"", false );
-
-				// Free its values and remove it from the tree if there are no other items using it.
-				if ( itr != NULL )
-				{
-					ICON_INFO *ii = ( ICON_INFO * )( ( node_type * )itr )->val;
-					if ( ii != NULL )
-					{
-						if ( --ii->count == 0 )
-						{
-							DestroyIcon( ii->icon );
-							GlobalFree( ii->file_extension );
-							GlobalFree( ii );
-
-							dllrbt_remove( g_icon_handles, itr );
-						}
-					}
-					else
-					{
-						dllrbt_remove( g_icon_handles, itr );
-					}
-				}
-				LeaveCriticalSection( &icon_cache_cs );
-
-				int w_filename_length = lstrlenW( context->download_info->file_path + context->download_info->filename_offset );
-
-				// Make sure any existing file hasn't started downloading.
-				if ( !( context->download_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) && context->download_info->downloaded == 0 )
-				{
-					wchar_t file_path[ MAX_PATH ];
-					if ( cfg_use_temp_download_directory )
-					{
-						//int filename_length = lstrlenW( context->download_info->file_path + context->download_info->filename_offset );
-
-						_wmemcpy_s( file_path, MAX_PATH, cfg_temp_download_directory, g_temp_download_directory_length );
-						file_path[ g_temp_download_directory_length ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
-						_wmemcpy_s( file_path + ( g_temp_download_directory_length + 1 ), MAX_PATH - ( g_temp_download_directory_length - 1 ), context->download_info->file_path + context->download_info->filename_offset, w_filename_length );
-						file_path[ g_temp_download_directory_length + w_filename_length + 1 ] = 0;	// Sanity.
-					}
-					else
-					{
-						GetDownloadFilePath( context->download_info, file_path );
-					}
-
-					if ( GetFileAttributesW( file_path ) != INVALID_FILE_ATTRIBUTES )
-					{
-						context->got_filename = 2;
-					}
-					else	// No need to rename.
-					{
-						context->got_filename = 1;
-					}
-				}
-				else	// No need to rename.
-				{
-					context->got_filename = 1;
-				}
-
-				LeaveCriticalSection( &context->download_info->shared_cs );
-
-				SHFILEINFO *sfi = ( SHFILEINFO * )GlobalAlloc( GMEM_FIXED, sizeof( SHFILEINFO ) );
-
-				// Cache our file's icon.
-				ICON_INFO *ii = CacheIcon( context->download_info, sfi );
-
-				EnterCriticalSection( &context->download_info->shared_cs );
-
-				context->download_info->icon = ( ii != NULL ? &ii->icon : NULL );
-
-				LeaveCriticalSection( &context->download_info->shared_cs );
-
-				GlobalFree( sfi );
-			}
-		}
-
 		if ( context->header_info.http_status == 401 )
 		{
 			if ( context->header_info.digest_info == NULL )
@@ -2751,8 +2667,23 @@ char ParseHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int
 
 		if ( context->header_info.http_status == 407 )
 		{
-			if ( ( cfg_enable_proxy && context->request_info.protocol == PROTOCOL_HTTP ) ||
-				 ( cfg_enable_proxy_s && context->request_info.protocol == PROTOCOL_HTTPS ) )
+			bool use_http_proxy = cfg_enable_proxy;
+			bool use_https_proxy = cfg_enable_proxy_s;
+
+			if ( context->download_info != NULL && context->download_info->proxy_info != NULL )
+			{
+				if ( context->download_info->proxy_info->type == 1 )
+				{
+					use_http_proxy = true;
+				}
+				else if ( context->download_info->proxy_info->type == 2 )
+				{
+					use_https_proxy = true;
+				}
+			}
+
+			if ( ( use_http_proxy && context->request_info.protocol == PROTOCOL_HTTP ) ||
+				 ( use_https_proxy && context->request_info.protocol == PROTOCOL_HTTPS ) )
 			{
 				if ( context->header_info.proxy_digest_info == NULL )
 				{
@@ -2769,7 +2700,7 @@ char ParseHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int
 
 		if ( context->got_filename == 0 &&
 			 context->download_info != NULL &&
-		  !( context->download_info->download_operations & DOWNLOAD_OPERATION_OVERRIDE_FILENAME ) )
+		  !( context->download_info->shared_info->download_operations & DOWNLOAD_OPERATION_OVERRIDE_FILENAME ) )
 		{
 			unsigned int filename_length = 0;
 
@@ -2787,61 +2718,37 @@ char ParseHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int
 					}
 				}
 
-				EnterCriticalSection( &context->download_info->shared_cs );
+				EnterCriticalSection( &context->download_info->shared_info->di_cs );
 
-				context->download_info->icon = NULL;
+				context->download_info->shared_info->icon = NULL;
 
-				LeaveCriticalSection( &context->download_info->shared_cs );
+				LeaveCriticalSection( &context->download_info->shared_info->di_cs );
 
-				EnterCriticalSection( &icon_cache_cs );
-				// Find the icon info
-				dllrbt_iterator *itr = dllrbt_find( g_icon_handles, ( void * )( context->download_info->file_path + context->download_info->file_extension_offset ), false );
+				RemoveCachedIcon( context->download_info->shared_info );
 
-				// Free its values and remove it from the tree if there are no other items using it.
-				if ( itr != NULL )
-				{
-					ICON_INFO *ii = ( ICON_INFO * )( ( node_type * )itr )->val;
-					if ( ii != NULL )
-					{
-						if ( --ii->count == 0 )
-						{
-							DestroyIcon( ii->icon );
-							GlobalFree( ii->file_extension );
-							GlobalFree( ii );
+				EnterCriticalSection( &context->download_info->shared_info->di_cs );
 
-							dllrbt_remove( g_icon_handles, itr );
-						}
-					}
-					else
-					{
-						dllrbt_remove( g_icon_handles, itr );
-					}
-				}
-				LeaveCriticalSection( &icon_cache_cs );
-
-				EnterCriticalSection( &context->download_info->shared_cs );
-
-				int w_filename_length = MultiByteToWideChar( CP_UTF8, 0, tmp_filename, -1, context->download_info->file_path + context->download_info->filename_offset, MAX_PATH - context->download_info->filename_offset - 1 ) - 1;
+				int w_filename_length = MultiByteToWideChar( CP_UTF8, 0, tmp_filename, -1, context->download_info->shared_info->file_path + context->download_info->shared_info->filename_offset, MAX_PATH - context->download_info->shared_info->filename_offset - 1 ) - 1;
 				if ( w_filename_length == -1 && GetLastError() == ERROR_INSUFFICIENT_BUFFER )
 				{
-					w_filename_length = MAX_PATH - context->download_info->filename_offset - 1;
+					w_filename_length = MAX_PATH - context->download_info->shared_info->filename_offset - 1;
 				}
 
-				EscapeFilename( context->download_info->file_path + context->download_info->filename_offset );
+				EscapeFilename( context->download_info->shared_info->file_path + context->download_info->shared_info->filename_offset );
 
-				context->download_info->file_extension_offset = context->download_info->filename_offset + get_file_extension_offset( context->download_info->file_path + context->download_info->filename_offset, w_filename_length );
+				context->download_info->shared_info->file_extension_offset = context->download_info->shared_info->filename_offset + get_file_extension_offset( context->download_info->shared_info->file_path + context->download_info->shared_info->filename_offset, w_filename_length );
 
 				// Make sure any existing file hasn't started downloading.
-				if ( !( context->download_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) && context->download_info->downloaded == 0 )
+				if ( !( context->download_info->shared_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) && context->download_info->shared_info->downloaded == 0 )
 				{
 					wchar_t file_path[ MAX_PATH ];
 					if ( cfg_use_temp_download_directory )
 					{
-						//int filename_length = lstrlenW( context->download_info->file_path + context->download_info->filename_offset );
+						//int filename_length = lstrlenW( context->download_info->shared_info->file_path + context->download_info->shared_info->filename_offset );
 
 						_wmemcpy_s( file_path, MAX_PATH, cfg_temp_download_directory, g_temp_download_directory_length );
 						file_path[ g_temp_download_directory_length ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
-						_wmemcpy_s( file_path + ( g_temp_download_directory_length + 1 ), MAX_PATH - ( g_temp_download_directory_length - 1 ), context->download_info->file_path + context->download_info->filename_offset, w_filename_length );
+						_wmemcpy_s( file_path + ( g_temp_download_directory_length + 1 ), MAX_PATH - ( g_temp_download_directory_length - 1 ), context->download_info->shared_info->file_path + context->download_info->shared_info->filename_offset, w_filename_length );
 						file_path[ g_temp_download_directory_length + w_filename_length + 1 ] = 0;	// Sanity.
 					}
 					else
@@ -2863,22 +2770,86 @@ char ParseHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int
 					context->got_filename = 1;
 				}
 
-				LeaveCriticalSection( &context->download_info->shared_cs );
+				LeaveCriticalSection( &context->download_info->shared_info->di_cs );
 
 				SHFILEINFO *sfi = ( SHFILEINFO * )GlobalAlloc( GMEM_FIXED, sizeof( SHFILEINFO ) );
 
 				// Cache our file's icon.
-				ICON_INFO *ii = CacheIcon( context->download_info, sfi );
+				ICON_INFO *ii = CacheIcon( context->download_info->shared_info, sfi );
 
-				EnterCriticalSection( &context->download_info->shared_cs );
+				EnterCriticalSection( &context->download_info->shared_info->di_cs );
 
-				context->download_info->icon = ( ii != NULL ? &ii->icon : NULL );
+				context->download_info->shared_info->icon = ( ii != NULL ? &ii->icon : NULL );
 
-				LeaveCriticalSection( &context->download_info->shared_cs );
+				LeaveCriticalSection( &context->download_info->shared_info->di_cs );
 
 				GlobalFree( sfi );
 
 				GlobalFree( filename );
+
+				// Prevent the block below from being executed. We don't need to get the Content-Type information.
+				context->download_info->shared_info->download_operations &= ~DOWNLOAD_OPERATION_GET_EXTENSION;
+			}
+		}
+
+		if ( context->download_info != NULL &&
+		  !( context->download_info->shared_info->download_operations & DOWNLOAD_OPERATION_OVERRIDE_FILENAME ) &&
+		   ( context->download_info->shared_info->download_operations & DOWNLOAD_OPERATION_GET_EXTENSION ) )
+		{
+			context->download_info->shared_info->download_operations &= ~DOWNLOAD_OPERATION_GET_EXTENSION;
+
+			if ( GetContentType( header_buffer, context->download_info->shared_info->file_path + context->download_info->shared_info->file_extension_offset, MAX_PATH - context->download_info->shared_info->file_extension_offset ) )
+			{
+				RemoveCachedIcon( context->download_info->shared_info, L"" );
+
+				int w_filename_length = lstrlenW( context->download_info->shared_info->file_path + context->download_info->shared_info->filename_offset );
+
+				// Make sure any existing file hasn't started downloading.
+				if ( !( context->download_info->shared_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) && context->download_info->shared_info->downloaded == 0 )
+				{
+					wchar_t file_path[ MAX_PATH ];
+					if ( cfg_use_temp_download_directory )
+					{
+						//int filename_length = lstrlenW( context->download_info->shared_info->file_path + context->download_info->shared_info->filename_offset );
+
+						_wmemcpy_s( file_path, MAX_PATH, cfg_temp_download_directory, g_temp_download_directory_length );
+						file_path[ g_temp_download_directory_length ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
+						_wmemcpy_s( file_path + ( g_temp_download_directory_length + 1 ), MAX_PATH - ( g_temp_download_directory_length - 1 ), context->download_info->shared_info->file_path + context->download_info->shared_info->filename_offset, w_filename_length );
+						file_path[ g_temp_download_directory_length + w_filename_length + 1 ] = 0;	// Sanity.
+					}
+					else
+					{
+						GetDownloadFilePath( context->download_info, file_path );
+					}
+
+					if ( GetFileAttributesW( file_path ) != INVALID_FILE_ATTRIBUTES )
+					{
+						context->got_filename = 2;
+					}
+					else	// No need to rename.
+					{
+						context->got_filename = 1;
+					}
+				}
+				else	// No need to rename.
+				{
+					context->got_filename = 1;
+				}
+
+				LeaveCriticalSection( &context->download_info->di_cs );
+
+				SHFILEINFO *sfi = ( SHFILEINFO * )GlobalAlloc( GMEM_FIXED, sizeof( SHFILEINFO ) );
+
+				// Cache our file's icon.
+				ICON_INFO *ii = CacheIcon( context->download_info->shared_info, sfi );
+
+				EnterCriticalSection( &context->download_info->shared_info->di_cs );
+
+				context->download_info->shared_info->icon = ( ii != NULL ? &ii->icon : NULL );
+
+				LeaveCriticalSection( &context->download_info->shared_info->di_cs );
+
+				GlobalFree( sfi );
 			}
 		}
 
@@ -2886,7 +2857,7 @@ char ParseHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int
 		{
 			if ( context->download_info != NULL )
 			{
-				if ( !( context->download_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
+				if ( !( context->download_info->shared_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
 				{
 					SYSTEMTIME date_time;
 					_memzero( &date_time, sizeof( SYSTEMTIME ) );
@@ -2895,7 +2866,7 @@ char ParseHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int
 					{
 						SystemTimeToFileTime( &date_time, &context->header_info.last_modified );
 
-						EnterCriticalSection( &context->download_info->shared_cs );
+						EnterCriticalSection( &context->download_info->di_cs );
 
 						// A new download will have a last_modified value of 0. If it's been set and the times don't match, prompt the user.
 						if ( context->download_info->last_modified.QuadPart > 0 &&
@@ -2912,7 +2883,7 @@ char ParseHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int
 							context->download_info->last_modified.LowPart = context->header_info.last_modified.dwLowDateTime;
 						}
 
-						LeaveCriticalSection( &context->download_info->shared_cs );
+						LeaveCriticalSection( &context->download_info->di_cs );
 					}
 				}
 				else	// Simulation doesn't need to keep looking for it.
@@ -2929,7 +2900,7 @@ char ParseHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int
 			{
 				if ( context->download_info != NULL )
 				{
-					EnterCriticalSection( &context->download_info->shared_cs );
+					EnterCriticalSection( &context->download_info->di_cs );
 
 					if ( context->download_info->etag != NULL )
 					{
@@ -2938,7 +2909,7 @@ char ParseHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int
 
 					context->download_info->etag = etag;
 
-					LeaveCriticalSection( &context->download_info->shared_cs );
+					LeaveCriticalSection( &context->download_info->di_cs );
 
 					context->header_info.etag = true;
 				}
@@ -3001,8 +2972,43 @@ char GetHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int h
 			// If we're going to redirect, then allow the file to be renamed, but not if we've already processed (essentially allocated the file) our header information.
 			if ( !context->processed_header &&
 				  context->download_info != NULL &&
-			   !( context->download_info->download_operations & DOWNLOAD_OPERATION_OVERRIDE_FILENAME ) )
+			   !( context->download_info->shared_info->download_operations & DOWNLOAD_OPERATION_OVERRIDE_FILENAME ) )
 			{
+				if ( cfg_update_redirected )
+				{
+					int updated_hostname_length = MultiByteToWideChar( CP_UTF8, 0, context->header_info.url_location.host, -1, NULL, 0 ) - 1;
+					int updated_resource_length = MultiByteToWideChar( CP_UTF8, 0, context->header_info.url_location.resource, -1, NULL, 0 );	// Include the NULL temrinator.
+
+					int update_url_offset = 0;
+					int update_url_length = ( context->header_info.url_location.protocol == PROTOCOL_HTTPS ? 8 : 7 ) + updated_hostname_length + updated_resource_length;
+
+					wchar_t *updated_url = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * update_url_length );
+					_memset( updated_url, -3, update_url_length * sizeof( wchar_t ) );
+
+					if ( context->header_info.url_location.protocol == PROTOCOL_HTTPS )
+					{
+						_wmemcpy_s( updated_url, update_url_length, L"https://", 8 );
+						update_url_offset += 8;
+					}
+					else
+					{
+						_wmemcpy_s( updated_url, update_url_length, L"http://", 7 );
+						update_url_offset += 7;
+					}
+
+					MultiByteToWideChar( CP_UTF8, 0, context->header_info.url_location.host, -1, updated_url + update_url_offset, updated_hostname_length );
+					update_url_offset += updated_hostname_length;
+					MultiByteToWideChar( CP_UTF8, 0, context->header_info.url_location.resource, -1, updated_url + update_url_offset, updated_resource_length );
+
+					EnterCriticalSection( &context->download_info->di_cs );
+
+					wchar_t *t_url = context->download_info->url;
+					context->download_info->url = updated_url;
+					GlobalFree( t_url );
+
+					LeaveCriticalSection( &context->download_info->di_cs );
+				}
+
 				unsigned int filename_length = lstrlenA( context->header_info.url_location.resource );
 
 				char *filename = url_decode_a( context->header_info.url_location.resource, filename_length, &filename_length );
@@ -3058,70 +3064,47 @@ char GetHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int h
 								current_directory = "NO_FILENAME";
 							}
 
-							context->download_info->download_operations |= DOWNLOAD_OPERATION_GET_EXTENSION;
+							context->download_info->shared_info->download_operations |= DOWNLOAD_OPERATION_GET_EXTENSION;
 						}
 					}
 
-					EnterCriticalSection( &context->download_info->shared_cs );
+					EnterCriticalSection( &context->download_info->shared_info->di_cs );
 
-					context->download_info->icon = NULL;
+					context->download_info->shared_info->icon = NULL;
 
-					LeaveCriticalSection( &context->download_info->shared_cs );
+					LeaveCriticalSection( &context->download_info->shared_info->di_cs );
 
-					EnterCriticalSection( &icon_cache_cs );
-					// Find the icon info
-					dllrbt_iterator *itr = dllrbt_find( g_icon_handles, ( void * )( context->download_info->file_path + context->download_info->file_extension_offset ), false );
+					RemoveCachedIcon( context->download_info->shared_info );
 
-					// Free its values and remove it from the tree if there are no other items using it.
-					if ( itr != NULL )
-					{
-						ICON_INFO *ii = ( ICON_INFO * )( ( node_type * )itr )->val;
-						if ( ii != NULL )
-						{
-							if ( --ii->count == 0 )
-							{
-								DestroyIcon( ii->icon );
-								GlobalFree( ii->file_extension );
-								GlobalFree( ii );
+					EnterCriticalSection( &context->download_info->shared_info->di_cs );
 
-								dllrbt_remove( g_icon_handles, itr );
-							}
-						}
-						else
-						{
-							dllrbt_remove( g_icon_handles, itr );
-						}
-					}
-					LeaveCriticalSection( &icon_cache_cs );
-
-					EnterCriticalSection( &context->download_info->shared_cs );
-
-					int w_filename_length = MultiByteToWideChar( CP_UTF8, 0, current_directory, -1, context->download_info->file_path + context->download_info->filename_offset, MAX_PATH - context->download_info->filename_offset - 1 ) - 1;
+					int w_filename_length = MultiByteToWideChar( CP_UTF8, 0, current_directory, -1, context->download_info->shared_info->file_path + context->download_info->shared_info->filename_offset, MAX_PATH - context->download_info->shared_info->filename_offset - 1 ) - 1;
 					if ( w_filename_length == -1 && GetLastError() == ERROR_INSUFFICIENT_BUFFER )
 					{
-						w_filename_length = MAX_PATH - context->download_info->filename_offset - 1;
+						w_filename_length = MAX_PATH - context->download_info->shared_info->filename_offset - 1;
 					}
 
-					EscapeFilename( context->download_info->file_path + context->download_info->filename_offset );
+					EscapeFilename( context->download_info->shared_info->file_path + context->download_info->shared_info->filename_offset );
 
-					context->download_info->file_extension_offset = context->download_info->filename_offset + ( ( context->download_info->download_operations & DOWNLOAD_OPERATION_GET_EXTENSION ) ? w_filename_length : get_file_extension_offset( context->download_info->file_path + context->download_info->filename_offset, w_filename_length ) );
+					context->download_info->shared_info->file_extension_offset = context->download_info->shared_info->filename_offset + ( ( context->download_info->shared_info->download_operations & DOWNLOAD_OPERATION_GET_EXTENSION ) ? w_filename_length : get_file_extension_offset( context->download_info->shared_info->file_path + context->download_info->shared_info->filename_offset, w_filename_length ) );
 
-					if ( context->download_info->file_extension_offset == ( context->download_info->filename_offset + w_filename_length ) )
+					// Couldn't get an extension, try to get one from the Content-Type header field.
+					if ( context->download_info->shared_info->file_extension_offset == ( context->download_info->shared_info->filename_offset + w_filename_length ) )
 					{
-						context->download_info->download_operations |= DOWNLOAD_OPERATION_GET_EXTENSION;
+						context->download_info->shared_info->download_operations |= DOWNLOAD_OPERATION_GET_EXTENSION;
 					}
 
 					// Make sure any existing file hasn't started downloading.
-					if ( !( context->download_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) && context->download_info->downloaded == 0 )
+					if ( !( context->download_info->shared_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) && context->download_info->shared_info->downloaded == 0 )
 					{
 						wchar_t file_path[ MAX_PATH ];
 						if ( cfg_use_temp_download_directory )
 						{
-							//int filename_length = lstrlenW( context->download_info->file_path + context->download_info->filename_offset );
+							//int filename_length = lstrlenW( context->download_info->shared_info->file_path + context->download_info->shared_info->filename_offset );
 
 							_wmemcpy_s( file_path, MAX_PATH, cfg_temp_download_directory, g_temp_download_directory_length );
 							file_path[ g_temp_download_directory_length ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
-							_wmemcpy_s( file_path + ( g_temp_download_directory_length + 1 ), MAX_PATH - ( g_temp_download_directory_length - 1 ), context->download_info->file_path + context->download_info->filename_offset, w_filename_length );
+							_wmemcpy_s( file_path + ( g_temp_download_directory_length + 1 ), MAX_PATH - ( g_temp_download_directory_length - 1 ), context->download_info->shared_info->file_path + context->download_info->shared_info->filename_offset, w_filename_length );
 							file_path[ g_temp_download_directory_length + w_filename_length + 1 ] = 0;	// Sanity.
 						}
 						else
@@ -3143,18 +3126,18 @@ char GetHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int h
 						context->got_filename = 1;
 					}
 
-					LeaveCriticalSection( &context->download_info->shared_cs );
+					LeaveCriticalSection( &context->download_info->shared_info->di_cs );
 
 					SHFILEINFO *sfi = ( SHFILEINFO * )GlobalAlloc( GMEM_FIXED, sizeof( SHFILEINFO ) );
 
 					// Cache our file's icon.
-					ICON_INFO *ii = CacheIcon( context->download_info, sfi );
+					ICON_INFO *ii = CacheIcon( context->download_info->shared_info, sfi );
 
-					EnterCriticalSection( &context->download_info->shared_cs );
+					EnterCriticalSection( &context->download_info->shared_info->di_cs );
 
-					context->download_info->icon = ( ii != NULL ? &ii->icon : NULL );
+					context->download_info->shared_info->icon = ( ii != NULL ? &ii->icon : NULL );
 
-					LeaveCriticalSection( &context->download_info->shared_cs );
+					LeaveCriticalSection( &context->download_info->shared_info->di_cs );
 
 					GlobalFree( sfi );
 
@@ -3176,8 +3159,23 @@ char GetHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int h
 			}
 			else// if ( context->header_info.http_status == 407 )
 			{
-				if ( ( cfg_enable_proxy && context->request_info.protocol == PROTOCOL_HTTP ) ||
-					 ( cfg_enable_proxy_s && context->request_info.protocol == PROTOCOL_HTTPS ) )
+				bool use_http_proxy = cfg_enable_proxy;
+				bool use_https_proxy = cfg_enable_proxy_s;
+
+				if ( context->download_info != NULL && context->download_info->proxy_info != NULL )
+				{
+					if ( context->download_info->proxy_info->type == 1 )
+					{
+						use_http_proxy = true;
+					}
+					else if ( context->download_info->proxy_info->type == 2 )
+					{
+						use_https_proxy = true;
+					}
+				}
+
+				if ( ( use_http_proxy && context->request_info.protocol == PROTOCOL_HTTP ) ||
+					 ( use_https_proxy && context->request_info.protocol == PROTOCOL_HTTPS ) )
 				{
 					auth_info = context->header_info.proxy_digest_info;
 				}
@@ -3238,7 +3236,13 @@ char GetHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int h
 			{
 				if ( !context->processed_header )
 				{
-					context->show_file_size_prompt = true;
+					EnterCriticalSection( &context->download_info->shared_info->di_cs );
+
+					// If we've processed the header for a group of hosts, then there's no need to prompt for every other host.
+					// A single host will not have had its header processed so we can set this to true to prompt.
+					context->show_file_size_prompt = !context->download_info->shared_info->processed_header;
+
+					LeaveCriticalSection( &context->download_info->shared_info->di_cs );
 				}
 			}
 
@@ -3247,6 +3251,20 @@ char GetHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int h
 				// If our range connections have been made. Start retrieving their content.
 				if ( context->processed_header )
 				{
+					// Make sure the (group) host's content_length is no more than our shared_info->file_size.
+					// We'll have set the download_info->file_size in MakeRangeRequest().
+					if ( context->download_info != NULL && IS_GROUP( context->download_info ) )
+					{
+						if ( context->header_info.range_info->content_length == context->download_info->shared_info->file_size )
+						{
+							context->header_info.range_info->content_length = context->download_info->file_size;
+						}
+						else
+						{
+							return CONTENT_STATUS_FAILED;
+						}
+					}
+
 					return CONTENT_STATUS_GET_CONTENT;
 				}
 				else	// The range connections have not been made. We've only requested the length (Range: 0-0) so far.
@@ -3259,11 +3277,11 @@ char GetHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int h
 					{
 						if ( context->download_info != NULL )
 						{
-							EnterCriticalSection( &context->download_info->shared_cs );
+							EnterCriticalSection( &context->download_info->di_cs );
 
 							context->download_info->processed_header = true;
 
-							LeaveCriticalSection( &context->download_info->shared_cs );
+							LeaveCriticalSection( &context->download_info->di_cs );
 						}
 
 						context->parts = 1;	// Allow only one connection.
@@ -3284,7 +3302,9 @@ char GetHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int h
 			{
 				// If we indended to make a range request and the status is not 206.
 				//if ( context->parts > 1 /*&& ( context->header_info.range_info->range_start > 0 || context->header_info.range_info->range_end > 0 )*/ )
-				if ( context->parts > 1 && context->processed_header )
+				if ( ( context->parts > 1 ||
+					 ( context->download_info != NULL && IS_GROUP( context->download_info ) ) ) &&
+					   context->processed_header )
 				{
 					return CONTENT_STATUS_FAILED;
 				}
@@ -3292,11 +3312,11 @@ char GetHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int h
 				{
 					if ( context->download_info != NULL )
 					{
-						EnterCriticalSection( &context->download_info->shared_cs );
+						EnterCriticalSection( &context->download_info->di_cs );
 
 						context->download_info->processed_header = true;
 
-						LeaveCriticalSection( &context->download_info->shared_cs );
+						LeaveCriticalSection( &context->download_info->di_cs );
 					}
 
 					context->parts = 1;	// If the content is not a range (206), then allow only one connection.
@@ -3321,18 +3341,51 @@ char GetHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int h
 				context->header_info.range_info->range_end = context->header_info.range_info->content_length - 1;
 			}
 
-			EnterCriticalSection( &context->download_info->shared_cs );
-
-			context->download_info->parts = context->parts;
-
-			context->download_info->file_size = context->header_info.range_info->content_length;
-
-			if ( context->ssl == NULL )
+			if ( context->download_info != NULL )
 			{
-				context->download_info->ssl_version = -1;
-			}
+				EnterCriticalSection( &context->download_info->di_cs );
 
-			LeaveCriticalSection( &context->download_info->shared_cs );
+				context->download_info->parts = context->parts;
+
+				if ( context->ssl == NULL )
+				{
+					context->download_info->ssl_version = -1;
+				}
+
+				// We tried to use multiple hosts, but the driver host can't do range requests (we'll assume no other hosts can).
+				// We need to set the status of all others hosts in the host list to skipped.
+				if ( IS_GROUP( context->download_info ) )
+				{
+					context->download_info->file_size = context->header_info.range_info->content_length;
+
+					DoublyLinkedList *host_node = context->download_info->shared_info_node.next;
+					while ( host_node != NULL )
+					{
+						DOWNLOAD_INFO *host_di = ( DOWNLOAD_INFO * )host_node->data;
+						if ( host_di != NULL )
+						{
+							EnterCriticalSection( &host_di->di_cs );
+
+							host_di->status = STATUS_SKIPPED;
+
+							LeaveCriticalSection( &host_di->di_cs );
+						}
+
+						host_node = host_node->next;
+					}
+				}
+
+				LeaveCriticalSection( &context->download_info->di_cs );
+
+				EnterCriticalSection( &context->download_info->shared_info->di_cs );
+
+				if ( !IS_GROUP( context->download_info ) || !context->download_info->shared_info->processed_header )
+				{
+					context->download_info->shared_info->file_size = context->header_info.range_info->content_length;
+				}
+
+				LeaveCriticalSection( &context->download_info->shared_info->di_cs );
+			}
 		}
 
 		return content_status;
@@ -3349,6 +3402,8 @@ char HandleRedirect( SOCKET_CONTEXT *context )
 		SOCKET_CONTEXT *redirect_context = CreateSocketContext();
 
 		redirect_context->processed_header = context->processed_header;
+
+		redirect_context->update_status = context->update_status;
 
 		redirect_context->part = context->part;
 		redirect_context->parts = context->parts;
@@ -3432,7 +3487,7 @@ char HandleRedirect( SOCKET_CONTEXT *context )
 
 		if ( context->download_info != NULL )
 		{
-			EnterCriticalSection( &context->download_info->shared_cs );
+			EnterCriticalSection( &context->download_info->di_cs );
 
 			redirect_context->download_info = context->download_info;
 
@@ -3441,7 +3496,7 @@ char HandleRedirect( SOCKET_CONTEXT *context )
 			redirect_context->parts_node.data = redirect_context;
 			DLL_AddNode( &redirect_context->download_info->parts_list, &redirect_context->parts_node, -1 );
 
-			LeaveCriticalSection( &context->download_info->shared_cs );
+			LeaveCriticalSection( &context->download_info->di_cs );
 
 			context->download_info = NULL;
 		}
@@ -3477,24 +3532,130 @@ char MakeRangeRequest( SOCKET_CONTEXT *context )
 
 	if ( context != NULL )
 	{
+		// Handle group parts if downloading from multiple hosts.
+		if ( context->download_info != NULL )
+		{
+			EnterCriticalSection( &context->download_info->shared_info->di_cs );
+
+			if ( IS_GROUP( context->download_info ) && !context->download_info->shared_info->processed_header )
+			{
+				context->download_info->shared_info->processed_header = true;
+
+				unsigned long long content_length = context->header_info.range_info->content_length;
+
+				unsigned char host_count = context->download_info->shared_info->hosts;
+
+				// Make sure we can split the download into enough parts.
+				if ( content_length < host_count )
+				{
+					host_count = ( content_length > 0 ? ( unsigned char )content_length : 1 );
+				}
+
+				unsigned long long host_size = content_length / host_count;
+				unsigned long long host_offset = host_size;
+
+				context->header_info.range_info->range_start = context->header_info.range_info->content_offset;
+				context->header_info.range_info->range_end = host_offset - 1;
+				context->header_info.range_info->content_offset = 0;
+				context->header_info.range_info->content_length = host_size;	// Set this here so that the range parts below can split properly.
+
+				EnterCriticalSection( &context->download_info->di_cs );
+
+				context->download_info->file_size = host_size;
+
+				LeaveCriticalSection( &context->download_info->di_cs );
+
+				DoublyLinkedList *host_node = context->download_info->shared_info_node.next;
+
+				for ( unsigned char host = 2; host <= context->download_info->shared_info->hosts && host_node != NULL; ++host )
+				{
+					DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )host_node->data;
+					if ( di != NULL )
+					{
+						EnterCriticalSection( &di->di_cs );
+
+						if ( host <= host_count )
+						{
+							di->processed_header = true;
+
+							RANGE_INFO *ri;
+
+							if ( di->range_list != NULL )
+							{
+								ri = ( RANGE_INFO * )di->range_list->data;
+								ri->content_offset = 0;
+							}
+							else
+							{
+								ri = ( RANGE_INFO * )GlobalAlloc( GPTR, sizeof( RANGE_INFO ) );
+								DoublyLinkedList *range_node = DLL_CreateNode( ( void * )ri );
+								DLL_AddNode( &di->range_list, range_node, -1 );
+							}
+
+							ri->range_start = host_offset;
+
+							if ( host < host_count )
+							{
+								host_offset += host_size;
+
+								ri->range_end = host_offset - 1;
+								//ri->content_length = host_size;
+								di->file_size = host_size;
+							}
+							else	// Make sure we have an accurate range end for the last host.
+							{
+								ri->range_end = content_length - 1;
+								//ri->content_length = content_length - host_offset;
+								di->file_size = content_length - host_offset;
+							}
+
+							ri->file_write_offset = ri->range_start;
+						}
+						else
+						{
+							di->status = STATUS_SKIPPED;
+						}
+
+						LeaveCriticalSection( &di->di_cs );
+
+						if ( host <= host_count )
+						{
+							StartDownload( di, 2, false );
+						}
+					}
+
+					host_node = host_node->next;
+				}
+			}
+
+			LeaveCriticalSection( &context->download_info->shared_info->di_cs );
+		}
+
 		// Create a new connection for the remaining parts.
 		if ( context->parts > 1 )
 		{
+			unsigned long long content_length = context->header_info.range_info->content_length;
+
+			unsigned long long range_size = content_length / context->parts;
+			unsigned long long range_offset = range_size;
+
 			if ( context->download_info != NULL )
 			{
-				EnterCriticalSection( &context->download_info->shared_cs );
+				EnterCriticalSection( &context->download_info->di_cs );
 
 				context->download_info->processed_header = true;
 
-				LeaveCriticalSection( &context->download_info->shared_cs );
+				LeaveCriticalSection( &context->download_info->di_cs );
+
+				// Set this if we're not a group.
+				if ( context->download_info->shared_info->hosts == 1 )
+				{
+					context->header_info.range_info->range_start = context->header_info.range_info->content_offset;
+					context->header_info.range_info->content_offset = 0;
+				}
 			}
 
-			unsigned long long range_size = context->header_info.range_info->content_length / context->parts;
-			unsigned long long range_offset = range_size;
-
-			context->header_info.range_info->range_start = context->header_info.range_info->content_offset;
 			context->header_info.range_info->range_end = range_offset;
-			context->header_info.range_info->content_offset = 0;
 
 			for ( unsigned char part = 2; part <= context->parts; ++part )
 			{
@@ -3502,7 +3663,7 @@ char MakeRangeRequest( SOCKET_CONTEXT *context )
 
 				if ( context->download_info != NULL )
 				{
-					EnterCriticalSection( &context->download_info->shared_cs );
+					EnterCriticalSection( &context->download_info->di_cs );
 
 					// Queue the ranges that won't be downloaded immediately. We'll skip the creation of the context below.
 					if ( context->download_info->parts_limit > 0 && part > context->download_info->parts_limit )
@@ -3518,9 +3679,10 @@ char MakeRangeRequest( SOCKET_CONTEXT *context )
 						}
 						else	// Make sure we have an accurate range end for the last part.
 						{
-							ri->range_end = context->header_info.range_info->content_length - 1;
+							ri->range_end = content_length - 1;
 						}
 
+						//ri->content_length = content_length;
 						ri->file_write_offset = ri->range_start;
 
 						DoublyLinkedList *range_node = DLL_CreateNode( ( void * )ri );
@@ -3534,7 +3696,7 @@ char MakeRangeRequest( SOCKET_CONTEXT *context )
 						skip_context_creation = true;
 					}
 
-					LeaveCriticalSection( &context->download_info->shared_cs );
+					LeaveCriticalSection( &context->download_info->di_cs );
 				}
 
 				if ( skip_context_creation )
@@ -3609,9 +3771,10 @@ char MakeRangeRequest( SOCKET_CONTEXT *context )
 				}
 				else	// Make sure we have an accurate range end for the last part.
 				{
-					new_context->header_info.range_info->range_end = context->header_info.range_info->content_length - 1;
+					new_context->header_info.range_info->range_end = content_length - 1;
 				}
 
+				//new_context->header_info.range_info->content_length = content_length;
 				new_context->header_info.range_info->file_write_offset = new_context->header_info.range_info->range_start;
 
 				//
@@ -3627,7 +3790,7 @@ char MakeRangeRequest( SOCKET_CONTEXT *context )
 				// Add to the parts list.
 				if ( context->download_info != NULL )
 				{
-					EnterCriticalSection( &context->download_info->shared_cs );
+					EnterCriticalSection( &context->download_info->di_cs );
 
 					new_context->download_info = context->download_info;
 
@@ -3639,7 +3802,17 @@ char MakeRangeRequest( SOCKET_CONTEXT *context )
 					new_context->parts_node.data = new_context;
 					DLL_AddNode( &new_context->download_info->parts_list, &new_context->parts_node, -1 );
 
-					LeaveCriticalSection( &context->download_info->shared_cs );
+					LeaveCriticalSection( &context->download_info->di_cs );
+
+					EnterCriticalSection( &context->download_info->shared_info->di_cs );
+
+					// For groups.
+					if ( IS_GROUP( context->download_info ) )
+					{
+						++( context->download_info->shared_info->active_parts );
+					}
+
+					LeaveCriticalSection( &context->download_info->shared_info->di_cs );
 				}
 
 				new_context->status = STATUS_CONNECTING;
@@ -3741,6 +3914,8 @@ char MakeRequest( SOCKET_CONTEXT *context, IO_OPERATION next_operation, bool use
 
 			new_context->processed_header = context->processed_header;
 
+			new_context->update_status = context->update_status;
+
 			new_context->part = context->part;
 			new_context->parts = context->parts;
 
@@ -3805,7 +3980,7 @@ char MakeRequest( SOCKET_CONTEXT *context, IO_OPERATION next_operation, bool use
 			// Add to the parts list.
 			if ( context->download_info != NULL )
 			{
-				EnterCriticalSection( &context->download_info->shared_cs );
+				EnterCriticalSection( &context->download_info->di_cs );
 
 				new_context->download_info = context->download_info;
 
@@ -3814,7 +3989,7 @@ char MakeRequest( SOCKET_CONTEXT *context, IO_OPERATION next_operation, bool use
 				new_context->parts_node.data = new_context;
 				DLL_AddNode( &new_context->download_info->parts_list, &new_context->parts_node, -1 );
 
-				LeaveCriticalSection( &context->download_info->shared_cs );
+				LeaveCriticalSection( &context->download_info->di_cs );
 
 				context->download_info = NULL;
 			}
@@ -3988,12 +4163,14 @@ char AllocateFile( SOCKET_CONTEXT *context )
 
 	if ( context->download_info != NULL )
 	{
-		EnterCriticalSection( &context->download_info->shared_cs );
+		EnterCriticalSection( &context->download_info->di_cs );
+
+		EnterCriticalSection( &context->download_info->shared_info->di_cs );
 
 		context->is_allocated = true;
 
 		// See if we've created a file.
-		if ( context->download_info->hFile == INVALID_HANDLE_VALUE )
+		if ( context->download_info->shared_info->hFile == INVALID_HANDLE_VALUE )
 		{
 			if ( context->download_info->status != STATUS_FILE_IO_ERROR )
 			{
@@ -4008,19 +4185,19 @@ char AllocateFile( SOCKET_CONTEXT *context )
 				}
 
 				// If the file already exists and has been partially downloaded, then open it to resume downloading.
-				if ( GetFileAttributesW( file_path ) != INVALID_FILE_ATTRIBUTES && context->download_info->downloaded > 0 )
+				if ( GetFileAttributesW( file_path ) != INVALID_FILE_ATTRIBUTES && context->download_info->shared_info->downloaded > 0 )
 				{
 					// If the file has downloaded data (we're resuming), then open it, otherwise truncate its size to 0.
-					context->download_info->hFile = CreateFile( file_path, GENERIC_WRITE | FILE_WRITE_ATTRIBUTES | DELETE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED, NULL );
+					context->download_info->shared_info->hFile = CreateFile( file_path, GENERIC_WRITE | FILE_WRITE_ATTRIBUTES | DELETE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED, NULL );
 
-					if ( context->download_info->hFile != INVALID_HANDLE_VALUE )
+					if ( context->download_info->shared_info->hFile != INVALID_HANDLE_VALUE )
 					{
 						if ( cfg_set_filetime && context->got_last_modified == 1 )
 						{
-							SetFileTime( context->download_info->hFile, &context->header_info.last_modified, &context->header_info.last_modified, &context->header_info.last_modified );
+							SetFileTime( context->download_info->shared_info->hFile, &context->header_info.last_modified, &context->header_info.last_modified, &context->header_info.last_modified );
 						}
 
-						g_hIOCP = CreateIoCompletionPort( context->download_info->hFile, g_hIOCP, 0, 0 );
+						g_hIOCP = CreateIoCompletionPort( context->download_info->shared_info->hFile, g_hIOCP, 0, 0 );
 						if ( g_hIOCP != NULL )
 						{
 //							context->overlapped.context = context;
@@ -4029,23 +4206,23 @@ char AllocateFile( SOCKET_CONTEXT *context )
 						}
 						else
 						{
-							CloseHandle( context->download_info->hFile );
-							context->download_info->hFile = INVALID_HANDLE_VALUE;
+							CloseHandle( context->download_info->shared_info->hFile );
+							context->download_info->shared_info->hFile = INVALID_HANDLE_VALUE;
 						}
 					}
 				}
 				else	// Pre-allocate our file on the disk if it does not exist, or if we're overwriting one that already exists.
 				{
-					context->download_info->hFile = CreateFile( file_path, GENERIC_WRITE | FILE_WRITE_ATTRIBUTES | DELETE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED, NULL );
+					context->download_info->shared_info->hFile = CreateFile( file_path, GENERIC_WRITE | FILE_WRITE_ATTRIBUTES | DELETE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED, NULL );
 
-					if ( context->download_info->hFile != INVALID_HANDLE_VALUE )
+					if ( context->download_info->shared_info->hFile != INVALID_HANDLE_VALUE )
 					{
 						if ( cfg_set_filetime && context->got_last_modified == 1 )
 						{
-							SetFileTime( context->download_info->hFile, &context->header_info.last_modified, &context->header_info.last_modified, &context->header_info.last_modified );
+							SetFileTime( context->download_info->shared_info->hFile, &context->header_info.last_modified, &context->header_info.last_modified, &context->header_info.last_modified );
 						}
 
-						g_hIOCP = CreateIoCompletionPort( context->download_info->hFile, g_hIOCP, 0, 0 );
+						g_hIOCP = CreateIoCompletionPort( context->download_info->shared_info->hFile, g_hIOCP, 0, 0 );
 						if ( g_hIOCP != NULL )
 						{
 //							context->overlapped.context = context;
@@ -4053,17 +4230,17 @@ char AllocateFile( SOCKET_CONTEXT *context )
 							LARGE_INTEGER li;
 							li.QuadPart = context->header_info.range_info->content_length;
 
-							SetFilePointerEx( context->download_info->hFile, li, NULL, FILE_BEGIN );
-							SetEndOfFile( context->download_info->hFile );
+							SetFilePointerEx( context->download_info->shared_info->hFile, li, NULL, FILE_BEGIN );
+							SetEndOfFile( context->download_info->shared_info->hFile );
 
 							if ( cfg_enable_quick_allocation && g_can_fast_allocate )	// Fast disk allocation if we're an administrator.
 							{
-								if ( SetFileValidData( context->download_info->hFile, li.QuadPart ) == FALSE )
+								if ( SetFileValidData( context->download_info->shared_info->hFile, li.QuadPart ) == FALSE )
 								{
 									file_status = 0;
 
-									CloseHandle( context->download_info->hFile );
-									context->download_info->hFile = INVALID_HANDLE_VALUE;
+									CloseHandle( context->download_info->shared_info->hFile );
+									context->download_info->shared_info->hFile = INVALID_HANDLE_VALUE;
 								}
 								else
 								{
@@ -4076,6 +4253,12 @@ char AllocateFile( SOCKET_CONTEXT *context )
 
 								context->download_info->status = STATUS_ALLOCATING_FILE;
 								context->status = STATUS_ALLOCATING_FILE;
+
+								// For groups.
+								if ( IS_GROUP( context->download_info ) )
+								{
+									context->download_info->shared_info->status = STATUS_ALLOCATING_FILE;
+								}
 
 								InterlockedIncrement( &context->pending_operations );
 
@@ -4094,22 +4277,22 @@ char AllocateFile( SOCKET_CONTEXT *context )
 								context->overlapped.overlapped.OffsetHigh = li.HighPart;
 
 								// Write a non-NULL character to the end of the file to zero it out.
-								BOOL bRet = WriteFile( context->download_info->hFile, "\x03", 1, NULL, ( OVERLAPPED * )&context->overlapped );
+								BOOL bRet = WriteFile( context->download_info->shared_info->hFile, "\x03", 1, NULL, ( OVERLAPPED * )&context->overlapped );
 								if ( bRet == FALSE && ( GetLastError() != ERROR_IO_PENDING ) )
 								{
 									InterlockedDecrement( &context->pending_operations );
 
 									file_status = 0;
 
-									CloseHandle( context->download_info->hFile );
-									context->download_info->hFile = INVALID_HANDLE_VALUE;
+									CloseHandle( context->download_info->shared_info->hFile );
+									context->download_info->shared_info->hFile = INVALID_HANDLE_VALUE;
 								}
 							}
 						}
 						else
 						{
-							CloseHandle( context->download_info->hFile );
-							context->download_info->hFile = INVALID_HANDLE_VALUE;
+							CloseHandle( context->download_info->shared_info->hFile );
+							context->download_info->shared_info->hFile = INVALID_HANDLE_VALUE;
 						}
 					}
 				}
@@ -4126,7 +4309,9 @@ char AllocateFile( SOCKET_CONTEXT *context )
 			file_status = 2;
 		}
 
-		LeaveCriticalSection( &context->download_info->shared_cs );
+		LeaveCriticalSection( &context->download_info->shared_info->di_cs );
+
+		LeaveCriticalSection( &context->download_info->di_cs );
 
 		if ( file_status == 0 )
 		{
@@ -4159,7 +4344,7 @@ char HandleRenamePrompt( SOCKET_CONTEXT *context )
 		// If we selected Skip to all, or it's a remotely initiated download, then close the connection.
 		if ( cfg_prompt_rename == 3 ||
 		   ( cfg_prompt_rename == 0 && ( g_rename_file_cmb_ret == CMBIDSKIPALL ||
-										 context->download_info->download_operations & DOWNLOAD_OPERATION_OVERRIDE_PROMPTS ) ) )
+										 context->download_info->shared_info->download_operations & DOWNLOAD_OPERATION_OVERRIDE_PROMPTS ) ) )
 		{
 			context->status = STATUS_SKIPPED;
 
@@ -4223,7 +4408,7 @@ char HandleFileSizePrompt( SOCKET_CONTEXT *context )
 		// If we selected No to all, or it's a remotely initiated download, then close the connection.
 		if ( cfg_prompt_file_size == 2 ||
 		   ( cfg_prompt_file_size == 0 && ( g_file_size_cmb_ret == CMBIDNOALL ||
-											context->download_info->download_operations & DOWNLOAD_OPERATION_OVERRIDE_PROMPTS ) ) )
+											context->download_info->shared_info->download_operations & DOWNLOAD_OPERATION_OVERRIDE_PROMPTS ) ) )
 		{
 			context->header_info.range_info->content_length = 0;
 			context->header_info.range_info->range_start = 0;
@@ -4292,7 +4477,7 @@ char HandleLastModifiedPrompt( SOCKET_CONTEXT *context )
 		// If we selected Skip to all, or it's a remotely initiated download, then close the connection.
 		if ( cfg_prompt_last_modified == 3 ||
 		   ( cfg_prompt_last_modified == 0 && ( g_last_modified_cmb_ret == CMBIDSKIPALL ||
-												context->download_info->download_operations & DOWNLOAD_OPERATION_OVERRIDE_PROMPTS ) ) )
+												context->download_info->shared_info->download_operations & DOWNLOAD_OPERATION_OVERRIDE_PROMPTS ) ) )
 		{
 			context->status = STATUS_SKIPPED;
 
@@ -4366,7 +4551,7 @@ char GetHTTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, uns
 		}
 
 		// Once we have the file size, allocate our file.
-		if ( context->download_info != NULL && !( context->download_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
+		if ( context->download_info != NULL && !( context->download_info->shared_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
 		{
 			content_status = HandleLastModifiedPrompt( context );
 
@@ -4401,12 +4586,22 @@ char GetHTTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, uns
 			}
 			else
 			{
-				EnterCriticalSection( &context->download_info->shared_cs );
+				EnterCriticalSection( &context->download_info->di_cs );
 
 				context->download_info->status = STATUS_DOWNLOADING;
 				context->status = STATUS_DOWNLOADING;
 
-				LeaveCriticalSection( &context->download_info->shared_cs );
+				LeaveCriticalSection( &context->download_info->di_cs );
+
+				// For groups.
+				if ( IS_GROUP( context->download_info ) )
+				{
+					EnterCriticalSection( &context->download_info->shared_info->di_cs );
+
+					context->download_info->shared_info->status = STATUS_DOWNLOADING;
+
+					LeaveCriticalSection( &context->download_info->shared_info->di_cs );
+				}
 			}
 		}
 
@@ -4432,7 +4627,8 @@ char GetHTTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, uns
 	// Now we need to decode the buffer in case it was a chunked transfer. Boo!!!
 	if ( context->header_info.chunked_transfer )
 	{
-		if ( context->download_info != NULL && !( context->download_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
+		if ( ( context->download_info != NULL && !( context->download_info->shared_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) ) ||
+			   context->update_status != 0x00 )
 		{
 			if ( context->header_info.chunk_buffer == NULL )
 			{
@@ -4441,7 +4637,10 @@ char GetHTTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, uns
 		}
 
 		context->write_wsabuf.buf = context->header_info.chunk_buffer;
-		context->write_wsabuf.len = 0;
+		if ( context->update_status == 0x00 )
+		{
+			context->write_wsabuf.len = 0;
+		}
 
 		content_status = CONTENT_STATUS_READ_MORE_CONTENT;
 
@@ -4504,8 +4703,8 @@ char GetHTTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, uns
 					{
 						_memmove( context->buffer, response_buffer, response_buffer_length );
 
-						context->wsabuf.buf = context->buffer + response_buffer_length;
-						context->wsabuf.len = context->buffer_size - response_buffer_length;
+						context->wsabuf.buf += response_buffer_length;
+						context->wsabuf.len -= response_buffer_length;
 
 						content_status = CONTENT_STATUS_READ_MORE_CONTENT;	// Read more content data.
 						break;
@@ -4550,11 +4749,16 @@ char GetHTTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, uns
 
 				if ( context->download_info != NULL )
 				{
-					if ( !( context->download_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
+					if ( !( context->download_info->shared_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
 					{
 						_memcpy_s( context->write_wsabuf.buf + context->write_wsabuf.len, context->buffer_size - context->write_wsabuf.len, output_buffer, output_buffer_length );
 					}
 
+					context->write_wsabuf.len += output_buffer_length;
+				}
+				else if ( context->update_status != 0x00 )
+				{
+					_memcpy_s( context->write_wsabuf.buf + context->write_wsabuf.len, context->buffer_size - context->write_wsabuf.len, output_buffer, output_buffer_length );
 					context->write_wsabuf.len += output_buffer_length;
 				}
 
@@ -4590,11 +4794,16 @@ char GetHTTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, uns
 
 				if ( context->download_info != NULL )
 				{
-					if ( !( context->download_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
+					if ( !( context->download_info->shared_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
 					{
 						_memcpy_s( context->write_wsabuf.buf + context->write_wsabuf.len, context->buffer_size - context->write_wsabuf.len, output_buffer, output_buffer_length );
 					}
 
+					context->write_wsabuf.len += output_buffer_length;
+				}
+				else if ( context->update_status != 0x00 )
+				{
+					_memcpy_s( context->write_wsabuf.buf + context->write_wsabuf.len, context->buffer_size - context->write_wsabuf.len, output_buffer, output_buffer_length );
 					context->write_wsabuf.len += output_buffer_length;
 				}
 
@@ -4639,14 +4848,14 @@ char GetHTTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, uns
 		{
 			if ( context->download_info != NULL )
 			{
-				if ( !( context->download_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
+				if ( !( context->download_info->shared_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
 				{
-					if ( context->download_info->hFile != INVALID_HANDLE_VALUE )
+					if ( context->download_info->shared_info->hFile != INVALID_HANDLE_VALUE )
 					{
 						LARGE_INTEGER li;
 						li.QuadPart = context->header_info.range_info->file_write_offset;//context->header_info.range_info->range_start + context->header_info.range_info->write_length;
 
-						EnterCriticalSection( &context->download_info->shared_cs );
+						EnterCriticalSection( &context->download_info->shared_info->di_cs );
 
 						InterlockedIncrement( &context->pending_operations );
 
@@ -4667,7 +4876,7 @@ char GetHTTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, uns
 
 						//context->header_info.range_info->file_write_offset += context->write_wsabuf.len;	// The size of the non-encoded/decoded data that we're writing to the file.
 
-						BOOL bRet = WriteFile( context->download_info->hFile, context->write_wsabuf.buf, context->write_wsabuf.len, NULL, ( OVERLAPPED * )&context->overlapped );
+						BOOL bRet = WriteFile( context->download_info->shared_info->hFile, context->write_wsabuf.buf, context->write_wsabuf.len, NULL, ( OVERLAPPED * )&context->overlapped );
 						if ( bRet == FALSE && ( GetLastError() != ERROR_IO_PENDING ) )
 						{
 							InterlockedDecrement( &context->pending_operations );
@@ -4682,11 +4891,11 @@ char GetHTTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, uns
 							context->content_offset = 0;
 							//context->header_info.range_info->file_write_offset -= context->write_wsabuf.len;	// The size of the non-encoded/decoded data that we're writing to the file.
 
-							CloseHandle( context->download_info->hFile );
-							context->download_info->hFile = INVALID_HANDLE_VALUE;
+							CloseHandle( context->download_info->shared_info->hFile );
+							context->download_info->shared_info->hFile = INVALID_HANDLE_VALUE;
 						}
 
-						LeaveCriticalSection( &context->download_info->shared_cs );
+						LeaveCriticalSection( &context->download_info->shared_info->di_cs );
 
 						return content_status;
 					}
@@ -4697,16 +4906,73 @@ char GetHTTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, uns
 				}
 				else	// Simulated download.
 				{
-					EnterCriticalSection( &context->download_info->shared_cs );
+					if ( IS_GROUP( context->download_info ) )
+					{
+						EnterCriticalSection( &context->download_info->shared_info->di_cs );
+
+						context->download_info->shared_info->downloaded += context->write_wsabuf.len;			// The total amount of data (decoded) that was saved/simulated.
+
+						LeaveCriticalSection( &context->download_info->shared_info->di_cs );
+					}
+
+					EnterCriticalSection( &context->download_info->di_cs );
 					context->download_info->downloaded += context->write_wsabuf.len;			// The total amount of data (decoded) that was saved/simulated.
-					LeaveCriticalSection( &context->download_info->shared_cs );
+					LeaveCriticalSection( &context->download_info->di_cs );
 
 					EnterCriticalSection( &session_totals_cs );
 					g_session_total_downloaded += context->write_wsabuf.len;
+					cfg_total_downloaded += context->write_wsabuf.len;
 					LeaveCriticalSection( &session_totals_cs );
 
 					context->header_info.range_info->content_offset += context->content_offset;	// The true amount that was downloaded. Allows us to resume if we stop the download.
 					context->content_offset = 0;
+				}
+			}
+			else if ( context->update_status != 0x00 )
+			{
+				if ( context->header_info.http_status == 200 )
+				{
+					context->update_status |= 0x02;	// Process the data when the connection closes.
+
+					if ( context->header_info.got_chunk_terminator )
+					{
+						context->write_wsabuf.buf[ context->write_wsabuf.len ] = 0;	// Sanity.
+
+						char *version_start_ptr = context->write_wsabuf.buf;
+						char *verion_end_ptr;
+#ifdef _WIN64
+						version_start_ptr = _StrStrA( version_start_ptr, "\r\n" );
+						if ( version_start_ptr != NULL ) { version_start_ptr += 2; }
+						version_start_ptr = _StrStrA( version_start_ptr, "\r\n" );
+						if ( version_start_ptr != NULL ) { version_start_ptr += 2; }
+#endif
+						verion_end_ptr = _StrStrA( version_start_ptr, "\r\n" );
+						if ( verion_end_ptr != NULL )
+						{
+							*verion_end_ptr = 0;	// Sanity.
+							verion_end_ptr += 2;
+
+							g_new_version = _strtoul( version_start_ptr, NULL, 10 );
+
+							int new_version_url_length;
+
+							version_start_ptr = _StrStrA( verion_end_ptr, "\r\n" );
+							if ( version_start_ptr != NULL )
+							{
+								*version_start_ptr = 0;	// Sanity.
+
+								new_version_url_length = ( int )( version_start_ptr - verion_end_ptr );
+							}
+							else
+							{
+								new_version_url_length = ( int )( ( context->write_wsabuf.buf + context->write_wsabuf.len ) - verion_end_ptr );
+							}
+
+							g_new_version_url = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( new_version_url_length + 1 ) );
+							_memcpy_s( g_new_version_url, new_version_url_length + 1, verion_end_ptr, new_version_url_length );
+							g_new_version_url[ new_version_url_length ] = 0;	// Sanity.
+						}
+					}
 				}
 			}
 			else	// Shouldn't happen.
@@ -4716,7 +4982,8 @@ char GetHTTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, uns
 		}
 
 		if ( ( context->parts == 1 && context->header_info.connection == CONNECTION_KEEP_ALIVE && context->header_info.got_chunk_terminator ) ||
-			 ( context->parts > 1 && ( context->header_info.range_info->content_offset >= ( ( context->header_info.range_info->range_end - context->header_info.range_info->range_start ) + 1 ) ) ) )
+		   ( ( context->parts > 1 || ( context->download_info != NULL && IS_GROUP( context->download_info ) ) ) &&
+			 ( context->header_info.range_info->content_offset >= ( ( context->header_info.range_info->range_end - context->header_info.range_info->range_start ) + 1 ) ) ) )
 		{
 			return CONTENT_STATUS_FAILED;	// We have no more data, so just close the connection.
 		}
@@ -4732,37 +4999,37 @@ char GetHTTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, uns
 
 		// Write buffer to file.
 
-		if ( context->download_info != NULL )
+		if ( zlib1_state == ZLIB1_STATE_RUNNING )
 		{
-			if ( zlib1_state == ZLIB1_STATE_RUNNING )
+			if ( context->header_info.content_encoding == CONTENT_ENCODING_GZIP || context->header_info.content_encoding == CONTENT_ENCODING_DEFLATE )
 			{
-				if ( context->header_info.content_encoding == CONTENT_ENCODING_GZIP || context->header_info.content_encoding == CONTENT_ENCODING_DEFLATE )
-				{
-					unsigned int total_data_length = DecompressStream( context, output_buffer, output_buffer_length );
+				unsigned int total_data_length = DecompressStream( context, output_buffer, output_buffer_length );
 
-					if ( context->decompressed_buf != NULL )
-					{
-						output_buffer = context->decompressed_buf;
-						output_buffer_length = total_data_length;
-					}
+				if ( context->decompressed_buf != NULL )
+				{
+					output_buffer = context->decompressed_buf;
+					output_buffer_length = total_data_length;
 				}
 			}
+		}
 
-			// Make sure the server isn't feeding us more data than they claim.
-			if ( context->header_info.range_info->content_length > 0 &&
-			   ( ( ( context->header_info.range_info->file_write_offset - context->header_info.range_info->range_start ) + output_buffer_length ) > ( ( context->header_info.range_info->range_end - context->header_info.range_info->range_start ) + 1 ) ) )
-			{
-				output_buffer_length -= ( unsigned int )( ( ( context->header_info.range_info->file_write_offset - context->header_info.range_info->range_start ) + output_buffer_length ) - ( ( context->header_info.range_info->range_end - context->header_info.range_info->range_start ) + 1 ) );
-			}
+		// Make sure the server isn't feeding us more data than they claim.
+		if ( context->header_info.range_info->content_length > 0 &&
+		   ( ( ( context->header_info.range_info->file_write_offset - context->header_info.range_info->range_start ) + output_buffer_length ) > ( ( context->header_info.range_info->range_end - context->header_info.range_info->range_start ) + 1 ) ) )
+		{
+			output_buffer_length -= ( unsigned int )( ( ( context->header_info.range_info->file_write_offset - context->header_info.range_info->range_start ) + output_buffer_length ) - ( ( context->header_info.range_info->range_end - context->header_info.range_info->range_start ) + 1 ) );
+		}
 
-			if ( !( context->download_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
+		if ( context->download_info != NULL )
+		{
+			if ( !( context->download_info->shared_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
 			{
-				if ( context->download_info->hFile != INVALID_HANDLE_VALUE )
+				if ( context->download_info->shared_info->hFile != INVALID_HANDLE_VALUE )
 				{
 					LARGE_INTEGER li;
 					li.QuadPart = context->header_info.range_info->file_write_offset;//context->header_info.range_info->range_start + context->header_info.range_info->content_offset;
 
-					EnterCriticalSection( &context->download_info->shared_cs );
+					EnterCriticalSection( &context->download_info->shared_info->di_cs );
 
 					InterlockedIncrement( &context->pending_operations );
 
@@ -4788,7 +5055,7 @@ char GetHTTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, uns
 					//context->header_info.range_info->content_offset += response_buffer_length;	// The true amount that was downloaded. Allows us to resume if we stop the download.
 					//context->header_info.range_info->file_write_offset += output_buffer_length;	// The size of the non-encoded/decoded data that we're writing to the file.
 
-					BOOL bRet = WriteFile( context->download_info->hFile, context->write_wsabuf.buf, context->write_wsabuf.len, NULL, ( OVERLAPPED * )&context->overlapped );
+					BOOL bRet = WriteFile( context->download_info->shared_info->hFile, context->write_wsabuf.buf, context->write_wsabuf.len, NULL, ( OVERLAPPED * )&context->overlapped );
 					if ( bRet == FALSE && ( GetLastError() != ERROR_IO_PENDING ) )
 					{
 						InterlockedDecrement( &context->pending_operations );
@@ -4804,11 +5071,11 @@ char GetHTTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, uns
 						//context->header_info.range_info->content_offset -= response_buffer_length;	// The true amount that was downloaded. Allows us to resume if we stop the download.
 						//context->header_info.range_info->file_write_offset -= output_buffer_length;	// The size of the non-encoded/decoded data that we're writing to the file.
 
-						CloseHandle( context->download_info->hFile );
-						context->download_info->hFile = INVALID_HANDLE_VALUE;
+						CloseHandle( context->download_info->shared_info->hFile );
+						context->download_info->shared_info->hFile = INVALID_HANDLE_VALUE;
 					}
 
-					LeaveCriticalSection( &context->download_info->shared_cs );
+					LeaveCriticalSection( &context->download_info->shared_info->di_cs );
 
 					return content_status;
 				}
@@ -4819,12 +5086,22 @@ char GetHTTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, uns
 			}
 			else	// Simulated download. Get the decompressed size of the stream.
 			{
-				EnterCriticalSection( &context->download_info->shared_cs );
+				if ( IS_GROUP( context->download_info ) )
+				{
+					EnterCriticalSection( &context->download_info->shared_info->di_cs );
+
+					context->download_info->shared_info->downloaded += output_buffer_length;					// The total amount of data (decoded) that was saved/simulated.
+
+					LeaveCriticalSection( &context->download_info->shared_info->di_cs );
+				}
+
+				EnterCriticalSection( &context->download_info->di_cs );
 				context->download_info->downloaded += output_buffer_length;					// The total amount of data (decoded) that was saved/simulated.
-				LeaveCriticalSection( &context->download_info->shared_cs );
+				LeaveCriticalSection( &context->download_info->di_cs );
 
 				EnterCriticalSection( &session_totals_cs );
 				g_session_total_downloaded += output_buffer_length;
+				cfg_total_downloaded += output_buffer_length;
 				LeaveCriticalSection( &session_totals_cs );
 
 				context->header_info.range_info->file_write_offset += output_buffer_length;	// The size of the non-encoded/decoded data that we would have written to a file.
@@ -4842,6 +5119,77 @@ char GetHTTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, uns
 				{
 					return ( !context->processed_header ? CONTENT_STATUS_HANDLE_RESPONSE : CONTENT_STATUS_READ_MORE_CONTENT );
 				}
+			}
+		}
+		else if ( context->update_status != 0x00 )
+		{
+			if ( context->header_info.http_status == 200 )
+			{
+				context->update_status |= 0x02;	// Process the data when the connection closes.
+			}
+
+			if ( response_buffer > context->buffer )
+			{
+				_memmove( context->buffer, response_buffer, response_buffer_length );
+			}
+
+			context->header_info.range_info->file_write_offset += output_buffer_length;	// The size of the non-encoded/decoded data that we would have written to a file.
+
+			context->header_info.range_info->content_offset += response_buffer_length;	// The true amount that was downloaded. Allows us to resume if we stop the download.
+
+			context->wsabuf.buf += response_buffer_length;
+			context->wsabuf.len -= response_buffer_length;
+
+			if ( context->header_info.range_info->content_offset >= ( ( context->header_info.range_info->range_end - context->header_info.range_info->range_start ) + 1 ) )
+			{
+				context->buffer[ context->header_info.range_info->content_length ] = 0;	// Sanity.
+
+				char *version_start_ptr = context->buffer;
+				char *verion_end_ptr;
+#ifdef _WIN64
+				version_start_ptr = _StrStrA( version_start_ptr, "\r\n" );
+				if ( version_start_ptr != NULL ) { version_start_ptr += 2; }
+				version_start_ptr = _StrStrA( version_start_ptr, "\r\n" );
+				if ( version_start_ptr != NULL ) { version_start_ptr += 2; }
+#endif
+				verion_end_ptr = _StrStrA( version_start_ptr, "\r\n" );
+				if ( verion_end_ptr != NULL )
+				{
+					*verion_end_ptr = 0;	// Sanity.
+					verion_end_ptr += 2;
+
+					g_new_version = _strtoul( version_start_ptr, NULL, 10 );
+
+					int new_version_url_length;
+
+					version_start_ptr = _StrStrA( verion_end_ptr, "\r\n" );
+					if ( version_start_ptr != NULL )
+					{
+						*version_start_ptr = 0;	// Sanity.
+
+						new_version_url_length = ( int )( version_start_ptr - verion_end_ptr );
+					}
+					else
+					{
+						new_version_url_length = ( int )( ( context->buffer + context->header_info.range_info->content_length ) - verion_end_ptr );
+					}
+
+					g_new_version_url = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( new_version_url_length + 1 ) );
+					_memcpy_s( g_new_version_url, new_version_url_length + 1, verion_end_ptr, new_version_url_length );
+					g_new_version_url[ new_version_url_length ] = 0;	// Sanity.
+				}
+			}
+
+			// We need to force the keep-alive connections closed since the server will just keep it open after we've gotten all the data.
+			if ( context->header_info.connection == CONNECTION_KEEP_ALIVE &&
+			   ( context->header_info.range_info->content_length == 0 ||
+			   ( context->header_info.range_info->content_offset >= ( ( context->header_info.range_info->range_end - context->header_info.range_info->range_start ) + 1 ) ) ) )
+			{
+				return CONTENT_STATUS_FAILED;	// We have no more data, so just close the connection.
+			}
+			else
+			{
+				return CONTENT_STATUS_READ_MORE_CONTENT;
 			}
 		}
 	}
@@ -4930,20 +5278,28 @@ char ParsePOSTData( SOCKET_CONTEXT *context, char *post_data, unsigned int post_
 		context->post_info = ( POST_INFO * )GlobalAlloc( GPTR, sizeof( POST_INFO ) );
 	}
 
-	char **value_buf[ 11 ];
+	char **value_buf[ 19 ];
 	value_buf[ 0 ] = &context->post_info->method;
 	value_buf[ 1 ] = &context->post_info->urls;
-	value_buf[ 2 ] = &context->post_info->username;
-	value_buf[ 3 ] = &context->post_info->password;
-	value_buf[ 4 ] = &context->post_info->parts;
-	value_buf[ 5 ] = &context->post_info->download_speed_limit;
-	value_buf[ 6 ] = &context->post_info->directory;
-	value_buf[ 7 ] = &context->post_info->download_operations;
-	value_buf[ 8 ] = &context->post_info->cookies;
-	value_buf[ 9 ] = &context->post_info->headers;
-	value_buf[ 10 ] = &context->post_info->data;
+	value_buf[ 2 ] = &context->post_info->directory;
+	value_buf[ 3 ] = &context->post_info->parts;
+	value_buf[ 4 ] = &context->post_info->ssl_tls_version;
+	value_buf[ 5 ] = &context->post_info->username;
+	value_buf[ 6 ] = &context->post_info->password;
+	value_buf[ 7 ] = &context->post_info->download_speed_limit;
+	value_buf[ 8 ] = &context->post_info->download_operations;
+	value_buf[ 9 ] = &context->post_info->cookies;
+	value_buf[ 10 ] = &context->post_info->headers;
+	value_buf[ 11 ] = &context->post_info->data;
+	value_buf[ 12 ] = &context->post_info->proxy_type;
+	value_buf[ 13 ] = &context->post_info->proxy_hostname_ip;
+	value_buf[ 14 ] = &context->post_info->proxy_port;
+	value_buf[ 15 ] = &context->post_info->proxy_username;
+	value_buf[ 16 ] = &context->post_info->proxy_password;
+	value_buf[ 17 ] = &context->post_info->proxy_resolve_domain_names;
+	value_buf[ 18 ] = &context->post_info->proxy_use_authentication;
 
-	for ( unsigned char i = 0; i < 11; ++i )
+	for ( unsigned char i = 0; i < 19; ++i )
 	{
 		if ( *value_buf[ i ] == NULL )
 		{
@@ -5166,51 +5522,88 @@ char GetHTTPRequestContent( SOCKET_CONTEXT *context, char *request_buffer, unsig
 				wchar_t *urls = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * urls_length );
 				MultiByteToWideChar( CP_UTF8, 0, context->post_info->urls, -1, urls, urls_length );
 
-				wchar_t *t_download_directory = NULL;
+				bool use_download_directory;
+				wchar_t *download_directory = NULL;
 
 				if ( context->post_info->directory != NULL && *context->post_info->directory != NULL )
 				{
 					int directory_length = MultiByteToWideChar( CP_UTF8, 0, context->post_info->directory, -1, NULL, 0 );	// Include the NULL terminator.
-					t_download_directory = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * directory_length );
-					MultiByteToWideChar( CP_UTF8, 0, context->post_info->directory, -1, t_download_directory, directory_length );
+					download_directory = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * directory_length );
+					MultiByteToWideChar( CP_UTF8, 0, context->post_info->directory, -1, download_directory, directory_length );
 
 					// See if the directory exits. If not, then we'll use the program's default.
-					if ( !( GetFileAttributesW( t_download_directory ) & FILE_ATTRIBUTE_DIRECTORY ) )
+					if ( !( GetFileAttributesW( download_directory ) & FILE_ATTRIBUTE_DIRECTORY ) )
 					{
-						GlobalFree( t_download_directory );
-						t_download_directory = NULL;
+						GlobalFree( download_directory );
+						download_directory = NULL;
+
+						use_download_directory = false;
+					}
+					else
+					{
+						use_download_directory = true;
 					}
 				}
-
-				if ( t_download_directory == NULL )
+				else
 				{
-					t_download_directory = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * MAX_PATH );
-					_wmemcpy_s( t_download_directory, MAX_PATH, cfg_default_download_directory, g_default_download_directory_length );
-					t_download_directory[ g_default_download_directory_length ] = 0;	// Sanity.
+					use_download_directory = false;
 				}
 
-				unsigned int parts = 0;
+				/*if ( download_directory == NULL )
+				{
+					download_directory = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * MAX_PATH );
+					_wmemcpy_s( download_directory, MAX_PATH, cfg_default_download_directory, g_default_download_directory_length );
+					download_directory[ g_default_download_directory_length ] = 0;	// Sanity.
+				}*/
+
+				bool use_parts;
+				unsigned char parts = 0;
 				if ( context->post_info->parts != NULL )
 				{
-					parts = ( unsigned int )_strtoul( context->post_info->parts, NULL, 10 );
+					parts = ( unsigned char )_strtoul( context->post_info->parts, NULL, 10 );
+
+					if ( parts > 100 )
+					{
+						parts = 100;
+					}
+
+					use_parts = true;
+				}
+				else
+				{
+					use_parts = false;
 				}
 
+				bool use_download_speed_limit;
 				unsigned long long download_speed_limit = 0;
 				if ( context->post_info->download_speed_limit != NULL )
 				{
 					download_speed_limit = ( unsigned long long )strtoull( context->post_info->download_speed_limit );
+
+					use_download_speed_limit = true;
+				}
+				else
+				{
+					use_download_speed_limit = false;
+				}
+
+				char ssl_version = 0;
+				if ( context->post_info->ssl_tls_version != NULL )
+				{
+					ssl_version = ( char )_strtoul( context->post_info->ssl_tls_version, NULL, 10 );
 				}
 
 				unsigned char download_operations = 0;
 				if ( context->post_info->download_operations != NULL )
 				{
 					download_operations = ( unsigned char )_strtoul( context->post_info->download_operations, NULL, 10 );
-					download_operations &= ( DOWNLOAD_OPERATION_SIMULATE | DOWNLOAD_OPERATION_ADD_STOPPED );	// Ensure we can only simulate and/or add stopped.
-				}
+					download_operations &= ( DOWNLOAD_OPERATION_SIMULATE | DOWNLOAD_OPERATION_OVERRIDE_PROMPTS | DOWNLOAD_OPERATION_ADD_STOPPED );	// Ensure we can only simulate, override prompts, and/or add stopped.
 
-				if ( !( download_operations & DOWNLOAD_OPERATION_ADD_STOPPED ) )
-				{
-					download_operations |= DOWNLOAD_OPERATION_OVERRIDE_PROMPTS;
+					// No need to override prompts if it's simulated or added.
+					if ( download_operations & ( DOWNLOAD_OPERATION_SIMULATE | DOWNLOAD_OPERATION_ADD_STOPPED ) )
+					{
+						download_operations &= ~DOWNLOAD_OPERATION_OVERRIDE_PROMPTS;
+					}
 				}
 
 				unsigned char method = ( context->post_info->method != NULL && *context->post_info->method == '2' ? METHOD_POST : METHOD_GET );
@@ -5233,32 +5626,118 @@ char GetHTTPRequestContent( SOCKET_CONTEXT *context, char *request_buffer, unsig
 					context->post_info->headers = NULL;
 				}
 
+				unsigned char proxy_type = 0;
+				wchar_t *proxy_hostname = NULL;
+				wchar_t	*proxy_punycode_hostname = NULL;
+				wchar_t	*w_proxy_username = NULL;
+				wchar_t	*w_proxy_password = NULL;
+				char *proxy_username = NULL;
+				char *proxy_password = NULL;
+				unsigned short proxy_port = 0;
+				bool proxy_use_authentication = false;
+				bool proxy_resolve_domain_names = false;	// v4a or v5 based on proxy_type
+
+				if ( context->post_info->proxy_type != NULL )
+				{
+					proxy_type = ( unsigned char )_strtoul( context->post_info->proxy_type, NULL, 10 );
+
+					if ( proxy_type >= 1 && proxy_type <= 4 )
+					{
+						int hostname_length = MultiByteToWideChar( CP_UTF8, 0, context->post_info->proxy_hostname_ip, -1, NULL, 0 );	// Include the NULL terminator.
+						proxy_hostname = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * hostname_length );
+						MultiByteToWideChar( CP_UTF8, 0, context->post_info->proxy_hostname_ip, -1, proxy_hostname, hostname_length );
+
+						if ( normaliz_state == NORMALIZ_STATE_RUNNING )
+						{
+							int punycode_length = _IdnToAscii( 0, proxy_hostname, hostname_length, NULL, 0 );
+
+							if ( punycode_length > ( int )hostname_length )
+							{
+								proxy_punycode_hostname = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * punycode_length );
+								_IdnToAscii( 0, proxy_hostname, hostname_length, proxy_punycode_hostname, punycode_length );
+							}
+						}
+
+						proxy_port = ( unsigned int )_strtoul( context->post_info->proxy_port, NULL, 10 );
+
+						if ( proxy_type == 1 || proxy_type == 2 )	// HTTP and HTTPS
+						{
+							proxy_username = context->post_info->proxy_username;
+							proxy_password = context->post_info->proxy_password;
+
+							// These aren't needed.
+							context->post_info->proxy_username = NULL;
+							context->post_info->proxy_password = NULL;
+						}
+						else if ( proxy_type == 3 )	// SOCKS v4
+						{
+							proxy_username = context->post_info->proxy_username;
+
+							// This isn't needed.
+							context->post_info->proxy_username = NULL;
+
+							proxy_resolve_domain_names = ( context->post_info->proxy_resolve_domain_names != NULL && *context->post_info->proxy_resolve_domain_names != '0' ? true : false );
+						}
+						else if ( proxy_type == 4 )	// SOCKS v5
+						{
+							proxy_use_authentication = ( context->post_info->proxy_use_authentication != NULL && *context->post_info->proxy_use_authentication != '0' ? true : false );
+							
+							if ( proxy_use_authentication )
+							{
+								proxy_username = context->post_info->proxy_username;
+								proxy_password = context->post_info->proxy_password;
+
+								// These aren't needed.
+								context->post_info->proxy_username = NULL;
+								context->post_info->proxy_password = NULL;
+							}
+
+							proxy_resolve_domain_names = ( context->post_info->proxy_resolve_domain_names != NULL && *context->post_info->proxy_resolve_domain_names != '0' ? true : false );
+						}
+						if ( proxy_username != NULL )
+						{
+							int username_length = MultiByteToWideChar( CP_UTF8, 0, proxy_username, -1, NULL, 0 );	// Include the NULL terminator.
+							w_proxy_username = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * username_length );
+							MultiByteToWideChar( CP_UTF8, 0, proxy_username, -1, w_proxy_username, username_length );
+						}
+
+						if ( proxy_password != NULL )
+						{
+							int password_length = MultiByteToWideChar( CP_UTF8, 0, proxy_password, -1, NULL, 0 );	// Include the NULL terminator.
+							w_proxy_password = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * password_length );
+							MultiByteToWideChar( CP_UTF8, 0, proxy_password, -1, w_proxy_password, password_length );
+						}
+					}
+				}
+
 				context->header_info.http_status = 200;	// Let our MakeResponse() know that we want to send an HTTP 200 back.
 
-				ADD_INFO *ai = ( ADD_INFO * )GlobalAlloc( GMEM_FIXED, sizeof( ADD_INFO ) );
+				ADD_INFO *ai = ( ADD_INFO * )GlobalAlloc( GPTR, sizeof( ADD_INFO ) );
 				ai->method = method;
-				if ( parts == 0 )
-				{
-					ai->parts = cfg_default_download_parts;
-				}
-				else if ( parts > 100 )
-				{
-					ai->parts = 100;
-				}
-				else
-				{
-					ai->parts = ( unsigned char )parts;
-				}
-				ai->download_speed_limit = download_speed_limit;
+				ai->urls = urls;
+				ai->use_download_directory = use_download_directory;
+				ai->download_directory = download_directory;
+				ai->use_parts = use_parts;
+				ai->parts = parts;
+				ai->ssl_version = ssl_version;
 				ai->auth_info.username = context->post_info->username;
 				ai->auth_info.password = context->post_info->password;
-				ai->ssl_version = cfg_default_ssl_version;
+				ai->use_download_speed_limit = use_download_speed_limit;
+				ai->download_speed_limit = download_speed_limit;
+				ai->download_operations = download_operations;
 				ai->utf8_cookies = context->post_info->cookies;
 				ai->utf8_headers = context->post_info->headers;
 				ai->utf8_data = context->post_info->data;
-				ai->download_operations = download_operations;
-				ai->urls = urls;
-				ai->download_directory = t_download_directory;
+				ai->proxy_info.type = proxy_type;
+				ai->proxy_info.hostname = proxy_hostname;
+				ai->proxy_info.punycode_hostname = proxy_punycode_hostname;
+				ai->proxy_info.w_username = w_proxy_username;
+				ai->proxy_info.w_password = w_proxy_password;
+				ai->proxy_info.username = proxy_username;
+				ai->proxy_info.password = proxy_password;
+				ai->proxy_info.port = proxy_port;
+				ai->proxy_info.use_authentication = proxy_use_authentication;
+				ai->proxy_info.resolve_domain_names = proxy_resolve_domain_names;
 
 				// These aren't needed.
 				context->post_info->username = NULL;
@@ -5275,14 +5754,7 @@ char GetHTTPRequestContent( SOCKET_CONTEXT *context, char *request_buffer, unsig
 				}
 				else
 				{
-					GlobalFree( ai->download_directory );
-					GlobalFree( ai->utf8_data );
-					GlobalFree( ai->utf8_headers );
-					GlobalFree( ai->utf8_cookies );
-					GlobalFree( ai->auth_info.username );
-					GlobalFree( ai->auth_info.password );
-					GlobalFree( ai->urls );
-					GlobalFree( ai );
+					FreeAddInfo( &ai );
 				}
 			}
 

@@ -29,7 +29,7 @@
 #include "ftp_parsing.h"
 
 #include "utilities.h"
-#include "login_manager_utilities.h"
+#include "site_manager_utilities.h"
 #include "list_operations.h"
 
 #include "string_tables.h"
@@ -37,6 +37,7 @@
 
 #include "menus.h"
 
+#include "treelistview.h"
 #include "doublylinkedlist.h"
 
 HANDLE g_hIOCP = NULL;
@@ -102,7 +103,7 @@ char *g_proxy_auth_ident_username_socks = NULL;
 
 ////////////////////
 
-unsigned long total_downloading = 0;
+unsigned long g_total_downloading = 0;
 DoublyLinkedList *download_queue = NULL;
 
 DoublyLinkedList *active_download_list = NULL;		// List of active DOWNLOAD_INFO objects.
@@ -114,6 +115,7 @@ DoublyLinkedList *last_modified_prompt_list = NULL;	// List of downloads that ne
 DoublyLinkedList *move_file_queue = NULL;			// List of downloads that need to be moved to a new folder.
 
 HANDLE g_timeout_semaphore = NULL;
+HANDLE g_update_semaphore = NULL;
 
 CRITICAL_SECTION context_list_cs;				// Guard access to the global context list.
 CRITICAL_SECTION active_download_list_cs;		// Guard access to the global active download list.
@@ -123,6 +125,7 @@ CRITICAL_SECTION rename_file_prompt_list_cs;	// Guard access to the rename file 
 CRITICAL_SECTION last_modified_prompt_list_cs;	// Guard access to the last modified prompt list.
 CRITICAL_SECTION move_file_queue_cs;			// Guard access to the move file queue.
 CRITICAL_SECTION cleanup_cs;
+CRITICAL_SECTION update_check_timeout_cs;
 
 LPFN_ACCEPTEX _AcceptEx = NULL;
 LPFN_CONNECTEX _ConnectEx = NULL;
@@ -145,6 +148,11 @@ unsigned int g_session_status_count[ 8 ] = { 0 };	// 8 states that can be consid
 
 bool g_timers_running = false;
 
+bool g_waiting_for_update = false;
+unsigned long g_new_version = 0;
+char *g_new_version_url = NULL;
+char g_update_check_state;	// 0 manual update check, 1 automatic update check
+
 void SetSessionStatusCount( unsigned int status )
 {
 	switch ( status )
@@ -157,6 +165,34 @@ void SetSessionStatusCount( unsigned int status )
 		case STATUS_SKIPPED:				{ ++g_session_status_count[ 5 ]; } break;
 		case STATUS_AUTH_REQUIRED:			{ ++g_session_status_count[ 6 ]; } break;
 		case STATUS_PROXY_AUTH_REQUIRED:	{ ++g_session_status_count[ 7 ]; } break;
+	}
+}
+
+void SetSharedInfoStatus( DOWNLOAD_INFO *shared_info, unsigned int shared_status )
+{
+	if ( shared_info != NULL )
+	{
+		if ( IS_STATUS( shared_status, STATUS_FILE_IO_ERROR ) )				{ shared_info->status = STATUS_FILE_IO_ERROR; }
+		else if ( IS_STATUS( shared_status, STATUS_ALLOCATING_FILE ) )		{ shared_info->status = STATUS_ALLOCATING_FILE; }
+		else if ( IS_STATUS( shared_status, STATUS_FAILED ) )				{ shared_info->status = STATUS_FAILED; }
+		else if ( IS_STATUS( shared_status, STATUS_TIMED_OUT ) )			{ shared_info->status = STATUS_TIMED_OUT; }
+		else if ( IS_STATUS( shared_status, STATUS_AUTH_REQUIRED ) )		{ shared_info->status = STATUS_AUTH_REQUIRED; }
+		else if ( IS_STATUS( shared_status, STATUS_PROXY_AUTH_REQUIRED ) )	{ shared_info->status = STATUS_PROXY_AUTH_REQUIRED; }
+		else if ( IS_STATUS( shared_status, STATUS_QUEUED ) )				{ shared_info->status = STATUS_QUEUED; }
+		else if ( IS_STATUS( shared_status, STATUS_MOVING_FILE ) )			{ shared_info->status = STATUS_MOVING_FILE; }
+		else if ( IS_STATUS( shared_status, STATUS_PAUSED ) )				{ shared_info->status = STATUS_PAUSED; }
+		else if ( IS_STATUS( shared_status, STATUS_SKIPPED ) && shared_info->file_size > 0 && shared_info->downloaded != shared_info->file_size )
+		{
+			shared_info->status = STATUS_SKIPPED;
+		}
+		else if ( IS_STATUS( shared_status, STATUS_RESTART ) )				{ shared_info->status = STATUS_RESTART; }
+		else if ( IS_STATUS( shared_status, STATUS_DOWNLOADING ) )			{ shared_info->status = STATUS_DOWNLOADING; }
+		else if ( IS_STATUS( shared_status, STATUS_CONNECTING ) )			{ shared_info->status = STATUS_CONNECTING; }
+		else if ( IS_STATUS( shared_status, STATUS_STOPPED ) )				{ shared_info->status = STATUS_STOPPED; }
+		else if ( shared_status == STATUS_COMPLETED || ( IS_STATUS( shared_status, STATUS_COMPLETED ) && shared_info->file_size > 0 && shared_info->downloaded == shared_info->file_size ) )
+		{
+			shared_info->status = STATUS_COMPLETED;
+		}
 	}
 }
 
@@ -477,7 +513,7 @@ DWORD WINAPI IOCPDownloader( LPVOID pArgs )
 	}
 
 	g_hIOCP = CreateIoCompletionPort( INVALID_HANDLE_VALUE, NULL, 0, 0 );
-    if ( g_hIOCP == NULL )
+	if ( g_hIOCP == NULL )
 	{
 		goto CLEANUP;
 	}
@@ -563,7 +599,7 @@ DWORD WINAPI IOCPDownloader( LPVOID pArgs )
 	FreeContexts();
 
 	download_queue = NULL;
-	total_downloading = 0;
+	g_total_downloading = 0;
 
 	if ( g_hIOCP != NULL )
 	{
@@ -1005,12 +1041,12 @@ THREAD_RETURN RenameFilePrompt( void *pArguments )
 				int filename_length = GetTemporaryFilePath( di, file_path );
 
 				filename_offset = g_temp_download_directory_length + 1;
-				file_extension_offset = filename_offset + get_file_extension_offset( di->file_path + di->filename_offset, filename_length );
+				file_extension_offset = filename_offset + get_file_extension_offset( di->shared_info->file_path + di->shared_info->filename_offset, filename_length );
 			}
 			else
 			{
-				filename_offset = di->filename_offset;
-				file_extension_offset = di->file_extension_offset;
+				filename_offset = di->shared_info->filename_offset;
+				file_extension_offset = di->shared_info->file_extension_offset;
 
 				GetDownloadFilePath( di, file_path );
 			}
@@ -1034,18 +1070,18 @@ THREAD_RETURN RenameFilePrompt( void *pArguments )
 
 				bool rename_succeeded;
 
-				EnterCriticalSection( &di->shared_cs );
+				EnterCriticalSection( &di->di_cs );
 
 				rename_succeeded = RenameFile( di, add_files_tree, file_path, filename_offset, file_extension_offset );
 
-				LeaveCriticalSection( &di->shared_cs );
+				LeaveCriticalSection( &di->di_cs );
 
 				// The tree is only used to determine duplicate filenames.
 				DestroyFilenameTree( add_files_tree );
 
 				if ( !rename_succeeded )
 				{
-					if ( g_rename_file_cmb_ret2 != CMBIDOKALL && !( di->download_operations & DOWNLOAD_OPERATION_OVERRIDE_PROMPTS ) )
+					if ( g_rename_file_cmb_ret2 != CMBIDOKALL && !( di->shared_info->download_operations & DOWNLOAD_OPERATION_OVERRIDE_PROMPTS ) )
 					{
 						__snwprintf( prompt_message, MAX_PATH + 512, ST_V_PROMPT___could_not_be_renamed, file_path );
 
@@ -1172,7 +1208,7 @@ THREAD_RETURN FileSizePrompt( void *pArguments )
 				}
 
 				wchar_t prompt_message[ MAX_PATH + 512 ];
-				__snwprintf( prompt_message, MAX_PATH + 512, ST_V_PROMPT___will_be___size, file_path, di->file_size );
+				__snwprintf( prompt_message, MAX_PATH + 512, ST_V_PROMPT___will_be___size, file_path, di->shared_info->file_size );
 				g_file_size_cmb_ret = CMessageBoxW( g_hWnd_main, prompt_message, PROGRAM_CAPTION, CMB_ICONWARNING | CMB_YESNOALL );
 			}
 
@@ -1283,11 +1319,11 @@ THREAD_RETURN LastModifiedPrompt( void *pArguments )
 			// Restart the download.
 			if ( restart_only == 1 || g_last_modified_cmb_ret == CMBIDRESTART || g_last_modified_cmb_ret == CMBIDRESTARTALL )
 			{
-				EnterCriticalSection( &di->shared_cs );
+				EnterCriticalSection( &di->di_cs );
 
 				di->status = STATUS_STOPPED | STATUS_RESTART;
 
-				LeaveCriticalSection( &di->shared_cs );
+				LeaveCriticalSection( &di->di_cs );
 
 				EnterCriticalSection( &context->context_cs );
 
@@ -1327,12 +1363,12 @@ THREAD_RETURN LastModifiedPrompt( void *pArguments )
 			}
 			else	// Continue where we left off when getting the content.
 			{
-				EnterCriticalSection( &di->shared_cs );
+				EnterCriticalSection( &di->di_cs );
 
 				di->last_modified.HighPart = context->header_info.last_modified.dwHighDateTime;
 				di->last_modified.LowPart = context->header_info.last_modified.dwLowDateTime;
 
-				LeaveCriticalSection( &di->shared_cs );
+				LeaveCriticalSection( &di->di_cs );
 
 				EnterCriticalSection( &context->context_cs );
 
@@ -1482,6 +1518,7 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 				else
 				{
 					bool skip_process = false;
+					bool sleep = false;
 
 					EnterCriticalSection( &context->context_cs );
 
@@ -1512,10 +1549,12 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 					else if ( ( cfg_download_speed_limit > 0 &&
 							  ( g_session_total_downloaded - g_session_last_total_downloaded ) > cfg_download_speed_limit ) ||
 							  ( context->download_info != NULL &&
-								context->download_info->download_speed_limit > 0 &&
-							  ( context->download_info->downloaded - context->download_info->last_downloaded ) > context->download_info->download_speed_limit ) ) // Preempt the next receive.
+							( ( context->download_info->shared_info->download_speed_limit > 0 &&
+							  ( context->download_info->shared_info->downloaded - context->download_info->shared_info->last_downloaded ) > context->download_info->shared_info->download_speed_limit ) ||
+							  ( context->download_info->download_speed_limit > 0 &&
+							  ( context->download_info->downloaded - context->download_info->last_downloaded ) > context->download_info->download_speed_limit ) ) ) ) // Preempt the next receive.
 					{
-						Sleep( 1 );	// Prevents high CPU usage for some reason.
+						sleep = true;
 
 						context->current_bytes_read = io_size;
 
@@ -1527,6 +1566,12 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 					}
 
 					LeaveCriticalSection( &context->context_cs );
+
+					// Make sure this isn't in the context's critical section.
+					if ( sleep )
+					{
+						Sleep( 1 );	// Prevents high CPU usage for some reason.
+					}
 
 					if ( skip_process )
 					{
@@ -1750,7 +1795,7 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 						if ( context->request_info.protocol == PROTOCOL_HTTPS ||
 							 context->request_info.protocol == PROTOCOL_FTPS )	// FTPES starts out unencrypted and is upgraded later.
 						{
-							char shared_protocol = ( context->download_info != NULL ? context->download_info->ssl_version : 0 );
+							char shared_protocol = ( context->download_info != NULL ? context->download_info->ssl_version : 4 );
 							DWORD protocol = 0;
 							switch ( shared_protocol )
 							{
@@ -1774,9 +1819,12 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 							}
 						}
 
+						bool use_socks_proxy = false;
+						bool use_https_proxy = false;
+
 						if ( context->download_info != NULL )
 						{
-							EnterCriticalSection( &context->download_info->shared_cs );
+							EnterCriticalSection( &context->download_info->di_cs );
 
 							if ( !connection_failed )
 							{
@@ -1796,7 +1844,32 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 								context->status = STATUS_FAILED;
 							}
 
-							LeaveCriticalSection( &context->download_info->shared_cs );
+							LeaveCriticalSection( &context->download_info->di_cs );
+
+							// For groups.
+							if ( IS_GROUP( context->download_info ) )
+							{
+								EnterCriticalSection( &context->download_info->shared_info->di_cs );
+
+								context->download_info->shared_info->status = context->download_info->status;
+
+								LeaveCriticalSection( &context->download_info->shared_info->di_cs );
+							}
+
+							if ( cfg_enable_proxy_s ||
+							   ( context->download_info->proxy_info != NULL &&
+								 context->download_info->proxy_info->type == 2 ) )
+							{
+								use_https_proxy = true;
+							}
+
+							if ( cfg_enable_proxy_socks ||
+							   ( context->download_info->proxy_info != NULL &&
+							   ( context->download_info->proxy_info->type == 3 ||
+								 context->download_info->proxy_info->type == 4 ) ) )
+							{
+								use_socks_proxy = true;
+							}
 						}
 
 						if ( !connection_failed )
@@ -1806,7 +1879,7 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 							// If it's an HTTPS or FTPS (not FTPES) request and we're not going through a SSL/TLS proxy, then begin the SSL/TLS handshake.
 							if ( ( context->request_info.protocol == PROTOCOL_HTTPS ||
 								   context->request_info.protocol == PROTOCOL_FTPS ) &&
-								   !cfg_enable_proxy_s && !cfg_enable_proxy_socks )
+								   !use_https_proxy && !use_socks_proxy )
 							{
 								*next_operation = IO_ClientHandshakeResponse;
 
@@ -1824,7 +1897,7 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 								context->wsabuf.buf = context->buffer;
 								context->wsabuf.len = context->buffer_size;
 
-								if ( cfg_enable_proxy_socks )	// SOCKS5 request.
+								if ( use_socks_proxy )	// SOCKS5 request.
 								{
 									*current_operation = IO_Write;
 									*next_operation = IO_SOCKSResponse;
@@ -1862,13 +1935,13 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 								context->wsabuf.len = context->buffer_size;
 
 								// Tunneled HTTPS requests need to send a CONNECT response before sending/receiving data.
-								if ( context->request_info.protocol == PROTOCOL_HTTPS && cfg_enable_proxy_s )
+								if ( context->request_info.protocol == PROTOCOL_HTTPS && use_https_proxy )
 								{
 									*next_operation = IO_GetCONNECTResponse;
 
 									ConstructRequest( context, true );
 								}
-								else if ( cfg_enable_proxy_socks )	// SOCKS5 request.
+								else if ( use_socks_proxy )	// SOCKS5 request.
 								{
 									*next_operation = IO_SOCKSResponse;
 
@@ -2719,12 +2792,22 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 
 				if ( context->cleanup == 0 )
 				{
-					EnterCriticalSection( &context->download_info->shared_cs );
+					if ( IS_GROUP( context->download_info ) )
+					{
+						EnterCriticalSection( &context->download_info->shared_info->di_cs );
+
+						context->download_info->shared_info->downloaded += io_size;				// The total amount of data (decoded) that was saved/simulated.
+
+						LeaveCriticalSection( &context->download_info->shared_info->di_cs );
+					}
+
+					EnterCriticalSection( &context->download_info->di_cs );
 					context->download_info->downloaded += io_size;				// The total amount of data (decoded) that was saved/simulated.
-					LeaveCriticalSection( &context->download_info->shared_cs );
+					LeaveCriticalSection( &context->download_info->di_cs );
 
 					EnterCriticalSection( &session_totals_cs );
 					g_session_total_downloaded += io_size;
+					cfg_total_downloaded += io_size;
 					LeaveCriticalSection( &session_totals_cs );
 
 					context->header_info.range_info->file_write_offset += io_size;	// The size of the non-encoded/decoded data that we're writing to the file.
@@ -2732,14 +2815,14 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 					// Make sure we've written everything before we do anything else.
 					if ( io_size < context->write_wsabuf.len )
 					{
-						EnterCriticalSection( &context->download_info->shared_cs );
+						EnterCriticalSection( &context->download_info->shared_info->di_cs );
 
 						InterlockedIncrement( &context->pending_operations );
 
 						context->write_wsabuf.buf += io_size;
 						context->write_wsabuf.len -= io_size;
 
-						BOOL bRet = WriteFile( context->download_info->hFile, context->write_wsabuf.buf, context->write_wsabuf.len, NULL, ( WSAOVERLAPPED * )overlapped );
+						BOOL bRet = WriteFile( context->download_info->shared_info->hFile, context->write_wsabuf.buf, context->write_wsabuf.len, NULL, ( WSAOVERLAPPED * )overlapped );
 						if ( bRet == FALSE && ( GetLastError() != ERROR_IO_PENDING ) )
 						{
 							*current_operation = ( use_ssl ? IO_Shutdown : IO_Close );
@@ -2747,7 +2830,7 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 							PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
 						}
 
-						LeaveCriticalSection( &context->download_info->shared_cs );
+						LeaveCriticalSection( &context->download_info->shared_info->di_cs );
 					}
 					else
 					{
@@ -2767,7 +2850,8 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 						if ( context->header_info.chunked_transfer )
 						{
 							if ( ( context->parts == 1 && context->header_info.connection == CONNECTION_KEEP_ALIVE && context->header_info.got_chunk_terminator ) ||
-								 ( context->parts > 1 && ( context->header_info.range_info->content_offset >= ( ( context->header_info.range_info->range_end - context->header_info.range_info->range_start ) + 1 ) ) ) )
+							   ( ( context->parts > 1 || ( context->download_info != NULL && IS_GROUP( context->download_info ) ) ) &&
+								 ( context->header_info.range_info->content_offset >= ( ( context->header_info.range_info->range_end - context->header_info.range_info->range_start ) + 1 ) ) ) )
 							{
 								InterlockedIncrement( &context->pending_operations );
 
@@ -2783,7 +2867,7 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 							// We need to force the keep-alive connections closed since the server will just keep it open after we've gotten all the data.
 							if ( ( ( ( context->request_info.protocol == PROTOCOL_FTP ||
 									   context->request_info.protocol == PROTOCOL_FTPS ||
-									   context->request_info.protocol == PROTOCOL_FTPES ) && context->parts > 1 ) ||
+									   context->request_info.protocol == PROTOCOL_FTPES ) && ( context->parts > 1 || ( context->download_info != NULL && IS_GROUP( context->download_info ) ) ) ) ||
 								   context->header_info.connection == CONNECTION_KEEP_ALIVE ) &&
 								 ( context->header_info.range_info->content_length == 0 ||
 								 ( context->header_info.range_info->content_offset >= ( ( context->header_info.range_info->range_end - context->header_info.range_info->range_start ) + 1 ) ) ) )
@@ -3138,6 +3222,40 @@ bool CreateConnection( SOCKET_CONTEXT *context, char *host, unsigned short port 
 	wchar_t wcs_ip[ 16 ];
 	wchar_t wport[ 6 ];
 
+	bool _enable_proxy_socks;
+	unsigned char _socks_type;
+	bool _resolve_domain_names;
+
+	PROXY_INFO *pi = NULL;
+
+	if ( context->download_info != NULL && context->download_info->proxy_info != NULL && context->download_info->proxy_info->type != 0 )
+	{
+		pi = context->download_info->proxy_info;
+
+		if ( pi->type == 3 )
+		{
+			_enable_proxy_socks = true;
+			_socks_type = SOCKS_TYPE_V4;
+			_resolve_domain_names = pi->resolve_domain_names;
+		}
+		else if ( pi->type == 4 )
+		{
+			_enable_proxy_socks = true;
+			_socks_type = SOCKS_TYPE_V5;
+			_resolve_domain_names = cfg_resolve_domain_names;
+		}
+		else
+		{
+			_enable_proxy_socks = false;
+		}
+	}
+	else
+	{
+		_enable_proxy_socks = cfg_enable_proxy_socks;
+		_socks_type = cfg_socks_type;
+		_resolve_domain_names = cfg_resolve_domain_names;
+	}
+
 	if ( context->address_info == NULL )
 	{
 		// Resolve the remote host.
@@ -3146,81 +3264,84 @@ bool CreateConnection( SOCKET_CONTEXT *context, char *host, unsigned short port 
 		hints.ai_socktype = SOCK_STREAM;
 		hints.ai_protocol = IPPROTO_IP;
 
-		if ( cfg_enable_proxy && context->request_info.protocol == PROTOCOL_HTTP )
+		bool use_supplied_params = false;
+
+		wchar_t *_hostname;
+		wchar_t *_punycode_hostname;
+		unsigned long _ip_address;
+
+		unsigned char _address_type;
+
+		if ( pi != NULL )
 		{
-			__snwprintf( wport, 6, L"%hu", cfg_port );
+			_hostname = pi->hostname;
+			_punycode_hostname = pi->punycode_hostname;
+			_ip_address = pi->ip_address;
+			port = pi->port;
 
-			if ( cfg_address_type == 0 )
-			{
-				whost = ( g_punycode_hostname != NULL ? g_punycode_hostname : cfg_hostname );
-			}
-			else
-			{
-				struct sockaddr_in src_addr;
-				_memzero( &src_addr, sizeof( sockaddr_in ) );
+			_address_type = pi->address_type;
+		}
+		else if ( cfg_enable_proxy && context->request_info.protocol == PROTOCOL_HTTP )
+		{
+			_hostname = cfg_hostname;
+			_punycode_hostname = g_punycode_hostname;
+			_ip_address = cfg_ip_address;
+			port = cfg_port;
 
-				src_addr.sin_family = AF_INET;
-				src_addr.sin_addr.s_addr = _htonl( cfg_ip_address );
-
-				DWORD wcs_ip_length = 16;
-				_WSAAddressToStringW( ( SOCKADDR * )&src_addr, sizeof( struct sockaddr_in ), NULL, wcs_ip, &wcs_ip_length );
-
-				whost = wcs_ip;
-			}
+			_address_type = cfg_address_type;
 		}
 		else if ( cfg_enable_proxy_s && context->request_info.protocol == PROTOCOL_HTTPS )
 		{
-			__snwprintf( wport, 6, L"%hu", cfg_port_s );
+			_hostname = cfg_hostname_s;
+			_punycode_hostname = g_punycode_hostname_s;
+			_ip_address = cfg_ip_address_s;
+			port = cfg_port_s;
 
-			if ( cfg_address_type_s == 0 )
-			{
-				whost = ( g_punycode_hostname_s != NULL ? g_punycode_hostname_s : cfg_hostname_s );
-			}
-			else
-			{
-				struct sockaddr_in src_addr;
-				_memzero( &src_addr, sizeof( sockaddr_in ) );
-
-				src_addr.sin_family = AF_INET;
-				src_addr.sin_addr.s_addr = _htonl( cfg_ip_address_s );
-
-				DWORD wcs_ip_length = 16;
-				_WSAAddressToStringW( ( SOCKADDR * )&src_addr, sizeof( struct sockaddr_in ), NULL, wcs_ip, &wcs_ip_length );
-
-				whost = wcs_ip;
-			}
+			_address_type = cfg_address_type_s;
 		}
 		else if ( cfg_enable_proxy_socks )
 		{
-			__snwprintf( wport, 6, L"%hu", cfg_port_socks );
+			_hostname = cfg_hostname_socks;
+			_punycode_hostname = g_punycode_hostname_socks;
+			_ip_address = cfg_ip_address_socks;
+			port = cfg_port_socks;
 
-			if ( cfg_address_type_socks == 0 )
-			{
-				whost = ( g_punycode_hostname_socks != NULL ? g_punycode_hostname_socks : cfg_hostname_socks );
-			}
-			else
-			{
-				struct sockaddr_in src_addr;
-				_memzero( &src_addr, sizeof( sockaddr_in ) );
-
-				src_addr.sin_family = AF_INET;
-				src_addr.sin_addr.s_addr = _htonl( cfg_ip_address_socks );
-
-				DWORD wcs_ip_length = 16;
-				_WSAAddressToStringW( ( SOCKADDR * )&src_addr, sizeof( struct sockaddr_in ), NULL, wcs_ip, &wcs_ip_length );
-
-				whost = wcs_ip;
-			}
+			_address_type = cfg_address_type_socks;
 		}
 		else
 		{
-			__snwprintf( wport, 6, L"%hu", port );
+			use_supplied_params = true;
+		}
 
+		__snwprintf( wport, 6, L"%hu", port );
+
+		if ( use_supplied_params )
+		{
 			int whost_length = MultiByteToWideChar( CP_UTF8, 0, host, -1, NULL, 0 );	// Include the NULL terminator.
 			whost = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * whost_length );
 			MultiByteToWideChar( CP_UTF8, 0, host, -1, whost, whost_length );
 
 			t_whost = whost;
+		}
+		else
+		{
+			if ( _address_type == 0 )
+			{
+				whost = ( _punycode_hostname != NULL ? _punycode_hostname : _hostname );
+			}
+			else
+			{
+				struct sockaddr_in src_addr;
+				_memzero( &src_addr, sizeof( sockaddr_in ) );
+
+				src_addr.sin_family = AF_INET;
+				src_addr.sin_addr.s_addr = _htonl( _ip_address );
+
+				DWORD wcs_ip_length = 16;
+				_WSAAddressToStringW( ( SOCKADDR * )&src_addr, sizeof( struct sockaddr_in ), NULL, wcs_ip, &wcs_ip_length );
+
+				whost = wcs_ip;
+			}
 		}
 
 		nRet = _GetAddrInfoW( whost, wport, &hints, &context->address_info );
@@ -3240,10 +3361,9 @@ bool CreateConnection( SOCKET_CONTEXT *context, char *host, unsigned short port 
 		}
 	}
 
-	if ( cfg_enable_proxy_socks &&
+	if ( _enable_proxy_socks &&
 		 context->proxy_address_info == NULL &&
-		 ( ( cfg_socks_type == SOCKS_TYPE_V4 && !cfg_resolve_domain_names_v4a ) ||
-		   ( cfg_socks_type == SOCKS_TYPE_V5 && !cfg_resolve_domain_names ) ) )
+		 !_resolve_domain_names )
 	{
 		_memzero( &hints, sizeof( addrinfoW ) );
 		hints.ai_family = AF_INET;
@@ -3257,7 +3377,7 @@ bool CreateConnection( SOCKET_CONTEXT *context, char *host, unsigned short port 
 		MultiByteToWideChar( CP_UTF8, 0, context->request_info.host, -1, whost, whost_length );
 
 		nRet = _GetAddrInfoW( whost, wport, &hints, &context->proxy_address_info );
-		if ( nRet == WSAHOST_NOT_FOUND && cfg_socks_type == SOCKS_TYPE_V5 )	// Allow IPv6 for SOCKS 5
+		if ( nRet == WSAHOST_NOT_FOUND && _socks_type == SOCKS_TYPE_V5 )	// Allow IPv6 for SOCKS 5
 		{
 			hints.ai_family = AF_INET6;	// Try IPv6
 			_GetAddrInfoW( whost, wport, &hints, &context->proxy_address_info );
@@ -3490,7 +3610,99 @@ void UpdateRangeList( DOWNLOAD_INFO *di )
 	}
 }
 
-void StartDownload( DOWNLOAD_INFO *di, bool check_if_file_exists )
+// reset_type: 1 = file beginning, 2 = host beginning
+void ResetDownload( DOWNLOAD_INFO *di, char reset_type, bool reset_progress )
+{
+	if ( di != NULL )
+	{
+		if ( reset_type == 1 )	// Reset host not in a group.
+		{
+			if ( reset_progress )
+			{
+				_SendMessageW( g_hWnd_main, WM_RESET_PROGRESS, 0, ( LPARAM )di );
+			}
+
+			while ( di->range_list != NULL )
+			{
+				DoublyLinkedList *range_node = di->range_list;
+				di->range_list = di->range_list->next;
+
+				GlobalFree( range_node->data );
+				GlobalFree( range_node );
+			}
+
+			di->range_list_end = NULL;
+
+			di->processed_header = false;
+
+			di->last_modified.QuadPart = 0;
+
+			EnterCriticalSection( &di->shared_info->di_cs );
+
+			di->shared_info->downloaded = 0;
+
+			LeaveCriticalSection( &di->shared_info->di_cs );
+
+			di->downloaded = 0;
+		}
+		else if ( reset_type == 2 )	// Reset host in a group.
+		{
+			DoublyLinkedList *range_node = di->range_list;
+			while ( range_node != NULL )
+			{
+				RANGE_INFO *ri = ( RANGE_INFO * )range_node->data;
+				ri->content_offset = 0;
+				ri->content_length = 0;
+				ri->file_write_offset = ri->range_start;
+
+				range_node = range_node->next;
+			}
+
+			EnterCriticalSection( &di->shared_info->di_cs );
+
+			di->shared_info->downloaded -= di->downloaded;
+
+			LeaveCriticalSection( &di->shared_info->di_cs );
+
+			di->downloaded = 0;
+		}
+		else if ( reset_type == 3 )	// Reset group
+		{
+			EnterCriticalSection( &di->shared_info->di_cs );
+
+			di->shared_info->processed_header = false;
+
+			di->shared_info->downloaded = 0;
+
+			LeaveCriticalSection( &di->shared_info->di_cs );
+		}
+
+		// If we manually start a download, then set the incomplete retry attempts back to 0.
+		di->retries = 0;
+
+		di->start_time.QuadPart = 0;
+
+		EnterCriticalSection( &di->shared_info->di_cs );
+
+		di->shared_info->start_time.QuadPart = 0;
+
+		// If we manually start a download that was added remotely, then allow the prompts to display.
+		di->shared_info->download_operations &= ~DOWNLOAD_OPERATION_OVERRIDE_PROMPTS;
+
+		LeaveCriticalSection( &di->shared_info->di_cs );
+	}
+}
+
+void RestartDownload( DOWNLOAD_INFO *di, char restart_type, bool check_if_file_exists )
+{
+	if ( di != NULL )
+	{
+		ResetDownload( di, restart_type );
+		StartDownload( di, restart_type, check_if_file_exists );
+	}
+}
+
+void StartDownload( DOWNLOAD_INFO *di, char start_type, bool check_if_file_exists )
 {
 	if ( di == NULL )
 	{
@@ -3506,7 +3718,7 @@ void StartDownload( DOWNLOAD_INFO *di, bool check_if_file_exists )
 
 	bool skip_start = false;
 
-	EnterCriticalSection( &di->shared_cs );
+	EnterCriticalSection( &di->di_cs );
 
 	wchar_t prompt_message[ MAX_PATH + 512 ];
 	wchar_t file_path[ MAX_PATH ];
@@ -3519,14 +3731,14 @@ void StartDownload( DOWNLOAD_INFO *di, bool check_if_file_exists )
 		int filename_length = GetTemporaryFilePath( di, file_path );
 
 		filename_offset = g_temp_download_directory_length + 1;
-		file_extension_offset = filename_offset + get_file_extension_offset( di->file_path + di->filename_offset, filename_length );
+		file_extension_offset = filename_offset + get_file_extension_offset( di->shared_info->file_path + di->shared_info->filename_offset, filename_length );
 	}
 	else
 	{
 		GetDownloadFilePath( di, file_path );
 
-		filename_offset = di->filename_offset;
-		file_extension_offset = di->file_extension_offset;
+		filename_offset = di->shared_info->filename_offset;
+		file_extension_offset = di->shared_info->file_extension_offset;
 	}
 
 	// See if the file exits.
@@ -3534,7 +3746,7 @@ void StartDownload( DOWNLOAD_INFO *di, bool check_if_file_exists )
 	{
 		if ( check_if_file_exists )
 		{
-			if ( cfg_prompt_rename == 0 && di->download_operations & DOWNLOAD_OPERATION_OVERRIDE_PROMPTS )
+			if ( cfg_prompt_rename == 0 && di->shared_info->download_operations & DOWNLOAD_OPERATION_OVERRIDE_PROMPTS )
 			{
 				di->status = STATUS_SKIPPED;
 
@@ -3568,7 +3780,7 @@ void StartDownload( DOWNLOAD_INFO *di, bool check_if_file_exists )
 
 					if ( !rename_succeeded )
 					{
-						if ( g_rename_file_cmb_ret2 != CMBIDOKALL && !( di->download_operations & DOWNLOAD_OPERATION_OVERRIDE_PROMPTS ) )
+						if ( g_rename_file_cmb_ret2 != CMBIDOKALL && !( di->shared_info->download_operations & DOWNLOAD_OPERATION_OVERRIDE_PROMPTS ) )
 						{
 							__snwprintf( prompt_message, MAX_PATH + 512, ST_V_PROMPT___could_not_be_renamed, file_path );
 
@@ -3592,8 +3804,8 @@ void StartDownload( DOWNLOAD_INFO *di, bool check_if_file_exists )
 			}
 		}
 	}
-	else if ( !( di->download_operations & DOWNLOAD_OPERATION_SIMULATE ) &&
-				 di->downloaded > 0 )	// If the file doesn't exist and it's been partially downloaded, then ask to restart.
+	else if ( !( di->shared_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) &&
+				 di->shared_info->downloaded > 0 )	// If the file doesn't exist and it's been partially downloaded, then ask to restart.
 	{
 		if ( g_file_not_exist_cmb_ret != CMBIDNOALL && g_file_not_exist_cmb_ret != CMBIDYESALL )
 		{
@@ -3602,31 +3814,7 @@ void StartDownload( DOWNLOAD_INFO *di, bool check_if_file_exists )
 
 		if ( g_file_not_exist_cmb_ret == CMBIDYES || g_file_not_exist_cmb_ret == CMBIDYESALL )
 		{
-			_SendMessageW( g_hWnd_main, WM_RESET_PROGRESS, 0, ( LPARAM )di );
-
-			while ( di->range_list != NULL )
-			{
-				DoublyLinkedList *range_node = di->range_list;
-				di->range_list = di->range_list->next;
-
-				GlobalFree( range_node->data );
-				GlobalFree( range_node );
-			}
-
-			di->range_list_end = NULL;
-
-			di->processed_header = false;
-
-			di->downloaded = 0;
-
-			di->last_modified.QuadPart = 0;
-
-			// If we manually start a download, then set the incomplete retry attempts back to 0.
-			di->retries = 0;
-			di->start_time.QuadPart = 0;
-
-			// If we manually start a download that was added remotely, then allow the prompts to display.
-			di->download_operations &= ~DOWNLOAD_OPERATION_OVERRIDE_PROMPTS;
+			ResetDownload( di, start_type );
 		}
 		else
 		{
@@ -3636,7 +3824,7 @@ void StartDownload( DOWNLOAD_INFO *di, bool check_if_file_exists )
 		}
 	}
 
-	LeaveCriticalSection( &di->shared_cs );
+	LeaveCriticalSection( &di->di_cs );
 
 	if ( skip_start )
 	{
@@ -3744,20 +3932,37 @@ void StartDownload( DOWNLOAD_INFO *di, bool check_if_file_exists )
 			// Check the state of our downloads/queue once.
 			if ( add_state == 0 )
 			{
-				if ( total_downloading < cfg_max_downloads )
+				if ( g_total_downloading < cfg_max_downloads )
 				{
 					add_state = 1;	// Create the connection.
 
+					FILETIME ft;
+
 					// Set the start time only if we've manually started the download.
+					if ( IS_GROUP( di ) )
+					{
+						EnterCriticalSection( &di->shared_info->di_cs );
+						if ( di->shared_info->start_time.QuadPart == 0 )
+						{
+							GetSystemTimeAsFileTime( &ft );
+							di->shared_info->start_time.LowPart = ft.dwLowDateTime;
+							di->shared_info->start_time.HighPart = ft.dwHighDateTime;
+						}
+
+						di->shared_info->status = STATUS_CONNECTING;
+						LeaveCriticalSection( &di->shared_info->di_cs );
+					}
+
 					if ( di->start_time.QuadPart == 0 )
 					{
-						FILETIME ft;
 						GetSystemTimeAsFileTime( &ft );
 						di->start_time.LowPart = ft.dwLowDateTime;
 						di->start_time.HighPart = ft.dwHighDateTime;
 					}
 
-					di->status = STATUS_CONNECTING;	// Connecting.
+					di->status = STATUS_CONNECTING;
+
+					EnterCriticalSection( &cleanup_cs );
 
 					EnableTimers( true );
 
@@ -3767,9 +3972,31 @@ void StartDownload( DOWNLOAD_INFO *di, bool check_if_file_exists )
 					di->download_node.data = di;
 					DLL_AddNode( &active_download_list, &di->download_node, -1 );
 
-					++total_downloading;
+					if ( IS_GROUP( di ) )
+					{
+						EnterCriticalSection( &di->shared_info->di_cs );
+						if ( di->shared_info->download_node.data == NULL )
+						{
+							di->shared_info->download_node.data = di->shared_info;
+
+							DLL_AddNode( &active_download_list, &di->shared_info->download_node, -1 );
+						}
+						LeaveCriticalSection( &di->shared_info->di_cs );
+					}
+
+					++g_total_downloading;
 
 					LeaveCriticalSection( &active_download_list_cs );
+
+					LeaveCriticalSection( &cleanup_cs );
+
+					//
+
+					EnterCriticalSection( &di->shared_info->di_cs );
+
+					++di->shared_info->active_hosts;
+
+					LeaveCriticalSection( &di->shared_info->di_cs );
 				}
 				else
 				{
@@ -3785,6 +4012,15 @@ void StartDownload( DOWNLOAD_INFO *di, bool check_if_file_exists )
 
 					LeaveCriticalSection( &download_queue_cs );
 				}
+			}
+
+			if ( IS_GROUP( di ) )
+			{
+				EnterCriticalSection( &di->shared_info->di_cs );
+
+				di->shared_info->last_downloaded = di->shared_info->downloaded;
+
+				LeaveCriticalSection( &di->shared_info->di_cs );
 			}
 
 			di->last_downloaded = di->downloaded;
@@ -3804,12 +4040,23 @@ void StartDownload( DOWNLOAD_INFO *di, bool check_if_file_exists )
 				context->processed_header = di->processed_header;
 
 				context->part = part;
-				context->parts = di->parts;
+				context->parts = ( unsigned char )di->parts;
 
 				// If we've processed the header, then we would have already gotten a content disposition filename.
 				if ( di->processed_header )
 				{
 					context->got_filename = 1;
+				}
+
+				// The first host in the host list is what drives every other host. No other host should prompt.
+				if ( di->shared_info->processed_header &&
+					 IS_GROUP( di ) &&
+					 di->shared_info->host_list != NULL &&
+					 di != ( DOWNLOAD_INFO * )di->shared_info->host_list->data )
+				{
+					context->got_filename = 1;				// No need to rename it again.
+					context->got_last_modified = 1;			// No need to get the date/time again.
+					context->show_file_size_prompt = false;	// No need to prompt again.
 				}
 
 				context->request_info.port = port;
@@ -3831,6 +4078,7 @@ void StartDownload( DOWNLOAD_INFO *di, bool check_if_file_exists )
 
 				ri->range_start += ri->content_offset;	// Begin where we left off.
 				ri->content_offset = 0;	// Reset.
+				ri->content_length = 0;	// Group hosts need to have their content_length reset so we can compare it with shared_info->file_size.
 
 				context->header_info.range_info = ri;
 
@@ -3865,13 +4113,23 @@ void StartDownload( DOWNLOAD_INFO *di, bool check_if_file_exists )
 				// Add to the parts list.
 				context->parts_node.data = context;
 
-				EnterCriticalSection( &di->shared_cs );
+				EnterCriticalSection( &di->di_cs );
 
 				DLL_AddNode( &di->parts_list, &context->parts_node, -1 );
 
-				++( di->active_parts );
+				++di->active_parts;
 
-				LeaveCriticalSection( &di->shared_cs );
+				LeaveCriticalSection( &di->di_cs );
+
+				EnterCriticalSection( &di->shared_info->di_cs );
+
+				// For groups.
+				if ( IS_GROUP( di ) )
+				{
+					++di->shared_info->active_parts;
+				}
+
+				LeaveCriticalSection( &di->shared_info->di_cs );
 
 				//
 
@@ -3903,11 +4161,11 @@ void StartDownload( DOWNLOAD_INFO *di, bool check_if_file_exists )
 			{
 				add_state = 3;	// Skip adding anymore values to the queue.
 
-				EnterCriticalSection( &di->shared_cs );
+				EnterCriticalSection( &di->di_cs );
 
 				di->active_parts = 0;
 
-				LeaveCriticalSection( &di->shared_cs );
+				LeaveCriticalSection( &di->di_cs );
 			}
 
 			++part;
@@ -3938,7 +4196,7 @@ dllrbt_tree *CreateFilenameTree()
 		di = ( DOWNLOAD_INFO * )tmp_node->data;
 		if ( di != NULL )
 		{
-			filename = GlobalStrDupW( di->file_path + di->filename_offset );
+			filename = GlobalStrDupW( di->shared_info->file_path + di->shared_info->filename_offset );
 
 			if ( dllrbt_insert( filename_tree, ( void * )filename, ( void * )filename ) != DLLRBT_STATUS_OK )
 			{
@@ -3959,7 +4217,7 @@ dllrbt_tree *CreateFilenameTree()
 		di = ( DOWNLOAD_INFO * )tmp_node->data;
 		if ( di != NULL )
 		{
-			filename = GlobalStrDupW( di->file_path + di->filename_offset );
+			filename = GlobalStrDupW( di->shared_info->file_path + di->shared_info->filename_offset );
 
 			if ( dllrbt_insert( filename_tree, ( void * )filename, ( void * )filename ) != DLLRBT_STATUS_OK )
 			{
@@ -4033,11 +4291,11 @@ bool RenameFile( DOWNLOAD_INFO *di, dllrbt_tree *filename_tree, wchar_t *file_pa
 	while ( GetFileAttributesW( new_file_path ) != INVALID_FILE_ATTRIBUTES );
 
 	// Set the new filename.
-	_wmemcpy_s( di->file_path + di->filename_offset, MAX_PATH - di->filename_offset, new_file_path + filename_offset, MAX_PATH - di->filename_offset );
-	di->file_path[ MAX_PATH - 1 ] = 0;	// Sanity.
+	_wmemcpy_s( di->shared_info->file_path + di->shared_info->filename_offset, MAX_PATH - di->shared_info->filename_offset, new_file_path + filename_offset, MAX_PATH - di->shared_info->filename_offset );
+	di->shared_info->file_path[ MAX_PATH - 1 ] = 0;	// Sanity.
 
 	// Get the new file extension offset.
-	di->file_extension_offset = di->filename_offset + get_file_extension_offset( di->file_path + di->filename_offset, lstrlenW( di->file_path + di->filename_offset ) );
+	di->shared_info->file_extension_offset = di->shared_info->filename_offset + get_file_extension_offset( di->shared_info->file_path + di->shared_info->filename_offset, lstrlenW( di->shared_info->file_path + di->shared_info->filename_offset ) );
 
 	return true;
 }
@@ -4099,6 +4357,43 @@ ICON_INFO *CacheIcon( DOWNLOAD_INFO *di, SHFILEINFO *sfi )
 	return ii;
 }
 
+void RemoveCachedIcon( DOWNLOAD_INFO *di, wchar_t *file_extension )
+{
+	if ( di != NULL )
+	{
+		if ( file_extension == NULL )
+		{
+			file_extension = di->file_path + di->file_extension_offset;
+		}
+
+		EnterCriticalSection( &icon_cache_cs );
+		// Find the icon info
+		dllrbt_iterator *itr = dllrbt_find( g_icon_handles, ( void * )file_extension, false );
+
+		// Free its values and remove it from the tree if there are no other items using it.
+		if ( itr != NULL )
+		{
+			ICON_INFO *ii = ( ICON_INFO * )( ( node_type * )itr )->val;
+			if ( ii != NULL )
+			{
+				if ( --ii->count == 0 )
+				{
+					DestroyIcon( ii->icon );
+					GlobalFree( ii->file_extension );
+					GlobalFree( ii );
+
+					dllrbt_remove( g_icon_handles, itr );
+				}
+			}
+			else
+			{
+				dllrbt_remove( g_icon_handles, itr );
+			}
+		}
+		LeaveCriticalSection( &icon_cache_cs );
+	}
+}
+
 DWORD WINAPI AddURL( void *add_info )
 {
 	if ( add_info == NULL )
@@ -4113,6 +4408,8 @@ DWORD WINAPI AddURL( void *add_info )
 
 	ProcessingList( true );
 
+	SITE_INFO *last_si = NULL;
+
 	ADD_INFO *ai = ( ADD_INFO * )add_info;
 
 	wchar_t *url_list = ai->urls;
@@ -4126,23 +4423,48 @@ DWORD WINAPI AddURL( void *add_info )
 	unsigned int host_length = 0;
 	unsigned int resource_length = 0;
 
+	wchar_t *download_directory = NULL;
+
+	unsigned char parts;
+	unsigned long long download_speed_limit;
+	char ssl_version;
+
+	unsigned char download_operations = DOWNLOAD_OPERATION_NONE;
+
+	unsigned char method = METHOD_NONE;
+
 	wchar_t *url_username = NULL;
 	wchar_t *url_password = NULL;
 
 	unsigned int url_username_length = 0;
 	unsigned int url_password_length = 0;
 
-	int ai_username_length = 0;	// The original length from our auth_info struct.
-	int ai_password_length = 0;
+	//
 
 	char *username = NULL;
 	char *password = NULL;
 
 	int username_length = 0;
 	int password_length = 0;
+
+	int ai_username_length = 0;	// The original length from our auth_info struct.
+	int ai_password_length = 0;
+
+	//
+
+	char *cookies = NULL;
+	char *headers = NULL;
+	char *data = NULL;
+
 	int cookies_length = 0;
 	int headers_length = 0;
 	int data_length = 0;
+
+	int ai_cookies_length = 0;
+	int ai_headers_length = 0;
+	int ai_data_length = 0;
+
+	//
 
 	if ( ai->auth_info.username != NULL )
 	{
@@ -4158,28 +4480,95 @@ DWORD WINAPI AddURL( void *add_info )
 
 	if ( ai->utf8_cookies != NULL )
 	{
-		cookies_length = lstrlenA( ai->utf8_cookies );
+		cookies = ai->utf8_cookies;
+		cookies_length = ai_cookies_length = lstrlenA( ai->utf8_cookies );
 	}
 
 	if ( ai->utf8_headers != NULL )
 	{
-		headers_length = lstrlenA( ai->utf8_headers );
+		headers = ai->utf8_headers;
+		headers_length = ai_headers_length = lstrlenA( ai->utf8_headers );
 	}
 
-	if ( ai->utf8_data != NULL )
+	//
+
+	PROXY_INFO proxy_info;
+
+	int proxy_hostname_length = 0;
+	int proxy_punycode_hostname_length = 0;
+
+	int ai_proxy_hostname_length = 0;
+	int ai_proxy_punycode_hostname_length = 0;
+
+	int proxy_w_username_length = 0;
+	int proxy_w_password_length = 0;
+
+	int proxy_username_length = 0;
+	int proxy_password_length = 0;
+
+	int ai_proxy_username_length = 0;
+	int ai_proxy_password_length = 0;
+
+	int ai_proxy_w_username_length = 0;
+	int ai_proxy_w_password_length = 0;
+
+	//
+
+	if ( ai->proxy_info.hostname != NULL )
 	{
-		data_length = lstrlenA( ai->utf8_data );
+		proxy_hostname_length = ai_proxy_hostname_length = lstrlenW( ai->proxy_info.hostname );
 	}
+
+	if ( ai->proxy_info.punycode_hostname != NULL )
+	{
+		proxy_punycode_hostname_length = ai_proxy_punycode_hostname_length = lstrlenW( ai->proxy_info.punycode_hostname );
+	}
+
+	if ( ai->proxy_info.w_username != NULL )
+	{
+		proxy_w_username_length = ai_proxy_w_username_length = lstrlenW( ai->proxy_info.w_username );
+	}
+
+	if ( ai->proxy_info.w_password != NULL )
+	{
+		proxy_w_password_length = ai_proxy_w_password_length = lstrlenW( ai->proxy_info.w_password );
+	}
+
+	if ( ai->proxy_info.username != NULL )
+	{
+		proxy_username_length = ai_proxy_username_length = lstrlenA( ai->proxy_info.username );
+	}
+
+	if ( ai->proxy_info.password != NULL )
+	{
+		proxy_password_length = ai_proxy_password_length = lstrlenA( ai->proxy_info.password );
+	}
+
+	//
 
 	if ( ai->method == METHOD_NONE )
 	{
 		ai->method = METHOD_GET;
 	}
 
+	method = ai->method;
+
+	if ( ai->method == METHOD_POST )
+	{
+		if ( ai->utf8_data != NULL )
+		{
+			data = ai->utf8_data;
+			data_length = ai_data_length = lstrlenA( ai->utf8_data );
+		}
+	}
+
 	SHFILEINFO *sfi = ( SHFILEINFO * )GlobalAlloc( GMEM_FIXED, sizeof( SHFILEINFO ) );
 
 	// Creates a tree of active and queued downloads.
 	dllrbt_tree *add_files_tree = CreateFilenameTree();
+
+	TREELISTNODE *first_added_tln = NULL;
+	TREELISTNODE *last_added_tln = NULL;
 
 	while ( url_list != NULL )
 	{
@@ -4188,6 +4577,10 @@ DWORD WINAPI AddURL( void *add_info )
 		{
 			break;
 		}
+
+		wchar_t *group_start = NULL;
+		wchar_t *group_end = NULL;
+		wchar_t *next_url = NULL;	// The line after the group.
 
 		// See if we're overwriting the filename.
 		wchar_t *filename_start = url_list;
@@ -4200,455 +4593,991 @@ DWORD WINAPI AddURL( void *add_info )
 			++filename_start;
 			url_list = filename_start;
 
-			while ( *url_list != 0 )
+			wchar_t *url_start = _StrStrW( url_list, L"://" );
+			if ( url_start != NULL )
 			{
-				if ( *url_list == L']' )
+				// Walk back to find the end of the filename.
+				while ( --url_start != filename_start )
 				{
-					filename_end = url_list;
+					if ( *url_start == L']' )
+					{
+						filename_end = url_start;
 
-					w_filename_length = ( unsigned int )( filename_end - filename_start );
+						w_filename_length = ( unsigned int )( filename_end - filename_start );
 
+						*url_start = 0;	// Sanity.
+
+						EscapeFilename( filename_start );
+
+						url_list = url_start + 1;
+
+						if ( _StrCmpNIW( url_list, L"{\r\n", 3 ) == 0 )
+						{
+							group_start = url_list;
+						}
+
+						break;
+					}
+				}
+			}
+			else
+			{
+				break;
+			}
+		}
+
+		unsigned group_count = 0;
+		bool is_group = false;
+
+		if ( group_start == NULL )
+		{
+			if ( _StrCmpNIW( url_list, L"{\r\n", 3 ) == 0 )
+			{
+				group_start = url_list;
+			}
+		}
+
+		if ( group_start != NULL )
+		{
+			group_start += 3;
+			group_end = group_start;
+
+			bool bad_group_format = false;
+
+			while ( group_end != NULL )
+			{
+				group_end = _StrChrW( group_end, L'}' );
+				if ( group_end != NULL )
+				{
+					if ( *( group_end + 1 ) == NULL )
+					{
+						is_group = true;
+
+						break;
+					}
+					else if ( *( group_end + 1 ) == L'\r' && *( group_end + 2 ) == L'\n' )
+					{
+						next_url = group_end + 3;
+
+						is_group = true;
+
+						break;
+					}
+
+					++group_end;
+				}
+			}
+
+			if ( group_end == NULL )
+			{
+				break;	// Can't continue with the Add.
+			}
+		}
+
+		TREELISTNODE *tln_parent = NULL;
+		DOWNLOAD_INFO *shared_info = NULL;
+		DOWNLOAD_INFO *di = NULL;
+		bool add_stopped = false;
+
+		do
+		{
+			// Remove anything before our URL (spaces, tabs, newlines, etc.)
+			while ( *url_list != 0 && ( ( *url_list != L'h' && *url_list != L'H' ) && ( *url_list != L'f' && *url_list != L'F' ) ) )
+			{
+				++url_list;
+			}
+
+			// Find the end of the current url.
+			wchar_t *current_url = url_list;
+
+			int current_url_length = 0;
+
+			bool decode_converted_resource = false;
+			unsigned int white_space_count = 0;
+
+			while ( *url_list != NULL )
+			{
+				if ( *url_list == L'%' )
+				{
+					decode_converted_resource = true;
+				}
+				else if ( *url_list == L' ' )
+				{
+					++white_space_count;
+				}
+				else if ( *url_list == L'\r' && *( url_list + 1 ) == L'\n' )
+				{
 					*url_list = 0;	// Sanity.
 
-					EscapeFilename( filename_start );
+					current_url_length = ( int )( url_list - current_url );
 
-					++url_list;
-
-					url_list = url_list;
+					url_list += 2;
 
 					break;
 				}
 
 				++url_list;
 			}
-		}
 
-		// Remove anything before our URL (spaces, tabs, newlines, etc.)
-		while ( *url_list != 0 && ( ( *url_list != L'h' && *url_list != L'H' ) && ( *url_list != L'f' && *url_list != L'F' ) ) )
-		{
-			++url_list;
-		}
-
-		// Find the end of the current url.
-		wchar_t *current_url = url_list;
-
-		int current_url_length = 0;
-
-		bool decode_converted_resource = false;
-		unsigned int white_space_count = 0;
-
-		while ( *url_list != NULL )
-		{
-			if ( *url_list == L'%' )
+			if ( *url_list == NULL )
 			{
-				decode_converted_resource = true;
-			}
-			else if ( *url_list == L' ' )
-			{
-				++white_space_count;
-			}
-			else if ( *url_list == L'\r' && *( url_list + 1 ) == L'\n' )
-			{
-				*url_list = 0;	// Sanity.
-
 				current_url_length = ( int )( url_list - current_url );
 
-				url_list += 2;
-
-				break;
+				url_list = NULL;
 			}
 
-			++url_list;
-		}
-
-		if ( *url_list == NULL )
-		{
-			current_url_length = ( int )( url_list - current_url );
-
-			url_list = NULL;
-		}
-
-		// Remove whitespace at the end of our URL.
-		while ( current_url_length > 0 )
-		{
-			if ( current_url[ current_url_length - 1 ] != L' ' && current_url[ current_url_length - 1 ] != L'\t' && current_url[ current_url_length - 1 ] != L'\f' )
+			// Remove whitespace at the end of our URL.
+			while ( current_url_length > 0 )
 			{
-				break;
-			}
-			else
-			{
-				if ( current_url[ current_url_length - 1 ] == L' ' )
+				if ( current_url[ current_url_length - 1 ] != L' ' && current_url[ current_url_length - 1 ] != L'\t' && current_url[ current_url_length - 1 ] != L'\f' )
 				{
-					--white_space_count;
-				}
-
-				current_url[ current_url_length - 1 ] = 0;	// Sanity.
-			}
-
-			--current_url_length;
-		}
-
-		wchar_t *current_url_encoded = NULL;
-
-		if ( white_space_count > 0 && *current_url != L'f' && *current_url != L'F' )
-		{
-			wchar_t *pstr = current_url;
-			current_url_encoded = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( current_url_length + ( white_space_count * 2 ) + 1 ) );
-			wchar_t *pbuf = current_url_encoded;
-
-			while ( pstr < ( current_url + current_url_length ) )
-			{
-				if ( *pstr == L' ' )
-				{
-					pbuf[ 0 ] = L'%';
-					pbuf[ 1 ] = L'2';
-					pbuf[ 2 ] = L'0';
-
-					pbuf = pbuf + 3;
+					break;
 				}
 				else
 				{
-					*pbuf++ = *pstr;
-				}
-
-				++pstr;
-			}
-
-			*pbuf = L'\0';
-		}
-
-		// Reset.
-		protocol = PROTOCOL_UNKNOWN;
-		host = NULL;
-		resource = NULL;
-		port = 0;
-
-		host_length = 0;
-		resource_length = 0;
-
-		url_username = NULL;
-		url_password = NULL;
-
-		url_username_length = 0;
-		url_password_length = 0;
-
-		ParseURL_W( ( current_url_encoded != NULL ? current_url_encoded : current_url ), NULL, protocol, &host, host_length, port, &resource, resource_length, &url_username, &url_username_length, &url_password, &url_password_length );
-
-		// The username and password could be encoded.
-		if ( url_username != NULL )
-		{
-			int val_length = WideCharToMultiByte( CP_UTF8, 0, url_username, url_username_length + 1, NULL, 0, NULL, NULL );
-			char *utf8_val = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * val_length ); // Size includes the null character.
-			WideCharToMultiByte( CP_UTF8, 0, url_username, url_username_length + 1, utf8_val, val_length, NULL, NULL );
-
-			url_username_length = 0;
-			username = url_decode_a( utf8_val, val_length - 1, &url_username_length );
-			username_length = url_username_length;
-			GlobalFree( utf8_val );
-
-			//
-
-			if ( url_password != NULL )
-			{
-				val_length = WideCharToMultiByte( CP_UTF8, 0, url_password, url_password_length + 1, NULL, 0, NULL, NULL );
-				utf8_val = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * val_length ); // Size includes the null character.
-				WideCharToMultiByte( CP_UTF8, 0, url_password, url_password_length + 1, utf8_val, val_length, NULL, NULL );
-
-				url_password_length = 0;
-				password = url_decode_a( utf8_val, val_length - 1, &url_password_length );
-				password_length = url_password_length;
-				GlobalFree( utf8_val );
-			}
-			else
-			{
-				password = NULL;
-				password_length = 0;
-			}
-		}
-
-		if ( ( protocol != PROTOCOL_UNKNOWN && protocol != PROTOCOL_RELATIVE ) &&
-			   host != NULL && resource != NULL && port != 0 )
-		{
-			DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )GlobalAlloc( GPTR, sizeof( DOWNLOAD_INFO ) );
-
-			if ( !( ai->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
-			{
-				di->filename_offset = lstrlenW( ai->download_directory );
-				_wmemcpy_s( di->file_path, MAX_PATH, ai->download_directory, di->filename_offset );
-				di->file_path[ di->filename_offset ] = 0;	// Sanity.
-
-				++di->filename_offset;	// Include the NULL terminator.
-			}
-			else
-			{
-				di->filename_offset = 1;
-			}
-
-			if ( w_filename_length > 0 )
-			{
-				w_filename_length = min( w_filename_length, ( int )( MAX_PATH - di->filename_offset - 1 ) );
-
-				_wmemcpy_s( di->file_path + di->filename_offset, MAX_PATH - di->filename_offset, filename_start, w_filename_length );
-				di->file_path[ di->filename_offset + w_filename_length ] = 0;	// Sanity.
-
-				di->download_operations |= DOWNLOAD_OPERATION_OVERRIDE_FILENAME;
-			}
-			else
-			{
-				wchar_t *directory = NULL;
-
-				if ( decode_converted_resource )
-				{
-					int val_length = WideCharToMultiByte( CP_UTF8, 0, resource, resource_length + 1, NULL, 0, NULL, NULL );
-					char *utf8_val = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * val_length ); // Size includes the null character.
-					WideCharToMultiByte( CP_UTF8, 0, resource, resource_length + 1, utf8_val, val_length, NULL, NULL );
-
-					unsigned int directory_length = 0;
-					char *c_directory = url_decode_a( utf8_val, val_length - 1, &directory_length );
-					GlobalFree( utf8_val );
-
-					val_length = MultiByteToWideChar( CP_UTF8, 0, c_directory, directory_length + 1, NULL, 0 );	// Include the NULL terminator.
-					directory = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * val_length );
-					MultiByteToWideChar( CP_UTF8, 0, c_directory, directory_length + 1, directory, val_length );
-
-					GlobalFree( c_directory );	
-				}
-				else
-				{
-					directory = url_decode_w( resource, resource_length, NULL );
-				}
-
-				// Try to create a filename from the resource path.
-				if ( directory != NULL )
-				{
-					wchar_t *directory_ptr = directory;
-					wchar_t *current_directory = directory;
-					wchar_t *last_directory = NULL;
-
-					// Iterate forward because '/' can be found after '#'.
-					while ( *directory_ptr != NULL )
+					if ( current_url[ current_url_length - 1 ] == L' ' )
 					{
-						if ( *directory_ptr == L'?' || *directory_ptr == L'#' )
-						{
-							*directory_ptr = 0;	// Sanity.
-
-							break;
-						}
-						else if ( *directory_ptr == L'/' )
-						{
-							last_directory = current_directory;
-							current_directory = directory_ptr + 1; 
-						}
-
-						++directory_ptr;
+						--white_space_count;
 					}
 
-					if ( *current_directory == NULL )
-					{
-						// Adjust for '/'. current_directory will always be at least 1 greater than last_directory.
-						if ( last_directory != NULL && ( current_directory - 1 ) - last_directory > 0 )
-						{
-							w_filename_length = ( unsigned int )( ( current_directory - 1 ) - last_directory );
-							current_directory = last_directory;
-						}
-						else	// No filename could be made from the resource path. Use the host name instead.
-						{
-							w_filename_length = host_length;
-							current_directory = host;
+					current_url[ current_url_length - 1 ] = 0;	// Sanity.
+				}
 
-							di->download_operations |= DOWNLOAD_OPERATION_GET_EXTENSION;
+				--current_url_length;
+			}
+
+			wchar_t *current_url_encoded = NULL;
+
+			if ( white_space_count > 0 && *current_url != L'f' && *current_url != L'F' )
+			{
+				wchar_t *pstr = current_url;
+				current_url_encoded = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( current_url_length + ( white_space_count * 2 ) + 1 ) );
+				wchar_t *pbuf = current_url_encoded;
+
+				while ( pstr < ( current_url + current_url_length ) )
+				{
+					if ( *pstr == L' ' )
+					{
+						pbuf[ 0 ] = L'%';
+						pbuf[ 1 ] = L'2';
+						pbuf[ 2 ] = L'0';
+
+						pbuf = pbuf + 3;
+					}
+					else
+					{
+						*pbuf++ = *pstr;
+					}
+
+					++pstr;
+				}
+
+				*pbuf = L'\0';
+			}
+
+			// Reset.
+			protocol = PROTOCOL_UNKNOWN;
+			host = NULL;
+			resource = NULL;
+			port = 0;
+
+			host_length = 0;
+			resource_length = 0;
+
+			url_username = NULL;
+			url_password = NULL;
+
+			url_username_length = 0;
+			url_password_length = 0;
+
+			ParseURL_W( ( current_url_encoded != NULL ? current_url_encoded : current_url ), NULL, protocol, &host, host_length, port, &resource, resource_length, &url_username, &url_username_length, &url_password, &url_password_length );
+
+			SITE_INFO tsi;
+			tsi.host = host;
+			tsi.protocol = protocol;
+			tsi.port = port;
+			SITE_INFO *si = ( SITE_INFO * )dllrbt_find( g_site_info, ( void * )&tsi, true );
+			if ( si != NULL && !si->enable )
+			{
+				si = NULL;
+			}
+
+			if ( si != NULL && si != last_si )
+			{
+				if ( ai->use_download_directory )
+				{
+					download_directory = ai->download_directory;
+				}
+				else if ( si->use_download_directory )
+				{
+					download_directory = si->download_directory;
+				}
+				else
+				{
+					download_directory = cfg_default_download_directory;
+				}
+
+				if ( ai->use_parts )
+				{
+					parts = ai->parts;
+				}
+				else if ( si->use_parts )
+				{
+					parts = si->parts;
+				}
+				else
+				{
+					parts = cfg_default_download_parts;
+				}
+
+				if ( ai->ssl_version > 0 )
+				{
+					ssl_version = ai->ssl_version - 1;
+				}
+				else if ( si->ssl_version > 0 )
+				{
+					ssl_version = si->ssl_version - 1;
+				}
+				else
+				{
+					ssl_version = cfg_default_ssl_version;
+				}
+
+				if ( ai->use_download_speed_limit )
+				{
+					download_speed_limit = ai->download_speed_limit;
+				}
+				else if ( si->use_download_speed_limit )
+				{
+					download_speed_limit = si->download_speed_limit;
+				}
+				else
+				{
+					download_speed_limit = cfg_default_speed_limit;
+				}
+
+				download_operations = ai->download_operations | si->download_operations;	// Include ai and si together.
+
+				if ( url_username == NULL )
+				{
+					if ( si->username == NULL )
+					{
+						username = ai->auth_info.username;
+						username_length = ai_username_length;
+					}
+					else
+					{
+						username = si->username;
+						username_length = lstrlenA( username );
+					}
+				}
+				else
+				{
+					username = NULL;
+					username_length = 0;
+				}
+
+				if ( url_password == NULL )
+				{
+					if ( si->password == NULL )
+					{
+						password = ai->auth_info.password;
+						password_length = ai_password_length;
+					}
+					else
+					{
+						password = si->password;
+						password_length = lstrlenA( password );
+					}
+				}
+				else
+				{
+					password = NULL;
+					password_length = 0;
+				}
+
+				if ( ai->utf8_cookies == NULL && si->utf8_cookies != NULL )
+				{
+					cookies = si->utf8_cookies;
+					cookies_length = lstrlenA( si->utf8_cookies );
+				}
+
+				if ( ai->utf8_headers == NULL && si->utf8_headers != NULL )
+				{
+					headers = si->utf8_headers;
+					headers_length = lstrlenA( si->utf8_headers );
+				}
+
+				if ( ai->method == METHOD_NONE && si->method == METHOD_POST )
+				{
+					method = METHOD_POST;
+
+					if ( si->utf8_data != NULL )
+					{
+						data = si->utf8_data;
+						data_length = lstrlenA( si->utf8_data );
+					}
+				}
+
+				//
+
+				if ( ai->proxy_info.type != 0 )
+				{
+					proxy_info.type = ai->proxy_info.type;
+					proxy_info.hostname = ai->proxy_info.hostname;
+					proxy_info.punycode_hostname = ai->proxy_info.punycode_hostname;
+					proxy_info.ip_address = ai->proxy_info.ip_address;
+					proxy_info.port = ai->proxy_info.port;
+					proxy_info.address_type = ai->proxy_info.address_type;
+					proxy_info.type = ai->proxy_info.type;
+					proxy_info.use_authentication = ai->proxy_info.use_authentication;
+					proxy_info.w_username = ai->proxy_info.w_username;
+					proxy_info.w_password = ai->proxy_info.w_password;
+					proxy_info.username = ai->proxy_info.username;
+					proxy_info.password = ai->proxy_info.password;
+					proxy_info.resolve_domain_names = ai->proxy_info.resolve_domain_names;
+
+					proxy_hostname_length = ai_proxy_hostname_length;
+					proxy_punycode_hostname_length = ai_proxy_punycode_hostname_length;
+					proxy_w_username_length = ai_proxy_w_username_length;
+					proxy_w_password_length = ai_proxy_w_password_length;
+					proxy_username_length = ai_proxy_username_length;
+					proxy_password_length = ai_proxy_password_length;
+				}
+				else if ( si->proxy_info.type != 0 )
+				{
+					proxy_info.type = si->proxy_info.type;
+					proxy_info.hostname = si->proxy_info.hostname;
+					proxy_info.punycode_hostname = si->proxy_info.punycode_hostname;
+					proxy_info.ip_address = si->proxy_info.ip_address;
+					proxy_info.port = si->proxy_info.port;
+					proxy_info.address_type = si->proxy_info.address_type;
+					proxy_info.type = si->proxy_info.type;
+					proxy_info.use_authentication = si->proxy_info.use_authentication;
+					proxy_info.w_username = si->proxy_info.w_username;
+					proxy_info.w_password = si->proxy_info.w_password;
+					proxy_info.username = si->proxy_info.username;
+					proxy_info.password = si->proxy_info.password;
+					proxy_info.resolve_domain_names = si->proxy_info.resolve_domain_names;
+
+					proxy_hostname_length = lstrlenW( si->proxy_info.hostname );
+					proxy_punycode_hostname_length = lstrlenW( si->proxy_info.punycode_hostname );
+					proxy_w_username_length = lstrlenW( si->proxy_info.w_username );
+					proxy_w_password_length = lstrlenW( si->proxy_info.w_password );
+					proxy_username_length = lstrlenA( si->proxy_info.username );
+					proxy_password_length = lstrlenA( si->proxy_info.password );
+				}
+				else
+				{
+					proxy_info.type = 0;
+				}
+			}
+
+			last_si = si;
+
+			if ( si == NULL )
+			{
+				if ( ai->use_download_directory )
+				{
+					download_directory = ai->download_directory;
+				}
+				else
+				{
+					download_directory = cfg_default_download_directory;
+				}
+
+				if ( ai->use_parts )
+				{
+					parts = ai->parts;
+				}
+				else
+				{
+					parts = cfg_default_download_parts;
+				}
+
+				if ( ai->ssl_version > 0 )
+				{
+					ssl_version = ai->ssl_version - 1;
+				}
+				else
+				{
+					ssl_version = cfg_default_ssl_version;
+				}
+
+				if ( ai->use_download_speed_limit )
+				{
+					download_speed_limit = ai->download_speed_limit;
+				}
+				else
+				{
+					download_speed_limit = cfg_default_speed_limit;
+				}
+
+				download_operations = ai->download_operations;
+
+				if ( url_username == NULL )
+				{
+					username = ai->auth_info.username;
+					username_length = ai_username_length;
+				}
+				else
+				{
+					username = NULL;
+					username_length = 0;
+				}
+
+				if ( url_password == NULL )
+				{
+					password = ai->auth_info.password;
+					password_length = ai_password_length;
+				}
+				else
+				{
+					password = NULL;
+					password_length = 0;
+				}
+
+				if ( ai->utf8_cookies != NULL )
+				{
+					cookies = ai->utf8_cookies;
+					cookies_length = ai_cookies_length;
+				}
+
+				if ( ai->utf8_headers != NULL )
+				{
+					headers = ai->utf8_headers;
+					headers_length = ai_headers_length;
+				}
+
+				method = ai->method;
+
+				if ( ai->method == METHOD_POST )
+				{
+					if ( ai->utf8_data != NULL )
+					{
+						data = ai->utf8_data;
+						data_length = ai_data_length;
+					}
+				}
+
+				//
+
+				if ( ai->proxy_info.type != 0 )
+				{
+					proxy_info.type = ai->proxy_info.type;
+					proxy_info.hostname = ai->proxy_info.hostname;
+					proxy_info.punycode_hostname = ai->proxy_info.punycode_hostname;
+					proxy_info.ip_address = ai->proxy_info.ip_address;
+					proxy_info.port = ai->proxy_info.port;
+					proxy_info.address_type = ai->proxy_info.address_type;
+					proxy_info.type = ai->proxy_info.type;
+					proxy_info.use_authentication = ai->proxy_info.use_authentication;
+					proxy_info.w_username = ai->proxy_info.w_username;
+					proxy_info.w_password = ai->proxy_info.w_password;
+					proxy_info.username = ai->proxy_info.username;
+					proxy_info.password = ai->proxy_info.password;
+					proxy_info.resolve_domain_names = ai->proxy_info.resolve_domain_names;
+
+					proxy_hostname_length = ai_proxy_hostname_length;
+					proxy_punycode_hostname_length = ai_proxy_punycode_hostname_length;
+					proxy_w_username_length = ai_proxy_w_username_length;
+					proxy_w_password_length = ai_proxy_w_password_length;
+					proxy_username_length = ai_proxy_username_length;
+					proxy_password_length = ai_proxy_password_length;
+				}
+				else
+				{
+					proxy_info.type = 0;
+				}
+			}
+
+			// The username and password could be encoded.
+			if ( url_username != NULL )
+			{
+				int val_length = WideCharToMultiByte( CP_UTF8, 0, url_username, url_username_length + 1, NULL, 0, NULL, NULL );
+				char *utf8_val = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * val_length ); // Size includes the null character.
+				WideCharToMultiByte( CP_UTF8, 0, url_username, url_username_length + 1, utf8_val, val_length, NULL, NULL );
+
+				url_username_length = 0;
+				username = url_decode_a( utf8_val, val_length - 1, &url_username_length );
+				username_length = url_username_length;
+				GlobalFree( utf8_val );
+
+				//
+
+				if ( url_password != NULL )
+				{
+					val_length = WideCharToMultiByte( CP_UTF8, 0, url_password, url_password_length + 1, NULL, 0, NULL, NULL );
+					utf8_val = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * val_length ); // Size includes the null character.
+					WideCharToMultiByte( CP_UTF8, 0, url_password, url_password_length + 1, utf8_val, val_length, NULL, NULL );
+
+					url_password_length = 0;
+					password = url_decode_a( utf8_val, val_length - 1, &url_password_length );
+					password_length = url_password_length;
+					GlobalFree( utf8_val );
+				}
+				else
+				{
+					password = NULL;
+					password_length = 0;
+				}
+			}
+
+			if ( ( protocol != PROTOCOL_UNKNOWN && protocol != PROTOCOL_RELATIVE ) &&
+				   host != NULL && resource != NULL && port != 0 )
+			{
+				bool set_shared_info;
+
+				if ( shared_info == NULL )
+				{
+					shared_info = ( DOWNLOAD_INFO * )GlobalAlloc( GPTR, sizeof( DOWNLOAD_INFO ) );
+					set_shared_info = true;
+				}
+				else
+				{
+					set_shared_info = false;
+				}
+
+				if ( is_group )
+				{
+					di = ( DOWNLOAD_INFO * )GlobalAlloc( GPTR, sizeof( DOWNLOAD_INFO ) );
+				}
+				else
+				{
+					di = shared_info;
+				}
+
+				if ( di != NULL )
+				{
+					di->shared_info = shared_info;
+
+					if ( di->shared_info != NULL )
+					{
+						InitializeCriticalSection( &di->di_cs );
+
+						if ( set_shared_info )
+						{
+							shared_info->shared_info = shared_info;
+
+							InitializeCriticalSection( &shared_info->di_cs );
+
+							if ( !( download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
+							{
+								di->shared_info->filename_offset = lstrlenW( download_directory );
+								_wmemcpy_s( di->shared_info->file_path, MAX_PATH, download_directory, di->shared_info->filename_offset );
+								di->shared_info->file_path[ di->shared_info->filename_offset ] = 0;	// Sanity.
+
+								++di->shared_info->filename_offset;	// Include the NULL terminator.
+							}
+							else
+							{
+								di->shared_info->filename_offset = 1;
+							}
+
+							if ( w_filename_length > 0 )
+							{
+								w_filename_length = min( w_filename_length, ( int )( MAX_PATH - di->shared_info->filename_offset - 1 ) );
+
+								_wmemcpy_s( di->shared_info->file_path + di->shared_info->filename_offset, MAX_PATH - di->shared_info->filename_offset, filename_start, w_filename_length );
+								di->shared_info->file_path[ di->shared_info->filename_offset + w_filename_length ] = 0;	// Sanity.
+
+								di->shared_info->download_operations |= DOWNLOAD_OPERATION_OVERRIDE_FILENAME;
+							}
+							else
+							{
+								wchar_t *directory = NULL;
+
+								if ( decode_converted_resource )
+								{
+									int val_length = WideCharToMultiByte( CP_UTF8, 0, resource, resource_length + 1, NULL, 0, NULL, NULL );
+									char *utf8_val = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * val_length ); // Size includes the null character.
+									WideCharToMultiByte( CP_UTF8, 0, resource, resource_length + 1, utf8_val, val_length, NULL, NULL );
+
+									unsigned int directory_length = 0;
+									char *c_directory = url_decode_a( utf8_val, val_length - 1, &directory_length );
+									GlobalFree( utf8_val );
+
+									val_length = MultiByteToWideChar( CP_UTF8, 0, c_directory, directory_length + 1, NULL, 0 );	// Include the NULL terminator.
+									directory = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * val_length );
+									MultiByteToWideChar( CP_UTF8, 0, c_directory, directory_length + 1, directory, val_length );
+
+									GlobalFree( c_directory );	
+								}
+								else
+								{
+									directory = url_decode_w( resource, resource_length, NULL );
+								}
+
+								// Try to create a filename from the resource path.
+								if ( directory != NULL )
+								{
+									wchar_t *directory_ptr = directory;
+									wchar_t *current_directory = directory;
+									wchar_t *last_directory = NULL;
+
+									// Iterate forward because '/' can be found after '#'.
+									while ( *directory_ptr != NULL )
+									{
+										if ( *directory_ptr == L'?' || *directory_ptr == L'#' )
+										{
+											*directory_ptr = 0;	// Sanity.
+
+											break;
+										}
+										else if ( *directory_ptr == L'/' )
+										{
+											last_directory = current_directory;
+											current_directory = directory_ptr + 1; 
+										}
+
+										++directory_ptr;
+									}
+
+									if ( *current_directory == NULL )
+									{
+										// Adjust for '/'. current_directory will always be at least 1 greater than last_directory.
+										if ( last_directory != NULL && ( current_directory - 1 ) - last_directory > 0 )
+										{
+											w_filename_length = ( unsigned int )( ( current_directory - 1 ) - last_directory );
+											current_directory = last_directory;
+										}
+										else	// No filename could be made from the resource path. Use the host name instead.
+										{
+											w_filename_length = host_length;
+											current_directory = host;
+
+											di->shared_info->download_operations |= DOWNLOAD_OPERATION_GET_EXTENSION;
+										}
+									}
+									else
+									{
+										w_filename_length = ( unsigned int )( directory_ptr - current_directory );
+									}
+
+									w_filename_length = min( w_filename_length, ( int )( MAX_PATH - di->shared_info->filename_offset - 1 ) );
+
+									_wmemcpy_s( di->shared_info->file_path + di->shared_info->filename_offset, MAX_PATH - di->shared_info->filename_offset, current_directory, w_filename_length );
+									di->shared_info->file_path[ di->shared_info->filename_offset + w_filename_length ] = 0;	// Sanity.
+
+									EscapeFilename( di->shared_info->file_path + di->shared_info->filename_offset );
+
+									GlobalFree( directory );
+								}
+								else	// Shouldn't happen.
+								{
+									w_filename_length = 11;
+									_wmemcpy_s( di->shared_info->file_path + di->shared_info->filename_offset, MAX_PATH - di->shared_info->filename_offset, L"NO_FILENAME\0", 12 );
+								}
+							}
+
+							di->shared_info->file_extension_offset = di->shared_info->filename_offset + ( ( di->shared_info->download_operations & DOWNLOAD_OPERATION_GET_EXTENSION ) ? w_filename_length : get_file_extension_offset( di->shared_info->file_path + di->shared_info->filename_offset, w_filename_length ) );
+
+							// Couldn't get an extension, try to get one from the Content-Type header field.
+							if ( di->shared_info->file_extension_offset == ( di->shared_info->filename_offset + w_filename_length ) )
+							{
+								di->shared_info->download_operations |= DOWNLOAD_OPERATION_GET_EXTENSION;
+							}
+
+							di->shared_info->hFile = INVALID_HANDLE_VALUE;
+
+							//
+
+							// Cache our file's icon.
+							ICON_INFO *ii = CacheIcon( di->shared_info, sfi );
+
+							if ( ii != NULL )
+							{
+								di->shared_info->icon = &ii->icon;
+							}
+
+							//
+
+							SYSTEMTIME st;
+							FILETIME ft;
+
+							GetLocalTime( &st );
+							SystemTimeToFileTime( &st, &ft );
+
+							di->shared_info->add_time.LowPart = ft.dwLowDateTime;
+							di->shared_info->add_time.HighPart = ft.dwHighDateTime;
+
+							int buffer_length = 0;
+
+							#ifndef NTDLL_USE_STATIC_LIB
+								//buffer_length = 64;	// Should be enough to hold most translated values.
+								buffer_length = __snwprintf( NULL, 0, L"%s, %s %d, %04d %d:%02d:%02d %s", GetDay( st.wDayOfWeek ), GetMonth( st.wMonth ), st.wDay, st.wYear, ( st.wHour > 12 ? st.wHour - 12 : ( st.wHour != 0 ? st.wHour : 12 ) ), st.wMinute, st.wSecond, ( st.wHour >= 12 ? L"PM" : L"AM" ) ) + 1;	// Include the NULL character.
+							#else
+								buffer_length = _scwprintf( L"%s, %s %d, %04d %d:%02d:%02d %s", GetDay( st.wDayOfWeek ), GetMonth( st.wMonth ), st.wDay, st.wYear, ( st.wHour > 12 ? st.wHour - 12 : ( st.wHour != 0 ? st.wHour : 12 ) ), st.wMinute, st.wSecond, ( st.wHour >= 12 ? L"PM" : L"AM" ) ) + 1;	// Include the NULL character.
+							#endif
+
+							di->shared_info->w_add_time = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * buffer_length );
+
+							__snwprintf( di->shared_info->w_add_time, buffer_length, L"%s, %s %d, %04d %d:%02d:%02d %s", GetDay( st.wDayOfWeek ), GetMonth( st.wMonth ), st.wDay, st.wYear, ( st.wHour > 12 ? st.wHour - 12 : ( st.wHour != 0 ? st.wHour : 12 ) ), st.wMinute, st.wSecond, ( st.wHour >= 12 ? L"PM" : L"AM" ) );
+
+							//
+
+							di->shared_info->ssl_version = -1;
+						}
+
+						if ( current_url_encoded != NULL )
+						{
+							di->url = current_url_encoded;
+							current_url_encoded = NULL;
+						}
+						else
+						{
+							di->url = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( current_url_length + 1 ) );
+							_wmemcpy_s( di->url, current_url_length + 1, current_url, current_url_length );
+							di->url[ current_url_length ] = 0;	// Sanity.
+						}
+
+						di->parts = parts;
+						di->download_speed_limit = download_speed_limit;
+						di->ssl_version = ssl_version;
+
+						di->shared_info->download_operations |= download_operations;
+
+						if ( download_operations & DOWNLOAD_OPERATION_ADD_STOPPED )
+						{
+							di->status = STATUS_STOPPED;
+							//di->shared_info->download_operations &= ~DOWNLOAD_OPERATION_ADD_STOPPED;
+						}
+
+						if ( username != NULL && username_length > 0 )
+						{
+							di->auth_info.username = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( username_length + 1 ) );
+							_memcpy_s( di->auth_info.username, username_length + 1, username, username_length );
+							di->auth_info.username[ username_length ] = 0;	// Sanity.
+						}
+
+						if ( password != NULL && password_length > 0 )
+						{
+							di->auth_info.password = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( password_length + 1 ) );
+							_memcpy_s( di->auth_info.password, password_length + 1, password, password_length );
+							di->auth_info.password[ password_length ] = 0;	// Sanity.
+						}
+
+						if ( cookies != NULL && cookies_length > 0 )
+						{
+							di->cookies = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( cookies_length + 1 ) );
+							_memcpy_s( di->cookies, cookies_length + 1, cookies, cookies_length );
+							di->cookies[ cookies_length ] = 0;	// Sanity.
+						}
+
+						if ( headers != NULL && headers_length > 0 )
+						{
+							di->headers = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( headers_length + 1 ) );
+							_memcpy_s( di->headers, headers_length + 1, headers, headers_length );
+							di->headers[ headers_length ] = 0;	// Sanity.
+						}
+
+						di->method = method;
+
+						if ( method == METHOD_POST )
+						{
+							if ( data != NULL && data_length > 0 )
+							{
+								di->data = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( data_length + 1 ) );
+								_memcpy_s( di->data, data_length + 1, data, data_length );
+								di->data[ data_length ] = 0;	// Sanity.
+							}
+						}
+
+						//
+
+						if ( proxy_info.type != 0 )
+						{
+							di->proxy_info = ( PROXY_INFO * )GlobalAlloc( GPTR, sizeof( PROXY_INFO ) );
+
+							di->proxy_info->type = proxy_info.type;
+							di->proxy_info->ip_address = proxy_info.ip_address;
+							di->proxy_info->port = proxy_info.port;
+							di->proxy_info->address_type = proxy_info.address_type;
+							di->proxy_info->use_authentication = proxy_info.use_authentication;
+							di->proxy_info->resolve_domain_names = proxy_info.resolve_domain_names;
+
+							if ( proxy_info.hostname != NULL )
+							{
+								di->proxy_info->hostname = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( proxy_hostname_length + 1 ) );
+								_wmemcpy_s( di->proxy_info->hostname, proxy_hostname_length + 1, proxy_info.hostname, proxy_hostname_length + 1 );
+							}
+							else
+							{
+								di->proxy_info->hostname = NULL;
+							}
+
+							if ( proxy_info.punycode_hostname != NULL )
+							{
+								di->proxy_info->punycode_hostname = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( proxy_punycode_hostname_length + 1 ) );
+								_wmemcpy_s( di->proxy_info->punycode_hostname, proxy_punycode_hostname_length + 1, proxy_info.punycode_hostname, proxy_punycode_hostname_length + 1 );
+							}
+							else
+							{
+								di->proxy_info->punycode_hostname = NULL;
+							}
+
+							if ( proxy_info.w_username != NULL )
+							{
+								di->proxy_info->w_username = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( proxy_w_username_length + 1 ) );
+								_wmemcpy_s( di->proxy_info->w_username, proxy_w_username_length + 1, proxy_info.w_username, proxy_w_username_length + 1 );
+							}
+							else
+							{
+								di->proxy_info->w_username = NULL;
+							}
+
+							if ( proxy_info.w_password != NULL )
+							{
+								di->proxy_info->w_password = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( proxy_w_password_length + 1 ) );
+								_wmemcpy_s( di->proxy_info->w_password, proxy_w_password_length + 1, proxy_info.w_password, proxy_w_password_length + 1 );
+							}
+							else
+							{
+								di->proxy_info->w_password = NULL;
+							}
+
+							if ( proxy_info.username != NULL )
+							{
+								proxy_username_length = lstrlenA( proxy_info.username );
+								di->proxy_info->username = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( proxy_username_length + 1 ) );
+								_memcpy_s( di->proxy_info->username, proxy_username_length + 1, proxy_info.username, proxy_username_length + 1 );
+							}
+							else
+							{
+								di->proxy_info->username = NULL;
+							}
+
+							if ( proxy_info.password != NULL )
+							{
+								proxy_password_length = lstrlenA( proxy_info.password );
+								di->proxy_info->password = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( proxy_password_length + 1 ) );
+								_memcpy_s( di->proxy_info->password, proxy_password_length + 1, proxy_info.password, proxy_password_length + 1 );
+							}
+							else
+							{
+								di->proxy_info->password = NULL;
+							}
+
+							if ( ( proxy_info.type == 1 || proxy_info.type == 2 ) && ( di->proxy_info->username != NULL && di->proxy_info->password != NULL ) )
+							{
+								CreateBasicAuthorizationKey( di->proxy_info->username, proxy_username_length, di->proxy_info->password, proxy_password_length, &di->proxy_info->auth_key, &di->proxy_info->auth_key_length );
+							}
+							else
+							{
+								di->proxy_info->auth_key = NULL;
+								di->proxy_info->auth_key_length = 0;
+							}
+						}
+
+						//
+
+						++di->shared_info->hosts;
+
+						di->shared_info_node.data = di;
+						DLL_AddNode( &di->shared_info->host_list, &di->shared_info_node, -1 );
+
+						if ( tln_parent == NULL )
+						{
+							if ( is_group )
+							{
+								// print_range_list is used in DrawTreeListView
+								shared_info->print_range_list = shared_info->host_list;
+							}
+
+							if ( download_operations & DOWNLOAD_OPERATION_ADD_STOPPED )
+							{
+								shared_info->status = STATUS_STOPPED;
+								add_stopped = true;
+							}
+
+							tln_parent = ( TREELISTNODE * )GlobalAlloc( GPTR, sizeof( TREELISTNODE ) );
+							tln_parent->data = shared_info;
+							tln_parent->data_type = TLVDT_GROUP | ( !is_group ? TLVDT_HOST : 0 );
+
+							TLV_AddNode( &g_tree_list, tln_parent, -1 );
+
+							TLV_SetRootItemCount( TLV_GetRootItemCount() + 1 );
+							TLV_SetExpandedItemCount( TLV_GetExpandedItemCount() + 1 );
+							TLV_SetTotalItemCount( TLV_GetTotalItemCount() + 1 );
+
+							if ( first_added_tln == NULL )
+							{
+								first_added_tln = tln_parent;
+							}
+
+							last_added_tln = tln_parent;
+						}
+
+						if ( di != shared_info )
+						{
+							di->shared_info->parts += parts;
+
+							++tln_parent->child_count;
+
+							TREELISTNODE *tln = ( TREELISTNODE * )GlobalAlloc( GPTR, sizeof( TREELISTNODE ) );
+							tln->data = di;
+							tln->data_type = TLVDT_HOST;
+							tln->parent = tln_parent;
+
+							TLV_AddNode( &tln_parent->child, tln, -1 );
+
+							if ( cfg_expand_added_group_items )
+							{
+								tln_parent->is_expanded = true;
+
+								TLV_SetExpandedItemCount( TLV_GetExpandedItemCount() + 1 );
+							}
+
+							TLV_SetTotalItemCount( TLV_GetTotalItemCount() + 1 );
 						}
 					}
 					else
 					{
-						w_filename_length = ( unsigned int )( directory_ptr - current_directory );
-					}
-
-					w_filename_length = min( w_filename_length, ( int )( MAX_PATH - di->filename_offset - 1 ) );
-
-					_wmemcpy_s( di->file_path + di->filename_offset, MAX_PATH - di->filename_offset, current_directory, w_filename_length );
-					di->file_path[ di->filename_offset + w_filename_length ] = 0;	// Sanity.
-
-					EscapeFilename( di->file_path + di->filename_offset );
-
-					GlobalFree( directory );
-				}
-				else	// Shouldn't happen.
-				{
-					w_filename_length = 11;
-					_wmemcpy_s( di->file_path + di->filename_offset, MAX_PATH - di->filename_offset, L"NO_FILENAME\0", 12 );
-				}
-			}
-
-			di->file_extension_offset = di->filename_offset + ( ( di->download_operations & DOWNLOAD_OPERATION_GET_EXTENSION ) ? w_filename_length : get_file_extension_offset( di->file_path + di->filename_offset, w_filename_length ) );
-
-			if ( di->file_extension_offset == ( di->filename_offset + w_filename_length ) )
-			{
-				di->download_operations |= DOWNLOAD_OPERATION_GET_EXTENSION;
-			}
-
-			di->hFile = INVALID_HANDLE_VALUE;
-
-			InitializeCriticalSection( &di->shared_cs );
-
-			if ( current_url_encoded != NULL )
-			{
-				di->url = current_url_encoded;
-				current_url_encoded = NULL;
-			}
-			else
-			{
-				//di->url = GlobalStrDupW( current_url );
-				di->url = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( current_url_length + 1 ) );
-				_wmemcpy_s( di->url, current_url_length + 1, current_url, current_url_length );
-				di->url[ current_url_length ] = 0;	// Sanity.
-			}
-
-			// Cache our file's icon.
-			ICON_INFO *ii = CacheIcon( di, sfi );
-
-			if ( ii != NULL )
-			{
-				di->icon = &ii->icon;
-			}
-
-			di->parts = ai->parts;
-
-			di->download_speed_limit = ai->download_speed_limit;
-
-			di->ssl_version = ai->ssl_version;
-
-			di->download_operations |= ai->download_operations;
-
-			if ( ai->download_operations & DOWNLOAD_OPERATION_ADD_STOPPED )
-			{
-				di->status = STATUS_STOPPED;
-				di->download_operations &= ~DOWNLOAD_OPERATION_ADD_STOPPED;
-			}
-
-			di->method = ai->method;
-
-			if ( username == NULL && password == NULL )
-			{
-				LOGIN_INFO tli;
-				tli.host = host;
-				tli.protocol = protocol;
-				tli.port = port;
-				LOGIN_INFO *li = ( LOGIN_INFO * )dllrbt_find( g_login_info, ( void * )&tli, true );
-
-				if ( li != NULL )
-				{
-					username_length = lstrlenA( li->username );
-					if ( username_length > 0 )
-					{
-						di->auth_info.username = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( username_length + 1 ) );
-						_memcpy_s( di->auth_info.username, username_length + 1, li->username, username_length );
-						di->auth_info.username[ username_length ] = 0;	// Sanity.
-					}
-
-					password_length = lstrlenA( li->password );
-					if ( password_length > 0 )
-					{
-						di->auth_info.password = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( password_length + 1 ) );
-						_memcpy_s( di->auth_info.password, password_length + 1, li->password, password_length );
-						di->auth_info.password[ password_length ] = 0;	// Sanity.
+						GlobalFree( di );
+						di = NULL;
 					}
 				}
-			}
-			else
-			{
-				if ( username != NULL && username_length > 0 )
+				else
 				{
-					di->auth_info.username = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( username_length + 1 ) );
-					_memcpy_s( di->auth_info.username, username_length + 1, username, username_length );
-					di->auth_info.username[ username_length ] = 0;	// Sanity.
-				}
-
-				if ( password != NULL && password_length > 0 )
-				{
-					di->auth_info.password = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( password_length + 1 ) );
-					_memcpy_s( di->auth_info.password, password_length + 1, password, password_length );
-					di->auth_info.password[ password_length ] = 0;	// Sanity.
+					GlobalFree( shared_info );
+					shared_info = NULL;
 				}
 			}
 
-			if ( ai->utf8_cookies != NULL && cookies_length > 0 )
+			GlobalFree( current_url_encoded );
+			GlobalFree( host );
+			GlobalFree( resource );
+
+			// If we got a username and password from the URL, then the username and password character strings were allocated and we need to free them.
+			if ( url_username != NULL ) { GlobalFree( username ); GlobalFree( url_username ); }
+			if ( url_password != NULL ) { GlobalFree( password ); GlobalFree( url_password ); }
+
+			// Limit the total number of hosts in a group to 100.
+			if ( ++group_count >= 100 )
 			{
-				di->cookies = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( cookies_length + 1 ) );
-				_memcpy_s( di->cookies, cookies_length + 1, ai->utf8_cookies, cookies_length );
-				di->cookies[ cookies_length ] = 0;	// Sanity.
+				group_end = NULL;
 			}
+		}
+		while ( group_end != NULL && url_list != NULL && url_list < group_end );
 
-			if ( ai->utf8_headers != NULL && headers_length > 0 )
-			{
-				di->headers = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( headers_length + 1 ) );
-				_memcpy_s( di->headers, headers_length + 1, ai->utf8_headers, headers_length );
-				di->headers[ headers_length ] = 0;	// Sanity.
-			}
-
-			if ( ai->utf8_data != NULL && data_length > 0 )
-			{
-				di->data = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( data_length + 1 ) );
-				_memcpy_s( di->data, data_length + 1, ai->utf8_data, data_length );
-				di->data[ data_length ] = 0;	// Sanity.
-			}
-
-			SYSTEMTIME st;
-			FILETIME ft;
-
-			GetLocalTime( &st );
-			SystemTimeToFileTime( &st, &ft );
-
-			di->add_time.LowPart = ft.dwLowDateTime;
-			di->add_time.HighPart = ft.dwHighDateTime;
-
-			int buffer_length = 0;
-
-			#ifndef NTDLL_USE_STATIC_LIB
-				//buffer_length = 64;	// Should be enough to hold most translated values.
-				buffer_length = __snwprintf( NULL, 0, L"%s, %s %d, %04d %d:%02d:%02d %s", GetDay( st.wDayOfWeek ), GetMonth( st.wMonth ), st.wDay, st.wYear, ( st.wHour > 12 ? st.wHour - 12 : ( st.wHour != 0 ? st.wHour : 12 ) ), st.wMinute, st.wSecond, ( st.wHour >= 12 ? L"PM" : L"AM" ) ) + 1;	// Include the NULL character.
-			#else
-				buffer_length = _scwprintf( L"%s, %s %d, %04d %d:%02d:%02d %s", GetDay( st.wDayOfWeek ), GetMonth( st.wMonth ), st.wDay, st.wYear, ( st.wHour > 12 ? st.wHour - 12 : ( st.wHour != 0 ? st.wHour : 12 ) ), st.wMinute, st.wSecond, ( st.wHour >= 12 ? L"PM" : L"AM" ) ) + 1;	// Include the NULL character.
-			#endif
-
-			di->w_add_time = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * buffer_length );
-
-			__snwprintf( di->w_add_time, buffer_length, L"%s, %s %d, %04d %d:%02d:%02d %s", GetDay( st.wDayOfWeek ), GetMonth( st.wMonth ), st.wDay, st.wYear, ( st.wHour > 12 ? st.wHour - 12 : ( st.wHour != 0 ? st.wHour : 12 ) ), st.wMinute, st.wSecond, ( st.wHour >= 12 ? L"PM" : L"AM" ) );
-
-			//EnterCriticalSection( &cleanup_cs );
-
-			LVITEM lvi;
-			_memzero( &lvi, sizeof( LVITEM ) );
-			lvi.mask = LVIF_PARAM | LVIF_TEXT;
-			lvi.iItem = ( int )_SendMessageW( g_hWnd_files, LVM_GETITEMCOUNT, 0, 0 );
-			lvi.lParam = ( LPARAM )di;
-			lvi.pszText = di->file_path + di->filename_offset;
-			_SendMessageW( g_hWnd_files, LVM_INSERTITEM, 0, ( LPARAM )&lvi );
-
-			if ( !( ai->download_operations & DOWNLOAD_OPERATION_ADD_STOPPED ) )
-			{
-				StartDownload( di, !( di->download_operations & DOWNLOAD_OPERATION_SIMULATE ) );
-			}
-
-			download_history_changed = true;
-
-			//LeaveCriticalSection( &cleanup_cs );
+		if ( is_group )
+		{
+			url_list = next_url;
 		}
 
-		GlobalFree( current_url_encoded );
-		GlobalFree( host );
-		GlobalFree( resource );
+		/*if ( di != NULL )
+		{
+			// If we're a group, then this gets the first host and starts it.
+			// If not, then it's just a self reference.
+			di = ( DOWNLOAD_INFO * )di->shared_info->host_list->data;
 
-		// If we got a username and password from the URL, then the username and password character strings were allocated and we need to free them.
-		if ( url_username != NULL ) { GlobalFree( username ); GlobalFree( url_username ); }
-		if ( url_password != NULL ) { GlobalFree( password ); GlobalFree( url_password ); }
+			if ( !add_stopped )
+			{
+				StartDownload( di, 0, !( di->shared_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) );
+			}
 
-		// Reset our username and password character strings.
-		username = ai->auth_info.username;
-		username_length = ai_username_length;
-
-		password = ai->auth_info.password;
-		password_length = ai_password_length;
+			g_download_history_changed = true;
+		}*/
 	}
 
 	// The tree is only used to determine duplicate filenames.
@@ -4656,27 +5585,58 @@ DWORD WINAPI AddURL( void *add_info )
 
 	GlobalFree( sfi );
 
-	GlobalFree( ai->utf8_data );
-	GlobalFree( ai->utf8_headers );
-	GlobalFree( ai->utf8_cookies );
-	GlobalFree( ai->auth_info.username );
-	GlobalFree( ai->auth_info.password );
-	GlobalFree( ai->download_directory );
-	GlobalFree( ai->urls );
-	GlobalFree( ai );
+	FreeAddInfo( &ai );
+
+	if ( TLV_GetFirstVisibleItem() == NULL )
+	{
+		TLV_SetFirstVisibleRootIndex( 0 );
+		TLV_SetFirstVisibleItem( g_tree_list );
+		TLV_SetFirstVisibleIndex( 0 );
+	}
 
 	if ( cfg_sort_added_and_updating_items &&
 		 cfg_sorted_column_index != COLUMN_NUM )	// #
 	{
 		SORT_INFO si;
 		si.column = GetColumnIndexFromVirtualIndex( cfg_sorted_column_index, download_columns, NUM_COLUMNS );
-		si.hWnd = g_hWnd_files;
+		si.hWnd = g_hWnd_tlv_files;
 		si.direction = cfg_sorted_direction;
 
-		_SendMessageW( g_hWnd_files, LVM_SORTITEMS, ( WPARAM )&si, ( LPARAM )( PFNLVCOMPARE )DMCompareFunc );
+		_SendMessageW( g_hWnd_tlv_files, TLVM_SORT_ITEMS, NULL, ( LPARAM )&si );
 	}
 
 	ProcessingList( false );
+
+	// Process all of the items we've added.
+	// This prevents the window from stalling while adding and starting a lot of items at the same time.
+	while ( first_added_tln != NULL )
+	{
+		DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )first_added_tln->data;
+		if ( di != NULL )
+		{
+			// If we're a group, then this gets the first host and starts it.
+			// If not, then it's just a self reference.
+			di = ( DOWNLOAD_INFO * )di->shared_info->host_list->data;
+
+			if ( di->shared_info->download_operations & DOWNLOAD_OPERATION_ADD_STOPPED )
+			{
+				di->shared_info->download_operations &= ~DOWNLOAD_OPERATION_ADD_STOPPED;
+			}
+			else
+			{
+				StartDownload( di, 0, !( di->shared_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) );
+			}
+
+			g_download_history_changed = true;
+		}
+
+		if ( first_added_tln == last_added_tln )
+		{
+			break;
+		}
+
+		first_added_tln = first_added_tln->next;
+	}
 
 	// Release the semaphore if we're killing the thread.
 	if ( worker_semaphore != NULL )
@@ -4718,12 +5678,12 @@ void StartQueuedItem()
 
 				LeaveCriticalSection( &download_queue_cs );
 
-				StartDownload( di, false );
+				StartDownload( di, 0, false );
 
 				EnterCriticalSection( &download_queue_cs );
 
 				// Exit the loop if we've hit our maximum allowed active downloads.
-				if ( total_downloading >= cfg_max_downloads )
+				if ( g_total_downloading >= cfg_max_downloads )
 				{
 					break;
 				}
@@ -4808,16 +5768,16 @@ DWORD CALLBACK MoveFileProgress( LARGE_INTEGER TotalFileSize, LARGE_INTEGER Tota
 
 	if ( di != NULL )
 	{
-		if ( di->moving_state == 0 )
+		if ( di->shared_info->moving_state == 0 )
 		{
-			di->moving_state = 1;	// Move file.
+			di->shared_info->moving_state = 1;	// Move file.
 		}
 
-		di->last_downloaded = TotalBytesTransferred.QuadPart;
+		di->shared_info->last_downloaded = TotalBytesTransferred.QuadPart;
 
-		if ( di->moving_state == 2 )
+		if ( di->shared_info->moving_state == 2 )
 		{
-			di->last_downloaded = TotalFileSize.QuadPart; // Reset.
+			di->shared_info->last_downloaded = TotalFileSize.QuadPart; // Reset.
 
 			return PROGRESS_CANCEL;
 		}
@@ -4862,21 +5822,21 @@ THREAD_RETURN ProcessMoveQueue( void *pArguments )
 
 			GetTemporaryFilePath( di, file_path );
 
-			di->file_path[ di->filename_offset - 1 ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
+			di->shared_info->file_path[ di->shared_info->filename_offset - 1 ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
 
-			di->status &= ~STATUS_QUEUED;
+			di->shared_info->status &= ~STATUS_QUEUED;
 
 			DWORD move_type = MOVEFILE_COPY_ALLOWED;
 
 			while ( true )
 			{
-				if ( MoveFileWithProgressW( file_path, di->file_path, MoveFileProgress, di, move_type ) == FALSE )
+				if ( MoveFileWithProgressW( file_path, di->shared_info->file_path, MoveFileProgress, di, move_type ) == FALSE )
 				{
 					if ( GetLastError() == ERROR_FILE_EXISTS )
 					{
-						if ( cfg_prompt_rename == 0 && di->download_operations & DOWNLOAD_OPERATION_OVERRIDE_PROMPTS )
+						if ( cfg_prompt_rename == 0 && di->shared_info->download_operations & DOWNLOAD_OPERATION_OVERRIDE_PROMPTS )
 						{
-							di->status = STATUS_SKIPPED;
+							di->shared_info->status = STATUS_SKIPPED;
 						}
 						else
 						{
@@ -4886,7 +5846,7 @@ THREAD_RETURN ProcessMoveQueue( void *pArguments )
 								 g_rename_file_cmb_ret != CMBIDOVERWRITEALL &&
 								 g_rename_file_cmb_ret != CMBIDSKIPALL )
 							{
-								__snwprintf( prompt_message, MAX_PATH + 512, ST_V_PROMPT___already_exists, di->file_path );
+								__snwprintf( prompt_message, MAX_PATH + 512, ST_V_PROMPT___already_exists, di->shared_info->file_path );
 
 								g_rename_file_cmb_ret = CMessageBoxW( g_hWnd_main, prompt_message, PROGRAM_CAPTION, CMB_ICONWARNING | CMB_RENAMEOVERWRITESKIPALL );
 							}
@@ -4899,21 +5859,21 @@ THREAD_RETURN ProcessMoveQueue( void *pArguments )
 								// Creates a tree of active and queued downloads.
 								dllrbt_tree *add_files_tree = CreateFilenameTree();
 
-								bool rename_succeeded = RenameFile( di, add_files_tree, di->file_path, di->filename_offset, di->file_extension_offset );
+								bool rename_succeeded = RenameFile( di, add_files_tree, di->shared_info->file_path, di->shared_info->filename_offset, di->shared_info->file_extension_offset );
 
 								// The tree is only used to determine duplicate filenames.
 								DestroyFilenameTree( add_files_tree );
 
 								if ( !rename_succeeded )
 								{
-									if ( g_rename_file_cmb_ret2 != CMBIDOKALL && !( di->download_operations & DOWNLOAD_OPERATION_OVERRIDE_PROMPTS ) )
+									if ( g_rename_file_cmb_ret2 != CMBIDOKALL && !( di->shared_info->download_operations & DOWNLOAD_OPERATION_OVERRIDE_PROMPTS ) )
 									{
 										__snwprintf( prompt_message, MAX_PATH + 512, ST_V_PROMPT___could_not_be_renamed, file_path );
 
 										g_rename_file_cmb_ret2 = CMessageBoxW( g_hWnd_main, prompt_message, PROGRAM_CAPTION, CMB_ICONWARNING | CMB_OKALL );
 									}
 
-									di->status = STATUS_SKIPPED;
+									di->shared_info->status = STATUS_SKIPPED;
 								}
 								else
 								{
@@ -4925,7 +5885,7 @@ THREAD_RETURN ProcessMoveQueue( void *pArguments )
 																  g_rename_file_cmb_ret == CMBIDSKIP ||
 																  g_rename_file_cmb_ret == CMBIDSKIPALL ) ) ) // Skip the rename or overwrite if the return value fails, or the user selected skip.
 							{
-								di->status = STATUS_SKIPPED;
+								di->shared_info->status = STATUS_SKIPPED;
 							}
 							else	// Overwrite.
 							{
@@ -4937,22 +5897,22 @@ THREAD_RETURN ProcessMoveQueue( void *pArguments )
 					}
 					else// if ( GetLastError() == ERROR_REQUEST_ABORTED )
 					{
-						di->status = STATUS_STOPPED;
+						di->shared_info->status = STATUS_STOPPED;
 					}
 					/*else
 					{
-						di->status = STATUS_FILE_IO_ERROR;
+						di->shared_info->status = STATUS_FILE_IO_ERROR;
 					}*/
 				}
 				else
 				{
-					di->status = STATUS_COMPLETED;
+					di->shared_info->status = STATUS_COMPLETED;
 				}
 
 				break;
 			}
 
-			di->file_path[ di->filename_offset - 1 ] = 0;	// Restore.
+			di->shared_info->file_path[ di->shared_info->filename_offset - 1 ] = 0;	// Restore.
 		}
 
 		EnterCriticalSection( &move_file_queue_cs );
@@ -4970,7 +5930,7 @@ THREAD_RETURN ProcessMoveQueue( void *pArguments )
 
 	EnterCriticalSection( &cleanup_cs );
 
-	if ( total_downloading == 0 )
+	if ( g_total_downloading == 0 )
 	{
 		EnableTimers( false );
 	}
@@ -4991,7 +5951,7 @@ void AddToMoveFileQueue( DOWNLOAD_INFO *di )
 		di->queue_node.data = di;
 		DLL_AddNode( &move_file_queue, &di->queue_node, -1 );
 
-		di->status = STATUS_MOVING_FILE | STATUS_QUEUED;
+		di->shared_info->status = STATUS_MOVING_FILE | STATUS_QUEUED;
 
 		if ( !move_file_process_active )
 		{
@@ -5032,7 +5992,7 @@ bool CleanupFTPContexts( SOCKET_CONTEXT *context )
 		{
 			DOWNLOAD_INFO *di = context->download_info;
 
-			EnterCriticalSection( &di->shared_cs );
+			EnterCriticalSection( &di->di_cs );
 
 			EnterCriticalSection( &context->context_cs );
 
@@ -5085,7 +6045,7 @@ bool CleanupFTPContexts( SOCKET_CONTEXT *context )
 
 			LeaveCriticalSection( &context->context_cs );
 
-			LeaveCriticalSection( &di->shared_cs );
+			LeaveCriticalSection( &di->di_cs );
 		}
 
 		LeaveCriticalSection( &cleanup_cs );
@@ -5169,7 +6129,8 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 		// Remove from the parts list.
 		if ( !g_end_program )
 		{
-			if ( context->download_info != NULL )
+			DOWNLOAD_INFO *di = context->download_info;
+			if ( di != NULL )
 			{
 				bool incomplete_part = false;
 
@@ -5261,20 +6222,24 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 					EnterCriticalSection( &download_queue_cs );
 
 					// If the context we're cleaning up is in the download queue.
-					if ( context->download_info->queue_node.data != NULL )
+					if ( di->queue_node.data != NULL )
 					{
-						DLL_RemoveNode( &download_queue, &context->download_info->queue_node );
-						context->download_info->queue_node.data = NULL;
+						DLL_RemoveNode( &download_queue, &di->queue_node );
+						di->queue_node.data = NULL;
 					}
 
 					LeaveCriticalSection( &download_queue_cs );
 
-					EnterCriticalSection( &context->download_info->shared_cs );
+					EnterCriticalSection( &di->di_cs );
 
-					DLL_RemoveNode( &context->download_info->parts_list, &context->parts_node );
+					DLL_RemoveNode( &di->parts_list, &context->parts_node );
 
-					if ( context->download_info->active_parts > 0 )
+					if ( di->active_parts > 0 )
 					{
+						DOWNLOAD_INFO *shared_info = di->shared_info;
+						bool is_group = IS_GROUP( di );
+						unsigned char shared_active_parts = 0;
+
 						// If incomplete_part is tested below and is true and the new range fails, then the download will stop.
 						// If incomplete_part is not tested, then all queued ranges will be tried until they either all succeed or all fail.
 						if ( /*!incomplete_part &&*/
@@ -5283,14 +6248,14 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 								STATUS_REMOVE |
 								STATUS_RESTART |
 								STATUS_UPDATING ) &&
-							 context->download_info->range_queue != NULL &&
-							 context->download_info->range_queue != context->download_info->range_list_end )
+							 di->range_queue != NULL &&
+							 di->range_queue != di->range_list_end )
 						{
 							// Add back to the parts list.
-							DLL_AddNode( &context->download_info->parts_list, &context->parts_node, -1 );
+							DLL_AddNode( &di->parts_list, &context->parts_node, -1 );
 
-							DoublyLinkedList *range_queue_node = context->download_info->range_queue;
-							context->download_info->range_queue = context->download_info->range_queue->next;
+							DoublyLinkedList *range_queue_node = di->range_queue;
+							di->range_queue = di->range_queue->next;
 
 							context->retries = 0;
 
@@ -5353,7 +6318,9 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 
 								LeaveCriticalSection( &context_list_cs );
 
-								--context->download_info->active_parts;
+								--di->active_parts;
+
+								++shared_active_parts;
 
 								retry_context_connection = false;
 							}
@@ -5364,17 +6331,22 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 						}
 						else
 						{
-							--context->download_info->active_parts;
+							--di->active_parts;
+
+							++shared_active_parts;
 						}
 
 						// There are no more active connections.
-						if ( context->download_info->active_parts == 0 )
+						if ( di->active_parts == 0 )
 						{
+							unsigned int shared_status;
+							bool move_file = false;
+
 							bool incomplete_download = false;
 
 							// Go through our range list and see if any connections have not fully completed.
-							DoublyLinkedList *range_node = context->download_info->range_list;
-							while ( range_node != context->download_info->range_list_end )
+							DoublyLinkedList *range_node = di->range_list;
+							while ( range_node != di->range_list_end )
 							{
 								RANGE_INFO *range_info = ( RANGE_INFO * )range_node->data;
 								if ( range_info->content_offset < ( ( range_info->range_end - range_info->range_start ) + 1 ) )
@@ -5397,45 +6369,41 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 									// If any of our connections timed out (after we have no more active connections), then set our status to timed out.
 									if ( context->timed_out != TIME_OUT_FALSE )
 									{
-										context->download_info->status = STATUS_TIMED_OUT;
+										di->status = STATUS_TIMED_OUT;
 									}
 									else
 									{
-										context->download_info->status = STATUS_STOPPED;
+										di->status = STATUS_STOPPED;
 									}
 								}
 								else
 								{
 									incomplete_download = false;
 
-									context->download_info->status = context->status;
+									di->status = context->status;
 								}
 							}
 							else
 							{
-								context->download_info->status = STATUS_COMPLETED;
+								di->status = STATUS_COMPLETED;
 							}
+
+							shared_status = di->status;
 
 							EnterCriticalSection( &active_download_list_cs );
 
 							// Remove the node from the active download list.
-							DLL_RemoveNode( &active_download_list, &context->download_info->download_node );
-							context->download_info->download_node.data = NULL;
+							DLL_RemoveNode( &active_download_list, &di->download_node );
+							di->download_node.data = NULL;
 
-							context->download_info->last_downloaded = context->download_info->downloaded;
+							di->last_downloaded = di->downloaded;
 
-							--total_downloading;
+							--g_total_downloading;
 
 							LeaveCriticalSection( &active_download_list_cs );
 
-							context->download_info->time_remaining = 0;
-							context->download_info->speed = 0;
-
-							if ( context->download_info->hFile != INVALID_HANDLE_VALUE )
-							{
-								CloseHandle( context->download_info->hFile );
-								context->download_info->hFile = INVALID_HANDLE_VALUE;
-							}
+							di->time_remaining = 0;
+							di->speed = 0;
 
 							FILETIME ft;
 							GetSystemTimeAsFileTime( &ft );
@@ -5443,159 +6411,266 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 							current_time.HighPart = ft.dwHighDateTime;
 							current_time.LowPart = ft.dwLowDateTime;
 
-							context->download_info->time_elapsed = ( current_time.QuadPart - context->download_info->start_time.QuadPart ) / FILETIME_TICKS_PER_SECOND;
+							di->time_elapsed = ( current_time.QuadPart - di->start_time.QuadPart ) / FILETIME_TICKS_PER_SECOND;
 
 							// Stop and Remove.
 							if ( IS_STATUS( context->status, STATUS_REMOVE ) )
 							{
-								// Find the icon info
-								EnterCriticalSection( &icon_cache_cs );
-								dllrbt_iterator *itr = dllrbt_find( g_icon_handles, ( void * )( context->download_info->file_path + context->download_info->file_extension_offset ), false );
-								// Free its values and remove it from the tree if there are no other items using it.
-								if ( itr != NULL )
+								GlobalFree( di->url );
+								GlobalFree( di->cookies );
+								GlobalFree( di->headers );
+								GlobalFree( di->data );
+								//GlobalFree( di->etag );
+								GlobalFree( di->auth_info.username );
+								GlobalFree( di->auth_info.password );
+
+								if ( di->proxy_info != NULL )
 								{
-									ICON_INFO *ii = ( ICON_INFO * )( ( node_type * )itr )->val;
+									GlobalFree( di->proxy_info->hostname );
+									GlobalFree( di->proxy_info->punycode_hostname );
+									GlobalFree( di->proxy_info->w_username );
+									GlobalFree( di->proxy_info->w_password );
+									GlobalFree( di->proxy_info->username );
+									GlobalFree( di->proxy_info->password );
+									GlobalFree( di->proxy_info->auth_key );
+									GlobalFree( di->proxy_info );
+								}
 
-									if ( ii != NULL )
+								// Safe to free this here since the listview item will have been removed.
+								while ( di->range_list != NULL )
+								{
+									DoublyLinkedList *range_node = di->range_list;
+									di->range_list = di->range_list->next;
+
+									GlobalFree( range_node->data );
+									GlobalFree( range_node );
+								}
+
+								context->download_info = NULL;
+
+								LeaveCriticalSection( &di->di_cs );
+
+								if ( is_group )
+								{
+									DeleteCriticalSection( &di->di_cs );
+
+									GlobalFree( di );
+								}
+							}
+							else if ( IS_STATUS( context->status, STATUS_RESTART ) )
+							{
+								if ( IS_STATUS( shared_info->status, STATUS_RESTART ) )
+								{
+									ResetDownload( di, 1, false );		// Reset host (free range info).
+
+									if ( is_group )
 									{
-										if ( --ii->count == 0 )
+										// We've attempted to restart the group.
+										if ( shared_info->active_hosts == 1 )
 										{
-											DestroyIcon( ii->icon );
-											GlobalFree( ii->file_extension );
-											GlobalFree( ii );
-
-											dllrbt_remove( g_icon_handles, itr );
+											ResetDownload( di, 3 );
+											StartDownload( ( DOWNLOAD_INFO * )di->shared_info->host_list->data, 1, false );
 										}
 									}
 									else
 									{
-										dllrbt_remove( g_icon_handles, itr );
+										StartDownload( di, 1, false );
 									}
 								}
-								LeaveCriticalSection( &icon_cache_cs );
-
-								GlobalFree( context->download_info->url );
-								GlobalFree( context->download_info->w_add_time );
-								GlobalFree( context->download_info->cookies );
-								GlobalFree( context->download_info->headers );
-								GlobalFree( context->download_info->data );
-								//GlobalFree( context->download_info->etag );
-								GlobalFree( context->download_info->auth_info.username );
-								GlobalFree( context->download_info->auth_info.password );
-
-								// Safe to free this here since the listview item will have been removed.
-								while ( context->download_info->range_list != NULL )
+								else
 								{
-									DoublyLinkedList *range_node = context->download_info->range_list;
-									context->download_info->range_list = context->download_info->range_list->next;
-
-									GlobalFree( range_node->data );
-									GlobalFree( range_node );
-								}
-
-								// Do we want to delete the file as well?
-								if ( !( context->download_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) &&
-									IS_STATUS( context->status, STATUS_DELETE ) )
-								{
-									wchar_t *file_path_delete;
-
-									wchar_t file_path[ MAX_PATH ];
-									if ( cfg_use_temp_download_directory )
+									if ( is_group )
 									{
-										GetTemporaryFilePath( context->download_info, file_path );
-
-										file_path_delete = file_path;
+										RestartDownload( di, 2, false );	// Reset/Start host (set range info values to 0).
 									}
 									else
 									{
-										// We're freeing this anyway so it's safe to modify.
-										context->download_info->file_path[ context->download_info->filename_offset - 1 ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
-
-										file_path_delete = context->download_info->file_path;
+										RestartDownload( di, 1, false );	// Reset/Start host (free range info).
 									}
-
-									DeleteFileW( file_path_delete );
 								}
 
-								DeleteCriticalSection( &context->download_info->shared_cs );
-
-								GlobalFree( context->download_info );
-								context->download_info = NULL;
-							}
-							else if ( IS_STATUS( context->status, STATUS_RESTART ) )
-							{
-								// Safe to free this here since the print_range_list will have been reset.
-								while ( context->download_info->range_list != NULL )
-								{
-									DoublyLinkedList *range_node = context->download_info->range_list;
-									context->download_info->range_list = context->download_info->range_list->next;
-
-									GlobalFree( range_node->data );
-									GlobalFree( range_node );
-								}
-
-								context->download_info->processed_header = false;
-
-								context->download_info->downloaded = 0;
-
-								context->download_info->last_modified.QuadPart = 0;
-
-								// If we restart a download, then set the incomplete retry attempts back to 0.
-								context->download_info->retries = 0;
-								context->download_info->start_time.QuadPart = 0;
-
-								StartDownload( context->download_info, false );
-
-								LeaveCriticalSection( &context->download_info->shared_cs );
+								LeaveCriticalSection( &di->di_cs );
 							}
 							else
 							{
 								if ( incomplete_download )
 								{
-									if ( context->download_info->retries < cfg_retry_downloads_count )
+									if ( di->retries < cfg_retry_downloads_count )
 									{
-										++context->download_info->retries;
+										++di->retries;
 
-										StartDownload( context->download_info, false );
+										StartDownload( di, 0, false );
 									}
 									else
 									{
-										SetSessionStatusCount( context->download_info->status );
+										SetSessionStatusCount( di->status );
 									}
 								}
-								else if ( context->download_info->status == STATUS_UPDATING )
+								else if ( di->status == STATUS_UPDATING )
 								{
-									StartDownload( context->download_info, false );
+									StartDownload( di, 0, false );
 								}
-								else if ( context->download_info->status == STATUS_COMPLETED )
+								else if ( di->status == STATUS_COMPLETED )
 								{
-									SetSessionStatusCount( context->download_info->status );
+									/*SetSessionStatusCount( di->status );
 
 									if ( cfg_use_temp_download_directory &&
-									  !( context->download_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
+									  !( shared_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
 									{
-										AddToMoveFileQueue( context->download_info );
-									}
+										AddToMoveFileQueue( di );
+									}*/
+
+									move_file = true;
 								}
 								else
 								{
-									SetSessionStatusCount( context->download_info->status );
+									SetSessionStatusCount( di->status );
 								}
 
-								LeaveCriticalSection( &context->download_info->shared_cs );
+								LeaveCriticalSection( &di->di_cs );
+							}
+
+							bool free_shared_info = false;
+							EnterCriticalSection( &shared_info->di_cs );
+
+							shared_info->shared_status |= shared_status;
+
+							// For groups.
+							if ( is_group )
+							{
+								shared_info->active_parts -= shared_active_parts;
+							}
+
+							--shared_info->active_hosts;
+
+							if ( shared_info->active_hosts == 0 )
+							{
+								if ( move_file )
+								{
+									SetSessionStatusCount( di->status );
+
+									if ( cfg_use_temp_download_directory &&
+									  !( shared_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
+									{
+										AddToMoveFileQueue( di );
+									}
+								}
+
+								if ( is_group )
+								{
+									SetSharedInfoStatus( shared_info, shared_info->shared_status );
+
+									EnterCriticalSection( &active_download_list_cs );
+
+									// Remove the node from the active download list.
+									DLL_RemoveNode( &active_download_list, &shared_info->download_node );
+									shared_info->download_node.data = NULL;
+
+									shared_info->last_downloaded = shared_info->downloaded;
+
+									LeaveCriticalSection( &active_download_list_cs );
+
+									shared_info->time_remaining = 0;
+									shared_info->speed = 0;
+
+									FILETIME ft;
+									GetSystemTimeAsFileTime( &ft );
+									ULARGE_INTEGER current_time;
+									current_time.HighPart = ft.dwHighDateTime;
+									current_time.LowPart = ft.dwLowDateTime;
+
+									shared_info->time_elapsed = ( current_time.QuadPart - shared_info->start_time.QuadPart ) / FILETIME_TICKS_PER_SECOND;
+								}
+
+								if ( shared_info->hFile != INVALID_HANDLE_VALUE )
+								{
+									CloseHandle( shared_info->hFile );
+									shared_info->hFile = INVALID_HANDLE_VALUE;
+								}
+
+								if ( IS_STATUS( context->status, STATUS_REMOVE ) )
+								{
+									RemoveCachedIcon( shared_info );
+
+									GlobalFree( shared_info->w_add_time );
+
+									// Do we want to delete the file as well?
+									if ( !( shared_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) &&
+										IS_STATUS( context->status, STATUS_DELETE ) )
+									{
+										wchar_t *file_path_delete;
+
+										wchar_t file_path[ MAX_PATH ];
+										if ( cfg_use_temp_download_directory )
+										{
+											GetTemporaryFilePath( shared_info, file_path );
+
+											file_path_delete = file_path;
+										}
+										else
+										{
+											// We're freeing this anyway so it's safe to modify.
+											shared_info->file_path[ shared_info->filename_offset - 1 ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
+
+											file_path_delete = shared_info->file_path;
+										}
+
+										DeleteFileW( file_path_delete );
+									}
+
+									if ( shared_info->hosts == 1 )
+									{
+										DeleteCriticalSection( &di->di_cs );
+
+										GlobalFree( di );
+									}
+
+									free_shared_info = true;
+								}
+							}
+
+							LeaveCriticalSection( &shared_info->di_cs );
+
+							if ( free_shared_info )
+							{
+								GlobalFree( shared_info );
 							}
 						}
 						else
 						{
-							LeaveCriticalSection( &context->download_info->shared_cs );
+							LeaveCriticalSection( &di->di_cs );
+
+							EnterCriticalSection( &shared_info->di_cs );
+
+							if ( is_group )
+							{
+								shared_info->active_parts -= shared_active_parts;
+							}
+
+							LeaveCriticalSection( &shared_info->di_cs );
 						}
 					}
 					else
 					{
-						LeaveCriticalSection( &context->download_info->shared_cs );
+						LeaveCriticalSection( &di->di_cs );
 					}
 				}
 			}
+		}
+
+		if ( context->update_status != 0 )
+		{
+			EnterCriticalSection( &update_check_timeout_cs );
+
+			g_waiting_for_update = false;
+
+			// Release the semaphore to complete the update check.
+			if ( g_update_semaphore != NULL )
+			{
+				ReleaseSemaphore( g_update_semaphore, 1, NULL );
+			}
+
+			LeaveCriticalSection( &update_check_timeout_cs );
 		}
 
 		if ( !retry_context_connection )
@@ -5654,6 +6729,9 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 				dllrbt_delete_recursively( context->header_info.cookie_tree );
 			}
 
+			// Created for the Check for Update routine.
+			if ( context->update_status != 0x00 && context->header_info.range_info != NULL ) { GlobalFree( context->header_info.range_info ); }
+
 			if ( context->request_info.host != NULL ) { GlobalFree( context->request_info.host ); }
 			if ( context->request_info.resource != NULL ) { GlobalFree( context->request_info.resource ); }
 
@@ -5677,13 +6755,15 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 	if ( !g_end_program )
 	{
 		// Start any items that are in our download queue.
-		if ( total_downloading < cfg_max_downloads )
+		if ( g_total_downloading < cfg_max_downloads )
 		{
 			StartQueuedItem();
 		}
 
+		EnterCriticalSection( &cleanup_cs );
+
 		// Turn off our timers if we're not currently downloading, or moving anything.
-		if ( total_downloading == 0 )
+		if ( g_total_downloading == 0 )
 		{
 			EnterCriticalSection( &move_file_queue_cs );
 
@@ -5694,6 +6774,8 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 
 			LeaveCriticalSection( &move_file_queue_cs );
 		}
+
+		LeaveCriticalSection( &cleanup_cs );
 	}
 }
 
@@ -5703,15 +6785,23 @@ void FreePOSTInfo( POST_INFO **post_info )
 	{
 		if ( ( *post_info )->method != NULL ) { GlobalFree( ( *post_info )->method ); }
 		if ( ( *post_info )->urls != NULL ) { GlobalFree( ( *post_info )->urls ); }
+		if ( ( *post_info )->directory != NULL ) { GlobalFree( ( *post_info )->directory ); }
+		if ( ( *post_info )->parts != NULL ) { GlobalFree( ( *post_info )->parts ); }
+		if ( ( *post_info )->ssl_tls_version != NULL ) { GlobalFree( ( *post_info )->ssl_tls_version ); }
 		if ( ( *post_info )->username != NULL ) { GlobalFree( ( *post_info )->username ); }
 		if ( ( *post_info )->password != NULL ) { GlobalFree( ( *post_info )->password ); }
+		if ( ( *post_info )->download_speed_limit != NULL ) { GlobalFree( ( *post_info )->download_speed_limit ); }
+		if ( ( *post_info )->download_operations != NULL ) { GlobalFree( ( *post_info )->download_operations ); }
 		if ( ( *post_info )->cookies != NULL ) { GlobalFree( ( *post_info )->cookies ); }
 		if ( ( *post_info )->headers != NULL ) { GlobalFree( ( *post_info )->headers ); }
 		if ( ( *post_info )->data != NULL ) { GlobalFree( ( *post_info )->data ); }
-		if ( ( *post_info )->parts != NULL ) { GlobalFree( ( *post_info )->parts ); }
-		if ( ( *post_info )->download_speed_limit != NULL ) { GlobalFree( ( *post_info )->download_speed_limit ); }
-		if ( ( *post_info )->directory != NULL ) { GlobalFree( ( *post_info )->directory ); }
-		if ( ( *post_info )->download_operations != NULL ) { GlobalFree( ( *post_info )->download_operations ); }
+		if ( ( *post_info )->proxy_type != NULL ) { GlobalFree( ( *post_info )->proxy_type ); }
+		if ( ( *post_info )->proxy_hostname_ip != NULL ) { GlobalFree( ( *post_info )->proxy_hostname_ip ); }
+		if ( ( *post_info )->proxy_port != NULL ) { GlobalFree( ( *post_info )->proxy_port ); }
+		if ( ( *post_info )->proxy_username != NULL ) { GlobalFree( ( *post_info )->proxy_username ); }
+		if ( ( *post_info )->proxy_password != NULL ) { GlobalFree( ( *post_info )->proxy_password ); }
+		if ( ( *post_info )->proxy_resolve_domain_names != NULL ) { GlobalFree( ( *post_info )->proxy_resolve_domain_names ); }
+		if ( ( *post_info )->proxy_use_authentication != NULL ) { GlobalFree( ( *post_info )->proxy_use_authentication ); }
 
 		GlobalFree( *post_info );
 
@@ -5740,6 +6830,32 @@ void FreeAuthInfo( AUTH_INFO **auth_info )
 	}
 }
 
+void FreeAddInfo( ADD_INFO **add_info )
+{
+	if ( *add_info != NULL )
+	{
+		if ( ( *add_info )->proxy_info.hostname ) { GlobalFree( ( *add_info )->proxy_info.hostname ); }
+		if ( ( *add_info )->proxy_info.punycode_hostname ) { GlobalFree( ( *add_info )->proxy_info.punycode_hostname ); }
+		if ( ( *add_info )->proxy_info.w_username ) { GlobalFree( ( *add_info )->proxy_info.w_username ); }
+		if ( ( *add_info )->proxy_info.w_password ) { GlobalFree( ( *add_info )->proxy_info.w_password ); }
+		if ( ( *add_info )->proxy_info.username ) { GlobalFree( ( *add_info )->proxy_info.username ); }
+		if ( ( *add_info )->proxy_info.password ) { GlobalFree( ( *add_info )->proxy_info.password ); }
+		if ( ( *add_info )->proxy_info.auth_key ) { GlobalFree( ( *add_info )->proxy_info.auth_key ); }
+
+		if ( ( *add_info )->utf8_data ) { GlobalFree( ( *add_info )->utf8_data ); }
+		if ( ( *add_info )->utf8_headers ) { GlobalFree( ( *add_info )->utf8_headers ); }
+		if ( ( *add_info )->utf8_cookies ) { GlobalFree( ( *add_info )->utf8_cookies ); }
+		if ( ( *add_info )->auth_info.username ) { GlobalFree( ( *add_info )->auth_info.username ); }
+		if ( ( *add_info )->auth_info.password ) { GlobalFree( ( *add_info )->auth_info.password ); }
+		if ( ( *add_info )->download_directory ) { GlobalFree( ( *add_info )->download_directory ); }
+		if ( ( *add_info )->urls ) { GlobalFree( ( *add_info )->urls ); }
+
+		GlobalFree( *add_info );
+
+		*add_info = NULL;
+	}
+}
+
 // Free all context structures in the global list of context structures.
 void FreeContexts()
 {
@@ -5764,4 +6880,123 @@ void FreeListenContext()
 		CleanupConnection( g_listen_context );
 		g_listen_context = NULL;
 	}
+}
+
+THREAD_RETURN CheckForUpdates( void *pArguments )
+{
+	// Only need one check going on at a time.
+	if ( TryEnterCriticalSection( &worker_cs ) == TRUE )
+	{
+		in_worker_thread = true;
+
+		SOCKET_CONTEXT *context = CreateSocketContext();
+
+		if ( context != NULL )
+		{
+			unsigned int host_length = 0;
+			unsigned int resource_length = 0;
+
+			ParseURL_A( UPDATE_CHECK_URL, NULL, context->request_info.protocol, &context->request_info.host, host_length, context->request_info.port, &context->request_info.resource, resource_length, NULL, NULL, NULL, NULL );
+
+			context->update_status = 0x01;	// Check for updates.
+
+			context->part = 1;
+			context->parts = 1;
+
+			context->header_info.range_info = ( RANGE_INFO * )GlobalAlloc( GPTR, sizeof( RANGE_INFO ) );
+
+			// Add to the global download list.
+			context->context_node.data = context;
+
+			EnterCriticalSection( &context_list_cs );
+
+			DLL_AddNode( &g_context_list, &context->context_node, 0 );
+
+			LeaveCriticalSection( &context_list_cs );
+
+			//
+
+			context->status = STATUS_CONNECTING;
+
+			g_waiting_for_update = true;
+
+			if ( !CreateConnection( context, context->request_info.host, context->request_info.port ) )
+			{
+				g_waiting_for_update = false;
+
+				context->status = STATUS_FAILED;
+
+				InterlockedIncrement( &context->pending_operations );
+
+				context->overlapped.current_operation = IO_Close;
+
+				PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped );
+			}
+			else
+			{
+				// This semaphore will be released when the update check is complete.
+				g_update_semaphore = CreateSemaphore( NULL, 0, 1, NULL );
+
+				// Wait for any active threads to complete. 30 second timeout in case we miss the release.
+				WaitForSingleObject( g_update_semaphore, 30000 );
+
+				EnterCriticalSection( &update_check_timeout_cs );
+
+				if ( g_waiting_for_update )
+				{
+					g_waiting_for_update = false;
+
+					if ( context->socket != INVALID_SOCKET )
+					{
+						SOCKET s = context->socket;
+						context->socket = INVALID_SOCKET;
+						_shutdown( s, SD_BOTH );
+						_closesocket( s );	// Saves us from having to post if there's already a pending IO operation. Should force the operation to complete.
+					}
+				}
+
+				LeaveCriticalSection( &update_check_timeout_cs );
+
+				CloseHandle( g_update_semaphore );
+				g_update_semaphore = NULL;
+			}
+
+			if ( g_hWnd_check_for_updates != NULL )
+			{
+				if ( g_new_version > CURRENT_VERSION )
+				{
+					_SendNotifyMessageW( g_hWnd_check_for_updates, WM_PROPAGATE, 1, 0 );		// New version
+				}
+				else if ( g_new_version == CURRENT_VERSION )
+				{
+					if ( g_update_check_state == 2 )	// Automatic update check.
+					{
+						_SendNotifyMessageW( g_hWnd_check_for_updates, WM_PROPAGATE, 4, 0 );	// Destroy the window.
+					}
+					else
+					{
+						_SendNotifyMessageW( g_hWnd_check_for_updates, WM_PROPAGATE, 2, 0 );	// Up to date
+					}
+				}
+				else
+				{
+					_SendNotifyMessageW( g_hWnd_check_for_updates, WM_PROPAGATE, 3, 0 );		// Error
+				}
+			}
+		}
+
+		// Release the semaphore if we're killing the thread.
+		if ( worker_semaphore != NULL )
+		{
+			ReleaseSemaphore( worker_semaphore, 1, NULL );
+		}
+
+		in_worker_thread = false;
+
+		// We're done. Let other threads continue.
+		LeaveCriticalSection( &worker_cs );
+	}
+
+	_ExitThread( 0 );
+	return 0;
 }

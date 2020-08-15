@@ -23,6 +23,7 @@
 #include "lite_ole32.h"
 #include "lite_gdi32.h"
 #include "lite_uxtheme.h"
+#include "lite_normaliz.h"
 
 #include "list_operations.h"
 
@@ -33,43 +34,72 @@
 
 #include "wnd_proc.h"
 
-#define MIN_ADVANCED_HEIGHT		555
-#define MIN_SIMPLE_HEIGHT		270
+#define MIN_ADVANCED_HEIGHT					510
+#define MIN_SIMPLE_HEIGHT					270
 
-#define BTN_DOWNLOAD			1000
-#define BTN_ADD_CANCEL			1001
-#define EDIT_DOWNLOAD_PARTS		1002
-#define EDIT_ADD_SPEED_LIMIT	1003
-#define BTN_DOWNLOAD_DIRECTORY	1004
-#define CHK_SEND_DATA			1005
-#define CHK_SIMULATE_DOWNLOAD	1006
-#define BTN_ADVANCED			1007
+#define BTN_DOWNLOAD						1000
+#define BTN_ADD_CANCEL						1001
+#define EDIT_DOWNLOAD_PARTS					1002
+#define EDIT_ADD_SPEED_LIMIT				1003
+#define CHK_ADD_ENABLE_DOWNLOAD_DIRECTORY	1004
+#define BTN_DOWNLOAD_DIRECTORY				1005
+#define CHK_ADD_ENABLE_DOWNLOAD_PARTS		1006
+#define CHK_ADD_ENABLE_SPEED_LIMIT			1007
+#define CHK_SEND_DATA						1008
+#define CHK_SIMULATE_DOWNLOAD				1009
+#define BTN_ADVANCED						1010
 
-#define CB_REGEX_FILTER_PRESET	1008
-#define BTN_APPLY_FILTER		1009
+#define CB_REGEX_FILTER_PRESET				1011
+#define BTN_APPLY_FILTER					1012
 
-#define EDIT_ADD_URLS			1010
+#define EDIT_ADD_URLS						1013
 
-#define BTN_ADD_DOWNLOAD		1011
+#define BTN_ADD_DOWNLOAD					1014
 
-#define MENU_ADD_SPLIT_DOWNLOAD	10000
-#define MENU_ADD_SPLIT_ADD		10001
+//
+
+#define CB_ADD_PROXY_TYPE					1015
+
+#define BTN_ADD_TYPE_HOST_SOCKS				1016
+#define BTN_ADD_TYPE_IP_ADDRESS_SOCKS		1017
+#define EDIT_ADD_HOST_SOCKS					1018
+#define EDIT_ADD_IP_ADDRESS_SOCKS			1019
+#define EDIT_ADD_PORT_SOCKS					1020
+
+#define EDIT_ADD_PROXY_AUTH_USERNAME		1021
+#define EDIT_ADD_PROXY_AUTH_PASSWORD		1022
+
+#define EDIT_ADD_AUTH_IDENT_USERNAME_SOCKS	1023
+
+#define BTN_ADD_RESOLVE_DOMAIN_NAMES_V4A	1024
+
+#define BTN_ADD_AUTHENTICATION_SOCKS		1025
+
+#define EDIT_ADD_AUTH_USERNAME_SOCKS		1026
+#define EDIT_ADD_AUTH_PASSWORD_SOCKS		1027
+
+#define BTN_ADD_RESOLVE_DOMAIN_NAMES		1028
+
+//
+
+#define MENU_ADD_SPLIT_DOWNLOAD				10000
+#define MENU_ADD_SPLIT_ADD					10001
 
 HWND g_hWnd_add_urls = NULL;
 
 HWND g_hWnd_edit_add = NULL;
 
-HWND g_hWnd_static_download_directory = NULL;
+HWND g_hWnd_chk_add_enable_download_directory = NULL;
 HWND g_hWnd_download_directory = NULL;
 HWND g_hWnd_btn_download_directory = NULL;
 
 HWND g_hWnd_chk_simulate_download = NULL;
 
-HWND g_hWnd_static_download_parts = NULL;
+HWND g_hWnd_chk_add_enable_download_parts = NULL;
 HWND g_hWnd_download_parts = NULL;
 HWND g_hWnd_ud_download_parts = NULL;
 
-HWND g_hWnd_static_add_speed_limit = NULL;
+HWND g_hWnd_chk_add_enable_speed_limit = NULL;
 HWND g_hWnd_add_speed_limit = NULL;
 
 HWND g_hWnd_static_ssl_version = NULL;
@@ -103,6 +133,44 @@ HWND g_hWnd_regex_filter_preset = NULL;
 HWND g_hWnd_regex_filter = NULL;
 HWND g_hWnd_btn_apply_filter = NULL;
 
+//////
+
+HWND g_hWnd_static_add_proxy_type = NULL;
+HWND g_hWnd_add_proxy_type = NULL;
+
+HWND g_hWnd_static_add_hoz1 = NULL;
+
+HWND g_hWnd_add_ip_address_socks = NULL;
+HWND g_hWnd_add_hostname_socks = NULL;
+HWND g_hWnd_add_port_socks = NULL;
+
+HWND g_hWnd_static_add_port_socks = NULL;
+HWND g_hWnd_static_add_colon_socks = NULL;
+
+HWND g_hWnd_chk_add_type_hostname_socks = NULL;
+HWND g_hWnd_chk_add_type_ip_address_socks = NULL;
+
+HWND g_hWnd_static_add_proxy_auth_username = NULL;
+HWND g_hWnd_edit_add_proxy_auth_username = NULL;
+HWND g_hWnd_static_add_proxy_auth_password = NULL;
+HWND g_hWnd_edit_add_proxy_auth_password = NULL;
+
+HWND g_hWnd_static_add_auth_ident_username_socks = NULL;
+HWND g_hWnd_add_auth_ident_username_socks = NULL;
+
+HWND g_hWnd_chk_add_resolve_domain_names_v4a = NULL;
+
+HWND g_hWnd_chk_add_use_authentication_socks = NULL;
+
+HWND g_hWnd_static_add_auth_username_socks = NULL;
+HWND g_hWnd_add_auth_username_socks = NULL;
+HWND g_hWnd_static_add_auth_password_socks = NULL;
+HWND g_hWnd_add_auth_password_socks = NULL;
+
+HWND g_hWnd_chk_add_resolve_domain_names = NULL;
+
+//////
+
 bool g_show_advanced = false;
 
 wchar_t *t_download_directory = NULL;
@@ -124,6 +192,135 @@ bool g_add_use_theme = true;
 
 wchar_t add_limit_tooltip_text[ 32 ];
 HWND g_hWnd_add_limit_tooltip = NULL;
+
+HFONT hFont_copy_add_proxy = NULL;
+
+void ShowHideAddProxyWindows( int index )
+{
+	if ( index == 0 )
+	{
+		_ShowWindow( g_hWnd_static_add_hoz1, SW_HIDE );
+
+		_ShowWindow( g_hWnd_add_port_socks, SW_HIDE );
+
+		_ShowWindow( g_hWnd_static_add_port_socks, SW_HIDE );
+		_ShowWindow( g_hWnd_static_add_colon_socks, SW_HIDE );
+
+		_ShowWindow( g_hWnd_chk_add_type_hostname_socks, SW_HIDE );
+		_ShowWindow( g_hWnd_chk_add_type_ip_address_socks, SW_HIDE );
+
+		_ShowWindow( g_hWnd_add_ip_address_socks, SW_HIDE );
+		_ShowWindow( g_hWnd_add_hostname_socks, SW_HIDE );
+
+		_ShowWindow( g_hWnd_static_add_proxy_auth_username, SW_HIDE );
+		_ShowWindow( g_hWnd_edit_add_proxy_auth_username, SW_HIDE );
+		_ShowWindow( g_hWnd_static_add_proxy_auth_password, SW_HIDE );
+		_ShowWindow( g_hWnd_edit_add_proxy_auth_password, SW_HIDE );
+
+		_ShowWindow( g_hWnd_static_add_auth_ident_username_socks, SW_HIDE );
+		_ShowWindow( g_hWnd_add_auth_ident_username_socks, SW_HIDE );
+
+		_ShowWindow( g_hWnd_chk_add_resolve_domain_names_v4a, SW_HIDE );
+
+		_ShowWindow( g_hWnd_chk_add_use_authentication_socks, SW_HIDE );
+
+		_ShowWindow( g_hWnd_static_add_auth_username_socks, SW_HIDE );
+		_ShowWindow( g_hWnd_add_auth_username_socks, SW_HIDE );
+		_ShowWindow( g_hWnd_static_add_auth_password_socks, SW_HIDE );
+		_ShowWindow( g_hWnd_add_auth_password_socks, SW_HIDE );
+
+		_ShowWindow( g_hWnd_chk_add_resolve_domain_names, SW_HIDE );
+	}
+	else
+	{
+		_ShowWindow( g_hWnd_static_add_hoz1, SW_SHOW );
+
+		_ShowWindow( g_hWnd_add_port_socks, SW_SHOW );
+
+		_ShowWindow( g_hWnd_static_add_port_socks, SW_SHOW );
+		_ShowWindow( g_hWnd_static_add_colon_socks, SW_SHOW );
+
+		_ShowWindow( g_hWnd_chk_add_type_hostname_socks, SW_SHOW );
+		_ShowWindow( g_hWnd_chk_add_type_ip_address_socks, SW_SHOW );
+
+		if ( _SendMessageW( g_hWnd_chk_add_type_hostname_socks, BM_GETCHECK, 0, 0 ) == BST_CHECKED )
+		{
+			_ShowWindow( g_hWnd_add_ip_address_socks, SW_HIDE );
+			_ShowWindow( g_hWnd_add_hostname_socks, SW_SHOW );
+		}
+		else
+		{
+			_ShowWindow( g_hWnd_add_hostname_socks, SW_HIDE );
+			_ShowWindow( g_hWnd_add_ip_address_socks, SW_SHOW );
+		}
+
+		if ( index == 3 )
+		{
+			_ShowWindow( g_hWnd_static_add_proxy_auth_username, SW_HIDE );
+			_ShowWindow( g_hWnd_edit_add_proxy_auth_username, SW_HIDE );
+			_ShowWindow( g_hWnd_static_add_proxy_auth_password, SW_HIDE );
+			_ShowWindow( g_hWnd_edit_add_proxy_auth_password, SW_HIDE );
+
+			_ShowWindow( g_hWnd_chk_add_use_authentication_socks, SW_HIDE );
+
+			_ShowWindow( g_hWnd_static_add_auth_username_socks, SW_HIDE );
+			_ShowWindow( g_hWnd_add_auth_username_socks, SW_HIDE );
+			_ShowWindow( g_hWnd_static_add_auth_password_socks, SW_HIDE );
+			_ShowWindow( g_hWnd_add_auth_password_socks, SW_HIDE );
+
+			_ShowWindow( g_hWnd_chk_add_resolve_domain_names, SW_HIDE );
+
+			_SendMessageW( g_hWnd_chk_add_type_hostname_socks, WM_SETTEXT, 0, ( LPARAM )ST_V_Hostname_ );
+
+			_ShowWindow( g_hWnd_static_add_auth_ident_username_socks, SW_SHOW );
+			_ShowWindow( g_hWnd_add_auth_ident_username_socks, SW_SHOW );
+			_ShowWindow( g_hWnd_chk_add_resolve_domain_names_v4a, SW_SHOW );
+		}
+		else if ( index == 4 )
+		{
+			_ShowWindow( g_hWnd_static_add_proxy_auth_username, SW_HIDE );
+			_ShowWindow( g_hWnd_edit_add_proxy_auth_username, SW_HIDE );
+			_ShowWindow( g_hWnd_static_add_proxy_auth_password, SW_HIDE );
+			_ShowWindow( g_hWnd_edit_add_proxy_auth_password, SW_HIDE );
+
+			_ShowWindow( g_hWnd_static_add_auth_ident_username_socks, SW_HIDE );
+			_ShowWindow( g_hWnd_add_auth_ident_username_socks, SW_HIDE );
+			_ShowWindow( g_hWnd_chk_add_resolve_domain_names_v4a, SW_HIDE );
+
+			_SendMessageW( g_hWnd_chk_add_type_hostname_socks, WM_SETTEXT, 0, ( LPARAM )ST_V_Hostname___IPv6_address_ );
+
+			_ShowWindow( g_hWnd_chk_add_use_authentication_socks, SW_SHOW );
+
+			_ShowWindow( g_hWnd_static_add_auth_username_socks, SW_SHOW );
+			_ShowWindow( g_hWnd_add_auth_username_socks, SW_SHOW );
+			_ShowWindow( g_hWnd_static_add_auth_password_socks, SW_SHOW );
+			_ShowWindow( g_hWnd_add_auth_password_socks, SW_SHOW );
+
+			_ShowWindow( g_hWnd_chk_add_resolve_domain_names, SW_SHOW );
+		}
+		else
+		{
+			_ShowWindow( g_hWnd_static_add_proxy_auth_username, SW_SHOW );
+			_ShowWindow( g_hWnd_edit_add_proxy_auth_username, SW_SHOW );
+			_ShowWindow( g_hWnd_static_add_proxy_auth_password, SW_SHOW );
+			_ShowWindow( g_hWnd_edit_add_proxy_auth_password, SW_SHOW );
+
+			_ShowWindow( g_hWnd_static_add_auth_ident_username_socks, SW_HIDE );
+			_ShowWindow( g_hWnd_add_auth_ident_username_socks, SW_HIDE );
+
+			_ShowWindow( g_hWnd_chk_add_resolve_domain_names_v4a, SW_HIDE );
+
+			_ShowWindow( g_hWnd_chk_add_use_authentication_socks, SW_HIDE );
+
+			_ShowWindow( g_hWnd_static_add_auth_username_socks, SW_HIDE );
+			_ShowWindow( g_hWnd_add_auth_username_socks, SW_HIDE );
+			_ShowWindow( g_hWnd_static_add_auth_password_socks, SW_HIDE );
+			_ShowWindow( g_hWnd_add_auth_password_socks, SW_HIDE );
+
+			_ShowWindow( g_hWnd_chk_add_resolve_domain_names, SW_HIDE );
+		}
+	}
+}
 
 LRESULT CALLBACK URLSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
 {
@@ -195,9 +392,30 @@ LRESULT CALLBACK AddTabSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 		{
 			if ( g_add_use_theme && _IsThemeActive() == TRUE && ( HWND )lParam != g_hWnd_chk_show_advanced_options )
 			{
-				if ( ( HWND )lParam == g_hWnd_static_cookies ||
+				if ( ( HWND )lParam == g_hWnd_chk_add_enable_download_directory ||
+					 ( HWND )lParam == g_hWnd_chk_add_enable_download_parts ||
+					 ( HWND )lParam == g_hWnd_static_ssl_version ||
+					 ( HWND )lParam == g_hWnd_chk_add_enable_speed_limit ||
+					 ( HWND )lParam == g_hWnd_btn_authentication ||
+					 ( HWND )lParam == g_hWnd_static_username ||
+					 ( HWND )lParam == g_hWnd_static_password ||
+					 ( HWND )lParam == g_hWnd_chk_simulate_download ||
+					 ( HWND )lParam == g_hWnd_static_cookies ||
 					 ( HWND )lParam == g_hWnd_static_headers ||
-					 ( HWND )lParam == g_hWnd_chk_send_data )
+					 ( HWND )lParam == g_hWnd_chk_send_data ||
+					 ( HWND )lParam == g_hWnd_static_add_proxy_type ||
+					 ( HWND )lParam == g_hWnd_static_add_port_socks ||
+					 ( HWND )lParam == g_hWnd_static_add_colon_socks ||
+					 ( HWND )lParam == g_hWnd_chk_add_type_hostname_socks ||
+					 ( HWND )lParam == g_hWnd_chk_add_type_ip_address_socks ||
+					 ( HWND )lParam == g_hWnd_static_add_proxy_auth_username ||
+					 ( HWND )lParam == g_hWnd_static_add_proxy_auth_password ||
+					 ( HWND )lParam == g_hWnd_static_add_auth_ident_username_socks ||
+					 ( HWND )lParam == g_hWnd_chk_add_resolve_domain_names_v4a ||
+					 ( HWND )lParam == g_hWnd_chk_add_use_authentication_socks ||
+					 ( HWND )lParam == g_hWnd_static_add_auth_username_socks ||
+					 ( HWND )lParam == g_hWnd_static_add_auth_password_socks ||
+					 ( HWND )lParam == g_hWnd_chk_add_resolve_domain_names )
 				{
 					_SetBkMode( ( HDC )wParam, TRANSPARENT );
 
@@ -213,45 +431,333 @@ LRESULT CALLBACK AddTabSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 		}
 		break;
 
+		case WM_COMMAND:
+		{
+			switch ( LOWORD( wParam ) )
+			{
+				case CHK_ADD_ENABLE_DOWNLOAD_DIRECTORY:
+				case BTN_DOWNLOAD_DIRECTORY:
+				{
+					if ( LOWORD( wParam ) == CHK_ADD_ENABLE_DOWNLOAD_DIRECTORY )
+					{
+						BOOL enable = ( _SendMessageW( g_hWnd_chk_add_enable_download_directory, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? TRUE : FALSE );
+
+						_EnableWindow( g_hWnd_download_directory, enable );
+						_EnableWindow( g_hWnd_btn_download_directory, enable );
+
+						if ( enable == FALSE )
+						{
+							break;
+						}
+					}
+
+					wchar_t *directory = NULL;
+
+					_BrowseForFolder( hWnd, ST_V_Select_the_download_directory, &directory );
+
+					if ( directory != NULL )
+					{
+						GlobalFree( t_download_directory );
+						t_download_directory = directory;
+
+						_SendMessageW( g_hWnd_download_directory, WM_SETTEXT, 0, ( LPARAM )t_download_directory );
+					}
+				}
+				break;
+
+				case CHK_ADD_ENABLE_DOWNLOAD_PARTS:
+				{
+					BOOL enable = ( _SendMessageW( g_hWnd_chk_add_enable_download_parts, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? TRUE : FALSE );
+
+					_EnableWindow( g_hWnd_download_parts, enable );
+					_EnableWindow( g_hWnd_ud_download_parts, enable );
+				}
+				break;
+
+				case EDIT_DOWNLOAD_PARTS:
+				{
+					if ( HIWORD( wParam ) == EN_UPDATE )
+					{
+						DWORD sel_start;
+
+						char value[ 11 ];
+						_SendMessageA( ( HWND )lParam, WM_GETTEXT, 11, ( LPARAM )value );
+						unsigned long num = _strtoul( value, NULL, 10 );
+
+						if ( num > 100 )
+						{
+							_SendMessageA( ( HWND )lParam, EM_GETSEL, ( WPARAM )&sel_start, NULL );
+
+							_SendMessageA( ( HWND )lParam, WM_SETTEXT, 0, ( LPARAM )"100" );
+
+							_SendMessageA( ( HWND )lParam, EM_SETSEL, sel_start, sel_start );
+						}
+						else if ( num == 0 )
+						{
+							_SendMessageA( ( HWND )lParam, EM_GETSEL, ( WPARAM )&sel_start, NULL );
+
+							_SendMessageA( ( HWND )lParam, WM_SETTEXT, 0, ( LPARAM )"1" );
+
+							_SendMessageA( ( HWND )lParam, EM_SETSEL, sel_start, sel_start );
+						}
+					}
+				}
+				break;
+
+				case CHK_ADD_ENABLE_SPEED_LIMIT:
+				{
+					_EnableWindow( g_hWnd_add_speed_limit, ( _SendMessageW( g_hWnd_chk_add_enable_speed_limit, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? TRUE : FALSE ) );
+				}
+				break;
+
+				case EDIT_ADD_SPEED_LIMIT:
+				{
+					if ( HIWORD( wParam ) == EN_UPDATE )
+					{
+						DWORD sel_start;
+
+						char value[ 21 ];
+						_SendMessageA( ( HWND )lParam, WM_GETTEXT, 21, ( LPARAM )value );
+						unsigned long long num = strtoull( value );
+
+						if ( num == 0xFFFFFFFFFFFFFFFF )
+						{
+							_SendMessageA( ( HWND )lParam, EM_GETSEL, ( WPARAM )&sel_start, NULL );
+
+							_SendMessageA( ( HWND )lParam, WM_SETTEXT, 0, ( LPARAM )"18446744073709551615" );
+
+							_SendMessageA( ( HWND )lParam, EM_SETSEL, sel_start, sel_start );
+						}
+
+						if ( num > 0 )
+						{
+							unsigned int length = FormatSizes( add_limit_tooltip_text, 32, SIZE_FORMAT_AUTO, num );
+							add_limit_tooltip_text[ length++ ] = L'/';
+							add_limit_tooltip_text[ length++ ] = L's';
+							add_limit_tooltip_text[ length ] = 0;
+						}
+						else
+						{
+							_wmemcpy_s( add_limit_tooltip_text, 32, ST_V_Unlimited, ST_L_Unlimited + 1 );
+						}
+
+						TOOLINFO ti;
+						_memzero( &ti, sizeof( TOOLINFO ) );
+						ti.cbSize = sizeof( TOOLINFO );
+						ti.hwnd = g_hWnd_add_speed_limit;
+						ti.lpszText = add_limit_tooltip_text;
+						_SendMessageW( g_hWnd_add_limit_tooltip, TTM_UPDATETIPTEXT, 0, ( LPARAM )&ti );
+					}
+				}
+				break;
+
+				case CHK_SIMULATE_DOWNLOAD:
+				{
+					BOOL enable = ( _SendMessageW( g_hWnd_chk_simulate_download, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? FALSE : TRUE );
+
+					_EnableWindow( g_hWnd_chk_add_enable_download_directory, enable );
+
+					if ( enable == TRUE && _SendMessageW( g_hWnd_chk_add_enable_download_directory, BM_GETCHECK, 0, 0 ) == BST_UNCHECKED )
+					{
+						enable = FALSE;
+					}
+
+					_EnableWindow( g_hWnd_download_directory, enable );
+					_EnableWindow( g_hWnd_btn_download_directory, enable );
+				}
+				break;
+
+				case CHK_SEND_DATA:
+				{
+					_EnableWindow( g_hWnd_edit_data, ( _SendMessageW( g_hWnd_chk_send_data, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? TRUE : FALSE ) );
+				}
+				break;
+
+				case CB_ADD_PROXY_TYPE:
+				{
+					if ( HIWORD( wParam ) == CBN_SELCHANGE )
+					{
+						int index = ( int )_SendMessageW( g_hWnd_add_proxy_type, CB_GETCURSEL, 0, 0 );
+
+						if ( index != CB_ERR )
+						{
+							_SendMessageW( g_hWnd_add_hostname_socks, WM_SETTEXT, 0, ( LPARAM )L"localhost" );
+							_SendMessageW( g_hWnd_add_ip_address_socks, IPM_SETADDRESS, 0, 2130706433 );	// 127.0.0.1
+
+							char value[ 6 ];
+							_memzero( value, sizeof( char ) * 6 );
+							__snprintf( value, 6, "%hu", ( index == 1 ? 80 : ( index == 2 ? 443 : 1080 ) ) );
+							_SendMessageA( g_hWnd_add_port_socks, WM_SETTEXT, 0, ( LPARAM )value );
+
+							ShowHideAddProxyWindows( index );
+						}
+					}
+				}
+				break;
+
+				case BTN_ADD_AUTHENTICATION_SOCKS:
+				{
+					BOOL enable = ( _SendMessageW( g_hWnd_chk_add_use_authentication_socks, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? TRUE : FALSE );
+
+					_EnableWindow( g_hWnd_static_add_auth_username_socks, enable );
+					_EnableWindow( g_hWnd_add_auth_username_socks, enable );
+					_EnableWindow( g_hWnd_static_add_auth_password_socks, enable );
+					_EnableWindow( g_hWnd_add_auth_password_socks, enable );
+				}
+				break;
+
+				case EDIT_ADD_PORT_SOCKS:
+				{
+					if ( HIWORD( wParam ) == EN_UPDATE )
+					{
+						DWORD sel_start;
+
+						char value[ 11 ];
+						_SendMessageA( ( HWND )lParam, WM_GETTEXT, 6, ( LPARAM )value );
+						unsigned long num = _strtoul( value, NULL, 10 );
+
+						if ( num > 65535 )
+						{
+							_SendMessageA( ( HWND )lParam, EM_GETSEL, ( WPARAM )&sel_start, NULL );
+
+							_SendMessageA( ( HWND )lParam, WM_SETTEXT, 0, ( LPARAM )"65535" );
+
+							_SendMessageA( ( HWND )lParam, EM_SETSEL, sel_start, sel_start );
+						}
+						else if ( num == 0 )
+						{
+							_SendMessageA( ( HWND )lParam, EM_GETSEL, ( WPARAM )&sel_start, NULL );
+
+							_SendMessageA( ( HWND )lParam, WM_SETTEXT, 0, ( LPARAM )"1" );
+
+							_SendMessageA( ( HWND )lParam, EM_SETSEL, sel_start, sel_start );
+						}
+					}
+				}
+				break;
+
+				case BTN_ADD_TYPE_HOST_SOCKS:
+				{
+					if ( _SendMessageW( g_hWnd_chk_add_type_hostname_socks, BM_GETCHECK, 0, 0 ) == BST_CHECKED )
+					{
+						_ShowWindow( g_hWnd_add_ip_address_socks, SW_HIDE );
+						_ShowWindow( g_hWnd_add_hostname_socks, SW_SHOW );
+					}
+				}
+				break;
+
+				case BTN_ADD_TYPE_IP_ADDRESS_SOCKS:
+				{
+					if ( _SendMessageW( g_hWnd_chk_add_type_ip_address_socks, BM_GETCHECK, 0, 0 ) == BST_CHECKED )
+					{
+						_ShowWindow( g_hWnd_add_hostname_socks, SW_HIDE );
+						_ShowWindow( g_hWnd_add_ip_address_socks, SW_SHOW );
+					}
+				}
+				break;
+			}
+
+			return 0;
+		}
+		break;
+
 		case WM_SIZE:
 		{
 			RECT rc;
 			_GetClientRect( hWnd, &rc );
 
-			// Allow our controls to move in relation to the parent window.
-			HDWP hdwp = _BeginDeferWindowPos( 6 );
-
 			RECT rc_tab;
 			_SendMessageW( hWnd, TCM_GETITEMRECT, 0, ( LPARAM )&rc_tab );
 
-			_DeferWindowPos( hdwp, g_hWnd_static_cookies, HWND_TOP, 10, ( rc_tab.bottom - rc_tab.top ) + 10, rc.right - 20, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_edit_cookies, HWND_TOP, 10, ( rc_tab.bottom - rc_tab.top ) + 25, rc.right - 20, ( rc.bottom - rc_tab.bottom ) - 35, SWP_NOZORDER );
+			int tab_height = rc_tab.bottom - rc_tab.top;
 
-			_DeferWindowPos( hdwp, g_hWnd_static_headers, HWND_TOP, 10, ( rc_tab.bottom - rc_tab.top ) + 10, rc.right - 20, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_edit_headers, HWND_TOP, 10, ( rc_tab.bottom - rc_tab.top ) + 25, rc.right - 20, ( rc.bottom - rc_tab.bottom ) - 35, SWP_NOZORDER );
+			// Allow our controls to move in relation to the parent window.
+			HDWP hdwp = _BeginDeferWindowPos( 45 );
 
-			_DeferWindowPos( hdwp, g_hWnd_chk_send_data, HWND_TOP, 10, ( rc_tab.bottom - rc_tab.top ) + 10, rc.right - 20, 20, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_edit_data, HWND_TOP, 10, ( rc_tab.bottom - rc_tab.top ) + 30, rc.right - 20, ( rc.bottom - rc_tab.bottom ) - 40, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_chk_add_enable_download_directory, HWND_TOP, 10, tab_height + 10, rc.right - 20, 20, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_download_directory, HWND_TOP, 10, tab_height + 30, rc.right - 60, 23, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_btn_download_directory, HWND_TOP, rc.right - 45, tab_height + 30, 35, 23, SWP_NOZORDER );
+
+			_DeferWindowPos( hdwp, g_hWnd_chk_add_enable_download_parts, HWND_TOP, 10, tab_height + 63, 115, 20, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_download_parts, HWND_TOP, 10, tab_height + 83, 85, 23, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_ud_download_parts, HWND_TOP, 95, tab_height + 83, 0, 0, SWP_NOZORDER | SWP_NOSIZE );
+
+			_DeferWindowPos( hdwp, g_hWnd_static_ssl_version, HWND_TOP, 130, tab_height + 68, 115, 15, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_ssl_version, HWND_TOP, 130, tab_height + 83, 100, 23, SWP_NOZORDER );
+
+			_DeferWindowPos( hdwp, g_hWnd_chk_add_enable_speed_limit, HWND_TOP, 10, tab_height + 116, 200, 20, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_add_speed_limit, HWND_TOP, 10, tab_height + 136, 200, 23, SWP_NOZORDER );
+
+			_DeferWindowPos( hdwp, g_hWnd_btn_authentication, HWND_TOP, 250, tab_height + 68, 230, 65, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_static_username, HWND_TOP, 260, tab_height + 83, 100, 15, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_edit_username, HWND_TOP, 260, tab_height + 98, 100, 23, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_static_password, HWND_TOP, 370, tab_height + 83, 100, 15, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_edit_password, HWND_TOP, 370, tab_height + 98, 100, 23, SWP_NOZORDER );
+
+			_DeferWindowPos( hdwp, g_hWnd_chk_simulate_download, HWND_TOP, 10, tab_height + 169, 200, 23, SWP_NOZORDER );
+
+			//
+
+			_DeferWindowPos( hdwp, g_hWnd_static_cookies, HWND_TOP, 10, tab_height + 10, rc.right - 20, 15, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_edit_cookies, HWND_TOP, 10, tab_height + 25, rc.right - 20, ( rc.bottom - rc_tab.bottom ) - 35, SWP_NOZORDER );
+
+			_DeferWindowPos( hdwp, g_hWnd_static_headers, HWND_TOP, 10, tab_height + 10, rc.right - 20, 15, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_edit_headers, HWND_TOP, 10, tab_height + 25, rc.right - 20, ( rc.bottom - rc_tab.bottom ) - 35, SWP_NOZORDER );
+
+			_DeferWindowPos( hdwp, g_hWnd_chk_send_data, HWND_TOP, 10, tab_height + 10, rc.right - 20, 20, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_edit_data, HWND_TOP, 10, tab_height + 30, rc.right - 20, ( rc.bottom - rc_tab.bottom ) - 40, SWP_NOZORDER );
+
+			//
+
+			_DeferWindowPos( hdwp, g_hWnd_static_add_proxy_type, HWND_TOP, 10, tab_height + 10, 150, 15, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_add_proxy_type, HWND_TOP, 10, tab_height + 25, 100, 23, SWP_NOZORDER );
+
+			_DeferWindowPos( hdwp, g_hWnd_static_add_hoz1, HWND_TOP, 10, tab_height + 58, rc.right - 20, 1, SWP_NOZORDER );
+
+			_DeferWindowPos( hdwp, g_hWnd_chk_add_type_hostname_socks, HWND_TOP, 10, tab_height + 68, 200, 20, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_chk_add_type_ip_address_socks, HWND_TOP, 215, tab_height + 68, 110, 20, SWP_NOZORDER );
+
+			_DeferWindowPos( hdwp, g_hWnd_add_hostname_socks, HWND_TOP, 10, tab_height + 88, 310, 23, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_add_ip_address_socks, HWND_TOP, 10, tab_height + 88, 310, 23, SWP_NOZORDER );
+
+			_DeferWindowPos( hdwp, g_hWnd_static_add_colon_socks, HWND_TOP, 320, tab_height + 92, 10, 15, SWP_NOZORDER );
+
+			_DeferWindowPos( hdwp, g_hWnd_static_add_port_socks, HWND_TOP, 330, tab_height + 73, 75, 15, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_add_port_socks, HWND_TOP, 330, tab_height + 88, 75, 23, SWP_NOZORDER );
+
+
+			_DeferWindowPos( hdwp, g_hWnd_static_add_proxy_auth_username, HWND_TOP, 10, tab_height + 117, 150, 15, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_edit_add_proxy_auth_username, HWND_TOP, 10, tab_height + 132, 150, 23, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_static_add_proxy_auth_password, HWND_TOP, 170, tab_height + 117, 150, 15, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_edit_add_proxy_auth_password, HWND_TOP, 170, tab_height + 132, 150, 23, SWP_NOZORDER );
+
+			// v4
+
+			_DeferWindowPos( hdwp, g_hWnd_static_add_auth_ident_username_socks, HWND_TOP, 10, tab_height + 117, rc.right - 40, 15, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_add_auth_ident_username_socks, HWND_TOP, 10, tab_height + 132, 150, 23, SWP_NOZORDER );
+
+			_DeferWindowPos( hdwp, g_hWnd_chk_add_resolve_domain_names_v4a, HWND_TOP, 10, tab_height + 160, rc.right - 40, 20, SWP_NOZORDER );
+
+
+			// v5
+
+			_DeferWindowPos( hdwp, g_hWnd_chk_add_use_authentication_socks, HWND_TOP, 10, tab_height + 117, rc.right - 40, 20, SWP_NOZORDER );
+
+			_DeferWindowPos( hdwp, g_hWnd_static_add_auth_username_socks, HWND_TOP, 25, tab_height + 137, 150, 15, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_add_auth_username_socks, HWND_TOP, 25, tab_height + 152, 150, 23, SWP_NOZORDER );
+
+			_DeferWindowPos( hdwp, g_hWnd_static_add_auth_password_socks, HWND_TOP, 185, tab_height + 137, 150, 15, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_add_auth_password_socks, HWND_TOP, 185, tab_height + 152, 150, 23, SWP_NOZORDER );
+
+			_DeferWindowPos( hdwp, g_hWnd_chk_add_resolve_domain_names, HWND_TOP, 10, tab_height + 180, rc.right - 40, 20, SWP_NOZORDER );
 
 			_EndDeferWindowPos( hdwp );
-		}
-		break;
-		
-		case WM_COMMAND:
-		{
-			if ( LOWORD( wParam ) == CHK_SEND_DATA )
-			{
-				_EnableWindow( g_hWnd_edit_data, ( _SendMessageW( g_hWnd_chk_send_data, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? TRUE : FALSE ) );
-			}
-
-			return 0;
 		}
 		break;
 	}
 
 	return _CallWindowProcW( AddTabProc, hWnd, msg, wParam, lParam );
 }
-
 
 void ShowHideAddTabs( int sw_type )
 {
@@ -262,22 +768,69 @@ void ShowHideAddTabs( int sw_type )
 		{
 			case 0:
 			{
+				_ShowWindow( g_hWnd_chk_add_enable_download_directory, sw_type );
+				_ShowWindow( g_hWnd_download_directory, sw_type );
+				_ShowWindow( g_hWnd_btn_download_directory, sw_type );
+
+				_ShowWindow( g_hWnd_chk_add_enable_download_parts, sw_type );
+				_ShowWindow( g_hWnd_download_parts, sw_type );
+				_ShowWindow( g_hWnd_ud_download_parts, sw_type );
+
+				_ShowWindow( g_hWnd_static_ssl_version, sw_type );
+				_ShowWindow( g_hWnd_ssl_version, sw_type );
+
+				_ShowWindow( g_hWnd_chk_add_enable_speed_limit, sw_type );
+				_ShowWindow( g_hWnd_add_speed_limit, sw_type );
+
+				_ShowWindow( g_hWnd_btn_authentication, sw_type );
+				_ShowWindow( g_hWnd_static_username, sw_type );
+				_ShowWindow( g_hWnd_edit_username, sw_type );
+				_ShowWindow( g_hWnd_static_password, sw_type );
+				_ShowWindow( g_hWnd_edit_password, sw_type );
+
+				_ShowWindow( g_hWnd_chk_simulate_download, sw_type );
+			}
+			break;
+
+			case 1:
+			{
 				_ShowWindow( g_hWnd_static_cookies, sw_type );
 				_ShowWindow( g_hWnd_edit_cookies, sw_type );
 			}
 			break;
 
-			case 1:
+			case 2:
 			{
 				_ShowWindow( g_hWnd_static_headers, sw_type );
 				_ShowWindow( g_hWnd_edit_headers, sw_type );
 			}
 			break;
 
-			case 2:
+			case 3:
 			{
 				_ShowWindow( g_hWnd_chk_send_data, sw_type );
 				_ShowWindow( g_hWnd_edit_data, sw_type );
+			}
+			break;
+
+			case 4:
+			{
+				_ShowWindow( g_hWnd_static_add_proxy_type, sw_type );
+				_ShowWindow( g_hWnd_add_proxy_type, sw_type );
+
+				int index = 0;
+
+				if ( sw_type == SW_SHOW )
+				{
+					index = ( int )_SendMessageW( g_hWnd_add_proxy_type, CB_GETCURSEL, 0, 0 );
+
+					if ( index == CB_ERR )
+					{
+						index = 0;
+					}
+				}
+	
+				ShowHideAddProxyWindows( index );
 			}
 			break;
 		}
@@ -286,8 +839,8 @@ void ShowHideAddTabs( int sw_type )
 
 LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
 {
-    switch ( msg )
-    {
+	switch ( msg )
+	{
 		case WM_CREATE:
 		{
 			DWORD enabled = ( g_use_regular_expressions ? 0 : WS_DISABLED );
@@ -300,41 +853,64 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 			_SendMessageW( g_hWnd_regex_filter_preset, CB_SETCURSEL, 0, 0 );
 
-			g_hWnd_regex_filter = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, L"", ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_VISIBLE | enabled, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+			g_hWnd_regex_filter = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_VISIBLE | enabled, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 
 			g_hWnd_btn_apply_filter = _CreateWindowW( WC_BUTTON, ST_V_Apply, WS_CHILD | WS_TABSTOP | WS_VISIBLE | enabled, 0, 0, 0, 0, hWnd, ( HMENU )BTN_APPLY_FILTER, NULL, NULL );
 
 
 			HWND hWnd_static_urls = _CreateWindowW( WC_STATIC, ST_V_URL_s__, WS_CHILD | WS_VISIBLE, 10, 25, 70, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_edit_add = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, L"", WS_CHILD | WS_TABSTOP | ES_AUTOHSCROLL | ES_MULTILINE | WS_HSCROLL | WS_VSCROLL | WS_VISIBLE, 0, 0, 0, 0, hWnd, ( HMENU )EDIT_ADD_URLS, NULL, NULL );
+			g_hWnd_edit_add = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, WS_CHILD | WS_TABSTOP | ES_AUTOHSCROLL | ES_MULTILINE | WS_HSCROLL | WS_VSCROLL | WS_VISIBLE, 0, 0, 0, 0, hWnd, ( HMENU )EDIT_ADD_URLS, NULL, NULL );
 
 			_SendMessageW( g_hWnd_edit_add, EM_LIMITTEXT, 0, 0 );	// Maximum size.
 
-			g_hWnd_static_download_directory = _CreateWindowW( WC_STATIC, ST_V_Download_directory_, WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
-			g_hWnd_download_directory = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, cfg_default_download_directory, ES_AUTOHSCROLL | ES_READONLY | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
-			g_hWnd_btn_download_directory = _CreateWindowW( WC_BUTTON, ST_V_BTN___, WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, ( HMENU )BTN_DOWNLOAD_DIRECTORY, NULL, NULL );
+			g_hWnd_advanced_add_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, WC_TABCONTROL, NULL, WS_CHILD | /*WS_CLIPCHILDREN |*/ WS_TABSTOP, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+
+			TCITEM ti;
+			_memzero( &ti, sizeof( TCITEM ) );
+			ti.mask = TCIF_TEXT;	// The tab will have text and an lParam value.
+
+			ti.pszText = ( LPWSTR )ST_V_General;
+			_SendMessageW( g_hWnd_advanced_add_tab, TCM_INSERTITEM, 0, ( LPARAM )&ti );	// Insert a new tab at the end.
+
+			ti.pszText = ( LPWSTR )ST_V_Cookies;
+			_SendMessageW( g_hWnd_advanced_add_tab, TCM_INSERTITEM, 1, ( LPARAM )&ti );	// Insert a new tab at the end.
+
+			ti.pszText = ( LPWSTR )ST_V_Headers;
+			_SendMessageW( g_hWnd_advanced_add_tab, TCM_INSERTITEM, 2, ( LPARAM )&ti );	// Insert a new tab at the end.
+
+			ti.pszText = ( LPWSTR )ST_V_POST_Data;
+			_SendMessageW( g_hWnd_advanced_add_tab, TCM_INSERTITEM, 3, ( LPARAM )&ti );	// Insert a new tab at the end.
+
+			ti.pszText = ( LPWSTR )ST_V_Proxy;
+			_SendMessageW( g_hWnd_advanced_add_tab, TCM_INSERTITEM, 4, ( LPARAM )&ti );	// Insert a new tab at the end.
+
+			//
+
+			g_hWnd_chk_add_enable_download_directory = _CreateWindowW( WC_BUTTON, ST_V_Download_directory_, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP, 0, 0, 0, 0, g_hWnd_advanced_add_tab, ( HMENU )CHK_ADD_ENABLE_DOWNLOAD_DIRECTORY, NULL, NULL );
+			g_hWnd_download_directory = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, cfg_default_download_directory, ES_AUTOHSCROLL | ES_READONLY | WS_CHILD | WS_TABSTOP | WS_DISABLED, 0, 0, 0, 0, g_hWnd_advanced_add_tab, NULL, NULL, NULL );
+			g_hWnd_btn_download_directory = _CreateWindowW( WC_BUTTON, ST_V_BTN___, WS_CHILD | WS_TABSTOP | WS_DISABLED, 0, 0, 0, 0, g_hWnd_advanced_add_tab, ( HMENU )BTN_DOWNLOAD_DIRECTORY, NULL, NULL );
 
 
-			g_hWnd_static_download_parts = _CreateWindowW( WC_STATIC, ST_V_Download_parts_, WS_CHILD, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+			g_hWnd_chk_add_enable_download_parts = _CreateWindowW( WC_BUTTON, ST_V_Download_parts_, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP, 0, 0, 0, 0, g_hWnd_advanced_add_tab, ( HMENU )CHK_ADD_ENABLE_DOWNLOAD_PARTS, NULL, NULL );
 			// Needs dimensions so that the spinner control can size itself.
-			g_hWnd_download_parts = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP, 20, 203, 85, 23, hWnd, ( HMENU )EDIT_DOWNLOAD_PARTS, NULL, NULL );
+			g_hWnd_download_parts = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_DISABLED, 20, 203, 85, 23, g_hWnd_advanced_add_tab, ( HMENU )EDIT_DOWNLOAD_PARTS, NULL, NULL );
 
-			g_hWnd_ud_download_parts = _CreateWindowW( UPDOWN_CLASS, NULL, UDS_ALIGNRIGHT | UDS_ARROWKEYS | UDS_NOTHOUSANDS | UDS_SETBUDDYINT | WS_CHILD, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+			g_hWnd_ud_download_parts = _CreateWindowW( UPDOWN_CLASS, NULL, UDS_ALIGNRIGHT | UDS_ARROWKEYS | UDS_NOTHOUSANDS | UDS_SETBUDDYINT | WS_CHILD | WS_DISABLED, 0, 0, 0, 0, g_hWnd_advanced_add_tab, NULL, NULL, NULL );
 
 			_SendMessageW( g_hWnd_download_parts, EM_LIMITTEXT, 3, 0 );
 			_SendMessageW( g_hWnd_ud_download_parts, UDM_SETBUDDY, ( WPARAM )g_hWnd_download_parts, 0 );
-            _SendMessageW( g_hWnd_ud_download_parts, UDM_SETBASE, 10, 0 );
+			_SendMessageW( g_hWnd_ud_download_parts, UDM_SETBASE, 10, 0 );
 			_SendMessageW( g_hWnd_ud_download_parts, UDM_SETRANGE32, 1, 100 );
 			_SendMessageW( g_hWnd_ud_download_parts, UDM_SETPOS, 0, cfg_default_download_parts );
 
 
-			g_hWnd_static_add_speed_limit = _CreateWindowW( WC_STATIC, ST_V_Download_speed_limit_bytes_, WS_CHILD, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
-			g_hWnd_add_speed_limit = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP, 0, 0, 0, 0, hWnd, ( HMENU )EDIT_ADD_SPEED_LIMIT, NULL, NULL );
+			g_hWnd_chk_add_enable_speed_limit = _CreateWindowW( WC_BUTTON, ST_V_Download_speed_limit_bytes_, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP, 0, 0, 0, 0, g_hWnd_advanced_add_tab, ( HMENU )CHK_ADD_ENABLE_SPEED_LIMIT, NULL, NULL );
+			g_hWnd_add_speed_limit = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_DISABLED, 0, 0, 0, 0, g_hWnd_advanced_add_tab, ( HMENU )EDIT_ADD_SPEED_LIMIT, NULL, NULL );
 
 			_SendMessageW( g_hWnd_add_speed_limit, EM_LIMITTEXT, 20, 0 );
 
 
-			g_hWnd_add_limit_tooltip = _CreateWindowExW( WS_EX_TOPMOST, TOOLTIPS_CLASS, 0, WS_POPUP | TTS_NOPREFIX | TTS_ALWAYSTIP, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+			g_hWnd_add_limit_tooltip = _CreateWindowExW( WS_EX_TOPMOST, TOOLTIPS_CLASS, 0, WS_POPUP | TTS_NOPREFIX | TTS_ALWAYSTIP, 0, 0, 0, 0, g_hWnd_advanced_add_tab, NULL, NULL, NULL );
 
 			add_limit_tooltip_text[ 0 ] = 0;
 
@@ -355,49 +931,103 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			_SendMessageA( g_hWnd_add_speed_limit, WM_SETTEXT, 0, ( LPARAM )value );
 
 
-			g_hWnd_static_ssl_version = _CreateWindowW( WC_STATIC, ST_V_SSL___TLS_version_, WS_CHILD, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
-			g_hWnd_ssl_version = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_COMBOBOX, NULL, CBS_AUTOHSCROLL | CBS_DROPDOWNLIST | WS_CHILD | WS_TABSTOP | WS_VSCROLL, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+			g_hWnd_static_ssl_version = _CreateWindowW( WC_STATIC, ST_V_SSL___TLS_version_, WS_CHILD, 0, 0, 0, 0, g_hWnd_advanced_add_tab, NULL, NULL, NULL );
+			g_hWnd_ssl_version = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_COMBOBOX, NULL, CBS_AUTOHSCROLL | CBS_DROPDOWNLIST | WS_CHILD | WS_TABSTOP | WS_VSCROLL, 0, 0, 0, 0, g_hWnd_advanced_add_tab, NULL, NULL, NULL );
+			_SendMessageW( g_hWnd_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_V_Default );
 			_SendMessageW( g_hWnd_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_V_SSL_2_0 );
 			_SendMessageW( g_hWnd_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_V_SSL_3_0 );
 			_SendMessageW( g_hWnd_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_V_TLS_1_0 );
 			_SendMessageW( g_hWnd_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_V_TLS_1_1 );
 			_SendMessageW( g_hWnd_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_V_TLS_1_2 );
 
-			_SendMessageW( g_hWnd_ssl_version, CB_SETCURSEL, cfg_default_ssl_version, 0 );
+			_SendMessageW( g_hWnd_ssl_version, CB_SETCURSEL, 0, 0 );
 
-			g_hWnd_btn_authentication = _CreateWindowW( WC_BUTTON, ST_V_Authentication, BS_GROUPBOX | WS_CHILD, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+			g_hWnd_btn_authentication = _CreateWindowW( WC_BUTTON, ST_V_Authentication, BS_GROUPBOX | WS_CHILD, 0, 0, 0, 0, g_hWnd_advanced_add_tab, NULL, NULL, NULL );
 
-			g_hWnd_static_username = _CreateWindowW( WC_STATIC, ST_V_Username_, WS_CHILD, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
-			g_hWnd_edit_username = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+			g_hWnd_static_username = _CreateWindowW( WC_STATIC, ST_V_Username_, WS_CHILD, 0, 0, 0, 0, g_hWnd_advanced_add_tab, NULL, NULL, NULL );
+			g_hWnd_edit_username = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP, 0, 0, 0, 0, g_hWnd_advanced_add_tab, NULL, NULL, NULL );
 
-			g_hWnd_static_password = _CreateWindowW( WC_STATIC, ST_V_Password_, WS_CHILD, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
-			g_hWnd_edit_password = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_PASSWORD | ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+			g_hWnd_static_password = _CreateWindowW( WC_STATIC, ST_V_Password_, WS_CHILD, 0, 0, 0, 0, g_hWnd_advanced_add_tab, NULL, NULL, NULL );
+			g_hWnd_edit_password = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_PASSWORD | ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP, 0, 0, 0, 0, g_hWnd_advanced_add_tab, NULL, NULL, NULL );
 
-			g_hWnd_advanced_add_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, WC_TABCONTROL, NULL, WS_CHILD | /*WS_CLIPCHILDREN |*/ WS_TABSTOP, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+			g_hWnd_chk_simulate_download = _CreateWindowW( WC_BUTTON, ST_V_Simulate_download, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP, 0, 0, 0, 0, g_hWnd_advanced_add_tab, ( HMENU )CHK_SIMULATE_DOWNLOAD, NULL, NULL );
 
-			TCITEM ti;
-			_memzero( &ti, sizeof( TCITEM ) );
-			ti.mask = TCIF_TEXT;	// The tab will have text and an lParam value.
-
-			ti.pszText = ( LPWSTR )ST_V_Cookies;
-			_SendMessageW( g_hWnd_advanced_add_tab, TCM_INSERTITEM, 0, ( LPARAM )&ti );	// Insert a new tab at the end.
-
-			ti.pszText = ( LPWSTR )ST_V_Headers;
-			_SendMessageW( g_hWnd_advanced_add_tab, TCM_INSERTITEM, 1, ( LPARAM )&ti );	// Insert a new tab at the end.
-
-			ti.pszText = ( LPWSTR )ST_V_POST_Data;
-			_SendMessageW( g_hWnd_advanced_add_tab, TCM_INSERTITEM, 2, ( LPARAM )&ti );	// Insert a new tab at the end.
+			//
 
 			g_hWnd_static_cookies = _CreateWindowW( WC_STATIC, ST_V_Cookies_, WS_CHILD, 0, 0, 0, 0, g_hWnd_advanced_add_tab, NULL, NULL, NULL );
-			g_hWnd_edit_cookies = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, L"", WS_CHILD | WS_TABSTOP | ES_AUTOHSCROLL | ES_MULTILINE | WS_HSCROLL | WS_VSCROLL, 0, 0, 0, 0, g_hWnd_advanced_add_tab, NULL, NULL, NULL );
+			g_hWnd_edit_cookies = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, WS_CHILD | WS_TABSTOP | ES_AUTOHSCROLL | ES_MULTILINE | WS_HSCROLL | WS_VSCROLL, 0, 0, 0, 0, g_hWnd_advanced_add_tab, NULL, NULL, NULL );
 
 			g_hWnd_static_headers = _CreateWindowW( WC_STATIC, ST_V_Headers_, WS_CHILD, 0, 0, 0, 0, g_hWnd_advanced_add_tab, NULL, NULL, NULL );
-			g_hWnd_edit_headers = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, L"", WS_CHILD | WS_TABSTOP | ES_AUTOHSCROLL | ES_MULTILINE | WS_HSCROLL | WS_VSCROLL, 0, 0, 0, 0, g_hWnd_advanced_add_tab, NULL, NULL, NULL );
+			g_hWnd_edit_headers = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, WS_CHILD | WS_TABSTOP | ES_AUTOHSCROLL | ES_MULTILINE | WS_HSCROLL | WS_VSCROLL, 0, 0, 0, 0, g_hWnd_advanced_add_tab, NULL, NULL, NULL );
 
 			g_hWnd_chk_send_data = _CreateWindowW( WC_BUTTON, ST_V_Send_POST_Data_, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP, 0, 0, 0, 0, g_hWnd_advanced_add_tab, ( HMENU )CHK_SEND_DATA, NULL, NULL );
-			g_hWnd_edit_data = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, L"", WS_CHILD | WS_TABSTOP | ES_AUTOHSCROLL | ES_MULTILINE | WS_HSCROLL | WS_VSCROLL | WS_DISABLED, 0, 0, 0, 0, g_hWnd_advanced_add_tab, NULL, NULL, NULL );
+			g_hWnd_edit_data = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, WS_CHILD | WS_TABSTOP | ES_AUTOHSCROLL | ES_MULTILINE | WS_HSCROLL | WS_VSCROLL | WS_DISABLED, 0, 0, 0, 0, g_hWnd_advanced_add_tab, NULL, NULL, NULL );
 
-			g_hWnd_chk_simulate_download = _CreateWindowW( WC_BUTTON, ST_V_Simulate_download, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP, 0, 0, 0, 0, hWnd, ( HMENU )CHK_SIMULATE_DOWNLOAD, NULL, NULL );
+			//
+
+			g_hWnd_static_add_proxy_type = _CreateWindowW( WC_STATIC, ST_V_Use_proxy_, WS_CHILD, 0, 0, 0, 0, g_hWnd_advanced_add_tab, NULL, NULL, NULL );
+			g_hWnd_add_proxy_type = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_COMBOBOX, NULL, CBS_AUTOHSCROLL | CBS_DROPDOWNLIST | WS_CHILD | WS_TABSTOP | WS_VSCROLL, 0, 0, 0, 0, g_hWnd_advanced_add_tab, ( HMENU )CB_ADD_PROXY_TYPE, NULL, NULL );
+			_SendMessageW( g_hWnd_add_proxy_type, CB_ADDSTRING, 0, ( LPARAM )ST_V_Default );
+			_SendMessageW( g_hWnd_add_proxy_type, CB_ADDSTRING, 0, ( LPARAM )ST_V_HTTP );
+			_SendMessageW( g_hWnd_add_proxy_type, CB_ADDSTRING, 0, ( LPARAM )ST_V_HTTPS );
+			_SendMessageW( g_hWnd_add_proxy_type, CB_ADDSTRING, 0, ( LPARAM )ST_V_SOCKS_v4 );
+			_SendMessageW( g_hWnd_add_proxy_type, CB_ADDSTRING, 0, ( LPARAM )ST_V_SOCKS_v5 );
+
+			_SendMessageW( g_hWnd_add_proxy_type, CB_SETCURSEL, 0, 0 );
+
+
+			g_hWnd_static_add_hoz1 = _CreateWindowW( WC_STATIC, NULL, SS_ETCHEDHORZ | WS_CHILD, 0, 0, 0, 0, g_hWnd_advanced_add_tab, NULL, NULL, NULL );
+
+			g_hWnd_chk_add_type_hostname_socks = _CreateWindowW( WC_BUTTON, ST_V_Hostname___IPv6_address_, BS_AUTORADIOBUTTON | WS_CHILD | WS_GROUP | WS_TABSTOP, 0, 0, 0, 0, g_hWnd_advanced_add_tab, ( HMENU )BTN_ADD_TYPE_HOST_SOCKS, NULL, NULL );
+			g_hWnd_chk_add_type_ip_address_socks = _CreateWindowW( WC_BUTTON, ST_V_IPv4_address_, BS_AUTORADIOBUTTON | WS_CHILD | WS_TABSTOP, 0, 0, 0, 0, g_hWnd_advanced_add_tab, ( HMENU )BTN_ADD_TYPE_IP_ADDRESS_SOCKS, NULL, NULL );
+
+			_SendMessageW( g_hWnd_chk_add_type_hostname_socks, BM_SETCHECK, BST_CHECKED, 0 );
+
+			g_hWnd_add_hostname_socks = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | WS_CHILD | WS_TABSTOP, 0, 0, 0, 0, g_hWnd_advanced_add_tab, ( HMENU )EDIT_ADD_HOST_SOCKS, NULL, NULL );
+			// Needs a width and height when it's created because it's a stupid control.
+			g_hWnd_add_ip_address_socks = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_IPADDRESS, NULL, WS_CHILD | WS_TABSTOP, 0, 0, 310, 23, g_hWnd_advanced_add_tab, ( HMENU )EDIT_ADD_IP_ADDRESS_SOCKS, NULL, NULL );
+
+
+			g_hWnd_static_add_colon_socks = _CreateWindowW( WC_STATIC, ST_V_COLON, SS_CENTER | WS_CHILD, 0, 0, 0, 0, g_hWnd_advanced_add_tab, NULL, NULL, NULL );
+
+			g_hWnd_static_add_port_socks = _CreateWindowW( WC_STATIC, ST_V_Port_, WS_CHILD, 0, 0, 0, 0, g_hWnd_advanced_add_tab, NULL, NULL, NULL );
+			g_hWnd_add_port_socks = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP, 0, 0, 0, 0, g_hWnd_advanced_add_tab, ( HMENU )EDIT_ADD_PORT_SOCKS, NULL, NULL );
+
+
+			g_hWnd_static_add_proxy_auth_username = _CreateWindowW( WC_STATIC, ST_V_Username_, WS_CHILD, 0, 0, 0, 0, g_hWnd_advanced_add_tab, NULL, NULL, NULL );
+			g_hWnd_edit_add_proxy_auth_username = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP, 0, 0, 0, 0, g_hWnd_advanced_add_tab, ( HMENU )( HMENU )EDIT_ADD_PROXY_AUTH_USERNAME, NULL, NULL );
+
+			g_hWnd_static_add_proxy_auth_password = _CreateWindowW( WC_STATIC, ST_V_Password_, WS_CHILD, 0, 0, 0, 0, g_hWnd_advanced_add_tab, NULL, NULL, NULL );
+			g_hWnd_edit_add_proxy_auth_password = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_PASSWORD | ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP, 0, 0, 0, 0, g_hWnd_advanced_add_tab, ( HMENU )( HMENU )EDIT_ADD_PROXY_AUTH_PASSWORD, NULL, NULL );
+
+
+			// v4
+
+			g_hWnd_static_add_auth_ident_username_socks = _CreateWindowW( WC_STATIC, ST_V_Username_, WS_CHILD, 0, 0, 0, 0, g_hWnd_advanced_add_tab, NULL, NULL, NULL );
+			g_hWnd_add_auth_ident_username_socks = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP, 0, 0, 0, 0, g_hWnd_advanced_add_tab, ( HMENU )( HMENU )EDIT_ADD_AUTH_IDENT_USERNAME_SOCKS, NULL, NULL );
+
+			g_hWnd_chk_add_resolve_domain_names_v4a = _CreateWindowW( WC_BUTTON, ST_V_Allow_proxy_to_resolve_domain_names_v4a, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP, 0, 0, 0, 0, g_hWnd_advanced_add_tab, ( HMENU )BTN_ADD_RESOLVE_DOMAIN_NAMES_V4A, NULL, NULL );
+
+			// v5
+
+			g_hWnd_chk_add_use_authentication_socks = _CreateWindowW( WC_BUTTON, ST_V_Use_Authentication_, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP, 0, 0, 0, 0, g_hWnd_advanced_add_tab, ( HMENU )BTN_ADD_AUTHENTICATION_SOCKS, NULL, NULL );
+
+			g_hWnd_static_add_auth_username_socks = _CreateWindowW( WC_STATIC, ST_V_Username_, WS_CHILD | WS_DISABLED, 0, 0, 0, 0, g_hWnd_advanced_add_tab, NULL, NULL, NULL );
+			g_hWnd_add_auth_username_socks = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_DISABLED, 0, 0, 0, 0, g_hWnd_advanced_add_tab, ( HMENU )( HMENU )EDIT_ADD_AUTH_USERNAME_SOCKS, NULL, NULL );
+
+			g_hWnd_static_add_auth_password_socks = _CreateWindowW( WC_STATIC, ST_V_Password_, WS_CHILD | WS_DISABLED, 0, 0, 0, 0, g_hWnd_advanced_add_tab, NULL, NULL, NULL );
+			g_hWnd_add_auth_password_socks = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_PASSWORD | ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_DISABLED, 0, 0, 0, 0, g_hWnd_advanced_add_tab, ( HMENU )( HMENU )EDIT_ADD_AUTH_PASSWORD_SOCKS, NULL, NULL );
+
+			g_hWnd_chk_add_resolve_domain_names = _CreateWindowW( WC_BUTTON, ST_V_Allow_proxy_to_resolve_domain_names, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP, 0, 0, 0, 0, g_hWnd_advanced_add_tab, ( HMENU )BTN_ADD_RESOLVE_DOMAIN_NAMES, NULL, NULL );
+
+
+			_SendMessageW( g_hWnd_add_hostname_socks, EM_LIMITTEXT, MAX_DOMAIN_LENGTH, 0 );
+			_SendMessageW( g_hWnd_add_port_socks, EM_LIMITTEXT, 5, 0 );
+
+			_SendMessageW( g_hWnd_add_auth_username_socks, EM_LIMITTEXT, 255, 0 );
+			_SendMessageW( g_hWnd_add_auth_password_socks, EM_LIMITTEXT, 255, 0 );
+
+			//
 
 			g_hWnd_chk_show_advanced_options = _CreateWindowW( WC_BUTTON, ST_V_Advanced_options, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, ( HMENU )BTN_ADVANCED, NULL, NULL );
 
@@ -444,12 +1074,12 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			_SendMessageW( g_hWnd_edit_add, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 			_SendMessageW( g_hWnd_static_ssl_version, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 			_SendMessageW( g_hWnd_ssl_version, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_static_add_speed_limit, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_chk_add_enable_speed_limit, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 			_SendMessageW( g_hWnd_add_speed_limit, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_static_download_parts, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_chk_add_enable_download_parts, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 			_SendMessageW( g_hWnd_download_parts, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 			_SendMessageW( g_hWnd_chk_simulate_download, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_static_download_directory, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_chk_add_enable_download_directory, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 			_SendMessageW( g_hWnd_download_directory, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 			_SendMessageW( g_hWnd_btn_download_directory, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 			_SendMessageW( g_hWnd_btn_authentication, WM_SETFONT, ( WPARAM )g_hFont, 0 );
@@ -470,6 +1100,54 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			_SendMessageW( g_hWnd_regex_filter_preset, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 			_SendMessageW( g_hWnd_regex_filter, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 			_SendMessageW( g_hWnd_btn_apply_filter, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+
+			//
+
+			_SendMessageW( g_hWnd_static_add_proxy_type, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_add_proxy_type, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+
+			_SendMessageW( g_hWnd_chk_add_type_hostname_socks, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_chk_add_type_ip_address_socks, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+
+			_SendMessageW( g_hWnd_add_hostname_socks, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+
+			_SendMessageW( g_hWnd_static_add_colon_socks, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+
+			_SendMessageW( g_hWnd_static_add_port_socks, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_add_port_socks, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+
+
+
+			_SendMessageW( g_hWnd_static_add_proxy_auth_username, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_edit_add_proxy_auth_username, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_static_add_proxy_auth_password, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_edit_add_proxy_auth_password, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+
+
+			_SendMessageW( g_hWnd_static_add_auth_ident_username_socks, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_add_auth_ident_username_socks, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+
+			_SendMessageW( g_hWnd_chk_add_resolve_domain_names_v4a, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+
+			_SendMessageW( g_hWnd_chk_add_use_authentication_socks, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+
+			_SendMessageW( g_hWnd_static_add_auth_username_socks, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_add_auth_username_socks, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+
+			_SendMessageW( g_hWnd_static_add_auth_password_socks, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_add_auth_password_socks, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+
+			_SendMessageW( g_hWnd_chk_add_resolve_domain_names, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+
+			// Stupid control likes to delete the font object. :-/
+			// We'll make a copy.
+			//LOGFONT lf;
+			//_memzero( &lf, sizeof( LOGFONT ) );
+			//_GetObjectW( g_hFont, sizeof( LOGFONT ), &lf );
+			hFont_copy_add_proxy = _CreateFontIndirectW( &g_default_log_font );
+			_SendMessageW( g_hWnd_add_ip_address_socks, WM_SETFONT, ( WPARAM )hFont_copy_add_proxy, 0 );
+
+			//
 
 			t_download_directory = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * MAX_PATH );
 			_wmemcpy_s( t_download_directory, MAX_PATH, cfg_default_download_directory, g_default_download_directory_length );
@@ -516,6 +1194,11 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			// The disabled static control causes flickering. The only way around it is to draw it ourselves.
 			if ( dis->CtlType == ODT_STATIC )
 			{
+				// Need this if main window has WS_CLIPCHILDREN
+				HBRUSH color = _CreateSolidBrush( ( COLORREF )_GetSysColor( COLOR_3DFACE ) );
+				_FillRect( dis->hDC, &dis->rcItem, color );
+				_DeleteObject( color );
+
 				if ( _IsWindowEnabled( dis->hwndItem ) == FALSE )
 				{
 					_SetTextColor( dis->hDC, _GetSysColor( COLOR_GRAYTEXT ) );
@@ -532,58 +1215,6 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			RECT rc;
 			_GetClientRect( hWnd, &rc );
 
-			// Allow our controls to move in relation to the parent window.
-			HDWP hdwp = _BeginDeferWindowPos( ( use_add_split ? 23 : 24 ) );
-
-			_DeferWindowPos( hdwp, g_hWnd_regex_filter, HWND_TOP, 265, 10, rc.right - 345, 23, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_btn_apply_filter, HWND_TOP, rc.right - 75, 10, 65, 23, SWP_NOZORDER );
-
-			_DeferWindowPos( hdwp, g_hWnd_edit_add, HWND_TOP, 10, 40, rc.right - 20, rc.bottom - ( g_show_advanced ? 418 : 133 ), SWP_NOZORDER );
-
-			_DeferWindowPos( hdwp, g_hWnd_static_download_directory, HWND_TOP, 10, rc.bottom - ( g_show_advanced ? 373 : 88 ), rc.right - 20, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_download_directory, HWND_TOP, 10, rc.bottom - ( g_show_advanced ? 358 : 73 ), rc.right - 60, 23, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_btn_download_directory, HWND_TOP, rc.right - 45, rc.bottom - ( g_show_advanced ? 358 : 73 ), 35, 23, SWP_NOZORDER );
-
-			//
-
-			_DeferWindowPos( hdwp, g_hWnd_static_download_parts, HWND_TOP, 10, rc.bottom - 325, 115, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_download_parts, HWND_TOP, 10, rc.bottom - 310, 85, 23, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_ud_download_parts, HWND_TOP, 95, rc.bottom - 310, 0, 0, SWP_NOZORDER | SWP_NOSIZE );
-
-			_DeferWindowPos( hdwp, g_hWnd_static_add_speed_limit, HWND_TOP, 10, rc.bottom - 277, 200, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_add_speed_limit, HWND_TOP, 10, rc.bottom - 262, 200, 23, SWP_NOZORDER );
-
-			_DeferWindowPos( hdwp, g_hWnd_static_ssl_version, HWND_TOP, 130, rc.bottom - 325, 115, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_ssl_version, HWND_TOP, 130, rc.bottom - 310, 100, 23, SWP_NOZORDER );
-
-			_DeferWindowPos( hdwp, g_hWnd_btn_authentication, HWND_TOP, 250, rc.bottom - 325, 230, 65, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_static_username, HWND_TOP, 260, rc.bottom - 310, 100, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_edit_username, HWND_TOP, 260, rc.bottom - 295, 100, 23, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_static_password, HWND_TOP, 370, rc.bottom - 310, 100, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_edit_password, HWND_TOP, 370, rc.bottom - 295, 100, 23, SWP_NOZORDER );
-
-			_DeferWindowPos( hdwp, g_hWnd_advanced_add_tab, HWND_TOP, 10, rc.bottom - 225, rc.right - 20, 150, SWP_NOZORDER );
-
-			//
-
-			_DeferWindowPos( hdwp, g_hWnd_chk_simulate_download, HWND_TOP, 10, rc.bottom - 65, 210, 20, SWP_NOZORDER );
-
-			_DeferWindowPos( hdwp, g_hWnd_chk_show_advanced_options, HWND_TOP, 10, rc.bottom - 32, 210, 23, SWP_NOZORDER );
-
-			if ( use_add_split )
-			{
-				_DeferWindowPos( hdwp, g_hWnd_btn_download, HWND_TOP, rc.right - 188, rc.bottom - 32, 93, 23, SWP_NOZORDER );
-			}
-			else
-			{
-				_DeferWindowPos( hdwp, g_hWnd_btn_download, HWND_TOP, rc.right - 260, rc.bottom - 32, 80, 23, SWP_NOZORDER );
-				_DeferWindowPos( hdwp, g_hWnd_btn_add_download, HWND_TOP, rc.right - 175, rc.bottom - 32, 80, 23, SWP_NOZORDER );
-			}
-			_DeferWindowPos( hdwp, g_hWnd_cancel, HWND_TOP, rc.right - 90, rc.bottom - 32, 80, 23, SWP_NOZORDER );
-			_EndDeferWindowPos( hdwp );
-
-			//
-
 			// This brush is refreshed whenever the tab changes size.
 			// It's used to paint the background of static controls.
 			// Windows XP has a gradient colored tab pane and setting the background of a static control to TRANSPARENT in WM_CTLCOLORSTATIC doesn't work well.
@@ -598,7 +1229,7 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 				// Create a memory buffer to draw to.
 				HDC hdcMem = _CreateCompatibleDC( hDC );
 
-				HBITMAP hbm = _CreateCompatibleBitmap( hDC, g_add_tab_width, 150 );
+				HBITMAP hbm = _CreateCompatibleBitmap( hDC, g_add_tab_width, 230 );
 				HBITMAP ohbm = ( HBITMAP )_SelectObject( hdcMem, hbm );
 				_DeleteObject( ohbm );
 
@@ -616,6 +1247,32 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 					_DeleteObject( old_brush );
 				}
 			}
+
+			// Allow our controls to move in relation to the parent window.
+			HDWP hdwp = _BeginDeferWindowPos( ( use_add_split ? 7 : 8 ) );
+
+			_DeferWindowPos( hdwp, g_hWnd_regex_filter, HWND_TOP, 265, 10, rc.right - 345, 23, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_btn_apply_filter, HWND_TOP, rc.right - 75, 10, 65, 23, SWP_NOZORDER );
+
+			_DeferWindowPos( hdwp, g_hWnd_edit_add, HWND_TOP, 10, 40, rc.right - 20, rc.bottom - ( g_show_advanced ? 323 : 83 ), SWP_NOZORDER );
+
+			_DeferWindowPos( hdwp, g_hWnd_advanced_add_tab, HWND_TOP, 10, rc.bottom - 273, rc.right - 20, 230, SWP_NOZORDER );
+
+			//
+
+			_DeferWindowPos( hdwp, g_hWnd_chk_show_advanced_options, HWND_TOP, 10, rc.bottom - 32, 210, 23, SWP_NOZORDER );
+
+			if ( use_add_split )
+			{
+				_DeferWindowPos( hdwp, g_hWnd_btn_download, HWND_TOP, rc.right - 188, rc.bottom - 32, 93, 23, SWP_NOZORDER );
+			}
+			else
+			{
+				_DeferWindowPos( hdwp, g_hWnd_btn_download, HWND_TOP, rc.right - 260, rc.bottom - 32, 80, 23, SWP_NOZORDER );
+				_DeferWindowPos( hdwp, g_hWnd_btn_add_download, HWND_TOP, rc.right - 175, rc.bottom - 32, 80, 23, SWP_NOZORDER );
+			}
+			_DeferWindowPos( hdwp, g_hWnd_cancel, HWND_TOP, rc.right - 90, rc.bottom - 32, 80, 23, SWP_NOZORDER );
+			_EndDeferWindowPos( hdwp );
 
 			/*rc.left = 5;
 			rc.top = 5;
@@ -663,44 +1320,52 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 					{
 						ADD_INFO *ai = ( ADD_INFO * )GlobalAlloc( GPTR, sizeof( ADD_INFO ) );
 
+						// URLs
+						wchar_t *edit = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( edit_length + 1 ) );
+						_SendMessageW( g_hWnd_edit_add, WM_GETTEXT, edit_length + 1, ( LPARAM )edit );
+
+						ai->urls = edit;
+
+						// GENERAL TAB
+
 						if ( !( download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
 						{
-							ai->download_directory = t_download_directory;
+							ai->use_download_directory = ( _SendMessageW( g_hWnd_chk_add_enable_download_directory, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
 
-							int t_download_directory_length = lstrlenW( t_download_directory );
-							t_download_directory = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * MAX_PATH );
-							_wmemcpy_s( t_download_directory, MAX_PATH, ai->download_directory, t_download_directory_length );
-							t_download_directory[ t_download_directory_length ] = 0;	// Sanity.
+							if ( ai->use_download_directory )
+							{
+								ai->download_directory = t_download_directory;
+
+								int t_download_directory_length = lstrlenW( t_download_directory );
+								t_download_directory = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * MAX_PATH );
+								_wmemcpy_s( t_download_directory, MAX_PATH, ai->download_directory, t_download_directory_length );
+								t_download_directory[ t_download_directory_length ] = 0;	// Sanity.
+							}
+						}
+
+						char value[ 21 ];
+
+						ai->use_parts = ( _SendMessageW( g_hWnd_chk_add_enable_download_parts, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
+
+						if ( ai->use_parts )
+						{
+							_SendMessageA( g_hWnd_download_parts, WM_GETTEXT, 11, ( LPARAM )value );
+							ai->parts = ( unsigned char )_strtoul( value, NULL, 10 );
+						}
+
+						ai->use_download_speed_limit = ( _SendMessageW( g_hWnd_chk_add_enable_speed_limit, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
+
+						if ( ai->use_download_speed_limit )
+						{
+							_SendMessageA( g_hWnd_add_speed_limit, WM_GETTEXT, 21, ( LPARAM )value );
+							ai->download_speed_limit = strtoull( value );
 						}
 
 						ai->ssl_version = ( char )_SendMessageW( g_hWnd_ssl_version, CB_GETCURSEL, 0, 0 );
 
 						ai->download_operations = download_operations | ( LOWORD( wParam ) == BTN_ADD_DOWNLOAD || add_split_type == 1 ? DOWNLOAD_OPERATION_ADD_STOPPED : DOWNLOAD_OPERATION_NONE );
 
-						ai->method = ( _SendMessageW( g_hWnd_chk_send_data, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? METHOD_POST : METHOD_GET );
-
-						char value[ 21 ];
-						_SendMessageA( g_hWnd_download_parts, WM_GETTEXT, 11, ( LPARAM )value );
-						ai->parts = ( unsigned char )_strtoul( value, NULL, 10 );
-
-						_SendMessageA( g_hWnd_add_speed_limit, WM_GETTEXT, 21, ( LPARAM )value );
-						ai->download_speed_limit = strtoull( value );
-
-						// URLs
-						wchar_t *edit = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( edit_length + 1 ) );
-						_SendMessageW( g_hWnd_edit_add, WM_GETTEXT, edit_length + 1, ( LPARAM )edit );
-
-						//int utf8_length = WideCharToMultiByte( CP_UTF8, 0, edit, -1, NULL, 0, NULL, NULL );	// Size includes NULL character.
-						//ai->utf8_urls = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * utf8_length ); // Size includes the NULL character.
-						//WideCharToMultiByte( CP_UTF8, 0, edit, -1, ai->utf8_urls, utf8_length, NULL, NULL );
-
-						//GlobalFree( edit );
-
-						ai->urls = edit;
-
-						edit = NULL;
-
-						int utf8_length = 0;
+						int utf8_length;
 
 						// Username
 						edit_length = ( unsigned int )_SendMessageW( g_hWnd_edit_username, WM_GETTEXTLENGTH, 0, 0 );
@@ -737,6 +1402,10 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 						{
 							ai->auth_info.password = NULL;
 						}
+
+						//
+
+						// COOKIES, HEADERS, DATA
 
 						edit_length = ( unsigned int )_SendMessageW( g_hWnd_edit_cookies, WM_GETTEXTLENGTH, 0, 0 );
 						if ( edit_length > 0 )
@@ -794,6 +1463,8 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 							ai->utf8_headers = NULL;
 						}
 
+						ai->method = ( _SendMessageW( g_hWnd_chk_send_data, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? METHOD_POST : METHOD_GET );
+
 						edit_length = ( unsigned int )_SendMessageW( g_hWnd_edit_data, WM_GETTEXTLENGTH, 0, 0 );
 						if ( edit_length > 0 )
 						{
@@ -811,6 +1482,82 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 							ai->utf8_data = NULL;
 						}
 
+						// PROXY
+
+						ai->proxy_info.type = ( unsigned char )_SendMessageW( g_hWnd_add_proxy_type, CB_GETCURSEL, 0, 0 );
+
+						if ( ai->proxy_info.type != 0 )
+						{
+							unsigned int hostname_length;
+
+							ai->proxy_info.address_type = ( _SendMessageW( g_hWnd_chk_add_type_ip_address_socks, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? 1 : 0 );
+
+							if ( ai->proxy_info.address_type == 0 )
+							{
+								hostname_length = ( unsigned int )_SendMessageW( g_hWnd_add_hostname_socks, WM_GETTEXTLENGTH, 0, 0 ) + 1;	// Include the NULL terminator.
+								ai->proxy_info.hostname = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * hostname_length );
+								_SendMessageW( g_hWnd_add_hostname_socks, WM_GETTEXT, hostname_length, ( LPARAM )ai->proxy_info.hostname );
+
+								if ( normaliz_state == NORMALIZ_STATE_RUNNING )
+								{
+									int punycode_length = _IdnToAscii( 0, ai->proxy_info.hostname, hostname_length, NULL, 0 );
+
+									if ( punycode_length > ( int )hostname_length )
+									{
+										ai->proxy_info.punycode_hostname = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * punycode_length );
+										_IdnToAscii( 0, ai->proxy_info.hostname, hostname_length, ai->proxy_info.punycode_hostname, punycode_length );
+									}
+								}
+							}
+							else
+							{
+								_SendMessageW( g_hWnd_add_ip_address_socks, IPM_GETADDRESS, 0, ( LPARAM )&ai->proxy_info.ip_address );
+							}
+
+							_SendMessageA( g_hWnd_add_port_socks, WM_GETTEXT, 6, ( LPARAM )value );
+							ai->proxy_info.port = ( unsigned short )_strtoul( value, NULL, 10 );
+
+							unsigned int auth_length;
+
+							if ( ai->proxy_info.type == 1 || ai->proxy_info.type == 2 )	// HTTP and HTTPS
+							{
+								auth_length = ( unsigned int )_SendMessageW( g_hWnd_edit_add_proxy_auth_username, WM_GETTEXTLENGTH, 0, 0 ) + 1;	// Include the NULL terminator.
+								ai->proxy_info.w_username = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * auth_length );
+								_SendMessageW( g_hWnd_edit_add_proxy_auth_username, WM_GETTEXT, auth_length, ( LPARAM )ai->proxy_info.w_username );
+
+								auth_length = ( unsigned int )_SendMessageW( g_hWnd_edit_add_proxy_auth_password, WM_GETTEXTLENGTH, 0, 0 ) + 1;	// Include the NULL terminator.
+								ai->proxy_info.w_password = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * auth_length );
+								_SendMessageW( g_hWnd_edit_add_proxy_auth_password, WM_GETTEXT, auth_length, ( LPARAM )ai->proxy_info.w_password );
+							}
+							else if ( ai->proxy_info.type == 3 )	// SOCKS v4
+							{
+								ai->proxy_info.resolve_domain_names = ( _SendMessageW( g_hWnd_chk_add_resolve_domain_names_v4a, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
+
+								auth_length = ( unsigned int )_SendMessageW( g_hWnd_add_auth_ident_username_socks, WM_GETTEXTLENGTH, 0, 0 ) + 1;	// Include the NULL terminator.
+								ai->proxy_info.w_username = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * auth_length );
+								_SendMessageW( g_hWnd_add_auth_ident_username_socks, WM_GETTEXT, auth_length, ( LPARAM )ai->proxy_info.w_username );
+							}
+							else if ( ai->proxy_info.type == 4 )	// SOCKS v5
+							{
+								ai->proxy_info.resolve_domain_names = ( _SendMessageW( g_hWnd_chk_add_resolve_domain_names, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
+
+								ai->proxy_info.use_authentication = ( _SendMessageW( g_hWnd_chk_add_use_authentication_socks, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
+
+								if ( ai->proxy_info.use_authentication )
+								{
+									auth_length = ( unsigned int )_SendMessageW( g_hWnd_add_auth_username_socks, WM_GETTEXTLENGTH, 0, 0 ) + 1;	// Include the NULL terminator.
+									ai->proxy_info.w_username = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * auth_length );
+									_SendMessageW( g_hWnd_add_auth_username_socks, WM_GETTEXT, auth_length, ( LPARAM )ai->proxy_info.w_username );
+
+									auth_length = ( unsigned int )_SendMessageW( g_hWnd_add_auth_password_socks, WM_GETTEXTLENGTH, 0, 0 ) + 1;	// Include the NULL terminator.
+									ai->proxy_info.w_password = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * auth_length );
+									_SendMessageW( g_hWnd_add_auth_password_socks, WM_GETTEXT, auth_length, ( LPARAM )ai->proxy_info.w_password );
+								}
+							}
+						}
+
+						//
+
 						// ai is freed in AddURL.
 						HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, AddURL, ( void * )ai, 0, NULL );
 						if ( thread != NULL )
@@ -819,12 +1566,7 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 						}
 						else
 						{
-							GlobalFree( ai->utf8_headers );
-							GlobalFree( ai->utf8_cookies );
-							GlobalFree( ai->auth_info.username );
-							GlobalFree( ai->auth_info.password );
-							GlobalFree( ai->urls );
-							GlobalFree( ai );
+							FreeAddInfo( &ai );
 						}
 					}
 
@@ -868,120 +1610,12 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 				}
 				break;
 
-				case EDIT_DOWNLOAD_PARTS:
-				{
-					if ( HIWORD( wParam ) == EN_UPDATE )
-					{
-						DWORD sel_start;
-
-						char value[ 11 ];
-						_SendMessageA( ( HWND )lParam, WM_GETTEXT, 11, ( LPARAM )value );
-						unsigned long num = _strtoul( value, NULL, 10 );
-
-						if ( num > 100 )
-						{
-							_SendMessageA( ( HWND )lParam, EM_GETSEL, ( WPARAM )&sel_start, NULL );
-
-							_SendMessageA( ( HWND )lParam, WM_SETTEXT, 0, ( LPARAM )"100" );
-
-							_SendMessageA( ( HWND )lParam, EM_SETSEL, sel_start, sel_start );
-						}
-						else if ( num == 0 )
-						{
-							_SendMessageA( ( HWND )lParam, EM_GETSEL, ( WPARAM )&sel_start, NULL );
-
-							_SendMessageA( ( HWND )lParam, WM_SETTEXT, 0, ( LPARAM )"1" );
-
-							_SendMessageA( ( HWND )lParam, EM_SETSEL, sel_start, sel_start );
-						}
-					}
-				}
-				break;
-
-				case EDIT_ADD_SPEED_LIMIT:
-				{
-					if ( HIWORD( wParam ) == EN_UPDATE )
-					{
-						DWORD sel_start;
-
-						char value[ 21 ];
-						_SendMessageA( ( HWND )lParam, WM_GETTEXT, 21, ( LPARAM )value );
-						unsigned long long num = strtoull( value );
-
-						if ( num == 0xFFFFFFFFFFFFFFFF )
-						{
-							_SendMessageA( ( HWND )lParam, EM_GETSEL, ( WPARAM )&sel_start, NULL );
-
-							_SendMessageA( ( HWND )lParam, WM_SETTEXT, 0, ( LPARAM )"18446744073709551615" );
-
-							_SendMessageA( ( HWND )lParam, EM_SETSEL, sel_start, sel_start );
-						}
-
-						if ( num > 0 )
-						{
-							unsigned int length = FormatSizes( add_limit_tooltip_text, 32, SIZE_FORMAT_AUTO, num );
-							add_limit_tooltip_text[ length++ ] = L'/';
-							add_limit_tooltip_text[ length++ ] = L's';
-							add_limit_tooltip_text[ length ] = 0;
-						}
-						else
-						{
-							_wmemcpy_s( add_limit_tooltip_text, 32, ST_V_Unlimited, ST_L_Unlimited + 1 );
-						}
-
-						TOOLINFO ti;
-						_memzero( &ti, sizeof( TOOLINFO ) );
-						ti.cbSize = sizeof( TOOLINFO );
-						ti.hwnd = g_hWnd_add_speed_limit;
-						ti.lpszText = add_limit_tooltip_text;
-						_SendMessageW( g_hWnd_add_limit_tooltip, TTM_UPDATETIPTEXT, 0, ( LPARAM )&ti );
-					}
-				}
-				break;
-
-				case CHK_SIMULATE_DOWNLOAD:
-				{
-					BOOL enable = ( _SendMessageW( g_hWnd_chk_simulate_download, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? FALSE : TRUE );
-					_EnableWindow( g_hWnd_download_directory, enable );
-					_EnableWindow( g_hWnd_btn_download_directory, enable );
-				}
-				break;
-
-				case BTN_DOWNLOAD_DIRECTORY:
-				{
-					wchar_t *directory = NULL;
-
-					_BrowseForFolder( hWnd, ST_V_Select_the_download_directory, &directory );
-
-					if ( directory != NULL )
-					{
-						GlobalFree( t_download_directory );
-						t_download_directory = directory;
-
-						_SendMessageW( g_hWnd_download_directory, WM_SETTEXT, 0, ( LPARAM )t_download_directory );
-					}
-				}
-				break;
-
 				case BTN_ADVANCED:
 				{
 					g_show_advanced = !g_show_advanced;
 
 					int sw_type = ( g_show_advanced ? SW_SHOW : SW_HIDE );
 
-					_ShowWindow( g_hWnd_static_ssl_version, sw_type );
-					_ShowWindow( g_hWnd_ssl_version, sw_type );
-					_ShowWindow( g_hWnd_static_add_speed_limit, sw_type );
-					_ShowWindow( g_hWnd_add_speed_limit, sw_type );
-					_ShowWindow( g_hWnd_static_download_parts, sw_type );
-					_ShowWindow( g_hWnd_download_parts, sw_type );
-					_ShowWindow( g_hWnd_ud_download_parts, sw_type );
-					_ShowWindow( g_hWnd_chk_simulate_download, sw_type );
-					_ShowWindow( g_hWnd_btn_authentication, sw_type );
-					_ShowWindow( g_hWnd_static_username, sw_type );
-					_ShowWindow( g_hWnd_edit_username, sw_type );
-					_ShowWindow( g_hWnd_static_password, sw_type );
-					_ShowWindow( g_hWnd_edit_password, sw_type );
 					_ShowWindow( g_hWnd_advanced_add_tab, sw_type );
 					ShowHideAddTabs( sw_type );
 
@@ -1166,7 +1800,7 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 					if ( cla->ssl_version >= 0 )
 					{
-						_SendMessageW( g_hWnd_ssl_version, CB_SETCURSEL, cla->ssl_version, 0 );
+						_SendMessageW( g_hWnd_ssl_version, CB_SETCURSEL, cla->ssl_version + 1, 0 );
 					}
 
 					if ( cla->username != NULL )
@@ -1177,6 +1811,63 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 					if ( cla->password != NULL )
 					{
 						_SendMessageW( g_hWnd_edit_password, WM_SETTEXT, 0, ( LPARAM )cla->password );
+					}
+
+					if ( cla->proxy_type != 0 )
+					{
+						_SendMessageW( g_hWnd_add_proxy_type, CB_SETCURSEL, cla->proxy_type, 0 );
+
+						if ( cla->proxy_hostname != NULL )
+						{
+							_SendMessageW( g_hWnd_add_hostname_socks, WM_SETTEXT, 0, ( LPARAM )cla->proxy_hostname );
+
+							_SendMessageW( g_hWnd_chk_add_type_ip_address_socks, BM_SETCHECK, BST_UNCHECKED, 0 );
+							_SendMessageW( g_hWnd_chk_add_type_hostname_socks, BM_SETCHECK, BST_CHECKED, 0 );
+						}
+						else
+						{
+							_SendMessageW( g_hWnd_add_ip_address_socks, IPM_SETADDRESS, 0, cla->proxy_ip_address );
+
+							_SendMessageW( g_hWnd_chk_add_type_hostname_socks, BM_SETCHECK, BST_UNCHECKED, 0 );
+							_SendMessageW( g_hWnd_chk_add_type_ip_address_socks, BM_SETCHECK, BST_CHECKED, 0 );
+						}
+
+						__snprintf( value, 6, "%hu", cla->proxy_port );
+						_SendMessageA( g_hWnd_add_port_socks, WM_SETTEXT, 0, ( LPARAM )value );
+
+						if ( cla->proxy_type == 1 || cla->proxy_type == 2 )
+						{
+							if ( cla->proxy_username != NULL )
+							{
+								_SendMessageW( g_hWnd_edit_add_proxy_auth_username, WM_SETTEXT, 0, ( LPARAM )cla->proxy_username );
+							}
+
+							if ( cla->proxy_password != NULL )
+							{
+								_SendMessageW( g_hWnd_edit_add_proxy_auth_password, WM_SETTEXT, 0, ( LPARAM )cla->proxy_password );
+							}
+						}
+						else if ( cla->proxy_type == 3 )	// SOCKSv4
+						{
+							_SendMessageW( g_hWnd_chk_add_resolve_domain_names_v4a, BM_SETCHECK, ( cla->proxy_resolve_domain_names ? BST_CHECKED : BST_UNCHECKED ), 0 );
+
+							if ( cla->proxy_username != NULL )
+							{
+								_SendMessageW( g_hWnd_add_auth_ident_username_socks, WM_SETTEXT, 0, ( LPARAM )cla->proxy_username );
+							}
+						}
+						else if ( cla->proxy_type == 4 )	// SOCKSv5
+						{
+							_SendMessageW( g_hWnd_chk_add_resolve_domain_names, BM_SETCHECK, ( cla->proxy_resolve_domain_names ? BST_CHECKED : BST_UNCHECKED ), 0 );
+
+							if ( cla->proxy_username != NULL || cla->proxy_password != NULL )
+							{
+								_SendMessageW( g_hWnd_chk_add_use_authentication_socks, BM_SETCHECK, BST_CHECKED, 0 );
+
+								_SendMessageW( g_hWnd_add_auth_username_socks, WM_SETTEXT, 0, ( LPARAM )cla->proxy_username );
+								_SendMessageW( g_hWnd_add_auth_password_socks, WM_SETTEXT, 0, ( LPARAM )cla->proxy_password );
+							}
+						}
 					}
 
 					if ( cla->download_operations & DOWNLOAD_OPERATION_SIMULATE )
@@ -1339,7 +2030,7 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			// 0 = inactive, > 0 = active
 			g_hWnd_active = ( wParam == 0 ? NULL : hWnd );
 
-            return FALSE;
+			return FALSE;
 		}
 		break;
 
@@ -1365,16 +2056,30 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			// Let's retain the last directory.
 			//_SendMessageW( g_hWnd_download_directory, WM_SETTEXT, 0, ( LPARAM )cfg_default_download_directory );
 
+			_SendMessageW( g_hWnd_chk_add_enable_download_directory, BM_SETCHECK, BST_UNCHECKED, 0 );
+			_EnableWindow( g_hWnd_chk_add_enable_download_directory, TRUE );
+			_EnableWindow( g_hWnd_download_directory, FALSE );
+			_EnableWindow( g_hWnd_btn_download_directory, FALSE );
+
+			_SendMessageW( g_hWnd_chk_add_enable_download_parts, BM_SETCHECK, BST_UNCHECKED, 0 );
+			_EnableWindow( g_hWnd_download_parts, FALSE );
+			_EnableWindow( g_hWnd_ud_download_parts, FALSE );
 			_SendMessageW( g_hWnd_ud_download_parts, UDM_SETPOS, 0, cfg_default_download_parts );
-			_SendMessageW( g_hWnd_ssl_version, CB_SETCURSEL, cfg_default_ssl_version, 0 );
+
+			_SendMessageW( g_hWnd_chk_add_enable_speed_limit, BM_SETCHECK, BST_UNCHECKED, 0 );
+			_EnableWindow( g_hWnd_add_speed_limit, FALSE );
 
 			char value[ 21 ];
 			_memzero( value, sizeof( char ) * 21 );
 			__snprintf( value, 21, "%I64u", cfg_default_speed_limit );
 			_SendMessageA( g_hWnd_add_speed_limit, WM_SETTEXT, 0, ( LPARAM )value );
 
+			_SendMessageW( g_hWnd_ssl_version, CB_SETCURSEL, 0, 0 );
+
 			_SendMessageW( g_hWnd_edit_username, WM_SETTEXT, 0, NULL );
 			_SendMessageW( g_hWnd_edit_password, WM_SETTEXT, 0, NULL );
+
+			//
 
 			_SendMessageW( g_hWnd_edit_cookies, WM_SETTEXT, 0, NULL );
 			_SendMessageW( g_hWnd_edit_headers, WM_SETTEXT, 0, NULL );
@@ -1383,9 +2088,37 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			_SendMessageW( g_hWnd_chk_send_data, BM_SETCHECK, BST_UNCHECKED, 0 );
 			_EnableWindow( g_hWnd_edit_data, FALSE );
 
+			//
+
+			_SendMessageW( g_hWnd_add_proxy_type, CB_SETCURSEL, 0, 0 );
+
+			_SendMessageW( g_hWnd_chk_add_type_ip_address_socks, BM_SETCHECK, BST_UNCHECKED, 0 );
+			_SendMessageW( g_hWnd_chk_add_type_hostname_socks, BM_SETCHECK, BST_CHECKED, 0 );
+
+			_SendMessageW( g_hWnd_add_hostname_socks, WM_SETTEXT, 0, NULL );
+			_SendMessageW( g_hWnd_add_ip_address_socks, IPM_SETADDRESS, 0, NULL );
+			_SendMessageW( g_hWnd_add_port_socks, WM_SETTEXT, 0, NULL );
+
+			_SendMessageW( g_hWnd_edit_add_proxy_auth_username, WM_SETTEXT, 0, NULL );
+			_SendMessageW( g_hWnd_edit_add_proxy_auth_password, WM_SETTEXT, 0, NULL );
+
+			_SendMessageW( g_hWnd_add_auth_ident_username_socks, WM_SETTEXT, 0, NULL );
+			_SendMessageW( g_hWnd_chk_add_resolve_domain_names_v4a, BM_SETCHECK, BST_UNCHECKED, 0 );
+
+			_SendMessageW( g_hWnd_chk_add_use_authentication_socks, BM_SETCHECK, BST_UNCHECKED, 0 );
+			_SendMessageW( g_hWnd_add_auth_username_socks, WM_SETTEXT, 0, NULL );
+			_SendMessageW( g_hWnd_add_auth_password_socks, WM_SETTEXT, 0, NULL );
+			_EnableWindow( g_hWnd_static_add_auth_username_socks, FALSE );
+			_EnableWindow( g_hWnd_add_auth_username_socks, FALSE );
+			_EnableWindow( g_hWnd_static_add_auth_password_socks, FALSE );
+			_EnableWindow( g_hWnd_add_auth_password_socks, FALSE );
+			_SendMessageW( g_hWnd_chk_add_resolve_domain_names, BM_SETCHECK, BST_UNCHECKED, 0 );
+
+			ShowHideAddProxyWindows( 0 );
+
+			//
+
 			_SendMessageW( g_hWnd_chk_simulate_download, BM_SETCHECK, BST_UNCHECKED, 0 );
-			_EnableWindow( g_hWnd_download_directory, TRUE );
-			_EnableWindow( g_hWnd_btn_download_directory, TRUE );
 
 			_SendMessageW( g_hWnd_advanced_add_tab, TCM_SETCURFOCUS, 0, 0 );
 
@@ -1397,6 +2130,9 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 		case WM_DESTROY:
 		{
+			_DeleteObject( hFont_copy_add_proxy );
+			hFont_copy_add_proxy = NULL;
+
 			if ( g_add_tab_brush != NULL )
 			{
 				_DeleteObject( g_add_tab_brush );

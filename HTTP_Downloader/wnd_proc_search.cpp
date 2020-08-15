@@ -49,15 +49,15 @@ HWND g_hWnd_search_cancel = NULL;
 
 LRESULT CALLBACK SearchWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
 {
-    switch ( msg )
-    {
+	switch ( msg )
+	{
 		case WM_CREATE:
 		{
 			RECT rc;
 			_GetClientRect( hWnd, &rc );
 
 			g_hWnd_static_search_for = _CreateWindowW( WC_STATIC, ST_V_Search_for_, WS_CHILD | WS_VISIBLE, 10, 10, 60, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_search_for = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, L"", ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 10, 25, rc.right - 20, 23, hWnd, ( HMENU )EDIT_SEARCH_FOR, NULL, NULL );
+			g_hWnd_search_for = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 10, 25, rc.right - 20, 23, hWnd, ( HMENU )EDIT_SEARCH_FOR, NULL, NULL );
 
 			HWND hWnd_btn_search_type = _CreateWindowW( WC_BUTTON, ST_V_Search_Type, BS_GROUPBOX | WS_CHILD | WS_VISIBLE, 10, 55, 110, 60, hWnd, NULL, NULL, NULL );
 			g_hWnd_chk_type_filename = _CreateWindowW( WC_BUTTON, ST_V_Filename, BS_AUTORADIOBUTTON | WS_CHILD | WS_GROUP | WS_TABSTOP | WS_VISIBLE, 20, 70, 90, 20, hWnd, ( HMENU )BTN_TYPE_FILENAME, NULL, NULL );
@@ -211,7 +211,7 @@ LRESULT CALLBACK SearchWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 			// 0 = inactive, > 0 = active
 			g_hWnd_active = ( wParam == 0 ? NULL : hWnd );
 
-            return FALSE;
+			return FALSE;
 		}
 		break;
 

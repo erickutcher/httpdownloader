@@ -63,10 +63,6 @@
 		"message": "Passwort:"
 	},
 
-	"download_speed_limit_": {
-		"message": "Geschwindigkeitslimit (bytes/s):"
-	},
-
 	"cookies": {
 		"message": "Cookies"
 	},
@@ -123,10 +119,6 @@
 		"message": "Teile (Standard):"
 	},
 
-	"default_download_speed_limit_": {
-		"message": "Standard Geschwindigkeitslimit (bytes/s):"
-	},
-
 	"default_download_directory_": {
 		"message": "Verzeichnis (Standard):"
 	},
@@ -149,38 +141,6 @@
 
 	"save": {
 		"message": "Speichern"
-	},
-
-	"menu_download_link": {
-		"message": "Link herunterladen..."
-	},
-
-	"menu_download_image": {
-		"message": "Bild herunterladen..."
-	},
-
-	"menu_download_audio": {
-		"message": "Musik herunterladen..."
-	},
-
-	"menu_download_video": {
-		"message": "Video herunterladen..."
-	},
-
-	"menu_download_all_images": {
-		"message": "Alle Bilder herunterladen..."
-	},
-
-	"menu_download_all_media": {
-		"message": "Alle Medien herunterladen..."
-	},
-
-	"menu_download_all_links": {
-		"message": "Alle Links herunterladen..."
-	},
-
-	"menu_download_page": {
-		"message": "Downloadseite..."
 	},
 
 	"SEND_FAILED": {

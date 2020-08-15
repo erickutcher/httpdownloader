@@ -54,8 +54,8 @@ HFONT hFont_copy_ftp = NULL;
 
 LRESULT CALLBACK FTPTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
 {
-    switch ( msg )
-    {
+	switch ( msg )
+	{
 		case WM_CREATE:
 		{
 			//RECT rc;

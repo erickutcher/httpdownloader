@@ -136,6 +136,7 @@
 	//#define _SetWindowTextW			SetWindowTextW
 	#define _ShowWindow				ShowWindow
 	#define _SystemParametersInfoW	SystemParametersInfoW
+	#define _TrackMouseEvent		TrackMouseEvent
 	#define _TrackPopupMenu			TrackPopupMenu
 	#define _TranslateMessage		TranslateMessage
 
@@ -253,6 +254,7 @@
 	//typedef BOOL ( WINAPI *pSetWindowTextW )( HWND hWnd, LPCTSTR lpString );
 	typedef BOOL ( WINAPI *pShowWindow )( HWND hWnd, int nCmdShow );
 	typedef BOOL ( WINAPI *pSystemParametersInfoW )( UINT uiAction, UINT uiParam, PVOID pvParam, UINT fWinIni );
+	typedef BOOL ( WINAPI *pTrackMouseEvent )( LPTRACKMOUSEEVENT lpEventTrack );
 	typedef BOOL ( WINAPI *pTrackPopupMenu )( HMENU hMenu, UINT uFlags, int x, int y, int nReserved, HWND hWnd, const RECT *prcRect );
 	typedef BOOL ( WINAPI *pTranslateMessage )( const MSG *lpMsg );
 
@@ -363,6 +365,7 @@
 	//extern pSetWindowTextW			_SetWindowTextW;
 	extern pShowWindow				_ShowWindow;
 	extern pSystemParametersInfoW	_SystemParametersInfoW;
+	extern pTrackMouseEvent			_TrackMouseEvent;
 	extern pTrackPopupMenu			_TrackPopupMenu;
 	extern pTranslateMessage		_TranslateMessage;
 

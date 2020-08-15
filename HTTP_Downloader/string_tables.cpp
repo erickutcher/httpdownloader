@@ -80,6 +80,7 @@ STRING_TABLE_DATA menu_string_table[] =
 	{ L"&Add URL(s)...\tCtrl+N", 21 },
 	{ L"Add URL(s)...", 13 },
 	{ L"Always on Top", 13 },
+	{ L"&Check for Updates...", 21 },
 	{ L"&Column Headers", 15 },
 	{ L"&Copy URL(s)\tCtrl+C", 19 },
 	{ L"Copy URL(s)", 11 },
@@ -128,6 +129,7 @@ STRING_TABLE_DATA menu_string_table[] =
 	{ L"&Search...\tCtrl+S", 17 },
 	{ L"&Select All\tCtrl+A", 18 },
 	{ L"Select All", 10 },
+	{ L"Site &Manager...\tCtrl+M", 23 },
 	{ L"SSL / TLS Version", 17 },
 	{ L"St&art", 6 },
 	{ L"Start", 5 },
@@ -167,6 +169,7 @@ STRING_TABLE_DATA options_advanced_string_table[] =
 	{ L"Drag and drop URL(s) action:", 28 },
 	{ L"Enable download history", 23 },
 	{ L"Enable quick file allocation (administrator access required)", 60 },
+	{ L"Exit program", 12 },
 	{ L"Hibernate", 9 },
 	{ L"Hybrid shut down", 16 },
 	{ L"Lock", 4 },
@@ -184,6 +187,7 @@ STRING_TABLE_DATA options_advanced_string_table[] =
 	{ L"Sleep", 5 },
 	{ L"System shutdown action when all downloads finish:", 49 },
 	{ L"Thread pool count:", 18 },
+	{ L"Update redirected URL(s) in download list", 41 },
 	{ L"Use temporary download directory:", 33 },
 	{ L"When a file already exists:", 27 },
 	{ L"When a file has been modified:", 30 },
@@ -196,11 +200,15 @@ STRING_TABLE_DATA options_appearance_string_table[] =
 	{ L"Background Font Color", 21 },
 	{ L"Border Color", 12 },
 	{ L"Download list:", 14 },
+	{ L"Draw all rows", 13 },
+	{ L"Draw full rows", 14 },
 	{ L"Even Row Background Color", 25 },
 	{ L"Even Row Font", 13 },
 	{ L"Even Row Font Color", 19 },
 	{ L"Even Row Highlight Color", 24 },
 	{ L"Even Row Highlight Font Color", 29 },
+	{ L"Expand added group items", 24 },
+	{ L"Gridline Color", 14 },
 	{ L"Odd Row Background Color", 24 },
 	{ L"Odd Row Font", 12 },
 	{ L"Odd Row Font Color", 18 },
@@ -210,6 +218,7 @@ STRING_TABLE_DATA options_appearance_string_table[] =
 	{ L"Progress Color", 14 },
 	{ L"Progress bar:", 13 },
 	{ L"Progress Font Color", 19 },
+	{ L"Selection Marquee Color", 23 },
 	{ L"Show gridlines in download list", 31 },
 	{ L"Show progress for each part", 27 },
 	{ L"Sort added and updating items", 29 },
@@ -226,7 +235,6 @@ STRING_TABLE_DATA options_connection_string_table[] =
 	{ L"Active download limit:", 22 },
 	{ L"Default download parts:", 23 },
 	{ L"Default SSL / TLS version:", 26 },
-	{ L"Login Manager...", 16 },
 	{ L"Maximum redirects:", 18 },
 	{ L"Retry incomplete downloads:", 27 },
 	{ L"Retry incomplete parts:", 23 },
@@ -249,6 +257,7 @@ STRING_TABLE_DATA options_ftp_string_table[] =
 STRING_TABLE_DATA options_general_string_table[] =
 {
 	{ L"Always on top", 13 },
+	{ L"Check for updates upon startup", 30 },
 	{ L"Close to System Tray", 20 },
 	{ L"Enable System Tray icon:", 24 },
 	{ L"Enable URL drop window:", 23 },
@@ -330,6 +339,7 @@ STRING_TABLE_DATA add_urls_string_table[] =
 	{ L"Simulate download", 17 },
 	{ L"SSL / TLS version:", 18 },
 	{ L"URL(s):", 7 },
+	{ L"Use proxy:", 10 },
 	{ L"Username:", 9 },
 	{ L"Videos", 6 }
 };
@@ -346,16 +356,45 @@ STRING_TABLE_DATA search_string_table[] =
 	{ L"Search Type", 11 }
 };
 
-STRING_TABLE_DATA login_manager_string_table[] =
+STRING_TABLE_DATA site_manager_string_table[] =
 {
+	{ L"********", 8 },
+	{ L"[...]", 5 },
 	{ L"Add", 3 },
+	{ L"Add Stopped", 11 },
 	{ L"Close", 5 },
+	{ L"Disable", 7 },
+	{ L"Download Operations", 19 },
+	{ L"Download Parts", 14 },
+	{ L"Empty Body", 10 },
+	{ L"Enable", 6 },
+	{ L"New", 3 },
 	{ L"Password", 8 },
-	{ L"Remove", 6 },
+	{ L"Proxy Password", 14 },
+	{ L"Proxy Port", 10 },
+	{ L"Proxy Server", 12 },
+	{ L"Proxy Type", 10 },
+	{ L"Proxy Username", 14 },
+	{ L"Resolve Domain Names", 20 },
+	{ L"Save", 4 },
 	{ L"Show passwords", 14 },
+	{ L"Simulate", 8 },
 	{ L"Site", 4 },
 	{ L"Site:", 5 },
 	{ L"Username", 8 }
+};
+
+STRING_TABLE_DATA update_check_string_table[] =
+{
+	{ L"A new version is available.", 27 },
+	{ L"Checking for updates...", 23 },
+	{ L"Current version:", 16 },
+	{ L"Download Update", 15 },
+	{ L"HTTP Downloader is up to date.", 30 },
+	{ L"Latest version:", 15 },
+	{ L"The update check has failed.", 28 },
+	{ L"View Changelog", 14 },
+	{ L"Visit Home Page", 15 }
 };
 
 STRING_TABLE_DATA common_string_table[] =
@@ -369,6 +408,7 @@ STRING_TABLE_DATA common_string_table[] =
 	{ L"Cancel", 6 },
 	{ L"Completed", 9 },
 	{ L"Connecting", 10 },
+	{ L"Default", 7 },
 	{ L"Default download speed limit (bytes/s):", 39 },
 	{ L"Download speed:", 15 },
 	{ L"Download speed limit (bytes/s):", 31 },
@@ -381,8 +421,9 @@ STRING_TABLE_DATA common_string_table[] =
 	{ L"Global Download Speed Limit", 27 },
 	{ L"Global download speed limit:", 28 },
 	{ L"Global download speed limit (bytes/s):", 38 },
+	{ L"HTTP", 4 },
+	{ L"HTTPS", 5 },
 	{ L"Import Download History", 23 },
-	{ L"Login Manager", 13 },
 	{ L"Moving File", 11 },
 	{ L"Options", 7 },
 	{ L"Paused", 6 },
@@ -391,6 +432,7 @@ STRING_TABLE_DATA common_string_table[] =
 	{ L"Restarting", 10 },
 	{ L"Save Download History", 21 },
 	{ L"Set", 3 },
+	{ L"Site Manager", 12 },
 	{ L"Skipped", 7 },
 	{ L"Stopped", 7 },
 	{ L"SSL 2.0", 7 },
@@ -408,7 +450,7 @@ STRING_TABLE_DATA common_string_table[] =
 
 STRING_TABLE_DATA common_message_string_table[] =
 {
-	{ L"A protocol (HTTP or HTTPS) must be supplied.", 44 },
+	{ L"A protocol (HTTP(S) or FTP(S)) must be supplied.", 48 },
 	{ L"A restart is required for these changes to take effect.", 55 },
 	{ L"A restart is required to enable quick file allocation.", 54 },
 	{ L"A restart is required to perform the system shutdown action.", 60 },
@@ -576,7 +618,8 @@ void InitializeLocaleValues()
 		for ( i = 0; i < CMESSAGEBOX_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = cmessagebox_string_table[ i ]; }
 		for ( i = 0; i < ADD_URLS_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = add_urls_string_table[ i ]; }
 		for ( i = 0; i < SEARCH_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = search_string_table[ i ]; }
-		for ( i = 0; i < LOGIN_MANAGER_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = login_manager_string_table[ i ]; }
+		for ( i = 0; i < SITE_MANAGER_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = site_manager_string_table[ i ]; }
+		for ( i = 0; i < UPDATE_CHECK_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = update_check_string_table[ i ]; }
 		for ( i = 0; i < COMMON_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = common_string_table[ i ]; }
 		for ( i = 0; i < COMMON_MESSAGE_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = common_message_string_table[ i ]; }
 		for ( i = 0; i < ABOUT_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = about_string_table[ i ]; }
@@ -596,6 +639,22 @@ void InitializeLocaleValues()
 			}
 
 			CloseHandle( hFile_locale );
+		}
+		*/
+		/*
+		// Quick string list generation.
+		HANDLE hFile_string_list = CreateFile( L"string_list.txt", GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL );
+		if ( hFile_string_list != INVALID_HANDLE_VALUE )
+		{
+			DWORD write = 0;
+
+			for ( short j = 0; j < TOTAL_LOCALE_STRINGS; ++j )
+			{
+				WriteFile( hFile_string_list, g_locale_table[ j ].value, sizeof( wchar_t ) * g_locale_table[ j ].length, &write, NULL );
+				WriteFile( hFile_string_list, L"\r\n", sizeof( wchar_t ) * 2, &write, NULL );
+			}
+
+			CloseHandle( hFile_string_list );
 		}
 		*/
 	}

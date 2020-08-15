@@ -13,12 +13,10 @@ function OnGetOptions( options )
 	if ( typeof options.server == "undefined" ) { options.server = "http://localhost:80/"; }
 	if ( typeof options.username == "undefined" ) { options.username = ""; }
 	if ( typeof options.password == "undefined" ) { options.password = ""; }
-	if ( typeof options.parts == "undefined" ) { options.parts = "1"; }
-	if ( typeof options.default_download_speed_limit == "undefined" ) { options.default_download_speed_limit = "0"; }
-	if ( typeof options.default_directory == "undefined" ) { options.default_directory = ""; }
 	if ( typeof options.user_agent == "undefined" ) { options.user_agent = true; }
 	if ( typeof options.referer == "undefined" ) { options.referer = true; }
 	if ( typeof options.override == "undefined" ) { options.override = false; }
+	if ( typeof options.override_prompts == "undefined" ) { options.override_prompts = true; }
 	if ( typeof options.show_add_window == "undefined" ) { options.show_add_window = false; }
 	if ( typeof options.from_current_domain == "undefined" ) { options.from_current_domain = false; }
 
@@ -37,12 +35,6 @@ function CreateDownloadWindow( download_info, message = "" )
 		height: g_height
 	}, function( window_info )
 	{
-		var server = g_options.server;
-		var username = g_options.username;
-		var password = g_options.password;
-		var parts = g_options.parts;
-		var speed_limit = g_options.default_download_speed_limit;
-
 		var method = download_info.method;
 		var url = download_info.url;
 		var cookie_string = download_info.cookie_string;
@@ -54,11 +46,6 @@ function CreateDownloadWindow( download_info, message = "" )
 		g_open_windows.push(
 		[
 			window_info.id,
-			server,
-			username,
-			password,
-			parts,
-			speed_limit,
 			method,
 			url,
 			cookie_string,
@@ -185,19 +172,14 @@ function HandleMessages( request, sender, sendResponse )
 
 				sendResponse(
 				{
-					server: window[ 1 ],
-					username: window[ 2 ],
-					password: window[ 3 ],
-					parts: window[ 4 ],
-					speed_limit: window[ 5 ],
-					method: window[ 6 ],
-					urls: window[ 7 ],
-					cookies: window[ 8 ],
-					headers: window[ 9 ],
-					post_data: window[ 10 ],
-					directory: window[ 11 ],
-					filename: window[ 12 ],
-					message: window[ 13 ]
+					method: window[ 1 ],
+					urls: window[ 2 ],
+					cookies: window[ 3 ],
+					headers: window[ 4 ],
+					post_data: window[ 5 ],
+					directory: window[ 6 ],
+					filename: window[ 7 ],
+					message: window[ 8 ]
 				} );
 
 				break;
@@ -209,12 +191,14 @@ function HandleMessages( request, sender, sendResponse )
 		var server = g_options.server;
 		var username = g_options.username;
 		var password = g_options.password;
+		var override_prompts = g_options.override_prompts;
 
 		sendResponse(
 		{
 			server: server,
 			username: username,
-			password: password
+			password: password,
+			override_prompts: override_prompts
 		} );
 	}
 	else if ( request.type == "refresh_options" )
@@ -285,11 +269,7 @@ function SendDownloadToClient( download_info )
 		var server = g_options.server;
 		var server_username = g_options.server;
 		var server_password = g_options.password;
-		var username = "";
-		var password = "";
-		var parts = g_options.parts;
-		var speed_limit = g_options.default_download_speed_limit;
-		var download_operations = 0;
+		var download_operations = ( g_options.override_prompts ? 2 : 0 );
 		var url;
 
 		if ( download_info.filename != "" )
@@ -332,15 +312,24 @@ function SendDownloadToClient( download_info )
 		request.setRequestHeader( "Content-Type", "application/octet-stream" );
 		request.send( download_info.method + "\x1f" +
 					  url + "\x1f" +
-					  username + "\x1f" +
-					  password + "\x1f" +
-					  parts + "\x1f" +
-					  speed_limit + "\x1f" +
 					  download_info.directory + "\x1f" +
+					  "\x1f" +									// Parts
+					  "\x1f" +									// SSL/TLS version
+					  "\x1f" +									// Username
+					  "\x1f" +									// Password
+					  "\x1f" +									// Speed limit
 					  download_operations + "\x1f" +
 					  download_info.cookie_string + "\x1f" +
 					  download_info.headers + "\x1f" +
-					  download_info.post_data + "\x1f" );
+					  download_info.post_data + "\x1f" +
+					  "\x1f" +									// Proxy type
+					  "\x1f" +									// Proxy hostname/IP address
+					  "\x1f" +									// Proxy port
+					  "\x1f" +									// Proxy username
+					  "\x1f" +									// Proxy password
+					  "\x1f" +									// Proxy resolve domain names
+					  "\x1f"									// Proxy use authentication
+					);
 	}
 	else
 	{
@@ -457,7 +446,6 @@ function OnDownloadItemCreated( item )
 			}
 
 			var id = item.id;
-			var directory = g_options.default_directory;
 			var show_add_window = g_options.show_add_window;
 
 			var headers = "";
@@ -480,7 +468,7 @@ function OnDownloadItemCreated( item )
 									cookie_string: "",
 									headers: headers,
 									post_data: post_data,
-									directory: directory,
+									directory: "",
 									filename: "",
 									show_add_window: show_add_window } );
 		}
@@ -530,8 +518,6 @@ function OnMenuClicked( info, tab )
 	{
 		headers += "Referer: " + info.pageUrl.split( '#' )[ 0 ] + "\r\n";
 	}
-
-	var directory = g_options.default_directory;
 
 	if ( info.menuItemId == "download-all-images" ||
 		 info.menuItemId == "download-all-media" ||
@@ -610,12 +596,12 @@ function OnMenuClicked( info, tab )
 				chrome.cookies.getAllCookieStores( function( cookie_stores )
 				{
 					GetCookieDomain( { url: info.pageUrl, cookie_stores: cookie_stores, index: 0 },
-									 { show_add_window: true, id: null, method: "1", url: urls, cookie_string: "", headers: headers, directory: directory, filename: "", post_data: "" } );
+									 { show_add_window: true, id: null, method: "1", url: urls, cookie_string: "", headers: headers, directory: "", filename: "", post_data: "" } );
 				} );
 			}
 			else
 			{
-				CreateDownloadWindow( { show_add_window: true, id: null, method: "1", url: urls, cookie_string: "", headers: headers, directory: directory, filename: "", post_data: "" } );
+				CreateDownloadWindow( { show_add_window: true, id: null, method: "1", url: urls, cookie_string: "", headers: headers, directory: "", filename: "", post_data: "" } );
 			}
 		} );
 	}
@@ -648,7 +634,7 @@ function OnMenuClicked( info, tab )
 		chrome.cookies.getAllCookieStores( function( cookie_stores )
 		{
 			GetCookies( { url: url, cookie_stores: cookie_stores, index: 0 },
-						{ show_add_window: true, id: null, method: "1", url: url, cookie_string: "", headers: headers, directory: directory, filename: "", post_data: "" } );
+						{ show_add_window: true, id: null, method: "1", url: url, cookie_string: "", headers: headers, directory: "", filename: "", post_data: "" } );
 		} );
 	}
 }

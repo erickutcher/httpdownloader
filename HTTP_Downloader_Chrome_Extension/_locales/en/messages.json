@@ -51,6 +51,10 @@
 		"message": "Download parts:"
 	},
 
+	"ssl_tls_version_": {
+		"message": "SSL / TLS version:"
+	},
+
 	"authentication": {
 		"message": "Authentication"
 	},
@@ -67,6 +71,14 @@
 		"message": "Download speed limit (bytes/s):"
 	},
 
+	"simulate_download": {
+		"message": "Simulate download"
+	},
+
+	"general": {
+		"message": "General"
+	},
+
 	"cookies": {
 		"message": "Cookies"
 	},
@@ -77,6 +89,10 @@
 
 	"post_data": {
 		"message": "POST Data"
+	},
+
+	"proxy": {
+		"message": "Proxy"
 	},
 
 	"cookies_": {
@@ -91,8 +107,32 @@
 		"message": "Send POST Data:"
 	},
 
-	"simulate_download": {
-		"message": "Simulate download"
+	"proxy_": {
+		"message": "Use proxy:"
+	},
+
+	"default": {
+		"message": "Default"
+	},
+
+	"hostname_ip_": {
+		"message": "Hostname / IP address:"
+	},
+
+	"port_": {
+		"message": "Port:"
+	},
+
+	"resolve_dn_v4a": {
+		"message": "Allow proxy to resolve domain names (use SOCKS v4a)"
+	},
+
+	"resolve_dn": {
+		"message": "Allow proxy to resolve domain names"
+	},
+
+	"use_authentication_": {
+		"message": "Use authentication:"
 	},
 
 	"advanced_options": {
@@ -119,18 +159,6 @@
 		"message": "Server Authentication"
 	},
 
-	"default_download_parts_": {
-		"message": "Default download parts:"
-	},
-
-	"default_download_speed_limit_": {
-		"message": "Default download speed limit (bytes/s):"
-	},
-
-	"default_download_directory_": {
-		"message": "Default download directory:"
-	},
-
 	"send_user_agent_header": {
 		"message": "Send User-Agent header"
 	},
@@ -145,6 +173,10 @@
 
 	"show_add_urls_window_before_download": {
 		"message": "Show Add URL(s) window before download"
+	},
+
+	"override_prompts": {
+		"message": "Override HTTP Downloader prompts"
 	},
 
 	"ok": {

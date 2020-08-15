@@ -5,62 +5,88 @@
 		<style>
 			body
 			{
-				padding: 10px;
+				font-family: "Tahoma", sans-serif;
+				font-size: 12px;
+			}
+
+			input
+			{
+				border: 1px solid #B1B1B1;
+			}
+
+			input:focus, textarea:focus, select:focus
+			{
+				border: 1px solid #0996F8;
 			}
 
 			fieldset
 			{
-				border: 1px solid grey;
+				border: 1px solid #B1B1B1;
 				display: inline-block;
+			}
+
+			label, fieldset
+			{
+				user-select: none;
+			}
+
+			.section-separator
+			{
+				min-height: 1px;
+				background-color: rgba( 0, 0, 0, 0.15 );
 			}
 		</style>
 		<script src="options.js"></script>
 	</head>
 	<body>
-		<div class="browser-style">
+		<div>
 			<div><label for="server" data-i18n="server_">Server:</label></div>
-			<input type="text" id="server" size="50" value="">
+			<div style="display: flex;"><input type="text" id="server" value="" style="flex: 1;"></div>
 		</div>
 		<div style="padding-top: 10px;">
-			<fieldset>
+			<fieldset style="display: flex;">
 				<legend data-i18n="server_authentication">Server Authentication</legend>
-				<div class="browser-style" style="float: left; margin-right: 10px;">
-					<div><label for="username" data-i18n="username_">Username:</label></div>
-					<input type="text" id="username" value="">
-				</div>
-				<div class="browser-style" style="float: left;">
-					<div><label for="password" data-i18n="password_">Password:</label></div>
-					<input type="password" id="password" value="">
+				<div style="display: flex;">
+					<div style="margin-right: 10px;">
+						<div style="margin-top: auto;">
+							<label for="username" data-i18n="username_">Username:</label>
+						</div>
+						<div style="width: 100%;">
+							<input type="text" id="username" value="">
+						</div>
+					</div>
+					<div style="flex: 1;">
+						<div style="margin-top: auto;">
+							<label for="password" data-i18n="password_">Password:</label>
+						</div>
+						<div style="width: 100%;">
+							<input type="password" id="password" value="">
+						</div>
+					</div>
 				</div>
 			</fieldset>
 		</div>
-		<div class="browser-style" style="padding-top: 10px;">
-			<div><label for="parts" data-i18n="default_download_parts_">Default download parts:</label></div>
-			<input type="number" id="parts" value="" min="0" max="100" style="text-align: center;">
-		</div>
-		<div class="browser-style" style="padding-top: 10px;">
-			<div><label for="speed_limit" data-i18n="default_download_speed_limit_">Default download speed limit (bytes/s):</label></div>
-			<input type="text" id="speed_limit" size="40" value="0" style="text-align: center;">
-		</div>
-		<div class="browser-style" style="padding-top: 10px;">
-			<div><label for="default_directory" data-i18n="default_download_directory_">Default download directory:</label></div>
-			<input type="text" id="default_directory" size="50" value="" data-i18n="_use_program_default_" placeholder="[Use Program Default]">
-		</div>
-		<div class="browser-style" style="padding-top: 10px;">
+		<div style="padding-top: 10px;">
 			<input type="checkbox" id="user_agent"><label for="user_agent" data-i18n="send_user_agent_header">Send User-Agent header</label>
 		</div>
-		<div class="browser-style">
+		<div>
 			<input type="checkbox" id="referer"><label for="referer" data-i18n="send_referer_header">Send Referer header</label>
 		</div>
-		<div class="browser-style">
+		<div>
 			<input type="checkbox" id="override"><label for="override" data-i18n="override_browsers_download_manager">Override browser's download manager</label>
 		</div>
-		<div class="browser-style" style="margin-left: 20px;">
+		<div style="margin-left: 20px;">
 			<input type="checkbox" id="show_add_window"><label for="show_add_window" data-i18n="show_add_urls_window_before_download">Show Add URL(s) window before download</label>
 		</div>
-		<div class="panel-section-separator"></div>
-		<div style="padding-top: 20px;">
-			<button type="button" id="save" class="browser-style" data-i18n="save">Save</button>
+		<div>
+			<input type="checkbox" id="override_prompts"><label for="override_prompts" data-i18n="override_prompts">Override HTTP Downloader prompts</label>
+		</div>
+		<div>
+			<input type="checkbox" id="theme_support"><label for="theme_support" data-i18n="theme_support">Enable theme support</label>
+		</div>
+		<div class="section-separator" style="margin: 10px 0px 10px 0px;"></div>
+		<div>
+			<button type="button" id="save" data-i18n="save">Save</button>
 		</div>
 	</body>
 </html>

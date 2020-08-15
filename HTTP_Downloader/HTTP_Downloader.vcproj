@@ -486,15 +486,15 @@
 				>
 			</File>
 			<File
-				RelativePath=".\login_manager_utilities.cpp"
-				>
-			</File>
-			<File
 				RelativePath=".\main.cpp"
 				>
 			</File>
 			<File
 				RelativePath=".\menus.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\site_manager_utilities.cpp"
 				>
 			</File>
 			<File
@@ -510,6 +510,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\treelistview.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\utilities.cpp"
 				>
 			</File>
@@ -518,15 +522,15 @@
 				>
 			</File>
 			<File
+				RelativePath=".\wnd_proc_check_for_updates.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\wnd_proc_cmessagebox.cpp"
 				>
 			</File>
 			<File
 				RelativePath=".\wnd_proc_download_speed_limit.cpp"
-				>
-			</File>
-			<File
-				RelativePath=".\wnd_proc_login_manager.cpp"
 				>
 			</File>
 			<File
@@ -567,6 +571,10 @@
 			</File>
 			<File
 				RelativePath=".\wnd_proc_search.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\wnd_proc_site_manager.cpp"
 				>
 			</File>
 			<File
@@ -812,10 +820,6 @@
 				>
 			</File>
 			<File
-				RelativePath=".\login_manager_utilities.h"
-				>
-			</File>
-			<File
 				RelativePath=".\menus.h"
 				>
 			</File>
@@ -832,6 +836,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\site_manager_utilities.h"
+				>
+			</File>
+			<File
 				RelativePath=".\ssl.h"
 				>
 			</File>
@@ -845,6 +853,10 @@
 			</File>
 			<File
 				RelativePath=".\taskbar.h"
+				>
+			</File>
+			<File
+				RelativePath=".\treelistview.h"
 				>
 			</File>
 			<File

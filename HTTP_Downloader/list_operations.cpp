@@ -20,10 +20,12 @@
 
 #include "lite_kernel32.h"
 #include "lite_pcre2.h"
+#include "lite_normaliz.h"
 
 #include "connection.h"
 
 #include "doublylinkedlist.h"
+#include "treelistview.h"
 
 #include "list_operations.h"
 #include "file_operations.h"
@@ -46,46 +48,9 @@ void ProcessingList( bool processing )
 	{
 		UpdateMenus( true );										// Enable the appropriate menu items.
 		_SendMessageW( g_hWnd_main, WM_CHANGE_CURSOR, FALSE, 0 );	// Reset the cursor.
-		_InvalidateRect( g_hWnd_files, NULL, FALSE );				// Refresh the number column values.
-		_SetFocus( g_hWnd_files );									// Give focus back to the listview to allow shortcut keys.
+		_SendMessageW( g_hWnd_tlv_files, TLVM_REFRESH_LIST, 0, 0 );	// Refresh the number column values.
+		_SetFocus( g_hWnd_tlv_files );								// Give focus back to the listview to allow shortcut keys.
 		//_SetWindowTextW( g_hWnd_main, PROGRAM_CAPTION );			// Reset the window title.
-	}
-}
-
-void ResetDownload( DOWNLOAD_INFO *di, bool from_beginning, bool check_if_file_exists )
-{
-	if ( di != NULL )
-	{
-		if ( from_beginning )
-		{
-			_SendMessageW( g_hWnd_main, WM_RESET_PROGRESS, 0, ( LPARAM )di );
-
-			while ( di->range_list != NULL )
-			{
-				DoublyLinkedList *range_node = di->range_list;
-				di->range_list = di->range_list->next;
-
-				GlobalFree( range_node->data );
-				GlobalFree( range_node );
-			}
-
-			di->range_list_end = NULL;
-
-			di->processed_header = false;
-
-			di->downloaded = 0;
-
-			di->last_modified.QuadPart = 0;
-		}
-
-		// If we manually start a download, then set the incomplete retry attempts back to 0.
-		di->retries = 0;
-		di->start_time.QuadPart = 0;
-
-		// If we manually start a download that was added remotely, then allow the prompts to display.
-		di->download_operations &= ~DOWNLOAD_OPERATION_OVERRIDE_PROMPTS;
-
-		StartDownload( di, check_if_file_exists );
 	}
 }
 
@@ -154,50 +119,46 @@ THREAD_RETURN remove_items( void *pArguments )
 	in_worker_thread = true;
 
 	// Prevent the listviews from drawing while freeing lParam values.
-	skip_list_draw = true;
+	_SendMessageW( g_hWnd_tlv_files, TLVM_TOGGLE_DRAW, TRUE, NULL );
 
 	ProcessingList( true );
 
 	bool delete_success = true;
 	unsigned char error_type = 0;
 
-	LVITEM lvi;
-	_memzero( &lvi, sizeof( LVITEM ) );
-	lvi.mask = LVIF_PARAM;
+	int sel_count = TLV_GetSelectedCount();
+	int item_count = TLV_GetExpandedItemCount();
+	int visible_item_count = TLV_GetVisibleItemCount();
+	int first_visible_index = TLV_GetFirstVisibleIndex();
+	int old_first_visible_index = first_visible_index;
+	int expanded_item_count = 0;
+	int root_item_count = 0;
+	int total_item_count = 0;
+	TREELISTNODE *first_visible_node = TLV_GetFirstVisibleItem();
 
-	int item_count = ( int )_SendMessageW( g_hWnd_files, LVM_GETITEMCOUNT, 0, 0 );
-	int sel_count = ( int )_SendMessageW( g_hWnd_files, LVM_GETSELECTEDCOUNT, 0, 0 );
+	int first_visible_root_index = TLV_GetFirstVisibleRootIndex();
 
-	int *index_array = NULL;
+	int sel_index = TLV_GetFirstSelectedIndex();
+	TREELISTNODE *tln = TLV_GetFirstSelectedItem();
 
-	bool handle_all = false;
-	if ( item_count == sel_count )
+	// If the item is a child, then get the parent's sibling.
+	if ( tln != NULL && tln->parent != NULL )
 	{
-		handle_all = true;
-	}
-	else
-	{
-		_SendMessageW( g_hWnd_files, LVM_ENSUREVISIBLE, 0, FALSE );
+		sel_index = TLV_GetParentIndex( tln->parent, sel_index );
+		sel_index += ( tln->child_count + 1 );
 
-		index_array = ( int * )GlobalAlloc( GMEM_FIXED, sizeof( int ) * sel_count );
-
-		lvi.iItem = -1;	// Set this to -1 so that the LVM_GETNEXTITEM call can go through the list correctly.
-
-		_EnableWindow( g_hWnd_files, FALSE );	// Prevent any interaction with the listview while we're processing.
-
-		// Create an index list of selected items (in reverse order).
-		for ( int i = 0; i < sel_count; ++i )
-		{
-			lvi.iItem = index_array[ sel_count - 1 - i ] = ( int )_SendMessageW( g_hWnd_files, LVM_GETNEXTITEM, lvi.iItem, LVNI_SELECTED );
-		}
-
-		_EnableWindow( g_hWnd_files, TRUE );	// Allow the listview to be interactive.
-
-		item_count = sel_count;
+		tln = tln->parent->next;
 	}
 
-	// Go through each item, and free their lParam values.
-	for ( int i = 0; i < item_count; ++i )
+	TREELISTNODE *last_tln = TLV_GetLastSelectedItem();
+
+	// If the item is a child, then get the parent.
+	if ( last_tln != NULL && last_tln->parent != NULL )
+	{
+		last_tln = last_tln->parent;
+	}
+
+	while ( tln != NULL )
 	{
 		// Stop processing and exit the thread.
 		if ( kill_worker_thread_flag )
@@ -205,173 +166,335 @@ THREAD_RETURN remove_items( void *pArguments )
 			break;
 		}
 
-		if ( handle_all )
+		if ( !( tln->flag & TLVS_SELECTED ) )
 		{
-			lvi.iItem = i;
-		}
-		else
-		{
-			lvi.iItem = index_array[ i ];
-		}
-
-		// Wait, specifically for CleanupConnection to do its thing.
-		EnterCriticalSection( &cleanup_cs );
-
-		_SendMessageW( g_hWnd_files, LVM_GETITEM, 0, ( LPARAM )&lvi );
-
-		DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )lvi.lParam;
-
-		if ( !handle_all )
-		{
-			_SendMessageW( g_hWnd_files, LVM_DELETEITEM, index_array[ i ], 0 );
-		}
-		else if ( i >= ( item_count - 1 ) )
-		{
-			_SendMessageW( g_hWnd_files, LVM_DELETEALLITEMS, 0, 0 );
-		}
-
-		if ( di != NULL )
-		{
-			// Is our update window open and are we removing the item we want to update? Close the window if we are.
-			if ( di == g_update_download_info )
+			++sel_index;
+			if ( tln->is_expanded )
 			{
-				g_update_download_info = NULL;
+				sel_index += tln->child_count;
 
-				_SendMessageW( g_hWnd_update_download, WM_DESTROY_ALT, 0, 0 );
-			}
-
-			_SendMessageW( g_hWnd_main, WM_RESET_PROGRESS, 0, ( LPARAM )di );
-
-			EnterCriticalSection( &di->shared_cs );
-
-			DoublyLinkedList *context_node = di->parts_list;
-
-			// If there are still active connections.
-			if ( di->download_node.data != NULL )
-			{
-				di->status = STATUS_STOPPED | STATUS_REMOVE | status;
-
-				LeaveCriticalSection( &di->shared_cs );
-
-				while ( context_node != NULL )
+				// Remove any selection flag from the children.
+				TREELISTNODE *child_tln = tln->child;
+				while ( child_tln != NULL )
 				{
-					SOCKET_CONTEXT *context = ( SOCKET_CONTEXT * )context_node->data;
+					child_tln->flag = TLVS_NONE;
 
-					context_node = context_node->next;
-
-					SetContextStatus( context, STATUS_STOPPED | STATUS_REMOVE | status );
+					child_tln = child_tln->next;
 				}
 			}
-			else	// No active parts.
+
+			tln = tln->next;
+
+			continue;
+		}
+
+		TREELISTNODE *tln_parent = tln;
+
+		// We'll go through each child regardless of whether it's selected if a group is selected.
+		if ( tln->data_type == TLVDT_GROUP && tln->child != NULL )
+		{
+			tln = tln->child;
+		}
+
+		do
+		{
+			// Stop processing and exit the thread.
+			if ( kill_worker_thread_flag )
 			{
-				if ( di->queue_node.data != NULL )
+				break;
+			}
+
+			// Wait, specifically for CleanupConnection to do its thing.
+			EnterCriticalSection( &cleanup_cs );
+
+			DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )tln->data;
+			if ( di != NULL )
+			{
+				// Is our update window open and are we removing the item we want to update? Close the window if we are.
+				if ( di == g_update_download_info )
 				{
-					EnterCriticalSection( &download_queue_cs );
+					g_update_download_info = NULL;
 
-					DLL_RemoveNode( &download_queue, &di->queue_node );
-
-					LeaveCriticalSection( &download_queue_cs );
+					_SendMessageW( g_hWnd_update_download, WM_DESTROY_ALT, 0, 0 );
 				}
 
-				LeaveCriticalSection( &di->shared_cs );
+				_SendMessageW( g_hWnd_main, WM_RESET_PROGRESS, 0, ( LPARAM )di );
 
-				// di->icon is stored in the g_icon_handles tree. We'll destory it in the tree.
+				EnterCriticalSection( &di->di_cs );
 
-				EnterCriticalSection( &icon_cache_cs );
-				// Find the icon info
-				dllrbt_iterator *itr = dllrbt_find( g_icon_handles, ( void * )( di->file_path + di->file_extension_offset ), false );
+				DoublyLinkedList *context_node = di->parts_list;
 
-				// Free its values and remove it from the tree if there are no other items using it.
-				if ( itr != NULL )
+				// If there are still active connections.
+				if ( di->download_node.data != NULL )
 				{
-					ICON_INFO *ii = ( ICON_INFO * )( ( node_type * )itr )->val;
-					if ( ii != NULL )
+					di->status = STATUS_STOPPED | STATUS_REMOVE | status;
+
+					LeaveCriticalSection( &di->di_cs );
+
+					while ( context_node != NULL )
 					{
-						if ( --ii->count == 0 )
-						{
-							DestroyIcon( ii->icon );
-							GlobalFree( ii->file_extension );
-							GlobalFree( ii );
+						SOCKET_CONTEXT *context = ( SOCKET_CONTEXT * )context_node->data;
 
-							dllrbt_remove( g_icon_handles, itr );
+						context_node = context_node->next;
+
+						SetContextStatus( context, STATUS_STOPPED | STATUS_REMOVE | status );
+					}
+				}
+				else	// No active parts.
+				{
+					if ( di->queue_node.data != NULL )
+					{
+						EnterCriticalSection( &download_queue_cs );
+
+						DLL_RemoveNode( &download_queue, &di->queue_node );
+
+						LeaveCriticalSection( &download_queue_cs );
+					}
+
+					LeaveCriticalSection( &di->di_cs );
+
+					GlobalFree( di->url );
+					GlobalFree( di->cookies );
+					GlobalFree( di->headers );
+					GlobalFree( di->data );
+					//GlobalFree( di->etag );
+					GlobalFree( di->auth_info.username );
+					GlobalFree( di->auth_info.password );
+
+					if ( di->proxy_info != NULL )
+					{
+						GlobalFree( di->proxy_info->hostname );
+						GlobalFree( di->proxy_info->punycode_hostname );
+						GlobalFree( di->proxy_info->w_username );
+						GlobalFree( di->proxy_info->w_password );
+						GlobalFree( di->proxy_info->username );
+						GlobalFree( di->proxy_info->password );
+						GlobalFree( di->proxy_info->auth_key );
+						GlobalFree( di->proxy_info );
+					}
+
+					while ( di->range_list != NULL )
+					{
+						DoublyLinkedList *range_node = di->range_list;
+						di->range_list = di->range_list->next;
+
+						GlobalFree( range_node->data );
+						GlobalFree( range_node );
+					}
+
+					--di->shared_info->hosts;
+
+					if ( handle_type == 1 )
+					{
+						if ( di->shared_info->hosts == 0 &&
+							 /*di->shared_info->host_list != NULL &&*/
+						  !( di->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
+						{
+							wchar_t *file_path_delete;
+
+							wchar_t file_path[ MAX_PATH ];
+							if ( cfg_use_temp_download_directory && di->status != STATUS_COMPLETED )
+							{
+								GetTemporaryFilePath( di, file_path );
+
+								file_path_delete = file_path;
+							}
+							else
+							{
+								// We're freeing this anyway so it's safe to modify.
+								di->file_path[ di->filename_offset - 1 ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
+
+								file_path_delete = di->file_path;
+							}
+
+							if ( DeleteFileW( file_path_delete ) == FALSE )
+							{
+								delete_success = false;
+
+								int error = GetLastError();
+								if ( error == ERROR_ACCESS_DENIED )
+								{
+									error_type |= 1;
+								}
+								else if ( error == ERROR_FILE_NOT_FOUND )
+								{
+									error_type |= 2;
+								}
+							}
 						}
 					}
-					else
+
+					DeleteCriticalSection( &di->di_cs );
+
+					if ( di->shared_info->hosts == 0 )
 					{
-						dllrbt_remove( g_icon_handles, itr );
-					}
-				}
-				LeaveCriticalSection( &icon_cache_cs );
+						RemoveCachedIcon( di->shared_info );
 
-				GlobalFree( di->url );
-				GlobalFree( di->w_add_time );
-				GlobalFree( di->cookies );
-				GlobalFree( di->headers );
-				GlobalFree( di->data );
-				//GlobalFree( di->etag );
-				GlobalFree( di->auth_info.username );
-				GlobalFree( di->auth_info.password );
+						GlobalFree( di->shared_info->w_add_time );
 
-				if ( di->hFile != INVALID_HANDLE_VALUE )
-				{
-					CloseHandle( di->hFile );
-				}
-
-				while ( di->range_list != NULL )
-				{
-					DoublyLinkedList *range_node = di->range_list;
-					di->range_list = di->range_list->next;
-
-					GlobalFree( range_node->data );
-					GlobalFree( range_node );
-				}
-
-				if ( handle_type == 1 )
-				{
-					if ( !( di->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
-					{
-						wchar_t *file_path_delete;
-
-						wchar_t file_path[ MAX_PATH ];
-						if ( cfg_use_temp_download_directory && di->status != STATUS_COMPLETED )
+						if ( di->shared_info->hFile != INVALID_HANDLE_VALUE )
 						{
-							GetTemporaryFilePath( di, file_path );
+							CloseHandle( di->shared_info->hFile );
+						}
 
-							file_path_delete = file_path;
+						if ( di != di->shared_info )
+						{
+							GlobalFree( di->shared_info );
+						}
+					}
+
+					GlobalFree( di );
+				}
+			}
+
+			LeaveCriticalSection( &cleanup_cs );
+
+			tln = tln->next;
+		}
+		while ( tln_parent->child != NULL && tln != NULL );
+
+		tln = tln_parent;
+
+		bool last_sel = ( tln == last_tln ? true : false );
+
+		++root_item_count;
+
+		++expanded_item_count;	// Include the parent.
+		if ( tln->is_expanded )
+		{
+			expanded_item_count += tln->child_count;
+		}
+
+		// Update our first visible index and node depending on where the items are being removed.
+		// This allows us to update the scrollbars and scroll position.
+		if ( sel_index < old_first_visible_index )
+		{
+			if ( first_visible_node->parent != NULL )
+			{
+				int parent_index = TLV_GetParentIndex( first_visible_node, old_first_visible_index );
+
+				if ( sel_index == parent_index )
+				{
+					first_visible_node = first_visible_node->parent->next;
+				}
+				else
+				{
+					--first_visible_root_index;
+				}
+
+				if ( tln->is_expanded && sel_index + tln->child_count < old_first_visible_index )
+				{
+					first_visible_index -= ( tln->child_count + 1 );
+				}
+				else
+				{
+					first_visible_index -= ( old_first_visible_index - parent_index );
+				}
+			}
+			else
+			{
+				if ( first_visible_index > 0 )
+				{
+					--first_visible_index;
+
+					if ( tln->is_expanded )
+					{
+						if ( tln->child_count > first_visible_index )
+						{
+							first_visible_index = 0;
 						}
 						else
 						{
-							// We're freeing this anyway so it's safe to modify.
-							di->file_path[ di->filename_offset - 1 ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
-
-							file_path_delete = di->file_path;
-						}
-
-						if ( DeleteFileW( file_path_delete ) == FALSE )
-						{
-							delete_success = false;
-
-							int error = GetLastError();
-							if ( error == ERROR_ACCESS_DENIED )
-							{
-								error_type |= 1;
-							}
-							else if ( error == ERROR_FILE_NOT_FOUND )
-							{
-								error_type |= 2;
-							}
+							first_visible_index -= tln->child_count;
 						}
 					}
+
+					--first_visible_root_index;
 				}
+			}
+		}
+		else// if ( sel_index >= old_first_visible_index )
+		{
+			int sel_item_count = ( tln->is_expanded ? tln->child_count : 0 ) + 1;
 
-				DeleteCriticalSection( &di->shared_cs );
+			int remaining_items = item_count - old_first_visible_index - sel_item_count;
 
-				GlobalFree( di );
+			// We can remove the item and the list will move down. (We're at the end of the list).
+			if ( remaining_items < visible_item_count )
+			{
+				sel_item_count = visible_item_count - remaining_items;
+
+				for ( ; sel_item_count > 0 && first_visible_index > 0; --sel_item_count, --first_visible_index )
+				{
+					if ( first_visible_node->parent == NULL )
+					{
+						--first_visible_root_index;
+					}
+
+					first_visible_node = TLV_PrevNode( first_visible_node, false );
+				}
+			}
+			else	// We can remove the item and the list will move up.
+			{
+				if ( tln == first_visible_node )
+				{
+					if ( first_visible_node->parent != NULL )
+					{
+						first_visible_node = first_visible_node->parent->next;
+					}
+					else
+					{
+						first_visible_node = first_visible_node->next;
+					}
+				}
+				else
+				{
+					if ( first_visible_index > 0 )
+					{
+						--first_visible_index;
+
+						if ( first_visible_node->parent == NULL )
+						{
+							--first_visible_root_index;
+						}
+
+						first_visible_node = TLV_PrevNode( first_visible_node, false );
+					}
+				}
 			}
 		}
 
-		LeaveCriticalSection( &cleanup_cs );
+		TREELISTNODE *del_tln = tln;
+
+		++sel_index;
+		if ( tln->is_expanded )
+		{
+			sel_index += tln->child_count;
+		}
+
+		tln = tln->next;
+
+		TLV_RemoveNode( &g_tree_list, del_tln );
+
+		total_item_count += TLV_FreeTree( del_tln );
+
+		if ( last_sel )
+		{
+			break;
+		}
 	}
+
+	// Update our internal values.
+	TLV_SetFirstVisibleRootIndex( first_visible_root_index );
+	TLV_SetFirstVisibleItem( first_visible_node );
+	TLV_SetFirstVisibleIndex( first_visible_index );
+	TLV_SetTotalItemCount( TLV_GetTotalItemCount() - total_item_count );
+	TLV_SetExpandedItemCount( TLV_GetExpandedItemCount() - expanded_item_count );
+	TLV_SetRootItemCount( TLV_GetRootItemCount() - root_item_count );
+	TLV_SetFocusedItem( NULL );
+	TLV_SetFocusedIndex( -1 );
+	TLV_SetSelectedCount( 0 );
+	TLV_ResetSelectionBounds();
 
 	if ( handle_type == 1 && !delete_success )
 	{
@@ -400,14 +523,9 @@ THREAD_RETURN remove_items( void *pArguments )
 		}
 	}
 
-	if ( index_array != NULL )
-	{
-		GlobalFree( index_array );
-	}
+	g_download_history_changed = true;
 
-	download_history_changed = true;
-
-	skip_list_draw = false;
+	_SendMessageW( g_hWnd_tlv_files, TLVM_TOGGLE_DRAW, FALSE, NULL );
 
 	ProcessingList( false );
 
@@ -459,7 +577,7 @@ THREAD_RETURN handle_download_list( void *pArguments )
 				DoublyLinkedList *context_node;
 				unsigned int status;
 
-				EnterCriticalSection( &di->shared_cs );
+				EnterCriticalSection( &di->di_cs );
 
 				// Make sure the status is exclusively connecting or downloading.
 				if ( di->status == STATUS_CONNECTING ||
@@ -470,7 +588,7 @@ THREAD_RETURN handle_download_list( void *pArguments )
 					context_node = di->parts_list;
 					status = di->status;
 
-					LeaveCriticalSection( &di->shared_cs );
+					LeaveCriticalSection( &di->di_cs );
 
 					while ( context_node != NULL )
 					{
@@ -492,7 +610,7 @@ THREAD_RETURN handle_download_list( void *pArguments )
 				}
 				else
 				{
-					LeaveCriticalSection( &di->shared_cs );
+					LeaveCriticalSection( &di->di_cs );
 				}
 			}
 
@@ -518,11 +636,11 @@ THREAD_RETURN handle_download_list( void *pArguments )
 
 			if ( di != NULL )
 			{
-				EnterCriticalSection( &di->shared_cs );
+				EnterCriticalSection( &di->di_cs );
 
 				di->status = STATUS_STOPPED;
 
-				LeaveCriticalSection( &di->shared_cs );
+				LeaveCriticalSection( &di->di_cs );
 
 				// Remove the item from the download queue.
 				DLL_RemoveNode( &download_queue, &di->queue_node );
@@ -550,7 +668,7 @@ THREAD_RETURN handle_download_list( void *pArguments )
 			{
 				DoublyLinkedList *context_node;
 
-				EnterCriticalSection( &di->shared_cs );
+				EnterCriticalSection( &di->di_cs );
 
 				// Connecting, Downloading, Paused, Queued.
 				if ( IS_STATUS( di->status,
@@ -562,7 +680,7 @@ THREAD_RETURN handle_download_list( void *pArguments )
 					{
 						context_node = di->parts_list;
 
-						LeaveCriticalSection( &di->shared_cs );
+						LeaveCriticalSection( &di->di_cs );
 
 						// di->status will be set to STATUS_STOPPED in CleanupConnection().
 						while ( context_node != NULL )
@@ -589,12 +707,12 @@ THREAD_RETURN handle_download_list( void *pArguments )
 							LeaveCriticalSection( &download_queue_cs );
 						}
 
-						LeaveCriticalSection( &di->shared_cs );
+						LeaveCriticalSection( &di->di_cs );
 					}
 				}
 				else
 				{
-					LeaveCriticalSection( &di->shared_cs );
+					LeaveCriticalSection( &di->di_cs );
 				}
 			}
 
@@ -605,17 +723,25 @@ THREAD_RETURN handle_download_list( void *pArguments )
 	}
 	else if ( handle_type == 2 )	// Remove completed downloads.
 	{
-		// Get the number of items in the listview.
-		int num_items = ( int )_SendMessageW( g_hWnd_files, LVM_GETITEMCOUNT, 0, 0 );
+		// Prevent the listviews from drawing while freeing lParam values.
+		_SendMessageW( g_hWnd_tlv_files, TLVM_TOGGLE_DRAW, TRUE, NULL );
 
-		LVITEM lvi;
-		_memzero( &lvi, sizeof( LVITEM ) );
-		lvi.mask = LVIF_PARAM;
+		int item_count = TLV_GetExpandedItemCount();
+		int visible_item_count = TLV_GetVisibleItemCount();
+		int first_visible_index = TLV_GetFirstVisibleIndex();
+		int old_first_visible_index = first_visible_index;
+		int expanded_item_count = 0;
+		int root_item_count = 0;
+		int total_item_count = 0;
+		int selected_count = 0;
+		TREELISTNODE *first_visible_node = TLV_GetFirstVisibleItem();
 
-		_SendMessageW( g_hWnd_files, LVM_ENSUREVISIBLE, 0, FALSE );
+		int first_visible_root_index = TLV_GetFirstVisibleRootIndex();
 
-		// Start from the end and work backwards.
-		for ( lvi.iItem = num_items - 1; lvi.iItem >= 0; --lvi.iItem )
+		TREELISTNODE *tln = g_tree_list;
+		int item_index = 0;
+
+		while ( tln != NULL )
 		{
 			// Stop processing and exit the thread.
 			if ( kill_worker_thread_flag )
@@ -623,109 +749,295 @@ THREAD_RETURN handle_download_list( void *pArguments )
 				break;
 			}
 
-			_SendMessageW( g_hWnd_files, LVM_GETITEM, 0, ( LPARAM )&lvi );
+			bool remove_item = false;
 
-			DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )lvi.lParam;
+			DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )tln->data;
 			if ( di != NULL )
 			{
-				bool remove_item = false;
-
-				EnterCriticalSection( &di->shared_cs );
+				EnterCriticalSection( &di->di_cs );
 
 				if ( di->status == STATUS_COMPLETED )
 				{
 					remove_item = true;
 				}
 
-				LeaveCriticalSection( &di->shared_cs );
+				LeaveCriticalSection( &di->di_cs );
+			}
 
-				if ( remove_item )
+			if ( remove_item )
+			{
+				TREELISTNODE *tln_parent = tln;
+
+				// We'll go through each child regardless of whether it's selected if a group is selected.
+				if ( tln->data_type == TLVDT_GROUP && tln->child != NULL )
 				{
-					_SendMessageW( g_hWnd_files, LVM_DELETEITEM, lvi.iItem, 0 );
+					tln = tln->child;
+				}
 
-					EnterCriticalSection( &icon_cache_cs );
-					// Find the icon info
-					dllrbt_iterator *itr = dllrbt_find( g_icon_handles, ( void * )( di->file_path + di->file_extension_offset ), false );
-
-					// Free its values and remove it from the tree if there are no other items using it.
-					if ( itr != NULL )
+				do
+				{
+					// Stop processing and exit the thread.
+					if ( kill_worker_thread_flag )
 					{
-						ICON_INFO *ii = ( ICON_INFO * )( ( node_type * )itr )->val;
-						if ( ii != NULL )
-						{
-							if ( --ii->count == 0 )
-							{
-								DestroyIcon( ii->icon );
-								GlobalFree( ii->file_extension );
-								GlobalFree( ii );
+						break;
+					}
 
-								dllrbt_remove( g_icon_handles, itr );
+					DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )tln->data;
+					if ( di != NULL )
+					{
+						// Is our update window open and are we removing the item we want to update? Close the window if we are.
+						if ( di == g_update_download_info )
+						{
+							g_update_download_info = NULL;
+
+							_SendMessageW( g_hWnd_update_download, WM_DESTROY_ALT, 0, 0 );
+						}
+
+						_SendMessageW( g_hWnd_main, WM_RESET_PROGRESS, 0, ( LPARAM )di );
+
+						GlobalFree( di->url );
+						GlobalFree( di->cookies );
+						GlobalFree( di->headers );
+						GlobalFree( di->data );
+						//GlobalFree( di->etag );
+						GlobalFree( di->auth_info.username );
+						GlobalFree( di->auth_info.password );
+
+						if ( di->proxy_info != NULL )
+						{
+							GlobalFree( di->proxy_info->hostname );
+							GlobalFree( di->proxy_info->punycode_hostname );
+							GlobalFree( di->proxy_info->w_username );
+							GlobalFree( di->proxy_info->w_password );
+							GlobalFree( di->proxy_info->username );
+							GlobalFree( di->proxy_info->password );
+							GlobalFree( di->proxy_info->auth_key );
+							GlobalFree( di->proxy_info );
+						}
+
+						while ( di->range_list != NULL )
+						{
+							DoublyLinkedList *range_node = di->range_list;
+							di->range_list = di->range_list->next;
+
+							GlobalFree( range_node->data );
+							GlobalFree( range_node );
+						}
+
+						--di->shared_info->hosts;
+
+						DeleteCriticalSection( &di->di_cs );
+
+						if ( di->shared_info->hosts == 0 )
+						{
+							RemoveCachedIcon( di->shared_info );
+
+							GlobalFree( di->shared_info->w_add_time );
+
+							if ( di->shared_info->hFile != INVALID_HANDLE_VALUE )
+							{
+								CloseHandle( di->shared_info->hFile );
+							}
+
+							if ( di != di->shared_info )
+							{
+								GlobalFree( di->shared_info );
+							}
+						}
+
+						GlobalFree( di );
+					}
+
+					if ( tln->flag & TLVS_SELECTED )
+					{
+						++selected_count;
+
+						if ( tln->flag & TLVS_FOCUSED )
+						{
+							TLV_SetFocusedItem( NULL );
+							TLV_SetFocusedIndex( -1 );
+						}
+					}
+
+					tln = tln->next;
+				}
+				while ( tln_parent->child != NULL && tln != NULL );
+
+				tln = tln_parent;
+
+
+				++root_item_count;
+
+				++expanded_item_count;	// Include the parent.
+				if ( tln->is_expanded )
+				{
+					expanded_item_count += tln->child_count;
+				}
+
+				// Update our first visible index and node depending on where the items are being removed.
+				// This allows us to update the scrollbars and scroll position.
+				if ( item_index < old_first_visible_index )
+				{
+					if ( first_visible_node->parent != NULL )
+					{
+						int parent_index = TLV_GetParentIndex( first_visible_node, old_first_visible_index );
+
+						if ( item_index == parent_index )
+						{
+							first_visible_node = first_visible_node->parent->next;
+						}
+						else
+						{
+							--first_visible_root_index;
+						}
+
+						if ( tln->is_expanded && item_index + tln->child_count < old_first_visible_index )
+						{
+							first_visible_index -= ( tln->child_count + 1 );
+						}
+						else
+						{
+							first_visible_index -= ( old_first_visible_index - parent_index );
+						}
+					}
+					else
+					{
+						if ( first_visible_index > 0 )
+						{
+							--first_visible_index;
+
+							if ( tln->is_expanded )
+							{
+								if ( tln->child_count > first_visible_index )
+								{
+									first_visible_index = 0;
+								}
+								else
+								{
+									first_visible_index -= tln->child_count;
+								}
+							}
+
+							--first_visible_root_index;
+						}
+					}
+				}
+				else// if ( item_index >= old_first_visible_index )
+				{
+					int sel_item_count = ( tln->is_expanded ? tln->child_count : 0 ) + 1;
+
+					int remaining_items = item_count - old_first_visible_index - sel_item_count;
+
+					// We can remove the item and the list will move down. (We're at the end of the list).
+					if ( remaining_items < visible_item_count )
+					{
+						sel_item_count = visible_item_count - remaining_items;
+
+						for ( ; sel_item_count > 0 && first_visible_index > 0; --sel_item_count, --first_visible_index )
+						{
+							if ( first_visible_node->parent == NULL )
+							{
+								--first_visible_root_index;
+							}
+
+							first_visible_node = TLV_PrevNode( first_visible_node, false );
+						}
+					}
+					else	// We can remove the item and the list will move up.
+					{
+						if ( tln == first_visible_node )
+						{
+							if ( first_visible_node->parent != NULL )
+							{
+								first_visible_node = first_visible_node->parent->next;
+							}
+							else
+							{
+								first_visible_node = first_visible_node->next;
 							}
 						}
 						else
 						{
-							dllrbt_remove( g_icon_handles, itr );
+							if ( first_visible_index > 0 )
+							{
+								--first_visible_index;
+
+								if ( first_visible_node->parent == NULL )
+								{
+									--first_visible_root_index;
+								}
+
+								first_visible_node = TLV_PrevNode( first_visible_node, false );
+							}
 						}
 					}
-					LeaveCriticalSection( &icon_cache_cs );
-
-					GlobalFree( di->url );
-					GlobalFree( di->w_add_time );
-					GlobalFree( di->cookies );
-					GlobalFree( di->headers );
-					GlobalFree( di->data );
-					//GlobalFree( di->etag );
-					GlobalFree( di->auth_info.username );
-					GlobalFree( di->auth_info.password );
-
-					if ( di->hFile != INVALID_HANDLE_VALUE )
-					{
-						CloseHandle( di->hFile );
-					}
-
-					while ( di->range_list != NULL )
-					{
-						DoublyLinkedList *range_node = di->range_list;
-						di->range_list = di->range_list->next;
-
-						GlobalFree( range_node->data );
-						GlobalFree( range_node );
-					}
-
-					DeleteCriticalSection( &di->shared_cs );
-
-					GlobalFree( di );
 				}
+
+				TREELISTNODE *del_tln = tln;
+
+				++item_index;	// Include the parent.
+				if ( tln->is_expanded )
+				{
+					item_index += tln->child_count;
+				}
+
+				tln = tln->next;
+
+				TLV_RemoveNode( &g_tree_list, del_tln );
+
+				total_item_count += TLV_FreeTree( del_tln );
+			}
+			else
+			{
+				++item_index;	// Include the parent.
+				if ( tln->is_expanded )
+				{
+					item_index += tln->child_count;
+				}
+
+				tln = tln->next;
 			}
 		}
 
-		download_history_changed = true;
+		// Update our internal values.
+		TLV_SetFirstVisibleRootIndex( first_visible_root_index );
+		TLV_SetFirstVisibleItem( first_visible_node );
+		TLV_SetFirstVisibleIndex( first_visible_index );
+		TLV_SetTotalItemCount( TLV_GetTotalItemCount() - total_item_count );
+		TLV_SetExpandedItemCount( TLV_GetExpandedItemCount() - expanded_item_count );
+		TLV_SetRootItemCount( TLV_GetRootItemCount() - root_item_count );
+		TLV_SetSelectedCount( TLV_GetSelectedCount() - selected_count );
+
+		if ( g_tree_list != NULL )
+		{
+			TLV_ResetSelectionBounds();
+			TLV_SetSelectionBounds( 0, g_tree_list );
+			TLV_SetSelectionBounds( TLV_GetExpandedItemCount() - 1, g_tree_list->prev );
+		}
+
+		g_download_history_changed = true;
+
+		_SendMessageW( g_hWnd_tlv_files, TLVM_TOGGLE_DRAW, FALSE, NULL );
 	}
 	else if ( handle_type == 3 )	// Restart selected download (from the beginning).
 	{
-		LVITEM lvi;
-		_memzero( &lvi, sizeof( LVITEM ) );
-		lvi.mask = LVIF_PARAM;
-		lvi.iItem = ( int )_SendMessageW( g_hWnd_files, LVM_GETNEXTITEM, -1, LVNI_FOCUSED | LVNI_SELECTED );
-
-		if ( lvi.iItem != -1 )
+		TREELISTNODE *tln = TLV_GetFocusedItem();
+		if ( tln != NULL )
 		{
-			_SendMessageW( g_hWnd_files, LVM_GETITEM, 0, ( LPARAM )&lvi );
-
-			DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )lvi.lParam;
+			DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )tln->data;
 			if ( di != NULL )
 			{
-				EnterCriticalSection( &di->shared_cs );
+				EnterCriticalSection( &di->di_cs );
 
 				// Ensure that there are no active parts downloading.
 				if ( di->active_parts == 0 )
 				{
-					download_history_changed = true;
+					g_download_history_changed = true;
 
-					ResetDownload( di, true, false );
+					RestartDownload( di, 1, false );
 				}
 
-				LeaveCriticalSection( &di->shared_cs );
+				LeaveCriticalSection( &di->di_cs );
 			}
 		}
 	}
@@ -759,27 +1071,11 @@ THREAD_RETURN handle_connection( void *pArguments )
 
 	ProcessingList( true );
 
-	LVITEM lvi;
-	_memzero( &lvi, sizeof( LVITEM ) );
-	lvi.mask = LVIF_PARAM;
-	lvi.iItem = -1;
+	TREELISTNODE *tln_last_parent = NULL;
 
-	int sel_count = ( int )_SendMessageW( g_hWnd_files, LVM_GETSELECTEDCOUNT, 0, 0 );
-
-	int *index_array = ( int * )GlobalAlloc( GMEM_FIXED, sizeof( int ) * sel_count );
-
-	lvi.iItem = -1;	// Set this to -1 so that the LVM_GETNEXTITEM call can go through the list correctly.
-
-	_EnableWindow( g_hWnd_files, FALSE );	// Prevent any interaction with the listview while we're processing.
-
-	for ( int i = 0; i < sel_count; ++i )
-	{
-		lvi.iItem = index_array[ i ] = ( int )_SendMessageW( g_hWnd_files, LVM_GETNEXTITEM, lvi.iItem, LVNI_SELECTED );
-	}
-
-	_EnableWindow( g_hWnd_files, TRUE );	// Allow the listview to be interactive.
-
-	for ( int i = 0; i < sel_count; ++i )
+	TREELISTNODE *tln;
+	TLV_GetNextSelectedItem( NULL, 0, &tln );
+	while ( tln != NULL )
 	{
 		// Stop processing and exit the thread.
 		if ( kill_worker_thread_flag )
@@ -787,152 +1083,109 @@ THREAD_RETURN handle_connection( void *pArguments )
 			break;
 		}
 
-		EnterCriticalSection( &cleanup_cs );
+		TREELISTNODE *tln_parent = tln;
+		bool is_group = false;
+		bool is_host = false;
 
-		lvi.iItem = index_array[ i ];
-
-		_SendMessageW( g_hWnd_files, LVM_GETITEM, 0, ( LPARAM )&lvi );
-
-		DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )lvi.lParam;
-		if ( di != NULL )
+		// We'll go through each child regardless of whether it's selected if a group is selected.
+		if ( tln->data_type == TLVDT_GROUP && tln->child != NULL )
 		{
-			unsigned int tmp_status;
-
-			EnterCriticalSection( &di->shared_cs );
-
-			// Make sure we're not already in the process of shutting down or closing the connection.
-			if ( di->status != status )
+			if ( tln->data != NULL )
 			{
-				if ( di->status != STATUS_COMPLETED )
+				( ( DOWNLOAD_INFO * )tln->data )->shared_status = 0;	// Reset.
+			}
+
+			tln = tln->child;
+
+			is_group = true;
+		}
+		else if ( tln->data_type == TLVDT_HOST )	// One or more children in a group is selected (but not the group item).
+		{
+			// Determine the status for all the children in the group that aren't selected.
+			if ( tln_last_parent != tln->parent && tln->parent != NULL && tln->parent->data != NULL )
+			{
+				tln_last_parent = tln->parent;
+
+				unsigned int shared_status = 0;
+
+				TREELISTNODE *tln_children = tln->parent->child;
+				while ( tln_children != NULL )
 				{
-					DoublyLinkedList *context_node = di->parts_list;
-					SOCKET_CONTEXT *context;
-
-					// Make sure the status is exclusively connecting or downloading.
-					if ( di->status == STATUS_CONNECTING ||
-						 di->status == STATUS_DOWNLOADING )
+					// Skip the selected children 
+					if ( !( tln_children->flag & TLVS_SELECTED ) )
 					{
-						if ( status == STATUS_STOPPED ||
-							 status == STATUS_RESTART )	// Stop (close) the active connection.
+						DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )tln_children->data;
+						if ( di != NULL )
 						{
-							if ( status == STATUS_RESTART )
-							{
-								di->status = STATUS_STOPPED | STATUS_RESTART;
-
-								tmp_status = di->status;
-							}
-							else
-							{
-								tmp_status = STATUS_STOPPED;
-							}
-
-							LeaveCriticalSection( &di->shared_cs );
-
-							// di->status will be set to STATUS_STOPPED in CleanupConnection().
-							while ( context_node != NULL )
-							{
-								context = ( SOCKET_CONTEXT * )context_node->data;
-
-								context_node = context_node->next;
-
-								if ( context != NULL )
-								{
-									EnterCriticalSection( &context->context_cs );
-
-									context->status = tmp_status;
-
-									if ( context->cleanup == 0 )
-									{
-										context->cleanup = 2;	// Force the cleanup.
-
-										InterlockedIncrement( &context->pending_operations );
-
-										context->overlapped_close.current_operation = ( context->ssl != NULL ? IO_Shutdown : IO_Close );
-
-										PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped_close );
-									}
-
-									LeaveCriticalSection( &context->context_cs );
-								}
-							}
+							shared_status |= di->status;
 						}
-						else if ( status == STATUS_PAUSED )
-						{
-							di->status |= STATUS_PAUSED;
-
-							tmp_status = di->status;
-
-							LeaveCriticalSection( &di->shared_cs );
-
-							while ( context_node != NULL )
-							{
-								context = ( SOCKET_CONTEXT * )context_node->data;
-
-								context_node = context_node->next;
-
-								if ( context != NULL )
-								{
-									EnterCriticalSection( &context->context_cs );
-
-									context->is_paused = false;	// Set to true when last IO operation has completed.
-
-									context->status = tmp_status;
-
-									LeaveCriticalSection( &context->context_cs );
-								}
-							}
-						}
-						else
-						{
-							LeaveCriticalSection( &di->shared_cs );
-						}
-						/*else
-						{
-							di->status = status;
-
-							LeaveCriticalSection( &di->shared_cs );
-
-							while ( context_node != NULL )
-							{
-								context = ( SOCKET_CONTEXT * )context_node->data;
-
-								context_node = context_node->next;
-
-								if ( context != NULL )
-								{
-									EnterCriticalSection( &context->context_cs );
-
-									context->status = status;
-
-									LeaveCriticalSection( &context->context_cs );
-								}
-							}
-						}*/
 					}
-					else if ( IS_STATUS( di->status,
-								 STATUS_PAUSED |
-								 STATUS_QUEUED ) )	// The download is currently paused, or queued.
+
+					tln_children = tln_children->next;
+				}
+
+				( ( DOWNLOAD_INFO * )tln->parent->data )->shared_status = shared_status;
+			}
+
+			is_host = true;
+		}
+
+		do
+		{
+			// Stop processing and exit the thread.
+			if ( kill_worker_thread_flag )
+			{
+				break;
+			}
+
+			EnterCriticalSection( &cleanup_cs );
+
+			DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )tln->data;
+			if ( di != NULL )
+			{
+				unsigned int tmp_status;
+
+				EnterCriticalSection( &di->di_cs );
+
+				// Make sure we're not already in the process of shutting down or closing the connection.
+				if ( di->status != status )
+				{
+					if ( di->status != STATUS_COMPLETED )
 					{
-						if ( status == STATUS_DOWNLOADING ||
-							 status == STATUS_RESTART )	// Resume downloading or restart download.
+						DoublyLinkedList *context_node = di->parts_list;
+						SOCKET_CONTEXT *context;
+
+						// Make sure the status is exclusively connecting or downloading.
+						if ( di->status == STATUS_CONNECTING ||
+							 di->status == STATUS_DOWNLOADING )
 						{
-							// Download is active, continue where we left off.
-							if ( di->download_node.data != NULL )
+							if ( status == STATUS_STOPPED ||
+								 status == STATUS_RESTART )	// Stop (close) the active connection.
 							{
+								// Restarts from the CleanupConnection function.
 								if ( status == STATUS_RESTART )
 								{
 									di->status = STATUS_STOPPED | STATUS_RESTART;
+
+									tmp_status = di->status;
+
+									if ( is_group )
+									{
+										EnterCriticalSection( &di->shared_info->di_cs );
+
+										di->shared_info->status = di->status;
+
+										LeaveCriticalSection( &di->shared_info->di_cs );
+									}
 								}
 								else
 								{
-									di->status &= ~STATUS_PAUSED;
+									tmp_status = STATUS_STOPPED;
 								}
 
-								tmp_status = di->status;
+								LeaveCriticalSection( &di->di_cs );
 
-								LeaveCriticalSection( &di->shared_cs );
-
-								// Run through our parts list and connect to each context.
+								// di->status will be set to STATUS_STOPPED in CleanupConnection().
 								while ( context_node != NULL )
 								{
 									context = ( SOCKET_CONTEXT * )context_node->data;
@@ -945,18 +1198,42 @@ THREAD_RETURN handle_connection( void *pArguments )
 
 										context->status = tmp_status;
 
-										// The paused operation has not completed or it has and is_paused is waiting to be set (when the completion fails).
-										// We'll fall through in IOCPConnection.
-										//if ( !( context->status == STATUS_CONNECTING && !context->is_paused ) )
-										if ( context->is_paused )
+										if ( context->cleanup == 0 )
 										{
-											context->is_paused = false;	// Reset.
+											context->cleanup = 2;	// Force the cleanup.
 
 											InterlockedIncrement( &context->pending_operations );
 
-											// Post a completion status to the completion port that we're going to continue with whatever it left off at.
-											PostQueuedCompletionStatus( g_hIOCP, context->current_bytes_read, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped );
+											context->overlapped_close.current_operation = ( context->ssl != NULL ? IO_Shutdown : IO_Close );
+
+											PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped_close );
 										}
+
+										LeaveCriticalSection( &context->context_cs );
+									}
+								}
+							}
+							else if ( status == STATUS_PAUSED )
+							{
+								di->status |= STATUS_PAUSED;
+
+								tmp_status = di->status;
+
+								LeaveCriticalSection( &di->di_cs );
+
+								while ( context_node != NULL )
+								{
+									context = ( SOCKET_CONTEXT * )context_node->data;
+
+									context_node = context_node->next;
+
+									if ( context != NULL )
+									{
+										EnterCriticalSection( &context->context_cs );
+
+										context->is_paused = false;	// Set to true when last IO operation has completed.
+
+										context->status = tmp_status;
 
 										LeaveCriticalSection( &context->context_cs );
 									}
@@ -964,75 +1241,319 @@ THREAD_RETURN handle_connection( void *pArguments )
 							}
 							else
 							{
-								if ( di->queue_node.data != NULL )	// Download is not active, attempt to resume or queue.
-								{
-									if ( total_downloading < cfg_max_downloads )
-									{
-										EnterCriticalSection( &download_queue_cs );
-
-										if ( download_queue != NULL )
-										{
-											DLL_RemoveNode( &download_queue, &di->queue_node );
-											di->queue_node.data = NULL;
-
-											ResetDownload( di, ( status == STATUS_RESTART ? true : false ), false );
-										}
-
-										LeaveCriticalSection( &download_queue_cs );
-									}
-									/*else
-									{
-										di->status |= STATUS_QUEUED;	// Queued.
-									}*/
-								}
-
-								LeaveCriticalSection( &di->shared_cs );
+								LeaveCriticalSection( &di->di_cs );
 							}
-						}
-						else if ( status == STATUS_STOPPED )	// Stop (close) the active connection.
-						{
-							// Download is active, close the connection.
-							if ( di->download_node.data != NULL )
+							/*else
 							{
-								LeaveCriticalSection( &di->shared_cs );
+								di->status = status;
 
-								// di->status will be set to STATUS_STOPPED in CleanupConnection().
+								LeaveCriticalSection( &di->di_cs );
+
 								while ( context_node != NULL )
 								{
 									context = ( SOCKET_CONTEXT * )context_node->data;
 
 									context_node = context_node->next;
 
-									SetContextStatus( context, STATUS_STOPPED );
+									if ( context != NULL )
+									{
+										EnterCriticalSection( &context->context_cs );
+
+										context->status = status;
+
+										LeaveCriticalSection( &context->context_cs );
+									}
+								}
+							}*/
+						}
+						else if ( IS_STATUS( di->status,
+									 STATUS_PAUSED |
+									 STATUS_QUEUED ) )	// The download is currently paused, or queued.
+						{
+							if ( status == STATUS_DOWNLOADING ||
+								 status == STATUS_RESTART )	// Resume downloading or restart download.
+							{
+								// Download is active, continue where we left off.
+								if ( di->download_node.data != NULL )
+								{
+									// Restarts from the CleanupConnection function.
+									if ( status == STATUS_RESTART )
+									{
+										di->status = STATUS_STOPPED | STATUS_RESTART;
+
+										if ( is_group )
+										{
+											EnterCriticalSection( &di->shared_info->di_cs );
+
+											di->shared_info->status = di->status;
+
+											LeaveCriticalSection( &di->shared_info->di_cs );
+										}
+									}
+									else
+									{
+										di->status &= ~STATUS_PAUSED;
+									}
+
+									tmp_status = di->status;
+
+									LeaveCriticalSection( &di->di_cs );
+
+									// Run through our parts list and connect to each context.
+									while ( context_node != NULL )
+									{
+										context = ( SOCKET_CONTEXT * )context_node->data;
+
+										context_node = context_node->next;
+
+										if ( context != NULL )
+										{
+											EnterCriticalSection( &context->context_cs );
+
+											context->status = tmp_status;
+
+											// The paused operation has not completed or it has and is_paused is waiting to be set (when the completion fails).
+											// We'll fall through in IOCPConnection.
+											//if ( !( context->status == STATUS_CONNECTING && !context->is_paused ) )
+											if ( context->is_paused )
+											{
+												context->is_paused = false;	// Reset.
+
+												InterlockedIncrement( &context->pending_operations );
+
+												// Post a completion status to the completion port that we're going to continue with whatever it left off at.
+												PostQueuedCompletionStatus( g_hIOCP, context->current_bytes_read, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped );
+											}
+
+											LeaveCriticalSection( &context->context_cs );
+										}
+									}
+								}
+								else
+								{
+									if ( di->queue_node.data != NULL )	// Download is not active, attempt to resume or queue.
+									{
+										if ( g_total_downloading < cfg_max_downloads )
+										{
+											EnterCriticalSection( &download_queue_cs );
+
+											if ( download_queue != NULL )
+											{
+												DLL_RemoveNode( &download_queue, &di->queue_node );
+												di->queue_node.data = NULL;
+
+												if ( is_group )
+												{
+													if ( status == STATUS_RESTART )
+													{
+														ResetDownload( di, ( status == STATUS_RESTART ? 1 : 0 ) );
+
+														// Last child, restart group using the first host in the list.
+														if ( tln->next == NULL )
+														{
+															ResetDownload( di, ( status == STATUS_RESTART ? 3 : 0 ) );
+
+															// If we've restarted an active download, then we'll restart the group in the ConnectionCleanup().
+															if ( IS_STATUS_NOT( di->shared_info->status, STATUS_STOPPED | STATUS_RESTART ) )
+															{
+																StartDownload( ( DOWNLOAD_INFO * )di->shared_info->host_list->data, 1, false );
+															}
+														}
+													}
+													else
+													{
+														RestartDownload( di, 0, false );
+													}
+												}
+												else
+												{
+													RestartDownload( di, ( status == STATUS_RESTART ? ( is_host ? 2 : 0 ) : 0 ), false );
+												}
+											}
+
+											LeaveCriticalSection( &download_queue_cs );
+										}
+										/*else
+										{
+											di->status |= STATUS_QUEUED;	// Queued.
+										}*/
+									}
+
+									LeaveCriticalSection( &di->di_cs );
+								}
+							}
+							else if ( status == STATUS_STOPPED )	// Stop (close) the active connection.
+							{
+								// Download is active, close the connection.
+								if ( di->download_node.data != NULL )
+								{
+									LeaveCriticalSection( &di->di_cs );
+
+									// di->status will be set to STATUS_STOPPED in CleanupConnection().
+									while ( context_node != NULL )
+									{
+										context = ( SOCKET_CONTEXT * )context_node->data;
+
+										context_node = context_node->next;
+
+										SetContextStatus( context, STATUS_STOPPED );
+									}
+								}
+								else
+								{
+									if ( di->queue_node.data != NULL )	// Download is queued.
+									{
+										di->status = STATUS_STOPPED;
+
+										EnterCriticalSection( &download_queue_cs );
+
+										// Remove the item from the download queue.
+										DLL_RemoveNode( &download_queue, &di->queue_node );
+										di->queue_node.data = NULL;
+
+										LeaveCriticalSection( &download_queue_cs );
+									}
+
+									LeaveCriticalSection( &di->di_cs );
 								}
 							}
 							else
 							{
-								if ( di->queue_node.data != NULL )	// Download is queued.
+								LeaveCriticalSection( &di->di_cs );
+							}
+							/*else
+							{
+								di->status = status;
+
+								LeaveCriticalSection( &di->di_cs );
+
+								while ( context_node != NULL )
 								{
-									di->status = STATUS_STOPPED;
+									context = ( SOCKET_CONTEXT * )context_node->data;
 
-									EnterCriticalSection( &download_queue_cs );
+									context_node = context_node->next;
 
-									// Remove the item from the download queue.
-									DLL_RemoveNode( &download_queue, &di->queue_node );
-									di->queue_node.data = NULL;
+									if ( context != NULL )
+									{
+										EnterCriticalSection( &context->context_cs );
 
-									LeaveCriticalSection( &download_queue_cs );
+										context->status = status;
+
+										LeaveCriticalSection( &context->context_cs );
+									}
+								}
+							}*/
+						}
+						else if ( IS_STATUS( di->status,
+									 STATUS_STOPPED |
+									 STATUS_TIMED_OUT |
+									 STATUS_FAILED |
+									 STATUS_FILE_IO_ERROR |
+									 STATUS_SKIPPED |
+									 STATUS_AUTH_REQUIRED |
+									 STATUS_PROXY_AUTH_REQUIRED ) )	// The download is currently stopped.
+						{
+							// If this is true, then we've attempted to restart before a connection operation has completed.
+							if ( IS_STATUS( di->status, STATUS_RESTART ) && status == STATUS_STOPPED )
+							{
+								di->status = status;
+
+								LeaveCriticalSection( &di->di_cs );
+
+								while ( context_node != NULL )
+								{
+									context = ( SOCKET_CONTEXT * )context_node->data;
+
+									context_node = context_node->next;
+
+									if ( context != NULL )
+									{
+										EnterCriticalSection( &context->context_cs );
+
+										context->status = status;
+
+										if ( context->cleanup == 0 )
+										{
+											context->cleanup = 1;	// Auto cleanup.
+										}
+
+										// The operation is probably stuck (server isn't responding). Force close the socket it to release the operation.
+										if ( context->pending_operations > 0 )
+										{
+											if ( context->socket != INVALID_SOCKET )
+											{
+												SOCKET s = context->socket;
+												context->socket = INVALID_SOCKET;
+												_shutdown( s, SD_BOTH );
+												_closesocket( s );	// Saves us from having to post if there's already a pending IO operation. Should force the operation to complete.
+											}
+										}
+
+										LeaveCriticalSection( &context->context_cs );
+									}
+								}
+							}
+							else if ( IS_STATUS_NOT( status, STATUS_PAUSED | STATUS_STOPPED ) )
+							{
+								// Ensure that the download is actually stopped and that there are no active parts downloading.
+								if ( di->active_parts == 0 )
+								{
+									g_download_history_changed = true;
+
+									if ( is_group )
+									{
+										if ( status == STATUS_RESTART )
+										{
+											ResetDownload( di, ( status == STATUS_RESTART ? 1 : 0 ) );
+
+											// Last child, restart group using the first host in the list.
+											if ( tln->next == NULL )
+											{
+												ResetDownload( di, ( status == STATUS_RESTART ? 3 : 0 ) );
+
+												// If we've restarted an active download, then we'll restart the group in the ConnectionCleanup().
+												if ( IS_STATUS_NOT( di->shared_info->status, STATUS_STOPPED | STATUS_RESTART ) )
+												{
+													StartDownload( ( DOWNLOAD_INFO * )di->shared_info->host_list->data, 1, ( di->status == STATUS_SKIPPED ? true : false ) );
+												}
+											}
+										}
+										else
+										{
+											RestartDownload( di, 0, ( di->status == STATUS_SKIPPED ? true : false ) );
+										}
+									}
+									else
+									{
+										RestartDownload( di, ( status == STATUS_RESTART ? ( is_host ? 2 : 0 ) : 0 ), ( di->status == STATUS_SKIPPED ? true : false ) );
+									}
 								}
 
-								LeaveCriticalSection( &di->shared_cs );
+								LeaveCriticalSection( &di->di_cs );
 							}
+							else
+							{
+								LeaveCriticalSection( &di->di_cs );
+							}
+						}
+						else if ( di->status == STATUS_MOVING_FILE )
+						{
+							if ( status == STATUS_STOPPED )
+							{
+								di->shared_info->moving_state = 2;	// Cancel.
+							}
+
+							LeaveCriticalSection( &di->di_cs );
 						}
 						else
 						{
-							LeaveCriticalSection( &di->shared_cs );
+							LeaveCriticalSection( &di->di_cs );
 						}
 						/*else
 						{
 							di->status = status;
 
-							LeaveCriticalSection( &di->shared_cs );
+							LeaveCriticalSection( &di->di_cs );
 
 							while ( context_node != NULL )
 							{
@@ -1051,136 +1572,56 @@ THREAD_RETURN handle_connection( void *pArguments )
 							}
 						}*/
 					}
-					else if ( IS_STATUS( di->status,
-								 STATUS_STOPPED |
-								 STATUS_TIMED_OUT |
-								 STATUS_FAILED |
-								 STATUS_FILE_IO_ERROR |
-								 STATUS_SKIPPED |
-								 STATUS_AUTH_REQUIRED |
-								 STATUS_PROXY_AUTH_REQUIRED ) )	// The download is currently stopped.
+					else
 					{
-						// If this is true, then we've attempted to restart before a connection operation has completed.
-						if ( IS_STATUS( di->status, STATUS_RESTART ) && status == STATUS_STOPPED )
+						if ( status == STATUS_RESTART )
 						{
-							di->status = status;
-
-							LeaveCriticalSection( &di->shared_cs );
-
-							while ( context_node != NULL )
+							// Ensure that there are no active parts downloading.
+							if ( di->active_parts == 0 )
 							{
-								context = ( SOCKET_CONTEXT * )context_node->data;
+								g_download_history_changed = true;
 
-								context_node = context_node->next;
-
-								if ( context != NULL )
+								if ( is_group )
 								{
-									EnterCriticalSection( &context->context_cs );
+									ResetDownload( di, 1 );
 
-									context->status = status;
-
-									if ( context->cleanup == 0 )
+									// Last child, restart group using the first host in the list.
+									if ( tln->next == NULL )
 									{
-										context->cleanup = 1;	// Auto cleanup.
-									}
+										ResetDownload( di, 3 );
 
-									// The operation is probably stuck (server isn't responding). Force close the socket it to release the operation.
-									if ( context->pending_operations > 0 )
-									{
-										if ( context->socket != INVALID_SOCKET )
+										// If we've restarted an active download, then we'll restart the group in the ConnectionCleanup().
+										if ( IS_STATUS_NOT( di->shared_info->status, STATUS_STOPPED | STATUS_RESTART ) )
 										{
-											SOCKET s = context->socket;
-											context->socket = INVALID_SOCKET;
-											_shutdown( s, SD_BOTH );
-											_closesocket( s );	// Saves us from having to post if there's already a pending IO operation. Should force the operation to complete.
+											StartDownload( ( DOWNLOAD_INFO * )di->shared_info->host_list->data, 1, false );
 										}
 									}
-
-									LeaveCriticalSection( &context->context_cs );
+								}
+								else
+								{
+									RestartDownload( di, ( is_host ? 2 : 1 ), false );
 								}
 							}
 						}
-						else if ( IS_STATUS_NOT( status, STATUS_PAUSED | STATUS_STOPPED ) )
-						{
-							// Ensure that the download is actually stopped and that there are no active parts downloading.
-							if ( di->active_parts == 0 )
-							{
-								download_history_changed = true;
 
-								ResetDownload( di, ( status == STATUS_RESTART ? true : false ), ( di->status == STATUS_SKIPPED ? true : false ) );
-							}
-
-							LeaveCriticalSection( &di->shared_cs );
-						}
-						else
-						{
-							LeaveCriticalSection( &di->shared_cs );
-						}
+						LeaveCriticalSection( &di->di_cs );
 					}
-					else if ( di->status == STATUS_MOVING_FILE )
-					{
-						if ( status == STATUS_STOPPED )
-						{
-							di->moving_state = 2;	// Cancel.
-						}
-
-						LeaveCriticalSection( &di->shared_cs );
-					}
-					else
-					{
-						LeaveCriticalSection( &di->shared_cs );
-					}
-					/*else
-					{
-						di->status = status;
-
-						LeaveCriticalSection( &di->shared_cs );
-
-						while ( context_node != NULL )
-						{
-							context = ( SOCKET_CONTEXT * )context_node->data;
-
-							context_node = context_node->next;
-
-							if ( context != NULL )
-							{
-								EnterCriticalSection( &context->context_cs );
-
-								context->status = status;
-
-								LeaveCriticalSection( &context->context_cs );
-							}
-						}
-					}*/
 				}
 				else
 				{
-					if ( status == STATUS_RESTART )
-					{
-						// Ensure that there are no active parts downloading.
-						if ( di->active_parts == 0 )
-						{
-							download_history_changed = true;
-
-							ResetDownload( di, true, false );
-						}
-					}
-
-					LeaveCriticalSection( &di->shared_cs );
+					LeaveCriticalSection( &di->di_cs );
 				}
 			}
-			else
-			{
-				LeaveCriticalSection( &di->shared_cs );
-			}
+
+			LeaveCriticalSection( &cleanup_cs );
+
+			tln = tln->next;
 		}
+		while ( tln_parent->child != NULL && tln != NULL );
 
-		LeaveCriticalSection( &cleanup_cs );
-	}
+		tln = tln_parent;
 
-	if ( index_array != NULL )
-	{
-		GlobalFree( index_array );
+		TLV_GetNextSelectedItem( tln, 0, &tln );
 	}
 
 	ProcessingList( false );
@@ -1212,16 +1653,11 @@ THREAD_RETURN handle_download_queue( void *pArguments )
 
 	EnterCriticalSection( &cleanup_cs );
 
-	// Retrieve the lParam value from the selected listview item.
-	LVITEM lvi;
-	_memzero( &lvi, sizeof( LVITEM ) );
-	lvi.mask = LVIF_PARAM;
-	lvi.iItem = ( int )_SendMessageW( g_hWnd_files, LVM_GETNEXTITEM, -1, LVNI_FOCUSED | LVNI_SELECTED );
-
-	if ( lvi.iItem != -1 )
+	TREELISTNODE *tln;
+	TLV_GetNextSelectedItem( NULL, 0, &tln );
+	if ( tln != NULL )
 	{
-		_SendMessageW( g_hWnd_files, LVM_GETITEM, 0, ( LPARAM )&lvi );
-		DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )lvi.lParam;
+		DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )tln->data;
 
 		// Make sure the item is queued.
 		if ( di != NULL && IS_STATUS( di->status, STATUS_QUEUED ) )
@@ -1354,11 +1790,119 @@ THREAD_RETURN handle_download_update( void *pArguments )
 		DOWNLOAD_INFO *di = g_update_download_info;
 		if ( di != NULL )
 		{
-			EnterCriticalSection( &di->shared_cs );
+			EnterCriticalSection( &di->di_cs );
 
 			di->download_speed_limit = ai->download_speed_limit;
 
-			if ( di->parts_limit != ai->parts ||
+			bool proxy_changed = false;
+
+			if ( di->proxy_info == NULL && ai->proxy_info.type != 0 )
+			{
+				di->proxy_info = ( PROXY_INFO * )GlobalAlloc( GPTR, sizeof( PROXY_INFO ) );
+
+				di->proxy_info->type = ai->proxy_info.type;
+				di->proxy_info->ip_address = ai->proxy_info.ip_address;
+				di->proxy_info->port = ai->proxy_info.port;
+				di->proxy_info->address_type = ai->proxy_info.address_type;
+				di->proxy_info->use_authentication = ai->proxy_info.use_authentication;
+				di->proxy_info->resolve_domain_names = ai->proxy_info.resolve_domain_names;
+
+				di->proxy_info->hostname = ai->proxy_info.hostname;
+				ai->proxy_info.hostname = NULL;
+
+				di->proxy_info->punycode_hostname = ai->proxy_info.punycode_hostname;
+				ai->proxy_info.punycode_hostname = NULL;
+
+				di->proxy_info->w_username = ai->proxy_info.w_username;
+				ai->proxy_info.w_username = NULL;
+
+				di->proxy_info->w_password = ai->proxy_info.w_password;
+				ai->proxy_info.w_password = NULL;
+
+				di->proxy_info->username = ai->proxy_info.username;
+				ai->proxy_info.username = NULL;
+
+				di->proxy_info->password = ai->proxy_info.password;
+				ai->proxy_info.password = NULL;
+
+				if ( ( ai->proxy_info.type == 1 || ai->proxy_info.type == 2 ) && ( di->proxy_info->username != NULL && di->proxy_info->password != NULL ) )
+				{
+					int proxy_username_length = lstrlenA( di->proxy_info->username );
+					int proxy_password_length = lstrlenA( di->proxy_info->password );
+
+					CreateBasicAuthorizationKey( di->proxy_info->username, proxy_username_length, di->proxy_info->password, proxy_password_length, &di->proxy_info->auth_key, &di->proxy_info->auth_key_length );
+				}
+				else
+				{
+					di->proxy_info->auth_key = NULL;
+					di->proxy_info->auth_key_length = 0;
+				}
+
+				proxy_changed = true;
+			}
+			else if ( di->proxy_info != NULL &&
+					( di->proxy_info->type != ai->proxy_info.type ||
+					  di->proxy_info->ip_address != ai->proxy_info.ip_address ||
+					  di->proxy_info->port != ai->proxy_info.port ||
+					  di->proxy_info->address_type != ai->proxy_info.address_type ||
+					  di->proxy_info->use_authentication != ai->proxy_info.use_authentication ||
+					  di->proxy_info->resolve_domain_names != ai->proxy_info.resolve_domain_names ||
+					  ( _StrCmpW( di->proxy_info->hostname, ai->proxy_info.hostname ) != 0 ) ||
+					  ( _StrCmpW( di->proxy_info->punycode_hostname, ai->proxy_info.punycode_hostname ) != 0 ) ||
+					  ( _StrCmpW( di->proxy_info->w_username, ai->proxy_info.w_username ) != 0 ) ||
+					  ( _StrCmpW( di->proxy_info->w_password, ai->proxy_info.w_password ) != 0 ) ||
+					  ( _StrCmpA( di->proxy_info->username, ai->proxy_info.username ) != 0 ) ||
+					  ( _StrCmpA( di->proxy_info->password, ai->proxy_info.password ) != 0 ) ) )
+			{
+				di->proxy_info->type = ai->proxy_info.type;
+				di->proxy_info->ip_address = ai->proxy_info.ip_address;
+				di->proxy_info->port = ai->proxy_info.port;
+				di->proxy_info->address_type = ai->proxy_info.address_type;
+				di->proxy_info->use_authentication = ai->proxy_info.use_authentication;
+				di->proxy_info->resolve_domain_names = ai->proxy_info.resolve_domain_names;
+
+				// Swap values and free below.
+				wchar_t *tmp_ptr_w = di->proxy_info->hostname;
+				di->proxy_info->hostname = ai->proxy_info.hostname;
+				ai->proxy_info.hostname = tmp_ptr_w;
+
+				tmp_ptr_w = di->proxy_info->punycode_hostname;
+				di->proxy_info->punycode_hostname = ai->proxy_info.punycode_hostname;
+				ai->proxy_info.punycode_hostname = tmp_ptr_w;
+
+				tmp_ptr_w = di->proxy_info->w_username;
+				di->proxy_info->w_username = ai->proxy_info.w_username;
+				ai->proxy_info.w_username = tmp_ptr_w;
+
+				tmp_ptr_w = di->proxy_info->w_password;
+				di->proxy_info->w_password = ai->proxy_info.w_password;
+				ai->proxy_info.w_password = tmp_ptr_w;
+
+				char *tmp_ptr = di->proxy_info->username;
+				di->proxy_info->username = ai->proxy_info.username;
+				ai->proxy_info.username = tmp_ptr;
+
+				tmp_ptr = di->proxy_info->password;
+				di->proxy_info->password = ai->proxy_info.password;
+				ai->proxy_info.password = tmp_ptr;
+
+				ai->proxy_info.auth_key = di->proxy_info->auth_key;
+				di->proxy_info->auth_key = NULL;
+				di->proxy_info->auth_key_length = 0;
+
+				if ( ( ai->proxy_info.type == 1 || ai->proxy_info.type == 2 ) && ( di->proxy_info->username != NULL && di->proxy_info->password != NULL ) )
+				{
+					int proxy_username_length = lstrlenA( di->proxy_info->username );
+					int proxy_password_length = lstrlenA( di->proxy_info->password );
+
+					CreateBasicAuthorizationKey( di->proxy_info->username, proxy_username_length, di->proxy_info->password, proxy_password_length, &di->proxy_info->auth_key, &di->proxy_info->auth_key_length );
+				}
+
+				proxy_changed = true;
+			}
+
+			if ( proxy_changed ||
+				 di->parts_limit != ai->parts ||
 			   ( ai->urls != NULL && _StrCmpW( di->url, ai->urls ) != 0 ) ||
 				 _StrCmpA( di->headers, ai->utf8_headers ) != 0 ||
 				 _StrCmpA( di->cookies, ai->utf8_cookies ) != 0 ||
@@ -1405,7 +1949,7 @@ THREAD_RETURN handle_download_update( void *pArguments )
 				// Download is active, close the connection.
 				if ( di->download_node.data != NULL )
 				{
-					LeaveCriticalSection( &di->shared_cs );
+					LeaveCriticalSection( &di->di_cs );
 
 					// di->status will be set to STATUS_UPDATING in CleanupConnection().
 					while ( context_node != NULL )
@@ -1419,12 +1963,12 @@ THREAD_RETURN handle_download_update( void *pArguments )
 				}
 				else
 				{
-					LeaveCriticalSection( &di->shared_cs );
+					LeaveCriticalSection( &di->di_cs );
 				}
 			}
 			else
 			{
-				LeaveCriticalSection( &di->shared_cs );
+				LeaveCriticalSection( &di->di_cs );
 			}
 
 			// Sort only the values that can be updated.
@@ -1435,23 +1979,16 @@ THREAD_RETURN handle_download_update( void *pArguments )
 			{
 				SORT_INFO si;
 				si.column = GetColumnIndexFromVirtualIndex( cfg_sorted_column_index, download_columns, NUM_COLUMNS );
-				si.hWnd = g_hWnd_files;
+				si.hWnd = g_hWnd_tlv_files;
 				si.direction = cfg_sorted_direction;
 
-				_SendMessageW( g_hWnd_files, LVM_SORTITEMS, ( WPARAM )&si, ( LPARAM )( PFNLVCOMPARE )DMCompareFunc );
+				_SendMessageW( g_hWnd_tlv_files, TLVM_SORT_ITEMS, NULL, ( LPARAM )&si );
 			}
 		}
 
-		// This is all that should be set for this function.
-		GlobalFree( ai->utf8_data );
-		GlobalFree( ai->utf8_headers );
-		GlobalFree( ai->utf8_cookies );
-		GlobalFree( ai->auth_info.username );
-		GlobalFree( ai->auth_info.password );
-		GlobalFree( ai->urls );
-		GlobalFree( ai );
+		FreeAddInfo( &ai );
 
-		download_history_changed = true;
+		g_download_history_changed = true;
 	}
 
 	g_update_download_info = NULL;
@@ -1488,28 +2025,11 @@ THREAD_RETURN copy_urls( void *pArguments )
 	unsigned int buffer_offset = 0;
 	wchar_t *copy_buffer = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * buffer_size );	// Allocate 8 kilobytes.
 
-	bool add_newline = false;
+	TREELISTNODE *tln_last_parent = NULL;
 
-	LVITEM lvi;
-	_memzero( &lvi, sizeof( LVITEM ) );
-	lvi.mask = LVIF_PARAM;
-	lvi.iItem = -1;	// Set this to -1 so that the LVM_GETNEXTITEM call can go through the list correctly.
-
-	int item_count = ( int )_SendMessageW( g_hWnd_files, LVM_GETITEMCOUNT, 0, 0 );
-	int sel_count = ( int )_SendMessageW( g_hWnd_files, LVM_GETSELECTEDCOUNT, 0, 0 );
-
-	bool copy_all = false;
-	if ( item_count == sel_count )
-	{
-		copy_all = true;
-	}
-	else
-	{
-		item_count = sel_count;
-	}
-
-	// Go through each item, and copy the URL.
-	for ( int i = 0; i < item_count; ++i )
+	TREELISTNODE *tln;
+	TLV_GetNextSelectedItem( NULL, 0, &tln );
+	while ( tln != NULL )
 	{
 		// Stop processing and exit the thread.
 		if ( kill_worker_thread_flag )
@@ -1517,61 +2037,100 @@ THREAD_RETURN copy_urls( void *pArguments )
 			break;
 		}
 
-		if ( copy_all )
+		TREELISTNODE *tln_parent = tln;
+		bool is_group = false;
+		bool is_host = false;
+
+		// We'll go through each child regardless of whether it's selected if a group is selected.
+		if ( tln->data_type == TLVDT_GROUP && tln->child != NULL )
 		{
-			lvi.iItem = i;
-		}
-		else
-		{
-			lvi.iItem = ( int )_SendMessageW( g_hWnd_files, LVM_GETNEXTITEM, lvi.iItem, LVNI_SELECTED );
-		}
+			tln = tln->child;
 
-		_SendMessageW( g_hWnd_files, LVM_GETITEM, 0, ( LPARAM )&lvi );
-
-		DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )lvi.lParam;
-
-		if ( di != NULL )
-		{
-			// We don't really need to do this since the URL will never change.
-			EnterCriticalSection( &di->shared_cs );
-
-			int value_length = lstrlenW( di->url );
-			while ( buffer_offset + value_length + 3 >= buffer_size )	// Add +3 for \t and \r\n
+			if ( tln->data != NULL )
 			{
-				buffer_size += 8192;
-				wchar_t *realloc_buffer = ( wchar_t * )GlobalReAlloc( copy_buffer, sizeof( wchar_t ) * buffer_size, GMEM_MOVEABLE );
-				if ( realloc_buffer == NULL )
-				{
-					LeaveCriticalSection( &di->shared_cs );
-
-					goto CLEANUP;
-				}
-
-				copy_buffer = realloc_buffer;
+				*( copy_buffer + buffer_offset ) = L'{';
+				++buffer_offset;
+				*( copy_buffer + buffer_offset ) = L'\r';
+				++buffer_offset;
+				*( copy_buffer + buffer_offset ) = L'\n';
+				++buffer_offset;
 			}
-			_wmemcpy_s( copy_buffer + buffer_offset, buffer_size - buffer_offset, di->url, value_length );
+		}
 
-			LeaveCriticalSection( &di->shared_cs );
+		do
+		{
+			// Stop processing and exit the thread.
+			if ( kill_worker_thread_flag )
+			{
+				break;
+			}
 
-			buffer_offset += value_length;
+			DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )tln->data;
+			if ( di != NULL )
+			{
+				// We don't really need to do this since the URL will never change.
+				EnterCriticalSection( &di->di_cs );
 
-			add_newline = true;
+				int value_length = lstrlenW( di->url );
+				while ( buffer_offset + value_length + 8 >= buffer_size )	// Add +8 for "\r\n", "{\r\n", and "\r\n}".
+				{
+					buffer_size += 8192;
+					wchar_t *realloc_buffer = ( wchar_t * )GlobalReAlloc( copy_buffer, sizeof( wchar_t ) * buffer_size, GMEM_MOVEABLE );
+					if ( realloc_buffer == NULL )
+					{
+						LeaveCriticalSection( &di->di_cs );
 
-			if ( i < item_count - 1 && add_newline )	// Add newlines for every item except the last.
+						goto CLEANUP;
+					}
+
+					copy_buffer = realloc_buffer;
+				}
+				_wmemcpy_s( copy_buffer + buffer_offset, buffer_size - buffer_offset, di->url, value_length );
+
+				LeaveCriticalSection( &di->di_cs );
+
+				buffer_offset += value_length;
+			}
+
+			tln = tln->next;
+
+			if ( tln_parent->child != NULL && tln != NULL && tln->data != NULL )
 			{
 				*( copy_buffer + buffer_offset ) = L'\r';
 				++buffer_offset;
 				*( copy_buffer + buffer_offset ) = L'\n';
 				++buffer_offset;
 			}
-			else if ( ( i == item_count - 1 && !add_newline ) && buffer_offset >= 2 )	// If add_newline is false for the last item, then a newline character is in the buffer.
-			{
-				buffer_offset -= 2;	// Ignore the last newline in the buffer.
-			}
+		}
+		while ( tln_parent->child != NULL && tln != NULL );
+
+		tln = tln_parent;
+
+		if ( tln_parent->child != NULL && tln_parent->child->data != NULL )
+		{
+			*( copy_buffer + buffer_offset ) = L'\r';
+			++buffer_offset;
+			*( copy_buffer + buffer_offset ) = L'\n';
+			++buffer_offset;
+			*( copy_buffer + buffer_offset ) = L'}';
+			++buffer_offset;
+
+			// Set tln to the last child so that TLV_GetNextSelectedItem can get the next selected.
+			tln = ( tln_parent->child->prev != NULL ? tln_parent->child->prev : tln_parent->child );
+		}
+
+		TLV_GetNextSelectedItem( tln, 0, &tln );
+
+		if ( tln != NULL && tln->data != NULL )
+		{
+			*( copy_buffer + buffer_offset ) = L'\r';
+			++buffer_offset;
+			*( copy_buffer + buffer_offset ) = L'\n';
+			++buffer_offset;
 		}
 	}
 
-	if ( _OpenClipboard( g_hWnd_files ) )
+	if ( _OpenClipboard( g_hWnd_tlv_files ) )
 	{
 		_EmptyClipboard();
 
@@ -1630,6 +2189,8 @@ THREAD_RETURN rename_file( void *pArguments )
 
 	in_worker_thread = true;
 
+	_SendMessageW( g_hWnd_tlv_files, TLVM_TOGGLE_DRAW, TRUE, NULL );
+
 	ProcessingList( true );
 
 	EnterCriticalSection( &cleanup_cs );
@@ -1642,13 +2203,13 @@ THREAD_RETURN rename_file( void *pArguments )
 
 			if ( di != NULL )
 			{
-				if ( di->filename_offset > 0 )
+				if ( di->shared_info->filename_offset > 0 )
 				{
 					bool renamed = true;
 
-					if ( !( di->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
+					if ( !( di->shared_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
 					{
-						if ( di->hFile != INVALID_HANDLE_VALUE )
+						if ( di->shared_info->hFile != INVALID_HANDLE_VALUE )
 						{
 							// Make sure SetFileInformationByHandle is available on our system.
 							if ( kernel32_state != KERNEL32_STATE_SHUTDOWN )
@@ -1665,17 +2226,17 @@ THREAD_RETURN rename_file( void *pArguments )
 								}
 								else
 								{
-									_wmemcpy_s( fri->FileName, MAX_PATH, di->file_path, di->filename_offset );
-									fri->FileName[ di->filename_offset - 1 ] = L'\\';
-									_wmemcpy_s( fri->FileName + di->filename_offset, MAX_PATH - di->filename_offset, ri->filename, ri->filename_length );
-									fri->FileName[ di->filename_offset + ri->filename_length ] = 0;	// Sanity.
-									fri->FileNameLength = di->filename_offset + ri->filename_length;
+									_wmemcpy_s( fri->FileName, MAX_PATH, di->shared_info->file_path, di->shared_info->filename_offset );
+									fri->FileName[ di->shared_info->filename_offset - 1 ] = L'\\';
+									_wmemcpy_s( fri->FileName + di->shared_info->filename_offset, MAX_PATH - di->shared_info->filename_offset, ri->filename, ri->filename_length );
+									fri->FileName[ di->shared_info->filename_offset + ri->filename_length ] = 0;	// Sanity.
+									fri->FileNameLength = di->shared_info->filename_offset + ri->filename_length;
 								}
 
 								fri->ReplaceIfExists = FALSE;
 								fri->RootDirectory = NULL;
 
-								if ( _SetFileInformationByHandle( di->hFile, FileRenameInfo, fri, sizeof( FILE_RENAME_INFO ) + ( sizeof( wchar_t ) * MAX_PATH ) ) == FALSE )
+								if ( _SetFileInformationByHandle( di->shared_info->hFile, FileRenameInfo, fri, sizeof( FILE_RENAME_INFO ) + ( sizeof( wchar_t ) * MAX_PATH ) ) == FALSE )
 								{
 									renamed = false;
 								}
@@ -1707,10 +2268,10 @@ THREAD_RETURN rename_file( void *pArguments )
 							{
 								GetDownloadFilePath( di, old_file_path );
 
-								_wmemcpy_s( new_file_path, MAX_PATH, di->file_path, MAX_PATH - di->filename_offset );
-								new_file_path[ di->filename_offset - 1 ] = L'\\';
-								_wmemcpy_s( new_file_path + di->filename_offset, MAX_PATH - di->filename_offset, ri->filename, ri->filename_length );
-								new_file_path[ di->filename_offset + ri->filename_length ] = 0;	// Sanity.
+								_wmemcpy_s( new_file_path, MAX_PATH, di->shared_info->file_path, MAX_PATH - di->shared_info->filename_offset );
+								new_file_path[ di->shared_info->filename_offset - 1 ] = L'\\';
+								_wmemcpy_s( new_file_path + di->shared_info->filename_offset, MAX_PATH - di->shared_info->filename_offset, ri->filename, ri->filename_length );
+								new_file_path[ di->shared_info->filename_offset + ri->filename_length ] = 0;	// Sanity.
 							}
 
 							if ( MoveFileW( old_file_path, new_file_path ) == FALSE )
@@ -1725,20 +2286,20 @@ THREAD_RETURN rename_file( void *pArguments )
 
 					if ( renamed )
 					{
-						_wmemcpy_s( di->file_path + di->filename_offset, MAX_PATH - di->filename_offset, ri->filename, ri->filename_length );
-						di->file_path[ di->filename_offset + ri->filename_length ] = 0;	// Sanity.
+						_wmemcpy_s( di->shared_info->file_path + di->shared_info->filename_offset, MAX_PATH - di->shared_info->filename_offset, ri->filename, ri->filename_length );
+						di->shared_info->file_path[ di->shared_info->filename_offset + ri->filename_length ] = 0;	// Sanity.
 
 						// Get the new file extension offset.
-						di->file_extension_offset = di->filename_offset + get_file_extension_offset( di->file_path + di->filename_offset, lstrlenW( di->file_path + di->filename_offset ) );
+						di->shared_info->file_extension_offset = di->shared_info->filename_offset + get_file_extension_offset( di->shared_info->file_path + di->shared_info->filename_offset, lstrlenW( di->shared_info->file_path + di->shared_info->filename_offset ) );
 
 						DoublyLinkedList *context_node;
 
 						// If we manually renamed our download, then prevent it from being set elsewhere.
-						EnterCriticalSection( &di->shared_cs );
+						EnterCriticalSection( &di->di_cs );
 
 						context_node = di->parts_list;
 
-						LeaveCriticalSection( &di->shared_cs );
+						LeaveCriticalSection( &di->di_cs );
 
 						while ( context_node != NULL )
 						{
@@ -1756,46 +2317,22 @@ THREAD_RETURN rename_file( void *pArguments )
 							}
 						}
 
-						EnterCriticalSection( &icon_cache_cs );
-						// Find the icon info
-						dllrbt_iterator *itr = dllrbt_find( g_icon_handles, ( void * )( di->file_path + di->file_extension_offset ), false );
-
-						// Free its values and remove it from the tree if there are no other items using it.
-						if ( itr != NULL )
-						{
-							ICON_INFO *ii = ( ICON_INFO * )( ( node_type * )itr )->val;
-							if ( ii != NULL )
-							{
-								if ( --ii->count == 0 )
-								{
-									DestroyIcon( ii->icon );
-									GlobalFree( ii->file_extension );
-									GlobalFree( ii );
-
-									dllrbt_remove( g_icon_handles, itr );
-								}
-							}
-							else
-							{
-								dllrbt_remove( g_icon_handles, itr );
-							}
-						}
-						LeaveCriticalSection( &icon_cache_cs );
+						RemoveCachedIcon( di->shared_info );
 
 						SHFILEINFO *sfi = ( SHFILEINFO * )GlobalAlloc( GMEM_FIXED, sizeof( SHFILEINFO ) );
 
 						// Cache our file's icon.
-						ICON_INFO *ii = CacheIcon( di, sfi );
+						ICON_INFO *ii = CacheIcon( di->shared_info, sfi );
 
-						EnterCriticalSection( &di->shared_cs );
+						EnterCriticalSection( &di->di_cs );
 
-						di->icon = ( ii != NULL ? &ii->icon : NULL );
+						di->shared_info->icon = ( ii != NULL ? &ii->icon : NULL );
 
-						LeaveCriticalSection( &di->shared_cs );
+						LeaveCriticalSection( &di->di_cs );
 
 						GlobalFree( sfi );
 
-						download_history_changed = true;
+						g_download_history_changed = true;
 					}
 					else
 					{
@@ -1824,6 +2361,8 @@ THREAD_RETURN rename_file( void *pArguments )
 	}
 
 	LeaveCriticalSection( &cleanup_cs );
+
+	_SendMessageW( g_hWnd_tlv_files, TLVM_TOGGLE_DRAW, FALSE, NULL );
 
 	ProcessingList( false );
 
@@ -1958,14 +2497,12 @@ THREAD_RETURN import_list( void *pArguments )
 				// Only save if we've imported - not loaded during startup.
 				if ( iei->type == 1 )
 				{
-					download_history_changed = true;	// Assume that entries were added so that we can save the new history during shutdown.
+					g_download_history_changed = true;	// Assume that entries were added so that we can save the new history during shutdown.
 				}
 
 				// Move to the next string.
 				filename = filename + filename_length;
 			}
-
-			_InvalidateRect( g_hWnd_files, NULL, TRUE );
 
 			GlobalFree( iei->file_paths );
 
@@ -2009,26 +2546,11 @@ THREAD_RETURN delete_files( void *pArguments )
 	bool delete_success = true;
 	unsigned char error_type = 0;
 
-	LVITEM lvi;
-	_memzero( &lvi, sizeof( LVITEM ) );
-	lvi.mask = LVIF_PARAM;
-	lvi.iItem = -1;	// Set this to -1 so that the LVM_GETNEXTITEM call can go through the list correctly.
+	int sel_count = TLV_GetSelectedCount();
 
-	int item_count = ( int )_SendMessageW( g_hWnd_files, LVM_GETITEMCOUNT, 0, 0 );
-	int sel_count = ( int )_SendMessageW( g_hWnd_files, LVM_GETSELECTEDCOUNT, 0, 0 );
-
-	bool delete_all = false;
-	if ( item_count == sel_count )
-	{
-		delete_all = true;
-	}
-	else
-	{
-		item_count = sel_count;
-	}
-
-	// Go through each item, and delete the file.
-	for ( int i = 0; i < item_count; ++i )
+	TREELISTNODE *tln;
+	int sel_index = TLV_GetNextSelectedItem( NULL, 0, &tln );
+	while ( tln != NULL )
 	{
 		// Stop processing and exit the thread.
 		if ( kill_worker_thread_flag )
@@ -2036,25 +2558,13 @@ THREAD_RETURN delete_files( void *pArguments )
 			break;
 		}
 
-		if ( delete_all )
-		{
-			lvi.iItem = i;
-		}
-		else
-		{
-			lvi.iItem = ( int )_SendMessageW( g_hWnd_files, LVM_GETNEXTITEM, lvi.iItem, LVNI_SELECTED );
-		}
-
-		_SendMessageW( g_hWnd_files, LVM_GETITEM, 0, ( LPARAM )&lvi );
-
-		DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )lvi.lParam;
-
+		DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )tln->data;
 		if ( di != NULL )
 		{
 			// Stop all active downloads before we delete anything.
 			DoublyLinkedList *context_node;
 
-			EnterCriticalSection( &di->shared_cs );
+			EnterCriticalSection( &di->di_cs );
 
 			// Connecting, Downloading, Paused.
 			if ( IS_STATUS( di->status,
@@ -2066,7 +2576,7 @@ THREAD_RETURN delete_files( void *pArguments )
 				{
 					context_node = di->parts_list;
 
-					LeaveCriticalSection( &di->shared_cs );
+					LeaveCriticalSection( &di->di_cs );
 
 					// di->status will be set to STATUS_STOPPED in CleanupConnection().
 					while ( context_node != NULL )
@@ -2080,15 +2590,15 @@ THREAD_RETURN delete_files( void *pArguments )
 				}
 				else
 				{
-					LeaveCriticalSection( &di->shared_cs );
+					LeaveCriticalSection( &di->di_cs );
 				}
 			}
 			else
 			{
-				LeaveCriticalSection( &di->shared_cs );
+				LeaveCriticalSection( &di->di_cs );
 			}
 
-			if ( !( di->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
+			if ( !( di->shared_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
 			{
 				if ( cfg_use_temp_download_directory && di->status != STATUS_COMPLETED )
 				{
@@ -2115,6 +2625,8 @@ THREAD_RETURN delete_files( void *pArguments )
 				}
 			}
 		}
+
+		sel_index = TLV_GetNextSelectedItem( tln, sel_index, &tln );
 	}
 
 	if ( !delete_success )
@@ -2176,32 +2688,64 @@ THREAD_RETURN search_list( void *pArguments )
 	{
 		if ( si->text != NULL )
 		{
-			LVITEM lvi, new_lvi;
+			TREELISTNODE *last_sel_tln = NULL;
 
-			_memzero( &lvi, sizeof( LVITEM ) );
-			lvi.mask = LVIF_PARAM | LVIF_STATE;
-			lvi.stateMask = LVIS_FOCUSED | LVIS_SELECTED;
+			TREELISTNODE *tln = TLV_GetFocusedItem();
+			int current_item_index = TLV_GetFocusedIndex();
 
-			_memzero( &new_lvi, sizeof( LVITEM ) );
-			new_lvi.mask = LVIF_STATE;
-			new_lvi.state = LVIS_FOCUSED | LVIS_SELECTED;
-			new_lvi.stateMask = LVIS_FOCUSED | LVIS_SELECTED;
-
-			int item_count = ( int )_SendMessageW( g_hWnd_files, LVM_GETITEMCOUNT, 0, 0 );
-
-			int current_item_index;
-
-			if ( si->search_all )
+			// If we're searching for filenames.
+			if ( si->type == 0 )
 			{
-				current_item_index = 0;
+				if ( tln != NULL )
+				{
+					if ( tln->parent != NULL )
+					{
+						// Include the parent.
+						current_item_index = TLV_GetParentIndex( tln, current_item_index ) + 1;
+
+						if ( tln->parent->is_expanded )
+						{
+							current_item_index += tln->parent->child_count;
+						}
+
+						tln = tln->parent->next;
+					}
+					else
+					{
+						++current_item_index;
+
+						if ( tln->is_expanded )
+						{
+							current_item_index += tln->child_count;
+						}
+
+						tln = tln->next;
+					}
+				}
 			}
 			else
 			{
-				current_item_index = ( int )_SendMessageW( g_hWnd_files, LVM_GETNEXTITEM, -1, LVNI_FOCUSED | LVNI_SELECTED ) + 1;
+				tln = TLV_NextNode( tln, false );
+				if ( tln != NULL )
+				{
+					++current_item_index;
+				}
 			}
 
-			// Go through each item, and delete the file.
-			for ( int i = 0; i < item_count; ++i, ++current_item_index )
+			if ( tln == NULL )
+			{
+				tln = g_tree_list;
+				current_item_index = 0;
+			}
+
+			TREELISTNODE *start_tln = tln;
+
+			TLV_ClearSelected( false, false );
+			TLV_ResetSelectionBounds();
+
+			int sel_count = 0;
+
+			do
 			{
 				// Stop processing and exit the thread.
 				if ( kill_worker_thread_flag )
@@ -2209,21 +2753,12 @@ THREAD_RETURN search_list( void *pArguments )
 					break;
 				}
 
-				if ( current_item_index >= item_count )
-				{
-					current_item_index = 0;
-				}
-
-				lvi.iItem = current_item_index;
-				_SendMessageW( g_hWnd_files, LVM_GETITEM, 0, ( LPARAM )&lvi );
-
-				DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )lvi.lParam;
-
+				DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )tln->data;
 				if ( di != NULL )
 				{
 					bool found_match = false;
 
-					wchar_t *text = ( si->type == 1 ? di->url : ( di->file_path + di->filename_offset ) );
+					wchar_t *text = ( si->type == 1 ? di->url : ( di->shared_info->file_path + di->shared_info->filename_offset ) );
 
 					if ( si->search_flag == 0x04 )	// Regular expression search.
 					{
@@ -2286,32 +2821,105 @@ THREAD_RETURN search_list( void *pArguments )
 
 					if ( found_match )
 					{
-						if ( !si->search_all )
+						++sel_count;
+
+						TLV_SetSelectionBounds( current_item_index, tln );
+
+						TLV_SetFocusedItem( tln );
+						TLV_SetFocusedIndex( current_item_index );
+
+						if ( last_sel_tln != NULL )
 						{
-							new_lvi.state = 0;
-							_SendMessageW( g_hWnd_files, LVM_SETITEMSTATE, -1, ( LPARAM )&new_lvi );
+							last_sel_tln->flag = TLVS_SELECTED;
 						}
 
-						new_lvi.state = LVIS_FOCUSED | LVIS_SELECTED;
-						_SendMessageW( g_hWnd_files, LVM_SETITEMSTATE, current_item_index, ( LPARAM )&new_lvi );
+						tln->flag = TLVS_SELECTED | TLVS_FOCUSED;
+
+						last_sel_tln = tln;
 
 						if ( !si->search_all )
 						{
-							_SendMessageW( g_hWnd_files, LVM_ENSUREVISIBLE, current_item_index, FALSE );
+							int visible_item_count = TLV_GetVisibleItemCount();
+							int first_visible_index = TLV_GetFirstVisibleIndex();
+
+							if ( current_item_index >= first_visible_index + visible_item_count )
+							{
+								TREELISTNODE *first_visible_node = tln;
+
+								for ( ; visible_item_count > 1 && first_visible_node != g_tree_list; --current_item_index, --visible_item_count )
+								{
+									first_visible_node = TLV_PrevNode( first_visible_node, false );
+								}
+
+								int root_index = TLV_GetFirstVisibleRootIndex();
+
+								TREELISTNODE *current_first_visible_parent_node = TLV_GetFirstVisibleItem();
+								current_first_visible_parent_node = ( current_first_visible_parent_node != NULL && current_first_visible_parent_node->parent != NULL ? current_first_visible_parent_node->parent : current_first_visible_parent_node );
+								TREELISTNODE *first_visible_parent_node = ( first_visible_node != NULL && first_visible_node->parent != NULL ? first_visible_node->parent : first_visible_node );
+								while ( current_first_visible_parent_node != NULL && current_first_visible_parent_node != first_visible_parent_node )
+								{
+									++root_index;
+
+									current_first_visible_parent_node = current_first_visible_parent_node->next;
+								}
+
+								TLV_SetFirstVisibleRootIndex( root_index );
+
+								TLV_SetFirstVisibleItem( first_visible_node );
+								TLV_SetFirstVisibleIndex( current_item_index );
+							}
+							else if ( current_item_index < first_visible_index )
+							{
+								int root_index = TLV_GetFirstVisibleRootIndex();
+
+								TREELISTNODE *current_first_visible_parent_node = TLV_GetFirstVisibleItem();
+								current_first_visible_parent_node = ( current_first_visible_parent_node != NULL && current_first_visible_parent_node->parent != NULL ? current_first_visible_parent_node->parent : current_first_visible_parent_node );
+								TREELISTNODE *first_visible_parent_node = ( tln != NULL && tln->parent != NULL ? tln->parent : tln );
+								while ( current_first_visible_parent_node != NULL && current_first_visible_parent_node != first_visible_parent_node )
+								{
+									--root_index;
+
+									current_first_visible_parent_node = current_first_visible_parent_node->prev;
+								}
+
+								TLV_SetFirstVisibleRootIndex( root_index );
+
+								TLV_SetFirstVisibleItem( tln );
+								TLV_SetFirstVisibleIndex( current_item_index );
+							}
 
 							break;
 						}
 					}
-					else
+				}
+
+				++current_item_index;
+
+				// If we're searching for filenames.
+				if ( si->type == 0 )
+				{
+					if ( tln->is_expanded )
 					{
-						if ( lvi.state & LVIS_SELECTED )
-						{
-							new_lvi.state = 0;
-							_SendMessageW( g_hWnd_files, LVM_SETITEMSTATE, current_item_index, ( LPARAM )&new_lvi );
-						}
+						current_item_index += tln->child_count;
 					}
+
+					// Search root nodes.
+					tln = tln->next;
+				}
+				else
+				{
+					tln = TLV_NextNode( tln, false );
+				}
+
+				if ( tln == NULL )
+				{
+					tln = g_tree_list;
+					current_item_index = 0;
 				}
 			}
+			while ( tln != start_tln );
+
+			TLV_SetSelectedCount( sel_count );
 
 			GlobalFree( si->text );
 		}
@@ -2558,7 +3166,7 @@ THREAD_RETURN process_command_line_args( void *pArguments )
 
 			ai->parts = ( cla->parts != 0 ? cla->parts : cfg_default_download_parts );
 			ai->download_speed_limit = cla->download_speed_limit;
-			ai->ssl_version = ( cla->ssl_version != -1 ? cla->ssl_version : cfg_default_ssl_version );
+			ai->ssl_version = ( cla->ssl_version != 0 ? cla->ssl_version : cfg_default_ssl_version + 1 );
 
 			if ( cla->urls != NULL )
 			{
@@ -2602,6 +3210,59 @@ THREAD_RETURN process_command_line_args( void *pArguments )
 				WideCharToMultiByte( CP_UTF8, 0, cla->password, cla->password_length + 1, ai->auth_info.password, utf8_val_length, NULL, NULL );
 			}
 
+			ai->proxy_info.type = cla->proxy_type;
+
+			if ( ai->proxy_info.type != 0 )
+			{
+				if ( cla->proxy_hostname != NULL )
+				{
+					ai->proxy_info.hostname = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( cla->proxy_hostname_length + 1 ) );
+					_wmemcpy_s( ai->proxy_info.hostname, cla->proxy_hostname_length + 1, cla->urls, cla->proxy_hostname_length );
+					ai->proxy_info.hostname[ cla->proxy_hostname_length ] = 0;	// Sanity.
+
+					if ( normaliz_state == NORMALIZ_STATE_RUNNING )
+					{
+						int punycode_length = _IdnToAscii( 0, ai->proxy_info.hostname, cla->proxy_hostname_length + 1, NULL, 0 );
+
+						if ( punycode_length > ( int )( cla->proxy_hostname_length + 1 ) )
+						{
+							ai->proxy_info.punycode_hostname = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * punycode_length );
+							_IdnToAscii( 0, ai->proxy_info.hostname, cla->proxy_hostname_length + 1, ai->proxy_info.punycode_hostname, punycode_length );
+						}
+					}
+
+					ai->proxy_info.address_type = 0;
+				}
+				else
+				{
+					ai->proxy_info.ip_address = cla->proxy_ip_address;
+
+					ai->proxy_info.address_type = 1;
+				}
+
+				ai->proxy_info.port = cla->proxy_port;
+
+				if ( cla->proxy_username != NULL )
+				{
+					ai->proxy_info.w_username = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( cla->proxy_username_length + 1 ) );
+					_wmemcpy_s( ai->proxy_info.w_username, cla->proxy_username_length + 1, cla->urls, cla->proxy_username_length );
+					ai->proxy_info.w_username[ cla->proxy_username_length ] = 0;	// Sanity.
+
+					ai->proxy_info.use_authentication = true;
+				}
+
+				if ( cla->proxy_password != NULL )
+				{
+					ai->proxy_info.w_password = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( cla->proxy_password_length + 1 ) );
+					_wmemcpy_s( ai->proxy_info.w_password, cla->proxy_password_length + 1, cla->urls, cla->proxy_password_length );
+					ai->proxy_info.w_password[ cla->proxy_password_length ] = 0;	// Sanity.
+
+					ai->proxy_info.use_authentication = true;
+				}
+
+				ai->proxy_info.resolve_domain_names = cla->proxy_resolve_domain_names;
+			}
+
 			// ai is freed in AddURL.
 			HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, AddURL, ( void * )ai, 0, NULL );
 			if ( thread != NULL )
@@ -2610,14 +3271,7 @@ THREAD_RETURN process_command_line_args( void *pArguments )
 			}
 			else
 			{
-				GlobalFree( ai->utf8_data );
-				GlobalFree( ai->utf8_headers );
-				GlobalFree( ai->utf8_cookies );
-				GlobalFree( ai->auth_info.username );
-				GlobalFree( ai->auth_info.password );
-				GlobalFree( ai->download_directory );
-				GlobalFree( ai->urls );
-				GlobalFree( ai );
+				FreeAddInfo( &ai );
 			}
 		}
 		else if ( cla->urls != NULL )
@@ -2625,16 +3279,7 @@ THREAD_RETURN process_command_line_args( void *pArguments )
 			_SendMessageW( g_hWnd_main, WM_PROPAGATE, -1, ( LPARAM )cla );
 		}
 
-		GlobalFree( cla->download_directory );
-		GlobalFree( cla->download_history_file );
-		GlobalFree( cla->url_list_file );
-		GlobalFree( cla->urls );
-		GlobalFree( cla->cookies );
-		GlobalFree( cla->headers );
-		GlobalFree( cla->data );
-		GlobalFree( cla->username );
-		GlobalFree( cla->password );
-		GlobalFree( cla );
+		FreeCommandLineArgs( &cla );
 	}
 
 	ProcessingList( false );
@@ -2661,7 +3306,7 @@ THREAD_RETURN save_session( void *pArguments )
 
 	in_worker_thread = true;
 
-	if ( cfg_enable_download_history && download_history_changed )
+	if ( cfg_enable_download_history && g_download_history_changed )
 	{
 		wchar_t t_base_directory[ MAX_PATH ];
 
@@ -2670,7 +3315,7 @@ THREAD_RETURN save_session( void *pArguments )
 		t_base_directory[ base_directory_length + 17 ] = 0;	// Sanity.
 
 		save_download_history( t_base_directory );
-		download_history_changed = false;
+		g_download_history_changed = false;
 	}
 
 	// Release the semaphore if we're killing the thread.

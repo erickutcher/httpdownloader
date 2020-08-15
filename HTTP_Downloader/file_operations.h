@@ -19,9 +19,9 @@
 #ifndef _FILE_OPERATIONS_H
 #define _FILE_OPERATIONS_H
 
-#define MAGIC_ID_SETTINGS		"HDM\x05"	// Version 6
-#define MAGIC_ID_DOWNLOADS		"HDM\x14"	// Version 5
-#define MAGIC_ID_LOGINS			"HDM\x20"	// Version 1
+#define MAGIC_ID_SETTINGS		"HDM\x06"	// Version 7
+#define MAGIC_ID_DOWNLOADS		"HDM\x15"	// Version 6
+#define MAGIC_ID_SITES			"HDM\x21"	// Version 2
 
 char read_config();
 char save_config();

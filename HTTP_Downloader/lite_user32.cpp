@@ -128,6 +128,7 @@
 	//pSetWindowTextW			_SetWindowTextW;
 	pShowWindow				_ShowWindow;
 	pSystemParametersInfoW	_SystemParametersInfoW;
+	pTrackMouseEvent		_TrackMouseEvent;
 	pTrackPopupMenu			_TrackPopupMenu;
 	pTranslateMessage		_TranslateMessage;
 
@@ -256,6 +257,7 @@
 		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_SetWindowTextW, "SetWindowTextW" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_ShowWindow, "ShowWindow" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_SystemParametersInfoW, "SystemParametersInfoW" ) )
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_TrackMouseEvent, "TrackMouseEvent" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_TrackPopupMenu, "TrackPopupMenu" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_TranslateMessage, "TranslateMessage" ) )
 

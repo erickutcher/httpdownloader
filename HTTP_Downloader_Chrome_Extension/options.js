@@ -1,38 +1,14 @@
 function SaveOptions()
 {
-	var s_parts = document.getElementById( "parts" ).value;
-	var i_parts = parseInt( s_parts );
-	if ( isNaN( i_parts ) || i_parts < 0 )
-	{
-		s_parts = "0";	// Default.
-	}
-	else if ( i_parts > 100 )
-	{
-		s_parts = "100";	// Max.
-	}
-
-	var s_speed_limit = document.getElementById( "speed_limit" ).value;
-	var i_speed_limit = parseInt( s_speed_limit );
-	if ( isNaN( i_speed_limit ) || i_speed_limit < 0 )
-	{
-		s_speed_limit = "0";	// Default.
-	}
-	else if ( i_speed_limit > 18446744073709551615 )
-	{
-		s_speed_limit = "18446744073709551615";	// Max.
-	}
-
 	chrome.storage.local.set(
 	{
 		server: document.getElementById( "server" ).value,
 		username: btoa( document.getElementById( "username" ).value ),
 		password: btoa( document.getElementById( "password" ).value ),
-		parts: s_parts,
-		default_download_speed_limit: s_speed_limit,
-		default_directory: document.getElementById( "default_directory" ).value,
 		user_agent: document.getElementById( "user_agent" ).checked,
 		referer: document.getElementById( "referer" ).checked,
 		override: document.getElementById( "override" ).checked,
+		override_prompts: document.getElementById( "override_prompts" ).checked,
 		show_add_window: document.getElementById( "show_add_window" ).checked
 	}, function()
 	{
@@ -52,23 +28,19 @@ function RestoreOptions()
 		if ( typeof options.server == "undefined" ) { options.server = "http://localhost:80/"; }
 		if ( typeof options.username == "undefined" ) { options.username = ""; }
 		if ( typeof options.password == "undefined" ) { options.password = ""; }
-		if ( typeof options.parts == "undefined" ) { options.parts = "1"; }
-		if ( typeof options.default_download_speed_limit == "undefined" ) { options.default_download_speed_limit = "0"; }
-		if ( typeof options.default_directory == "undefined" ) { options.default_directory = ""; }
 		if ( typeof options.user_agent == "undefined" ) { options.user_agent = true; }
 		if ( typeof options.referer == "undefined" ) { options.referer = true; }
 		if ( typeof options.override == "undefined" ) { options.override = false; }
+		if ( typeof options.override_prompts == "undefined" ) { options.override_prompts = true; }
 		if ( typeof options.show_add_window == "undefined" ) { options.show_add_window = false; }
 
 		document.getElementById( "server" ).value = options.server;
 		document.getElementById( "username" ).value = atob( options.username );
 		document.getElementById( "password" ).value = atob( options.password );
-		document.getElementById( "parts" ).value = options.parts;
-		document.getElementById( "speed_limit" ).value = options.default_download_speed_limit;
-		document.getElementById( "default_directory" ).value = atob( options.default_directory );
 		document.getElementById( "user_agent" ).checked = options.user_agent;
 		document.getElementById( "referer" ).checked = options.referer;
 		document.getElementById( "override" ).checked = options.override;
+		document.getElementById( "override_prompts" ).checked = options.override_prompts;
 		document.getElementById( "show_add_window" ).checked = options.show_add_window;
 		document.getElementById( "show_add_window" ).disabled = !options.override;
 	} );
@@ -78,14 +50,7 @@ document.addEventListener( "DOMContentLoaded", function()
 {
 	document.querySelectorAll( "[data-i18n]" ).forEach( el =>
 	{
-		if ( el.id == "default_directory" )
-		{
-			el.placeholder = chrome.i18n.getMessage( el.dataset.i18n );
-		}
-		else
-		{
-			el.innerText = chrome.i18n.getMessage( el.dataset.i18n );
-		}
+		el.innerText = chrome.i18n.getMessage( el.dataset.i18n );
 	} );
 
 	document.getElementById( "ok" ).addEventListener( "click", function(){ SaveOptions(); window.close(); } );

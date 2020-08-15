@@ -31,13 +31,15 @@
 
 #define BTN_ALWAYS_ON_TOP				1006
 
-#define BTN_ENABLE_DROP_WINDOW			1007
-#define EDIT_DROP_WINDOW_TRANSPARENCY	1008
-#define BTN_SHOW_DROP_WINDOW_PROGRESS	1009
+#define BTN_CHECK_FOR_UPDATES_STARTUP	1007
 
-#define BTN_PLAY_SOUND					1010
-#define EDIT_SOUND_FILE					1011
-#define BTN_LOAD_SOUND_FILE				1012
+#define BTN_ENABLE_DROP_WINDOW			1008
+#define EDIT_DROP_WINDOW_TRANSPARENCY	1009
+#define BTN_SHOW_DROP_WINDOW_PROGRESS	1010
+
+#define BTN_PLAY_SOUND					1011
+#define EDIT_SOUND_FILE					1012
+#define BTN_LOAD_SOUND_FILE				1013
 
 // General Tab
 HWND g_hWnd_chk_tray_icon = NULL;
@@ -47,6 +49,7 @@ HWND g_hWnd_chk_start_in_tray = NULL;
 HWND g_hWnd_chk_show_notification = NULL;
 
 HWND g_hWnd_chk_always_on_top = NULL;
+HWND g_hWnd_chk_check_for_updates_startup = NULL;
 HWND g_hWnd_static_drop_window_transparency = NULL;
 HWND g_hWnd_drop_window_transparency = NULL;
 HWND g_hWnd_ud_drop_window_transparency = NULL;
@@ -63,8 +66,8 @@ wchar_t *t_sound_file_path = NULL;
 
 LRESULT CALLBACK GeneralTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
 {
-    switch ( msg )
-    {
+	switch ( msg )
+	{
 		case WM_CREATE:
 		{
 			RECT rc;
@@ -78,26 +81,27 @@ LRESULT CALLBACK GeneralTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 			g_hWnd_chk_show_tray_progress = _CreateWindowW( WC_BUTTON, ST_V_Show_progress_bar, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 15, 100, rc.right - 15, 20, hWnd, ( HMENU )BTN_SHOW_TRAY_PROGRESS, NULL, NULL );
 
 			g_hWnd_chk_always_on_top = _CreateWindowW( WC_BUTTON, ST_V_Always_on_top, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 120, rc.right, 20, hWnd, ( HMENU )BTN_ALWAYS_ON_TOP, NULL, NULL );
+			g_hWnd_chk_check_for_updates_startup = _CreateWindowW( WC_BUTTON, ST_V_Check_for_updates_upon_startup, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 140, rc.right, 20, hWnd, ( HMENU )BTN_CHECK_FOR_UPDATES_STARTUP, NULL, NULL );
 
-			g_hWnd_chk_enable_drop_window = _CreateWindowW( WC_BUTTON, ST_V_Enable_URL_drop_window_, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 140, rc.right, 20, hWnd, ( HMENU )BTN_ENABLE_DROP_WINDOW, NULL, NULL );
+			g_hWnd_chk_enable_drop_window = _CreateWindowW( WC_BUTTON, ST_V_Enable_URL_drop_window_, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 160, rc.right, 20, hWnd, ( HMENU )BTN_ENABLE_DROP_WINDOW, NULL, NULL );
 
-			g_hWnd_static_drop_window_transparency = _CreateWindowW( WC_STATIC, ST_V_Transparency_, WS_CHILD | WS_VISIBLE, 15, 164, 100, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_drop_window_transparency = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 115, 160, 60, 23, hWnd, ( HMENU )EDIT_DROP_WINDOW_TRANSPARENCY, NULL, NULL );
+			g_hWnd_static_drop_window_transparency = _CreateWindowW( WC_STATIC, ST_V_Transparency_, WS_CHILD | WS_VISIBLE, 15, 184, 100, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_drop_window_transparency = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 115, 180, 60, 23, hWnd, ( HMENU )EDIT_DROP_WINDOW_TRANSPARENCY, NULL, NULL );
 
 			g_hWnd_ud_drop_window_transparency = _CreateWindowW( UPDOWN_CLASS, NULL, UDS_ALIGNRIGHT | UDS_ARROWKEYS | UDS_NOTHOUSANDS | UDS_SETBUDDYINT | WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 
 			_SendMessageW( g_hWnd_drop_window_transparency, EM_LIMITTEXT, 3, 0 );
 			_SendMessageW( g_hWnd_ud_drop_window_transparency, UDM_SETBUDDY, ( WPARAM )g_hWnd_drop_window_transparency, 0 );
-            _SendMessageW( g_hWnd_ud_drop_window_transparency, UDM_SETBASE, 10, 0 );
+			_SendMessageW( g_hWnd_ud_drop_window_transparency, UDM_SETBASE, 10, 0 );
 			_SendMessageW( g_hWnd_ud_drop_window_transparency, UDM_SETRANGE32, 0, 255 );
 			_SetWindowPos( g_hWnd_drop_window_transparency, HWND_TOP, 0, 0, 60, 23, SWP_NOZORDER | SWP_NOMOVE );
-			_SetWindowPos( g_hWnd_ud_drop_window_transparency, HWND_TOP, 175, 160, 0, 0, SWP_NOZORDER | SWP_NOSIZE );
+			_SetWindowPos( g_hWnd_ud_drop_window_transparency, HWND_TOP, 175, 180, 0, 0, SWP_NOZORDER | SWP_NOSIZE );
 
-			g_hWnd_chk_show_drop_window_progress = _CreateWindowW( WC_BUTTON, ST_V_Show_progress_bar, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 15, 183, rc.right - 15, 20, hWnd, ( HMENU )BTN_SHOW_DROP_WINDOW_PROGRESS, NULL, NULL );
+			g_hWnd_chk_show_drop_window_progress = _CreateWindowW( WC_BUTTON, ST_V_Show_progress_bar, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 15, 203, rc.right - 15, 20, hWnd, ( HMENU )BTN_SHOW_DROP_WINDOW_PROGRESS, NULL, NULL );
 
-			g_hWnd_chk_play_sound = _CreateWindowW( WC_BUTTON, ST_V_Play_sound_when_downloads_finish_, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 203, rc.right, 20, hWnd, ( HMENU )BTN_PLAY_SOUND, NULL, NULL );
-			g_hWnd_sound_file = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, cfg_sound_file_path, ES_AUTOHSCROLL | ES_READONLY | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 223, rc.right - 40, 23, hWnd, NULL, NULL, NULL );
-			g_hWnd_load_sound_file = _CreateWindowW( WC_BUTTON, ST_V_BTN___, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 35, 223, 35, 23, hWnd, ( HMENU )BTN_LOAD_SOUND_FILE, NULL, NULL );
+			g_hWnd_chk_play_sound = _CreateWindowW( WC_BUTTON, ST_V_Play_sound_when_downloads_finish_, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 223, rc.right, 20, hWnd, ( HMENU )BTN_PLAY_SOUND, NULL, NULL );
+			g_hWnd_sound_file = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, cfg_sound_file_path, ES_AUTOHSCROLL | ES_READONLY | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 243, rc.right - 40, 23, hWnd, NULL, NULL, NULL );
+			g_hWnd_load_sound_file = _CreateWindowW( WC_BUTTON, ST_V_BTN___, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 35, 243, 35, 23, hWnd, ( HMENU )BTN_LOAD_SOUND_FILE, NULL, NULL );
 
 
 			_SendMessageW( g_hWnd_chk_tray_icon, WM_SETFONT, ( WPARAM )g_hFont, 0 );
@@ -108,6 +112,7 @@ LRESULT CALLBACK GeneralTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 			_SendMessageW( g_hWnd_chk_show_tray_progress, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 
 			_SendMessageW( g_hWnd_chk_always_on_top, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_chk_check_for_updates_startup, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 
 			_SendMessageW( g_hWnd_chk_enable_drop_window, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 			_SendMessageW( g_hWnd_static_drop_window_transparency, WM_SETFONT, ( WPARAM )g_hFont, 0 );
@@ -146,6 +151,7 @@ LRESULT CALLBACK GeneralTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 			_SendMessageW( g_hWnd_chk_show_tray_progress, BM_SETCHECK, ( cfg_show_tray_progress ? BST_CHECKED : BST_UNCHECKED ), 0 );
 
 			_SendMessageW( g_hWnd_chk_always_on_top, BM_SETCHECK, ( cfg_always_on_top ? BST_CHECKED : BST_UNCHECKED ), 0 );
+			_SendMessageW( g_hWnd_chk_check_for_updates_startup, BM_SETCHECK, ( cfg_check_for_updates ? BST_CHECKED : BST_UNCHECKED ), 0 );
 
 			if ( cfg_enable_drop_window )
 			{
@@ -268,6 +274,7 @@ LRESULT CALLBACK GeneralTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 				case BTN_SHOW_NOTIFICATION:
 				case BTN_SHOW_TRAY_PROGRESS:
 				case BTN_ALWAYS_ON_TOP:
+				case BTN_CHECK_FOR_UPDATES_STARTUP:
 				case BTN_SHOW_DROP_WINDOW_PROGRESS:
 				{
 					options_state_changed = true;

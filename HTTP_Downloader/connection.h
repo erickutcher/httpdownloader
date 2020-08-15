@@ -54,6 +54,8 @@
 #define IS_STATUS( a, b )			( ( a ) & ( b ) )
 #define IS_STATUS_NOT( a, b )		!( ( a ) & ( b ) )
 
+#define IS_GROUP( a )				( a != a->shared_info )
+
 #define CONNECTION_NONE			0
 #define CONNECTION_KEEP_ALIVE	1
 #define CONNECTION_CLOSE		2
@@ -150,6 +152,24 @@ enum IO_OPERATION
 	IO_KeepAlive
 };
 
+struct PROXY_INFO
+{
+	wchar_t				*hostname;
+	wchar_t				*punycode_hostname;
+	wchar_t				*w_username;
+	wchar_t				*w_password;
+	char				*username;
+	char				*password;
+	char				*auth_key;
+	unsigned long		auth_key_length;
+	unsigned long		ip_address;
+	unsigned short		port;
+	unsigned char		address_type;
+	unsigned char		type;
+	bool				use_authentication;
+	bool				resolve_domain_names;	// v4a or v5 based on type
+};
+
 struct AUTH_CREDENTIALS
 {
 	char				*username;
@@ -220,15 +240,23 @@ struct POST_INFO
 {
 	char				*method;	// 1 = GET, 2 = POST
 	char				*urls;
+	char				*directory;
+	char				*parts;
+	char				*ssl_tls_version;
 	char				*username;
 	char				*password;
-	char				*parts;
 	char				*download_speed_limit;
-	char				*directory;
 	char				*download_operations;
 	char				*cookies;
 	char				*headers;
 	char				*data;		// For POST payloads.
+	char				*proxy_type;
+	char				*proxy_hostname_ip;
+	char				*proxy_port;
+	char				*proxy_username;
+	char				*proxy_password;
+	char				*proxy_resolve_domain_names;
+	char				*proxy_use_authentication;
 };
 
 struct SOCKET_CONTEXT;
@@ -281,7 +309,7 @@ struct SOCKET_CONTEXT
 	POST_INFO			*post_info;
 
 	SSL					*ssl;
-    SOCKET				socket;
+	SOCKET				socket;
 	SOCKET				listen_socket;	// Used for active (EPRT/PORT) FTP connections.
 
 	DWORD				current_bytes_read;
@@ -311,6 +339,8 @@ struct SOCKET_CONTEXT
 	unsigned char		got_filename;		// For Content-Disposition header fields. 0 = none/not found, 1 = renamed (doesn't exist), 2 = renamed (exists)
 	unsigned char		got_last_modified;	// For Last-Modified header fields. 0 = none/not found, 1 = found, 2 = prompt
 
+	unsigned char		update_status;		// Used for checking for updates. 0x00 = not checking for updates, 0x01 = checking, 0x02 = process update information.
+
 	bool				show_file_size_prompt;
 
 	bool				is_allocated;
@@ -322,8 +352,9 @@ struct SOCKET_CONTEXT
 
 struct ADD_INFO
 {
-	unsigned long long	download_speed_limit;
+	PROXY_INFO			proxy_info;
 	AUTH_CREDENTIALS	auth_info;
+	unsigned long long	download_speed_limit;
 	wchar_t				*download_directory;
 	wchar_t				*urls;
 	char				*utf8_cookies;
@@ -333,6 +364,9 @@ struct ADD_INFO
 	unsigned char		download_operations;
 	unsigned char		method;		// 1 = GET, 2 = POST
 	char				ssl_version;
+	bool				use_download_speed_limit;
+	bool				use_download_directory;
+	bool				use_parts;
 };
 
 struct RENAME_INFO
@@ -345,45 +379,52 @@ struct RENAME_INFO
 struct DOWNLOAD_INFO
 {
 	wchar_t				file_path[ MAX_PATH ];
-	CRITICAL_SECTION	shared_cs;
+	CRITICAL_SECTION	di_cs;
 	DoublyLinkedList	download_node;		// Self reference to the active download_list.
 	DoublyLinkedList	queue_node;			// Self reference to the download_queue.
+	DoublyLinkedList	shared_info_node;	// Self reference to the shared_info host_list.
 	ULARGE_INTEGER		add_time;
 	ULARGE_INTEGER		start_time;
 	ULARGE_INTEGER		last_modified;
+	AUTH_CREDENTIALS	auth_info;
+	unsigned long long	file_size;
 	unsigned long long	last_downloaded;
 	unsigned long long	downloaded;
-	unsigned long long	file_size;
 	unsigned long long	speed;
 	unsigned long long	time_remaining;
 	unsigned long long	time_elapsed;
 	unsigned long long	download_speed_limit;
-	AUTH_CREDENTIALS	auth_info;
+	DOWNLOAD_INFO		*shared_info;
+	PROXY_INFO			*proxy_info;
 	wchar_t				*url;
-	wchar_t				*w_add_time;
+	DoublyLinkedList	*host_list;			// Other hosts that are downloading the file.
 	DoublyLinkedList	*range_list;
 	DoublyLinkedList	*print_range_list;
 	DoublyLinkedList	*range_list_end;
 	DoublyLinkedList	*range_queue;		// Inactive ranges that make up each download part.
 	DoublyLinkedList	*parts_list;		// The contexts that make up each download part.
-	HICON				*icon;
+	wchar_t				*w_add_time;
 	char				*cookies;
 	char				*headers;
 	char				*data;				// POST payload.
 	//char				*etag;
+	HICON				*icon;
 	HANDLE				hFile;
 	unsigned int		filename_offset;
 	unsigned int		file_extension_offset;
 	unsigned int		status;
-	unsigned char		parts;
-	unsigned char		active_parts;
+	unsigned int		shared_status;			// The status from all of the hosts.
+	unsigned short		parts;
+	unsigned short		active_parts;
 	unsigned char		parts_limit;		// This is set if we reduce an active download's parts number.
 	unsigned char		retries;			// The number of times a download has been retried.
-	unsigned char		download_operations;
 	unsigned char		method;				// 1 = GET, 2 = POST
-	unsigned char		moving_state;		// 0 = None, 1 = Moving, 2 = Cancelling
 	char				ssl_version;
 	bool				processed_header;
+	unsigned char		download_operations;
+	unsigned char		moving_state;		// 0 = None, 1 = Moving, 2 = Cancelling
+	unsigned char		hosts;
+	unsigned char		active_hosts;
 };
 
 SECURITY_STATUS SSL_WSAAccept( SOCKET_CONTEXT *context, OVERLAPPEDEX *overlapped, bool &sent );
@@ -421,7 +462,9 @@ void FreeListenContext();
 void EnableTimers( bool timer_state );
 
 DWORD WINAPI AddURL( void *add_info );
-void StartDownload( DOWNLOAD_INFO *di, bool check_if_file_exits );
+void ResetDownload( DOWNLOAD_INFO *di, char reset_type, bool reset_progress = true );
+void RestartDownload( DOWNLOAD_INFO *di, char restart_type, bool check_if_file_exists );
+void StartDownload( DOWNLOAD_INFO *di, char start_type, bool check_if_file_exits );
 
 dllrbt_tree *CreateFilenameTree();
 void DestroyFilenameTree( dllrbt_tree *filename_tree );
@@ -431,11 +474,16 @@ THREAD_RETURN RenameFilePrompt( void *pArguments );
 THREAD_RETURN FileSizePrompt( void *pArguments );
 THREAD_RETURN LastModifiedPrompt( void *pArguments );
 
+THREAD_RETURN CheckForUpdates( void *pArguments );
+
 ICON_INFO *CacheIcon( DOWNLOAD_INFO *di, SHFILEINFO *sfi );
+void RemoveCachedIcon( DOWNLOAD_INFO *di, wchar_t *file_extension = NULL );
+
+void SetSharedInfoStatus( DOWNLOAD_INFO *shared_info, unsigned int shared_status );
 
 void FreePOSTInfo( POST_INFO **post_info );
-
 void FreeAuthInfo( AUTH_INFO **auth_info );
+void FreeAddInfo( ADD_INFO **add_info );
 
 void InitializeServerInfo();
 void CleanupServerInfo();
@@ -456,13 +504,16 @@ extern CRITICAL_SECTION rename_file_prompt_list_cs;		// Guard access to the rena
 extern CRITICAL_SECTION last_modified_prompt_list_cs;	// Guard access to the last modified prompt list.
 extern CRITICAL_SECTION move_file_queue_cs;				// Guard access to the move file queue.
 extern CRITICAL_SECTION cleanup_cs;
+extern CRITICAL_SECTION update_check_timeout_cs;
+
+extern HANDLE g_update_semaphore;
 
 extern LPFN_ACCEPTEX _AcceptEx;
 extern LPFN_CONNECTEX _ConnectEx;
 
 extern DoublyLinkedList *g_context_list;
 
-extern unsigned long total_downloading;
+extern unsigned long g_total_downloading;
 extern DoublyLinkedList *download_queue;
 
 extern DoublyLinkedList *active_download_list;
@@ -501,5 +552,12 @@ extern char *g_nonce;
 extern unsigned long g_nonce_length;
 extern char *g_opaque;
 extern unsigned long g_opaque_length;
+
+//
+
+extern bool g_waiting_for_update;
+extern unsigned long g_new_version;
+extern char *g_new_version_url;
+extern char g_update_check_state;	// 0 manual update check, 1 automatic update check
 
 #endif

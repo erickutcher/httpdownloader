@@ -32,13 +32,17 @@
 	pDeleteDC					_DeleteDC;
 	pDeleteObject				_DeleteObject;
 	//pExcludeClipRect			_ExcludeClipRect;
-	//pGdiAlphaBlend				_GdiAlphaBlend;
+	pExtTextOutW				_ExtTextOutW;
+	pGdiAlphaBlend				_GdiAlphaBlend;
 	//pGdiGradientFill			_GdiGradientFill;
 	//pGetDeviceCaps				_GetDeviceCaps;
 	//pGetObjectW					_GetObjectW;
 	pGetStockObject				_GetStockObject;
-	//pGetTextExtentPoint32W		_GetTextExtentPoint32W;
+	pGetTextExtentExPointW		_GetTextExtentExPointW;
+	pGetTextExtentPoint32W		_GetTextExtentPoint32W;
 	pGetTextMetricsW			_GetTextMetricsW;
+	pLineTo						_LineTo;
+	pMoveToEx					_MoveToEx;
 	pPatBlt						_PatBlt;
 	pRectangle					_Rectangle;
 	pSelectObject				_SelectObject;
@@ -76,13 +80,17 @@
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_gdi32, ( void ** )&_DeleteDC, "DeleteDC" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_gdi32, ( void ** )&_DeleteObject, "DeleteObject" ) )
 		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_gdi32, ( void ** )&_ExcludeClipRect, "ExcludeClipRect" ) )
-		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_gdi32, ( void ** )&_GdiAlphaBlend, "GdiAlphaBlend" ) )
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_gdi32, ( void ** )&_ExtTextOutW, "ExtTextOutW" ) )
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_gdi32, ( void ** )&_GdiAlphaBlend, "GdiAlphaBlend" ) )
 		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_gdi32, ( void ** )&_GdiGradientFill, "GdiGradientFill" ) )
 		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_gdi32, ( void ** )&_GetDeviceCaps, "GetDeviceCaps" ) )
 		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_gdi32, ( void ** )&_GetObjectW, "GetObjectW" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_gdi32, ( void ** )&_GetStockObject, "GetStockObject" ) )
-		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_gdi32, ( void ** )&_GetTextExtentPoint32W, "GetTextExtentPoint32W" ) )
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_gdi32, ( void ** )&_GetTextExtentExPointW, "GetTextExtentExPointW" ) )
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_gdi32, ( void ** )&_GetTextExtentPoint32W, "GetTextExtentPoint32W" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_gdi32, ( void ** )&_GetTextMetricsW, "GetTextMetricsW" ) )
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_gdi32, ( void ** )&_LineTo, "LineTo" ) )
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_gdi32, ( void ** )&_MoveToEx, "MoveToEx" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_gdi32, ( void ** )&_PatBlt, "PatBlt" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_gdi32, ( void ** )&_Rectangle, "Rectangle" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_gdi32, ( void ** )&_SelectObject, "SelectObject" ) )

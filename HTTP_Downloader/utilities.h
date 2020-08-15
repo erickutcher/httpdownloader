@@ -68,6 +68,8 @@ unsigned long get_file_extension_offset( wchar_t *filename, unsigned long length
 void GetDownloadFilePath( DOWNLOAD_INFO *di, wchar_t file_path[] );
 int GetTemporaryFilePath( DOWNLOAD_INFO *di, wchar_t file_path[] );
 
+wchar_t *GetDownloadInfoString( DOWNLOAD_INFO *di, int column, int root_index, int item_index, wchar_t *tbuf, unsigned short tbuf_size );
+
 char *escape_csv( const char *string );
 
 unsigned long long strtoull( char *str, bool base16 = false );
@@ -86,6 +88,8 @@ char *html_entity_decode_a( char *str, unsigned int str_len, unsigned int *dec_l
 wchar_t *ParseHTMLClipboard( char *data );
 
 THREAD_RETURN cleanup( void *pArguments );
+
+void FreeCommandLineArgs( CL_ARGS **cla );
 
 char *CreateMD5( BYTE *input, DWORD input_len );
 void CreateCNonce( char **cnonce, DWORD *cnonce_length );

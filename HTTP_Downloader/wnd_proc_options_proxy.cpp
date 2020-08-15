@@ -220,7 +220,7 @@ LRESULT CALLBACK ProxyTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPa
 			g_hWnd_chk_type_ip_address_socks = _CreateWindowW( WC_BUTTON, ST_V_IPv4_address_, BS_AUTORADIOBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 205, 272, 110, 20, hWnd, ( HMENU )BTN_TYPE_IP_ADDRESS_SOCKS, NULL, NULL );
 
 			g_hWnd_hostname_socks = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 292, 310, 23, hWnd, ( HMENU )EDIT_HOST_SOCKS, NULL, NULL );
-			g_hWnd_ip_address_socks = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_IPADDRESS, NULL, WS_CHILD | WS_TABSTOP, 0, 292, 310, 23, hWnd, ( HMENU )EDIT_IP_ADDRESS_S, NULL, NULL );
+			g_hWnd_ip_address_socks = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_IPADDRESS, NULL, WS_CHILD | WS_TABSTOP, 0, 292, 310, 23, hWnd, ( HMENU )EDIT_IP_ADDRESS_SOCKS, NULL, NULL );
 
 
 			g_hWnd_static_colon_socks = _CreateWindowW( WC_STATIC, ST_V_COLON, SS_CENTER | WS_CHILD | WS_VISIBLE, 310, 296, 10, 15, hWnd, NULL, NULL, NULL );

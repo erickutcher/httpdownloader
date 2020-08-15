@@ -78,12 +78,14 @@
 
 #define MENU_SEARCH					30008
 #define MENU_GLOBAL_SPEED_LIMIT		30009
-#define MENU_OPTIONS				30010
+#define MENU_SITE_MANAGER			30010
+#define MENU_OPTIONS				30011
 
-#define	MENU_HOME_PAGE				30011
-#define MENU_ABOUT					30012
+#define	MENU_HOME_PAGE				30012
+#define MENU_CHECK_FOR_UPDATES		30013
+#define MENU_ABOUT					30014
 
-#define MENU_ALWAYS_ON_TOP			30013
+#define MENU_ALWAYS_ON_TOP			30015
 
 #define MENU_RESTORE				40000
 
@@ -91,7 +93,8 @@ void DestroyMenus();
 void UpdateMenus( bool enable );
 void CreateMenus();
 
-void UpdateColumns( unsigned int menu_id );
+void UpdateColumns( WORD menu_id );
+void HandleCommand( HWND hWnd, WORD command );
 
 extern HMENU g_hMenu;
 extern HMENU g_hMenuSub_view;

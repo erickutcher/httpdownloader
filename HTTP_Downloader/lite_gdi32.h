@@ -40,13 +40,17 @@
 	#define _DeleteDC					DeleteDC
 	#define _DeleteObject				DeleteObject
 	//#define _ExcludeClipRect			ExcludeClipRect
-	//#define _GdiAlphaBlend				GdiAlphaBlend
+	#define _ExtTextOutW				ExtTextOutW
+	#define _GdiAlphaBlend				GdiAlphaBlend
 	//#define _GdiGradientFill			GdiGradientFill
 	//#define _GetDeviceCaps				GetDeviceCaps
 	//#define _GetObjectW					GetObjectW
 	#define _GetStockObject				GetStockObject
-	//#define _GetTextExtentPoint32W	GetTextExtentPoint32W
+	#define _GetTextExtentExPointW		GetTextExtentExPointW
+	#define _GetTextExtentPoint32W		GetTextExtentPoint32W
 	#define _GetTextMetricsW			GetTextMetricsW
+	#define _LineTo						LineTo
+	#define _MoveToEx					MoveToEx
 	#define _PatBlt						PatBlt
 	#define _Rectangle					Rectangle
 	#define _SelectObject				SelectObject
@@ -71,13 +75,17 @@
 	typedef BOOL ( WINAPI *pDeleteDC )( HDC hdc );
 	typedef BOOL ( WINAPI *pDeleteObject )( HGDIOBJ hObject );
 	//typedef int ( WINAPI *pExcludeClipRect )( HDC hdc, int nLeftRect, int nTopRect, int nRightRect, int nBottomRect );
-	//typedef BOOL ( WINAPI *pGdiAlphaBlend )( HDC hdcDest, int xoriginDest, int yoriginDest, int wDest, int hDest, HDC hdcSrc, int xoriginSrc, int yoriginSrc, int wSrc, int hSrc, BLENDFUNCTION ftn );
+	typedef BOOL ( WINAPI *pExtTextOutW )( HDC hdc, int x, int y, UINT options, const RECT *lprect, LPCWSTR lpString, UINT c, const INT *lpDx );
+	typedef BOOL ( WINAPI *pGdiAlphaBlend )( HDC hdcDest, int xoriginDest, int yoriginDest, int wDest, int hDest, HDC hdcSrc, int xoriginSrc, int yoriginSrc, int wSrc, int hSrc, BLENDFUNCTION ftn );
 	//typedef BOOL ( WINAPI *pGdiGradientFill )( HDC hdc, PTRIVERTEX pVertex, ULONG dwNumVertex, PVOID pMesh, ULONG dwNumMesh, ULONG dwMode );
 	//typedef int ( WINAPI *pGetDeviceCaps )( HDC hdc, int nIndex );
 	//typedef int ( WINAPI *pGetObjectW )( HGDIOBJ hgdiobj, int cbBuffer, LPVOID lpvObject );
 	typedef HGDIOBJ ( WINAPI *pGetStockObject )( int fnObject );
-	//typedef BOOL ( WINAPI *pGetTextExtentPoint32W )( HDC hdc, LPCTSTR lpString, int c, LPSIZE lpSize );
+	typedef BOOL ( WINAPI *pGetTextExtentExPointW )( HDC hdc, LPCWSTR lpszString, int cchString, int nMaxExtent, LPINT lpnFit, LPINT lpnDx, LPSIZE lpSize );
+	typedef BOOL ( WINAPI *pGetTextExtentPoint32W )( HDC hdc, LPCTSTR lpString, int c, LPSIZE lpSize );
 	typedef BOOL ( WINAPI *pGetTextMetricsW )( HDC hdc, LPTEXTMETRIC lptm );
+	typedef BOOL ( WINAPI *pLineTo )( HDC hdc, int x, int y );
+	typedef BOOL ( WINAPI *pMoveToEx )( HDC hdc, int x, int y, LPPOINT lppt );
 	typedef BOOL ( WINAPI *pPatBlt )( HDC hdc, int nXLeft, int nYLeft, int nWidth, int nHeight, DWORD dwRop );
 	typedef BOOL ( WINAPI *pRectangle )( HDC hdc, int nLeftRect, int nTopRect, int nRightRect, int nBottomRect );
 	typedef HGDIOBJ ( WINAPI *pSelectObject )( HDC hdc, HGDIOBJ hgdiobj );
@@ -97,13 +105,17 @@
 	extern pDeleteDC					_DeleteDC;
 	extern pDeleteObject				_DeleteObject;
 	//extern pExcludeClipRect				_ExcludeClipRect;
-	//extern pGdiAlphaBlend				_GdiAlphaBlend;
+	extern pExtTextOutW					_ExtTextOutW;
+	extern pGdiAlphaBlend				_GdiAlphaBlend;
 	//extern pGdiGradientFill				_GdiGradientFill;
 	//extern pGetDeviceCaps				_GetDeviceCaps;
 	//extern pGetObjectW					_GetObjectW;
 	extern pGetStockObject				_GetStockObject;
-	//extern pGetTextExtentPoint32W		_GetTextExtentPoint32W;
+	extern pGetTextExtentExPointW		_GetTextExtentExPointW;
+	extern pGetTextExtentPoint32W		_GetTextExtentPoint32W;
 	extern pGetTextMetricsW				_GetTextMetricsW;
+	extern pLineTo						_LineTo;
+	extern pMoveToEx					_MoveToEx;
 	//extern pPatBlt						_PatBlt;
 	extern pRectangle					_Rectangle;
 	extern pSelectObject				_SelectObject;

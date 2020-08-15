@@ -23,14 +23,14 @@
 #include "lite_winmm.h"
 
 #include "file_operations.h"
-
-#include "login_manager_utilities.h"
+#include "site_manager_utilities.h"
 
 #include "ftp_parsing.h"
 #include "utilities.h"
 
 #include "string_tables.h"
 
+#include "treelistview.h"
 #include "system_tray.h"
 #include "drop_window.h"
 
@@ -423,6 +423,10 @@ void SetServerSettings()
 
 void SetAppearanceSettings()
 {
+	cfg_background_color = t_background_color;
+	cfg_gridline_color = t_gridline_color;
+	cfg_selection_marquee_color = t_selection_marquee_color;
+
 	cfg_odd_row_background_color = t_odd_row_background_color;
 	cfg_even_row_background_color = t_even_row_background_color;
 
@@ -462,17 +466,7 @@ void SetAppearanceSettings()
 	// Get the row height for our listview control.
 	AdjustRowHeight();
 
-	// Force the files list to generate a WM_MEASUREITEM notification.
-	RECT rc;
-	_GetWindowRect( g_hWnd_files, &rc );
-	WINDOWPOS wp;
-	wp.hwnd = g_hWnd_files;
-	wp.cx = rc.right - rc.left;
-	wp.cy = rc.bottom - rc.top;
-	wp.flags = SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOOWNERZORDER | SWP_NOZORDER;
-	_SendMessageW( g_hWnd_files, WM_WINDOWPOSCHANGED, 0, ( LPARAM )&wp );
-
-	_InvalidateRect( g_hWnd_files, NULL, TRUE );
+	_SendMessageW( g_hWnd_tlv_files, TLVM_REFRESH_LIST, 0, 0 );
 }
 
 LRESULT CALLBACK TreeViewSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
@@ -495,8 +489,8 @@ LRESULT CALLBACK TreeViewSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPa
 
 LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
 {
-    switch ( msg )
-    {
+	switch ( msg )
+	{
 		case WM_CREATE:
 		{
 			RECT rc;
@@ -594,7 +588,7 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 			// WS_EX_CONTROLPARENT for tab key access.
 			g_hWnd_general_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"general_tab", NULL, WS_CHILD | WS_TABSTOP | WS_VISIBLE, 140, 10, rc.right - 150, rc.bottom - 50, hWnd, NULL, NULL, NULL );
-			g_hWnd_appearance_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"appearance_tab", NULL, WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, rc.bottom - 50, hWnd, NULL, NULL, NULL );
+			g_hWnd_appearance_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"appearance_tab", NULL, WS_VSCROLL | WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, rc.bottom - 50, hWnd, NULL, NULL, NULL );
 			g_hWnd_connection_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"connection_tab", NULL, WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, rc.bottom - 50, hWnd, NULL, NULL, NULL );
 			g_hWnd_web_server_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"web_server_tab", NULL, WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, rc.bottom - 50, hWnd, NULL, NULL, NULL );
 			g_hWnd_ftp_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"ftp_tab", NULL, WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, rc.bottom - 50, hWnd, NULL, NULL, NULL );
@@ -668,6 +662,8 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 					if ( nmtv->itemNew.lParam != NULL )
 					{
 						_ShowWindow( *( ( HWND * )nmtv->itemNew.lParam ), SW_SHOW );
+
+						//_SetFocus( *( ( HWND * )nmtv->itemNew.lParam ) );
 					}
 				}
 				break;
@@ -777,8 +773,12 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 						if ( g_hWnd_update_download != NULL ){ _SetWindowPos( g_hWnd_update_download, ( cfg_always_on_top ? HWND_TOPMOST : HWND_NOTOPMOST ), 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE ); }
 						if ( g_hWnd_search != NULL ){ _SetWindowPos( g_hWnd_search, ( cfg_always_on_top ? HWND_TOPMOST : HWND_NOTOPMOST ), 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE ); }
 						if ( g_hWnd_download_speed_limit != NULL ){ _SetWindowPos( g_hWnd_download_speed_limit, ( cfg_always_on_top ? HWND_TOPMOST : HWND_NOTOPMOST ), 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE ); }
+						if ( g_hWnd_check_for_updates != NULL ){ _SetWindowPos( g_hWnd_check_for_updates, ( cfg_always_on_top ? HWND_TOPMOST : HWND_NOTOPMOST ), 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE ); }
+						if ( g_hWnd_site_manager != NULL ){ _SetWindowPos( g_hWnd_site_manager, ( cfg_always_on_top ? HWND_TOPMOST : HWND_NOTOPMOST ), 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE ); }
 						if ( g_hWnd_options != NULL ){ _SetWindowPos( g_hWnd_options, ( cfg_always_on_top ? HWND_TOPMOST : HWND_NOTOPMOST ), 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE ); }
 					}
+
+					cfg_check_for_updates = ( _SendMessageW( g_hWnd_chk_check_for_updates_startup, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
 
 					cfg_enable_download_history = ( _SendMessageW( g_hWnd_chk_download_history, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
 
@@ -793,6 +793,7 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 					}
 
 					cfg_set_filetime = ( _SendMessageW( g_hWnd_chk_set_filetime, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
+					cfg_update_redirected = ( _SendMessageW( g_hWnd_chk_update_redirected, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
 
 					cfg_use_one_instance = ( _SendMessageW( g_hWnd_chk_use_one_instance, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
 
@@ -848,22 +849,11 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 					}
 
 					cfg_sort_added_and_updating_items = ( _SendMessageW( g_hWnd_chk_sort_added_and_updating_items, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
+					cfg_expand_added_group_items = ( _SendMessageW( g_hWnd_chk_expand_added_group_items, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
 
-					bool show_gridlines = ( _SendMessageW( g_hWnd_chk_show_gridlines, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
-
-					// If we change this, then SetAppearanceSettings() will end up refreshing it for us.
-					if ( show_gridlines != cfg_show_gridlines )
-					{
-						DWORD extended_style = LVS_EX_DOUBLEBUFFER | LVS_EX_FULLROWSELECT | LVS_EX_HEADERDRAGDROP;
-						if ( show_gridlines )
-						{
-							extended_style |= LVS_EX_GRIDLINES;
-						}
-
-						_SendMessageW( g_hWnd_files, LVM_SETEXTENDEDLISTVIEWSTYLE, 0, extended_style );
-
-						cfg_show_gridlines = show_gridlines;
-					}
+					cfg_show_gridlines = ( _SendMessageW( g_hWnd_chk_show_gridlines, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
+					cfg_draw_full_rows = ( _SendMessageW( g_hWnd_chk_draw_full_rows, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
+					cfg_draw_all_rows = ( _SendMessageW( g_hWnd_chk_draw_all_rows, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
 
 					cfg_show_part_progress = ( _SendMessageW( g_hWnd_chk_show_part_progress, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
 
@@ -934,7 +924,7 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 					if ( shutdown_action != cfg_shutdown_action )
 					{
-						cfg_shutdown_action = shutdown_action;
+						cfg_shutdown_action = g_shutdown_action = shutdown_action;
 
 						if ( cfg_shutdown_action == SHUTDOWN_ACTION_RESTART ||
 							 cfg_shutdown_action == SHUTDOWN_ACTION_SLEEP ||
@@ -1174,11 +1164,11 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 					save_config();
 
-					if ( login_list_changed )
+					if ( site_list_changed )
 					{
-						save_login_info();
+						save_site_info();
 
-						login_list_changed = false;
+						site_list_changed = false;
 					}
 
 					int auth_username_length = 0, auth_password_length = 0;

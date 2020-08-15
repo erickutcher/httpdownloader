@@ -38,6 +38,7 @@ Active Parts
 &Add URL(s)...\tCtrl+N
 Add URL(s)...
 Always on Top
+&Check for Updates...
 &Column Headers
 &Copy URL(s)\tCtrl+C
 Copy URL(s)
@@ -86,6 +87,7 @@ Restart
 &Search...\tCtrl+S
 &Select All\tCtrl+A
 Select All
+Site &Manager...\tCtrl+M
 SSL / TLS Version
 St&art
 Start
@@ -117,6 +119,7 @@ Download immediately
 Drag and drop URL(s) action:
 Enable download history
 Enable quick file allocation (administrator access required)
+Exit program
 Hibernate
 Hybrid shut down
 Lock
@@ -134,6 +137,7 @@ Skip Download
 Sleep
 System shutdown action when all downloads finish:
 Thread pool count:
+Update redirected URL(s) in download list
 Use temporary download directory:
 When a file already exists:
 When a file has been modified:
@@ -142,11 +146,15 @@ Background Color
 Background Font Color
 Border Color
 Download list:
+Draw all rows
+Draw full rows
 Even Row Background Color
 Even Row Font
 Even Row Font Color
 Even Row Highlight Color
 Even Row Highlight Font Color
+Expand added group items
+Gridline Color
 Odd Row Background Color
 Odd Row Font
 Odd Row Font Color
@@ -156,6 +164,7 @@ Other progress bars:
 Progress Color
 Progress bar:
 Progress Font Color
+Selection Marquee Color
 Show gridlines in download list
 Show progress for each part
 Sort added and updating items
@@ -168,7 +177,6 @@ URL Drop Window Error
 Active download limit:
 Default download parts:
 Default SSL / TLS version:
-Login Manager...
 Maximum redirects:
 Retry incomplete downloads:
 Retry incomplete parts:
@@ -183,6 +191,7 @@ Port start:
 Send keep-alive requests
 Use other mode on failure
 Always on top
+Check for updates upon startup
 Close to System Tray
 Enable System Tray icon:
 Enable URL drop window:
@@ -248,6 +257,7 @@ Send POST Data:
 Simulate download
 SSL / TLS version:
 URL(s):
+Use proxy:
 Username:
 Videos
 Match case
@@ -258,14 +268,39 @@ Search All
 Search for:
 Search Next
 Search Type
+********
+[...]
 Add
+Add Stopped
 Close
+Disable
+Download Operations
+Download Parts
+Empty Body
+Enable
+New
 Password
-Remove
+Proxy Password
+Proxy Port
+Proxy Server
+Proxy Type
+Proxy Username
+Resolve Domain Names
+Save
 Show passwords
+Simulate
 Site
 Site:
 Username
+A new version is available.
+Checking for updates...
+Current version:
+Download Update
+HTTP Downloader is up to date.
+Latest version:
+The update check has failed.
+View Changelog
+Visit Home Page
 ...
 [Simulated]
 Add URL(s)
@@ -275,6 +310,7 @@ Authorization Required
 Cancel
 Completed
 Connecting
+Default
 Default download speed limit (bytes/s):
 Download speed:
 Download speed limit (bytes/s):
@@ -287,8 +323,9 @@ File IO Error
 Global Download Speed Limit
 Global download speed limit:
 Global download speed limit (bytes/s):
+HTTP
+HTTPS
 Import Download History
-Login Manager
 Moving File
 Options
 Paused
@@ -297,6 +334,7 @@ Queued
 Restarting
 Save Download History
 Set
+Site Manager
 Skipped
 Stopped
 SSL 2.0
@@ -310,7 +348,7 @@ Unlimited
 Update
 Update Download
 URL:
-A protocol (HTTP or HTTPS) must be supplied.
+A protocol (HTTP(S) or FTP(S)) must be supplied.
 A restart is required for these changes to take effect.
 A restart is required to enable quick file allocation.
 A restart is required to perform the system shutdown action.

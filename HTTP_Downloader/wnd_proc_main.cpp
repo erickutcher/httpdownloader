@@ -21,13 +21,11 @@
 #include "lite_gdi32.h"
 #include "lite_ole32.h"
 #include "lite_comctl32.h"
-#include "lite_comdlg32.h"
 #include "lite_winmm.h"
 
 #include "list_operations.h"
 #include "file_operations.h"
-
-#include "login_manager_utilities.h"
+#include "site_manager_utilities.h"
 
 #include "connection.h"
 #include "menus.h"
@@ -44,12 +42,12 @@
 #include "system_tray.h"
 #include "drop_window.h"
 
+#include "treelistview.h"
+
 HWND g_hWnd_toolbar = NULL;
 HWND g_hWnd_files_columns = NULL;		// The header control window for the listview.
-HWND g_hWnd_files = NULL;
+HWND g_hWnd_tlv_files = NULL;
 HWND g_hWnd_status = NULL;
-
-HWND g_hWnd_tooltip = NULL;
 
 wchar_t *tooltip_buffer = NULL;
 int last_tooltip_item = -1;				// Prevent our hot tracking from calling the tooltip on the same item.
@@ -58,7 +56,7 @@ HIMAGELIST g_toolbar_imagelist = NULL;
 
 HCURSOR wait_cursor = NULL;				// Temporary cursor while processing entries.
 
-bool skip_list_draw = false;
+bool g_skip_list_draw = false;
 
 int cx = 0;								// Current x (left) position of the main window based on the mouse.
 int cy = 0;								// Current y (top) position of the main window based on the mouse.
@@ -72,13 +70,6 @@ unsigned long long g_session_last_total_downloaded = 0;
 unsigned long long g_session_last_downloaded_speed = 0;
 
 wchar_t *g_size_prefix[] = { L"B", L"KB", L"MB", L"GB", L"TB", L"PB", L"EB" };
-
-WNDPROC ListViewProc = NULL;			// Subclassed listview window.
-
-HWND g_hWnd_lv_edit = NULL;				// Handle to the listview edit control.
-WNDPROC EditProc = NULL;				// Subclassed listview edit window.
-RECT current_edit_pos;					// Current position of the listview edit control.
-bool edit_from_menu	= false;			// True if we activate the edit from our (rename) menu, or Ctrl + R.
 
 bool last_menu = false;					// true if context menu was last open, false if main menu was last open. See: WM_ENTERMENULOOP
 
@@ -100,6 +91,32 @@ struct PROGRESS_INFO
 PROGRESS_INFO g_progress_info;
 
 UINT WM_TASKBARBUTTONCREATED = 0;
+
+#define IDT_UPDATE_CHECK_TIMER	10000
+
+
+/////////////////////////////////////////////////////
+
+
+VOID CALLBACK UpdateCheckTimerProc( HWND hWnd, UINT msg, UINT idTimer, DWORD dwTime )
+{
+	// We'll check the setting again in case the user turned it off before the 10 second grace period.
+	// We'll also check to see if the update was manually checked.
+	if ( cfg_check_for_updates && g_update_check_state == 0 )
+	{
+		// Create the update window so that our update check can send messages to it.
+		if ( g_hWnd_check_for_updates == NULL )
+		{
+			g_hWnd_check_for_updates = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"check_for_updates", L"Check For Updates", WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU, ( ( _GetSystemMetrics( SM_CXSCREEN ) - 400 ) / 2 ), ( ( _GetSystemMetrics( SM_CYSCREEN ) - 135 ) / 2 ), 400, 135, NULL, NULL, NULL, NULL );
+
+			g_update_check_state = 2;	// Automatic update check.
+
+			CloseHandle( ( HANDLE )_CreateThread( NULL, 0, CheckForUpdates, NULL, 0, NULL ) );
+		}
+	}
+
+	_KillTimer( hWnd, IDT_UPDATE_CHECK_TIMER );
+}
 
 void ClearProgressBars()
 {
@@ -156,150 +173,6 @@ void FormatTooltipStatus()
 			}
 		}
 	}
-}
-
-// Sort function for columns.
-int CALLBACK DMCompareFunc( LPARAM lParam1, LPARAM lParam2, LPARAM lParamSort )
-{
-	int arr[ NUM_COLUMNS ];
-
-	SORT_INFO *si = ( SORT_INFO * )lParamSort;
-
-	if ( si->hWnd == g_hWnd_files )
-	{
-		DOWNLOAD_INFO *di1 = ( DOWNLOAD_INFO * )( ( si->direction == 1 ) ? lParam1 : lParam2 );
-		DOWNLOAD_INFO *di2 = ( DOWNLOAD_INFO * )( ( si->direction == 1 ) ? lParam2 : lParam1 );
-
-		_SendMessageW( g_hWnd_files, LVM_GETCOLUMNORDERARRAY, g_total_columns, ( LPARAM )arr );
-
-		// Offset the virtual indices to match the actual index.
-		OffsetVirtualIndices( arr, download_columns, NUM_COLUMNS, g_total_columns );
-
-		switch ( arr[ si->column ] )
-		{
-			case COLUMN_DOWNLOAD_DIRECTORY:		{ return _wcsicmp_s( di1->file_path, di2->file_path ); } break;
-			case COLUMN_FILE_TYPE:				{ return _wcsicmp_s( di1->file_path + di1->file_extension_offset, di2->file_path + di2->file_extension_offset ); } break;
-			case COLUMN_FILENAME:				{ return _wcsicmp_s( di1->file_path + di1->filename_offset, di2->file_path + di2->filename_offset ); } break;
-			case COLUMN_URL:					{ return _wcsicmp_s( di1->url, di2->url ); } break;
-
-			case COLUMN_DOWNLOAD_SPEED:			{ return ( di1->speed > di2->speed ); } break;
-			case COLUMN_DOWNLOAD_SPEED_LIMIT:	{ return ( di1->download_speed_limit > di2->download_speed_limit ); } break;
-			case COLUMN_DOWNLOADED:				{ return ( di1->downloaded > di2->downloaded ); } break;
-			case COLUMN_FILE_SIZE:				{ return ( di1->file_size > di2->file_size ); } break;
-			case COLUMN_DATE_AND_TIME_ADDED:	{ return ( di1->add_time.QuadPart > di2->add_time.QuadPart ); } break;
-			case COLUMN_TIME_ELAPSED:			{ return ( di1->time_elapsed > di2->time_elapsed ); } break;
-			case COLUMN_TIME_REMAINING:			{ return ( di1->time_remaining > di2->time_remaining ); } break;
-
-			case COLUMN_PROGRESS:
-			{
-				if ( di1->status == di2->status )
-				{
-					if ( di1->last_downloaded != 0 && di2->last_downloaded == 0 )
-					{
-						return 1;
-					}
-					else if ( di1->last_downloaded == 0 && di2->last_downloaded != 0 )
-					{
-						return -1;
-					}
-					else if ( di1->last_downloaded == 0 && di2->last_downloaded == 0 )
-					{
-						return 0;
-					}
-					else
-					{
-						if ( di1->file_size != 0 && di2->file_size == 0 )
-						{
-							return 1;
-						}
-						else if ( di1->file_size == 0 && di2->file_size != 0 )
-						{
-							return -1;
-						}
-						else if ( di1->file_size == 0 && di2->file_size == 0 )
-						{
-							return 0;
-						}
-
-						int i_percentage1;
-						int i_percentage2;
-#ifdef _WIN64
-						i_percentage1 = ( int )( 1000.0 * ( ( double )di1->last_downloaded / ( double )di1->file_size ) );
-						i_percentage2 = ( int )( 1000.0 * ( ( double )di2->last_downloaded / ( double )di2->file_size ) );
-#else
-						// Multiply the floating point division by 1000%.
-						// This leaves us with an integer in which the last digit will represent the decimal value.
-						double f_percentage1 = 1000.0 * ( ( double )di1->last_downloaded / ( double )di1->file_size );
-						__asm
-						{
-							fld f_percentage1;		//; Load the floating point value onto the FPU stack.
-							fistp i_percentage1;	//; Convert the floating point value into an integer, store it in an integer, and then pop it off the stack.
-						}
-
-						// Multiply the floating point division by 1000%.
-						// This leaves us with an integer in which the last digit will represent the decimal value.
-						double f_percentage2 = 1000.0 * ( ( double )di2->last_downloaded / ( double )di2->file_size );
-						__asm
-						{
-							fld f_percentage2;		//; Load the floating point value onto the FPU stack.
-							fistp i_percentage2;	//; Convert the floating point value into an integer, store it in an integer, and then pop it off the stack.
-						}
-#endif
-						return i_percentage1 > i_percentage2;
-					}
-
-					//return ( ( di1->file_size - di1->downloaded ) > ( di2->file_size - di2->downloaded ) );
-				}
-				else
-				{
-					return ( di1->status > di2->status );
-				}
-			}
-			break;
-
-			case COLUMN_SSL_TLS_VERSION:
-			{
-				if ( di1->ssl_version == -1 )
-				{
-					return -1;
-				}
-				else if ( di2->ssl_version == -1 )
-				{
-					return 1;
-				}
-				else
-				{
-					return ( di1->ssl_version > di2->ssl_version );
-				}
-			}
-			break;
-
-			case COLUMN_ACTIVE_PARTS:
-			{
-				if ( di1->parts > di2->parts )
-				{
-					return 1;
-				}
-				else if ( di1->parts < di2->parts )
-				{
-					return -1;
-				}
-				else
-				{
-					return ( di1->active_parts > di2->active_parts );
-				}
-			}
-			break;
-
-			default:
-			{
-				return 0;
-			}
-			break;
-		}	
-	}
-
-	return 0;
 }
 
 unsigned int FormatSizes( wchar_t *buffer, unsigned int buffer_size, unsigned char toggle_type, unsigned long long data_size )
@@ -447,7 +320,7 @@ DWORD WINAPI UpdateWindow( LPVOID WorkThreadContext )
 					// Skip any files that can block us (large files that are currently allocating).
 					if ( di != NULL )
 					{
-						if ( TryEnterCriticalSection( &di->shared_cs ) == TRUE )
+						if ( TryEnterCriticalSection( &di->di_cs ) == TRUE )
 						{
 							// If connecting, downloading, paused, or allocating then calculate the elapsed time.
 							if ( IS_STATUS( di->status,
@@ -483,7 +356,11 @@ DWORD WINAPI UpdateWindow( LPVOID WorkThreadContext )
 											di->time_remaining = 0;
 										}
 
-										g_session_downloaded_speed += di->speed;
+										// Don't include the group item's speed.
+										if ( di->hosts <= 1 )
+										{
+											g_session_downloaded_speed += di->speed;
+										}
 									}
 									else	// The remaining time will be unknown if the download stalls.
 									{
@@ -509,7 +386,7 @@ DWORD WINAPI UpdateWindow( LPVOID WorkThreadContext )
 								}
 							}
 
-							LeaveCriticalSection( &di->shared_cs );
+							LeaveCriticalSection( &di->di_cs );
 						}
 					}
 
@@ -524,7 +401,7 @@ DWORD WINAPI UpdateWindow( LPVOID WorkThreadContext )
 			LeaveCriticalSection( &worker_cs );
 		}
 
-		_InvalidateRect( g_hWnd_files, NULL, FALSE );
+		_SendMessageW( g_hWnd_tlv_files, TLVM_REFRESH_LIST, 0, 0 );
 
 		update_text_values = false;
 
@@ -661,10 +538,10 @@ DWORD WINAPI UpdateWindow( LPVOID WorkThreadContext )
 			{
 				SORT_INFO si;
 				si.column = GetColumnIndexFromVirtualIndex( cfg_sorted_column_index, download_columns, NUM_COLUMNS );
-				si.hWnd = g_hWnd_files;
+				si.hWnd = g_hWnd_tlv_files;
 				si.direction = cfg_sorted_direction;
 
-				_SendMessageW( g_hWnd_files, LVM_SORTITEMS, ( WPARAM )&si, ( LPARAM )( PFNLVCOMPARE )DMCompareFunc );
+				_SendMessageW( g_hWnd_tlv_files, TLVM_SORT_ITEMS, NULL, ( LPARAM )&si );
 			}
 		}
 		else
@@ -743,10 +620,10 @@ DWORD WINAPI UpdateWindow( LPVOID WorkThreadContext )
 			{
 				SORT_INFO si;
 				si.column = GetColumnIndexFromVirtualIndex( cfg_sorted_column_index, download_columns, NUM_COLUMNS );
-				si.hWnd = g_hWnd_files;
+				si.hWnd = g_hWnd_tlv_files;
 				si.direction = cfg_sorted_direction;
 
-				_SendMessageW( g_hWnd_files, LVM_SORTITEMS, ( WPARAM )&si, ( LPARAM )( PFNLVCOMPARE )DMCompareFunc );
+				_SendMessageW( g_hWnd_tlv_files, TLVM_SORT_ITEMS, NULL, ( LPARAM )&si );
 			}
 
 			if ( cfg_play_sound && cfg_sound_file_path != NULL )
@@ -763,12 +640,12 @@ DWORD WINAPI UpdateWindow( LPVOID WorkThreadContext )
 			}
 
 			HANDLE save_session_handle = NULL;
-			if ( cfg_enable_download_history && download_history_changed )
+			if ( cfg_enable_download_history && g_download_history_changed )
 			{
 				save_session_handle = ( HANDLE )_CreateThread( NULL, 0, save_session, ( void * )NULL, 0, NULL );
 			}
 
-			if ( cfg_shutdown_action != SHUTDOWN_ACTION_NONE )
+			if ( g_shutdown_action != SHUTDOWN_ACTION_NONE )
 			{
 				if ( save_session_handle != NULL )
 				{
@@ -776,8 +653,15 @@ DWORD WINAPI UpdateWindow( LPVOID WorkThreadContext )
 					CloseHandle( save_session_handle );
 				}
 
-				switch ( cfg_shutdown_action )
+				switch ( g_shutdown_action )
 				{
+					case SHUTDOWN_ACTION_EXIT_PROGRAM:
+					{
+						// Don't wait for the message to send.
+						_PostMessageW( g_hWnd_main, WM_EXIT, 0, 0 );
+					}
+					break;
+
 					case SHUTDOWN_ACTION_LOG_OFF:
 					case SHUTDOWN_ACTION_RESTART:
 					case SHUTDOWN_ACTION_SLEEP:
@@ -825,27 +709,7 @@ DWORD WINAPI UpdateWindow( LPVOID WorkThreadContext )
 	return 0;
 }
 
-LRESULT CALLBACK EditSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
-{
-	switch ( msg )
-	{
-		case WM_WINDOWPOSCHANGING:
-		{
-			// Modify the position of the listview edit control. We're moving it to the Filename column.
-			WINDOWPOS *wp = ( WINDOWPOS * )lParam;
-			wp->x = current_edit_pos.left;
-			wp->y = current_edit_pos.top;
-			wp->cx = current_edit_pos.right - current_edit_pos.left + 1;
-			wp->cy = current_edit_pos.bottom - current_edit_pos.top - 1;
-		}
-		break;
-	}
-
-	// Everything that we don't handle gets passed back to the parent to process.
-	return CallWindowProc( EditProc, hWnd, msg, wParam, lParam );
-}
-
-wchar_t *GetDownloadInfoString( DOWNLOAD_INFO *di, int column, int item_index, wchar_t *tbuf, unsigned short tbuf_size )
+wchar_t *GetDownloadInfoString( DOWNLOAD_INFO *di, int column, int root_index, int item_index, wchar_t *tbuf, unsigned short tbuf_size )
 {
 	wchar_t *buf = NULL;
 
@@ -856,7 +720,16 @@ wchar_t *GetDownloadInfoString( DOWNLOAD_INFO *di, int column, int item_index, w
 		{
 			buf = tbuf;	// Reset the buffer pointer.
 
-			__snwprintf( buf, tbuf_size, L"%lu", item_index );
+			if ( di == di->shared_info )
+			{
+				__snwprintf( buf, tbuf_size, L"%lu", root_index );
+			}
+			else
+			{
+				__snwprintf( buf, tbuf_size, L"%lu.%lu", root_index, item_index );
+			}
+
+			//__snwprintf( buf, tbuf_size, L"%lu", item_index );
 		}
 		break;
 
@@ -864,28 +737,42 @@ wchar_t *GetDownloadInfoString( DOWNLOAD_INFO *di, int column, int item_index, w
 		{
 			buf = tbuf;	// Reset the buffer pointer.
 
-			if ( di->parts_limit > 0 )
+			if ( di == di->shared_info && di != ( DOWNLOAD_INFO * )di->shared_info->host_list->data )
 			{
-				__snwprintf( buf, tbuf_size, L"%lu/%lu/%lu", di->active_parts, di->parts_limit, di->parts );
+				if ( di->parts_limit > 0 )
+				{
+					__snwprintf( buf, tbuf_size, L"%lu/%lu/%lu [%lu/%lu]", di->active_parts, di->parts_limit, di->parts, di->active_hosts, di->hosts );
+				}
+				else
+				{
+					__snwprintf( buf, tbuf_size, L"%lu/%lu [%lu/%lu]", di->active_parts, di->parts, di->active_hosts, di->hosts );
+				}
 			}
 			else
 			{
-				__snwprintf( buf, tbuf_size, L"%lu/%lu", di->active_parts, di->parts );
+				if ( di->parts_limit > 0 )
+				{
+					__snwprintf( buf, tbuf_size, L"%lu/%lu/%lu", di->active_parts, di->parts_limit, di->parts );
+				}
+				else
+				{
+					__snwprintf( buf, tbuf_size, L"%lu/%lu", di->active_parts, di->parts );
+				}
 			}
 		}
 		break;
 
 		case COLUMN_DATE_AND_TIME_ADDED:
 		{
-			buf = di->w_add_time;
+			buf = di->shared_info->w_add_time;
 		}
 		break;
 
 		case COLUMN_DOWNLOAD_DIRECTORY:
 		{
-			if ( !( di->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
+			if ( !( di->shared_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
 			{
-				buf = di->file_path;
+				buf = di->shared_info->file_path;
 			}
 			else
 			{
@@ -967,7 +854,7 @@ wchar_t *GetDownloadInfoString( DOWNLOAD_INFO *di, int column, int item_index, w
 
 		case COLUMN_FILENAME:
 		{
-			buf = di->file_path + di->filename_offset;
+			buf = di->shared_info->file_path + di->shared_info->filename_offset;
 		}
 		break;
 
@@ -1056,7 +943,6 @@ wchar_t *GetDownloadInfoString( DOWNLOAD_INFO *di, int column, int item_index, w
 				}
 				else if ( di->status == STATUS_MOVING_FILE )
 				{
-					//buf = ST_V_Moving_File;
 					__snwprintf( buf, tbuf_size, L"%s - %d.%1d%%", ST_V_Moving_File, i_percentage, remainder );
 				}
 				else	// Downloading.
@@ -1200,7 +1086,14 @@ wchar_t *GetDownloadInfoString( DOWNLOAD_INFO *di, int column, int item_index, w
 
 		case COLUMN_URL:
 		{
-			buf = di->url;
+			if ( di == di->shared_info && di != ( DOWNLOAD_INFO * )di->shared_info->host_list->data )
+			{
+				buf = ST_V__DATA_;
+			}
+			else
+			{
+				buf = di->url;
+			}
 		}
 		break;
 	}
@@ -1208,701 +1101,10 @@ wchar_t *GetDownloadInfoString( DOWNLOAD_INFO *di, int column, int item_index, w
 	return buf;
 }
 
-LRESULT CALLBACK ListViewSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
+LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
 {
 	switch ( msg )
 	{
-		case WM_NOTIFY:
-		{
-			// Get our listview codes.
-			switch ( ( ( LPNMHDR )lParam )->code )
-			{
-				case HDN_DIVIDERDBLCLICK:
-				{
-					NMHEADER *nmh = ( NMHEADER * )lParam;
-
-					int largest_width;
-
-					int virtual_index = GetVirtualIndexFromColumnIndex( nmh->iItem, download_columns, NUM_COLUMNS );
-
-					if ( GetKeyState( VK_CONTROL ) & 0x8000 )
-					{
-						largest_width = LVSCW_AUTOSIZE_USEHEADER;
-					}
-					else
-					{
-						largest_width = 26;	// 5 + 16 + 5.
-
-						if ( virtual_index != COLUMN_FILE_TYPE )	// File Type
-						{
-							wchar_t tbuf[ 128 ];
-
-							LVITEM lvi;
-							_memzero( &lvi, sizeof( LVITEM ) );
-
-							int index = ( int )_SendMessageW( hWnd, LVM_GETTOPINDEX, 0, 0 );
-							int index_end = ( int )_SendMessageW( hWnd, LVM_GETCOUNTPERPAGE, 0, 0 ) + index;
-
-							bool switch_fonts = ( cfg_even_row_font_settings.lf.lfHeight != cfg_odd_row_font_settings.lf.lfHeight );
-
-							RECT rc;
-							HDC hDC = _GetDC( hWnd );
-
-							if ( !switch_fonts )
-							{
-								HFONT ohf = ( HFONT )_SelectObject( hDC, g_hFont );
-								_DeleteObject( ohf );
-							}
-
-							for ( ; index <= index_end; ++index )
-							{
-								if ( switch_fonts )
-								{
-									HFONT *hFont = ( index & 1 ? &cfg_even_row_font_settings.font : &cfg_odd_row_font_settings.font );
-
-									HFONT ohf = ( HFONT )_SelectObject( hDC, *hFont );
-									if ( ohf != cfg_even_row_font_settings.font && ohf != cfg_odd_row_font_settings.font )
-									{
-										_DeleteObject( ohf );
-									}
-								}
-
-								lvi.iItem = index;
-								lvi.mask = LVIF_PARAM;
-								if ( _SendMessageW( hWnd, LVM_GETITEM, 0, ( LPARAM )&lvi ) == TRUE )
-								{
-									DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )lvi.lParam;
-									if ( di != NULL )
-									{
-										wchar_t *buf = GetDownloadInfoString( di, virtual_index, index + 1, tbuf, 128 );
-
-										if ( buf == NULL )
-										{
-											tbuf[ 0 ] = L'\0';
-											buf = tbuf;
-										}
-
-										rc.bottom = rc.left = rc.right = rc.top = 0;
-
-										_DrawTextW( hDC, buf, -1, &rc, DT_SINGLELINE | DT_NOPREFIX | DT_CALCRECT );
-
-										int width = ( rc.right - rc.left ) + 10;	// 5 + 5 padding.
-										if ( width > largest_width )
-										{
-											largest_width = width;
-										}
-									}
-								}
-								else
-								{
-									break;
-								}
-							}
-
-							_ReleaseDC( hWnd, hDC );
-						}
-					}
-
-					_SendMessageW( hWnd, LVM_SETCOLUMNWIDTH, nmh->iItem, largest_width );
-
-					// Save our new column width.
-					*download_columns_width[ virtual_index ] = ( int )_SendMessageW( hWnd, LVM_GETCOLUMNWIDTH, nmh->iItem, 0 );
-
-					return TRUE;
-				}
-				break;
-			}
-		}
-		break;
-	}
-
-	// Everything that we don't handle gets passed back to the parent to process.
-	return CallWindowProc( ListViewProc, hWnd, msg, wParam, lParam );
-}
-
-void HandleCommand( HWND hWnd, WPARAM wParam, LPARAM lParam )
-{
-	switch ( LOWORD( wParam ) )
-	{
-		case MENU_OPEN_FILE:
-		case MENU_OPEN_DIRECTORY:
-		{
-			LVITEM lvi;
-			_memzero( &lvi, sizeof( LVITEM ) );
-			lvi.mask = LVIF_PARAM;
-			lvi.iItem = ( int )_SendMessageW( g_hWnd_files, LVM_GETNEXTITEM, -1, LVNI_FOCUSED | LVNI_SELECTED );
-
-			if ( lvi.iItem != -1 )
-			{
-				_SendMessageW( g_hWnd_files, LVM_GETITEM, 0, ( LPARAM )&lvi );
-
-				DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )lvi.lParam;
-				if ( di != NULL && !( di->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
-				{
-					bool destroy = true;
-					#ifndef OLE32_USE_STATIC_LIB
-						if ( ole32_state == OLE32_STATE_SHUTDOWN )
-						{
-							destroy = InitializeOle32();
-						}
-					#endif
-
-					if ( destroy )
-					{
-						_CoInitializeEx( NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE );
-					}
-
-					wchar_t file_path[ MAX_PATH ];
-					if ( cfg_use_temp_download_directory && di->status != STATUS_COMPLETED )
-					{
-						GetTemporaryFilePath( di, file_path );
-					}
-					else
-					{
-						GetDownloadFilePath( di, file_path );
-					}
-
-					if ( LOWORD( wParam ) == MENU_OPEN_FILE )
-					{
-						// Set the verb to NULL so that unknown file types can be handled by the system.
-						HINSTANCE hInst = _ShellExecuteW( NULL, NULL, file_path, NULL, NULL, SW_SHOWNORMAL );
-						if ( hInst == ( HINSTANCE )ERROR_FILE_NOT_FOUND )
-						{
-							if ( _MessageBoxW( hWnd, ST_V_PROMPT_The_specified_file_was_not_found, PROGRAM_CAPTION, MB_APPLMODAL | MB_ICONWARNING | MB_YESNO ) == IDYES )
-							{
-								CloseHandle( ( HANDLE )_CreateThread( NULL, 0, handle_download_list, ( void * )3, 0, NULL ) );	// Restart download (from the beginning).
-							}
-						}
-					}
-					else if ( LOWORD( wParam ) == MENU_OPEN_DIRECTORY )
-					{
-						HINSTANCE hInst = ( HINSTANCE )ERROR_FILE_NOT_FOUND;
-
-						LPITEMIDLIST iidl = _ILCreateFromPathW( file_path );
-
-						if ( iidl != NULL && _SHOpenFolderAndSelectItems( iidl, 0, NULL, 0 ) == S_OK )
-						{
-							hInst = ( HINSTANCE )ERROR_SUCCESS;
-						}
-						else
-						{
-							// Try opening the folder without selecting any file.
-							hInst = _ShellExecuteW( NULL, L"open", di->file_path, NULL, NULL, SW_SHOWNORMAL );
-						}
-
-						// Use this instead of ILFree on Windows 2000 or later.
-						if ( iidl != NULL )
-						{
-							_CoTaskMemFree( iidl );
-						}
-
-						if ( hInst == ( HINSTANCE )ERROR_FILE_NOT_FOUND )	// We're opening a folder, but it uses the same error code as a file if it's not found.
-						{
-							_MessageBoxW( hWnd, ST_V_The_specified_path_was_not_found, PROGRAM_CAPTION, MB_APPLMODAL | MB_ICONWARNING );
-						}
-					}
-
-					if ( destroy )
-					{
-						_CoUninitialize();
-					}
-				}
-			}
-		}
-		break;
-
-		case MENU_SAVE_DOWNLOAD_HISTORY:
-		{
-			wchar_t *file_path = ( wchar_t * )GlobalAlloc( GPTR, sizeof( wchar_t ) * MAX_PATH );
-
-			OPENFILENAME ofn;
-			_memzero( &ofn, sizeof( OPENFILENAME ) );
-			ofn.lStructSize = sizeof( OPENFILENAME );
-			ofn.hwndOwner = hWnd;
-			ofn.lpstrFilter = L"CSV (Comma delimited) (*.csv)\0*.csv\0";
-			ofn.lpstrDefExt = L"csv";
-			ofn.lpstrTitle = ST_V_Save_Download_History;
-			ofn.lpstrFile = file_path;
-			ofn.nMaxFile = MAX_PATH;
-			ofn.Flags = OFN_PATHMUSTEXIST | OFN_OVERWRITEPROMPT | OFN_READONLY;
-
-			if ( _GetSaveFileNameW( &ofn ) )
-			{
-				// file_path will be freed in the create_download_history_csv_file thread.
-				HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, create_download_history_csv_file, ( void * )file_path, 0, NULL );
-				if ( thread != NULL )
-				{
-					CloseHandle( thread );
-				}
-				else
-				{
-					GlobalFree( file_path );
-				}
-			}
-			else
-			{
-				GlobalFree( file_path );
-			}
-		}
-		break;
-
-		case MENU_IMPORT_DOWNLOAD_HISTORY:
-		{
-			wchar_t *file_name = ( wchar_t * )GlobalAlloc( GPTR, sizeof( wchar_t ) * ( MAX_PATH * MAX_PATH ) );
-
-			OPENFILENAME ofn;
-			_memzero( &ofn, sizeof( OPENFILENAME ) );
-			ofn.lStructSize = sizeof( OPENFILENAME );
-			ofn.hwndOwner = hWnd;
-			ofn.lpstrFilter = L"Download History (*.hdh)\0*.hdh\0";
-			ofn.lpstrDefExt = L"hdh";
-			ofn.lpstrTitle = ST_V_Import_Download_History;
-			ofn.lpstrFile = file_name;
-			ofn.nMaxFile = MAX_PATH * MAX_PATH;
-			ofn.Flags = OFN_ALLOWMULTISELECT | OFN_EXPLORER | OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_READONLY;
-
-			if ( _GetOpenFileNameW( &ofn ) )
-			{
-				importexportinfo *iei = ( importexportinfo * )GlobalAlloc( GMEM_FIXED, sizeof( importexportinfo ) );
-				iei->type = 1;	// Import from menu.
-				iei->file_paths = file_name;
-				iei->file_offset = ofn.nFileOffset;
-
-				// iei will be freed in the import_list thread.
-				HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, import_list, ( void * )iei, 0, NULL );
-				if ( thread != NULL )
-				{
-					CloseHandle( thread );
-				}
-				else
-				{
-					GlobalFree( iei->file_paths );
-					GlobalFree( iei );
-				}
-			}
-			else
-			{
-				GlobalFree( file_name );
-			}
-		}
-		break;
-
-		case MENU_EXPORT_DOWNLOAD_HISTORY:
-		{
-			wchar_t *file_name = ( wchar_t * )GlobalAlloc( GPTR, sizeof( wchar_t ) * MAX_PATH );
-
-			OPENFILENAME ofn;
-			_memzero( &ofn, sizeof( OPENFILENAME ) );
-			ofn.lStructSize = sizeof( OPENFILENAME );
-			ofn.hwndOwner = hWnd;
-			ofn.lpstrFilter = L"Download History (*.hdh)\0*.hdh\0";
-			ofn.lpstrDefExt = L"hdh";
-			ofn.lpstrTitle = ST_V_Export_Download_History;
-			ofn.lpstrFile = file_name;
-			ofn.nMaxFile = MAX_PATH;
-			ofn.Flags = OFN_PATHMUSTEXIST | OFN_OVERWRITEPROMPT | OFN_READONLY;
-
-			if ( _GetSaveFileNameW( &ofn ) )
-			{
-				importexportinfo *iei = ( importexportinfo * )GlobalAlloc( GMEM_FIXED, sizeof( importexportinfo ) );
-				iei->file_paths = file_name;
-
-				// iei will be freed in the export_list thread.
-				HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, export_list, ( void * )iei, 0, NULL );
-				if ( thread != NULL )
-				{
-					CloseHandle( thread );
-				}
-				else
-				{
-					GlobalFree( iei->file_paths );
-					GlobalFree( iei );
-				}
-			}
-			else
-			{
-				GlobalFree( file_name );
-			}
-		}
-		break;
-
-		case MENU_START:
-		{
-			CloseHandle( ( HANDLE )_CreateThread( NULL, 0, handle_connection, ( void * )STATUS_DOWNLOADING, 0, NULL ) );
-		}
-		break;
-
-		case MENU_PAUSE:
-		{
-			CloseHandle( ( HANDLE )_CreateThread( NULL, 0, handle_connection, ( void * )STATUS_PAUSED, 0, NULL ) );
-		}
-		break;
-
-		case MENU_STOP:
-		{
-			CloseHandle( ( HANDLE )_CreateThread( NULL, 0, handle_connection, ( void * )STATUS_STOPPED, 0, NULL ) );
-		}
-		break;
-
-		case MENU_RESTART:
-		{
-			if ( _MessageBoxW( hWnd, ST_V_PROMPT_restart_selected_entries, PROGRAM_CAPTION, MB_APPLMODAL | MB_ICONWARNING | MB_YESNO ) == IDYES )
-			{
-				CloseHandle( ( HANDLE )_CreateThread( NULL, 0, handle_connection, ( void * )STATUS_RESTART, 0, NULL ) );
-			}
-		}
-		break;
-
-		case MENU_PAUSE_ACTIVE:
-		{
-			CloseHandle( ( HANDLE )_CreateThread( NULL, 0, handle_download_list, ( void * )0, 0, NULL ) );
-		}
-		break;
-
-		case MENU_STOP_ALL:
-		{
-			CloseHandle( ( HANDLE )_CreateThread( NULL, 0, handle_download_list, ( void * )1, 0, NULL ) );
-		}
-		break;
-
-		case MENU_UPDATE_DOWNLOAD:
-		{
-			LVITEM lvi;
-			_memzero( &lvi, sizeof( LVITEM ) );
-			lvi.mask = LVIF_PARAM;
-			lvi.iItem = ( int )_SendMessageW( g_hWnd_files, LVM_GETNEXTITEM, -1, LVNI_FOCUSED | LVNI_SELECTED );
-
-			if ( lvi.iItem != -1 )
-			{
-				_SendMessageW( g_hWnd_files, LVM_GETITEM, 0, ( LPARAM )&lvi );
-
-				if ( lvi.lParam != NULL )
-				{
-					if ( g_hWnd_update_download == NULL )
-					{
-						g_hWnd_update_download = _CreateWindowExW( WS_EX_COMPOSITED | ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"update_download", ST_V_Update_Download, WS_OVERLAPPEDWINDOW, ( ( _GetSystemMetrics( SM_CXSCREEN ) - 525 ) / 2 ), ( ( _GetSystemMetrics( SM_CYSCREEN ) - 420 ) / 2 ), 525, 420, NULL, NULL, NULL, NULL );
-					}
-					else if ( _IsIconic( g_hWnd_update_download ) )	// If minimized, then restore the window.
-					{
-						_ShowWindow( g_hWnd_update_download, SW_RESTORE );
-					}
-
-					_SendMessageW( g_hWnd_update_download, WM_PROPAGATE, 0, lvi.lParam );
-				}
-			}
-		}
-		break;
-
-		case MENU_QUEUE_TOP:
-		case MENU_QUEUE_UP:
-		case MENU_QUEUE_DOWN:
-		case MENU_QUEUE_BOTTOM:
-		{
-			unsigned char handle_type = 0;
-
-			switch ( LOWORD( wParam ) )
-			{
-				case MENU_QUEUE_TOP: { handle_type = 0; } break;
-				case MENU_QUEUE_UP: { handle_type = 1; } break;
-				case MENU_QUEUE_DOWN: { handle_type = 2; } break;
-				case MENU_QUEUE_BOTTOM: { handle_type = 3; } break;
-			}
-
-			CloseHandle( ( HANDLE )_CreateThread( NULL, 0, handle_download_queue, ( void * )handle_type, 0, NULL ) );
-		}
-		break;
-
-		case MENU_REMOVE:
-		{
-			if ( _MessageBoxW( hWnd, ST_V_PROMPT_remove_selected_entries, PROGRAM_CAPTION, MB_APPLMODAL | MB_ICONWARNING | MB_YESNO ) == IDYES )
-			{
-				CloseHandle( ( HANDLE )_CreateThread( NULL, 0, remove_items, ( void * )0, 0, NULL ) );
-			}
-		}
-		break;
-
-		case MENU_REMOVE_COMPLETED:
-		{
-			if ( _MessageBoxW( hWnd, ST_V_PROMPT_remove_completed_entries, PROGRAM_CAPTION, MB_APPLMODAL | MB_ICONWARNING | MB_YESNO ) == IDYES )
-			{
-				CloseHandle( ( HANDLE )_CreateThread( NULL, 0, handle_download_list, ( void * )2, 0, NULL ) );
-			}
-		}
-		break;
-
-		case MENU_REMOVE_AND_DELETE:
-		{
-			if ( _MessageBoxW( hWnd, ST_V_PROMPT_remove_and_delete_selected_entries, PROGRAM_CAPTION, MB_APPLMODAL | MB_ICONWARNING | MB_YESNO ) == IDYES )
-			{
-				CloseHandle( ( HANDLE )_CreateThread( NULL, 0, remove_items, ( void * )1, 0, NULL ) );
-			}
-		}
-		break;
-
-		case MENU_COPY_URLS:
-		{
-			CloseHandle( ( HANDLE )_CreateThread( NULL, 0, copy_urls, ( void * )NULL, 0, NULL ) );
-		}
-		break;
-
-		case MENU_DELETE:
-		{
-			if ( _MessageBoxW( hWnd, ST_V_PROMPT_delete_selected_files, PROGRAM_CAPTION, MB_APPLMODAL | MB_ICONWARNING | MB_YESNO ) == IDYES )
-			{
-				CloseHandle( ( HANDLE )_CreateThread( NULL, 0, delete_files, ( void * )NULL, 0, NULL ) );
-			}
-		}
-		break;
-
-		case MENU_RENAME:
-		{
-			LVITEM lvi;
-			_memzero( &lvi, sizeof( LVITEM ) );
-			lvi.mask = LVIF_PARAM;
-			lvi.iItem = ( int )_SendMessageW( g_hWnd_files, LVM_GETNEXTITEM, -1, LVNI_FOCUSED | LVNI_SELECTED );
-
-			if ( lvi.iItem != -1 )
-			{
-				edit_from_menu = true;
-
-				_SendMessageW( g_hWnd_files, LVM_EDITLABEL, lvi.iItem, 0 );
-			}
-		}
-		break;
-
-		case MENU_SELECT_ALL:
-		{
-			// Set the state of all items to selected.
-			LVITEM lvi;
-			_memzero( &lvi, sizeof( LVITEM ) );
-			lvi.mask = LVIF_STATE;
-			lvi.state = LVIS_SELECTED;
-			lvi.stateMask = LVIS_SELECTED;
-			_SendMessageW( g_hWnd_files, LVM_SETITEMSTATE, -1, ( LPARAM )&lvi );
-
-			//UpdateMenus( true );
-		}
-		break;
-
-		case MENU_NUM:
-		case MENU_ACTIVE_PARTS:
-		case MENU_DATE_AND_TIME_ADDED:
-		case MENU_DOWNLOAD_DIRECTORY:
-		case MENU_DOWNLOAD_SPEED:
-		case MENU_DOWNLOAD_SPEED_LIMIT:
-		case MENU_DOWNLOADED:
-		case MENU_FILE_SIZE:
-		case MENU_FILE_TYPE:
-		case MENU_FILENAME:
-		case MENU_PROGRESS:
-		case MENU_SSL_TLS_VERSION:
-		case MENU_TIME_ELAPSED:
-		case MENU_TIME_REMAINING:
-		case MENU_URL:
-		{
-			UpdateColumns( LOWORD( wParam ) );
-		}
-		break;
-
-		case MENU_ADD_URLS:
-		{
-			if ( g_hWnd_add_urls == NULL )
-			{
-				g_hWnd_add_urls = _CreateWindowExW( WS_EX_COMPOSITED | ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"add_urls", ST_V_Add_URL_s_, WS_OVERLAPPEDWINDOW, ( ( _GetSystemMetrics( SM_CXSCREEN ) - 600 ) / 2 ), ( ( _GetSystemMetrics( SM_CYSCREEN ) - 270 ) / 2 ), 600, 270, NULL, NULL, NULL, NULL );
-			}
-
-			_SendMessageW( g_hWnd_add_urls, WM_PROPAGATE, 0, 0 );
-		}
-		break;
-
-		case MENU_SHOW_TOOLBAR:
-		{
-			cfg_show_toolbar = !cfg_show_toolbar;
-
-			LONG_PTR style = _GetWindowLongPtrW( g_hWnd_files, GWL_STYLE );
-
-			if ( cfg_show_toolbar )
-			{
-				style |= WS_BORDER;
-
-				_CheckMenuItem( g_hMenuSub_view, MENU_SHOW_TOOLBAR, MF_CHECKED );
-				_ShowWindow( g_hWnd_toolbar, SW_SHOW );
-			}
-			else
-			{
-				style &= ~( WS_BORDER );
-
-				_CheckMenuItem( g_hMenuSub_view, MENU_SHOW_TOOLBAR, MF_UNCHECKED );
-				_ShowWindow( g_hWnd_toolbar, SW_HIDE );
-			}
-
-			UpdateMenus( true );
-
-			// Show/hide the files border if the toolbar is/isn't visible.
-			_SetWindowLongPtrW( g_hWnd_files, GWL_STYLE, style );
-
-			_SendMessageW( hWnd, WM_SIZE, 0, 0 );
-		}
-		break;
-
-		case MENU_SHOW_COLUMN_HEADERS:
-		{
-			cfg_show_column_headers = !cfg_show_column_headers;
-
-			LONG_PTR style = _GetWindowLongPtrW( g_hWnd_files, GWL_STYLE );
-
-			if ( cfg_show_column_headers )
-			{
-				style &= ~( LVS_NOCOLUMNHEADER );
-
-				_CheckMenuItem( g_hMenuSub_view, MENU_SHOW_COLUMN_HEADERS, MF_CHECKED );
-			}
-			else
-			{
-				style |= LVS_NOCOLUMNHEADER;
-
-				_CheckMenuItem( g_hMenuSub_view, MENU_SHOW_COLUMN_HEADERS, MF_UNCHECKED );
-			}
-
-			// Show/hide the files border if the toolbar is/isn't visible.
-			_SetWindowLongPtrW( g_hWnd_files, GWL_STYLE, style );
-		}
-		break;
-
-		case MENU_SHOW_STATUS_BAR:
-		{
-			cfg_show_status_bar = !cfg_show_status_bar;
-
-			if ( cfg_show_status_bar )
-			{
-				_CheckMenuItem( g_hMenuSub_view, MENU_SHOW_STATUS_BAR, MF_CHECKED );
-				_ShowWindow( g_hWnd_status, SW_SHOW );
-			}
-			else
-			{
-				_CheckMenuItem( g_hMenuSub_view, MENU_SHOW_STATUS_BAR, MF_UNCHECKED );
-				_ShowWindow( g_hWnd_status, SW_HIDE );
-			}
-
-			_SendMessageW( hWnd, WM_SIZE, 0, 0 );
-		}
-		break;
-
-		case MENU_SEARCH:
-		{
-			if ( g_hWnd_search == NULL )
-			{
-				g_hWnd_search = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"search", ST_V_Search, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU, ( ( _GetSystemMetrics( SM_CXSCREEN ) - 400 ) / 2 ), ( ( _GetSystemMetrics( SM_CYSCREEN ) - 190 ) / 2 ), 400, 190, NULL, NULL, NULL, NULL );
-			}
-
-			_SendMessageW( g_hWnd_search, WM_PROPAGATE, 0, 0 );
-		}
-		break;
-
-		case MENU_GLOBAL_SPEED_LIMIT:
-		{
-			if ( g_hWnd_download_speed_limit == NULL )
-			{
-				g_hWnd_download_speed_limit = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"download_speed_limit", ST_V_Global_Download_Speed_Limit, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU, ( ( _GetSystemMetrics( SM_CXSCREEN ) - 280 ) / 2 ), ( ( _GetSystemMetrics( SM_CYSCREEN ) - 120 ) / 2 ), 280, 120, NULL, NULL, NULL, NULL );
-				_ShowWindow( g_hWnd_download_speed_limit, SW_SHOWNORMAL );
-			}
-			_SetForegroundWindow( g_hWnd_download_speed_limit );
-		}
-		break;
-
-		case MENU_OPTIONS:
-		{
-			if ( g_hWnd_options == NULL )
-			{
-				g_hWnd_options = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"options", ST_V_Options, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU /*| WS_THICKFRAME*/, ( ( _GetSystemMetrics( SM_CXSCREEN ) - 720 ) / 2 ), ( ( _GetSystemMetrics( SM_CYSCREEN ) - 500 ) / 2 ), 720, 500, NULL, NULL, NULL, NULL );
-				_ShowWindow( g_hWnd_options, SW_SHOWNORMAL );
-			}
-			_SetForegroundWindow( g_hWnd_options );
-		}
-		break;
-
-		case MENU_HOME_PAGE:
-		{
-			bool destroy = true;
-			#ifndef OLE32_USE_STATIC_LIB
-				if ( ole32_state == OLE32_STATE_SHUTDOWN )
-				{
-					destroy = InitializeOle32();
-				}
-			#endif
-
-			if ( destroy )
-			{
-				_CoInitializeEx( NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE );
-			}
-
-			_ShellExecuteW( NULL, L"open", HOME_PAGE, NULL, NULL, SW_SHOWNORMAL );
-
-			if ( destroy )
-			{
-				_CoUninitialize();
-			}
-		}
-		break;
-
-		case MENU_ABOUT:
-		{
-			wchar_t msg[ 512 ];
-			__snwprintf( msg, 512, L"%s\r\n\r\n" \
-								   L"%s 1.0.3.1 (%u-bit)\r\n\r\n" \
-								   L"%s %s, %s %d, %04d %d:%02d:%02d %s (UTC)\r\n\r\n" \
-								   L"%s \xA9 2015-2020 Eric Kutcher",
-								   ST_V_LICENSE,
-								   ST_V_VERSION,
-#ifdef _WIN64
-								   64,
-#else
-								   32,
-#endif
-								   ST_V_BUILT,
-								   ( g_compile_time.wDayOfWeek > 6 ? L"" : GetDay( g_compile_time.wDayOfWeek ) ),
-								   ( ( g_compile_time.wMonth > 12 || g_compile_time.wMonth < 1 ) ? L"" : GetMonth( g_compile_time.wMonth ) ),
-								   g_compile_time.wDay,
-								   g_compile_time.wYear,
-								   ( g_compile_time.wHour > 12 ? g_compile_time.wHour - 12 : ( g_compile_time.wHour != 0 ? g_compile_time.wHour : 12 ) ),
-								   g_compile_time.wMinute,
-								   g_compile_time.wSecond,
-								   ( g_compile_time.wHour >= 12 ? L"PM" : L"AM" ),
-								   ST_V_COPYRIGHT );
-
-			_MessageBoxW( hWnd, msg, PROGRAM_CAPTION, MB_APPLMODAL | MB_ICONINFORMATION );
-		}
-		break;
-
-		case MENU_RESTORE:
-		{
-			if ( _IsIconic( hWnd ) )	// If minimized, then restore the window.
-			{
-				_ShowWindow( hWnd, SW_RESTORE );
-			}
-			else if ( _IsWindowVisible( hWnd ) == TRUE )	// If already visible, then flash the window.
-			{
-				_FlashWindow( hWnd, TRUE );
-			}
-			else	// If hidden, then show the window.
-			{
-				_ShowWindow( hWnd, SW_SHOW );
-			}
-		}
-		break;
-
-		case MENU_EXIT:
-		{
-			_SendMessageW( hWnd, WM_EXIT, 0, 0 );
-		}
-		break;
-	}
-}
-
-LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
-{
-    switch ( msg )
-    {
 		case WM_CREATE:
 		{
 			g_hWnd_toolbar = _CreateWindowExW( WS_EX_TOOLWINDOW, TOOLBARCLASSNAME, NULL, CCS_NODIVIDER | WS_CHILDWINDOW | TBSTYLE_TOOLTIPS | TBSTYLE_TRANSPARENT | TBSTYLE_FLAT | TBSTYLE_WRAPABLE | ( cfg_show_toolbar ? WS_VISIBLE : 0 ), 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
@@ -1926,7 +1128,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 			// Allows us to use the iString value for tooltips.
 			_SendMessageW( g_hWnd_toolbar, TB_SETMAXTEXTROWS, 0, 0 );
 
-			TBBUTTON tbb[ 14 ] = 
+			TBBUTTON tbb[ 15 ] = 
 			{
 				{ MAKELONG( 0, 0 ),				  MENU_ADD_URLS,	TBSTATE_ENABLED, BTNS_AUTOSIZE,	{ 0 }, 0,					 ( INT_PTR )ST_V_Add_URL_s_ },
 				{ MAKELONG( 1, 0 ),					MENU_REMOVE,	TBSTATE_ENABLED, BTNS_AUTOSIZE,	{ 0 }, 0,						 ( INT_PTR )ST_V_Remove },
@@ -1941,38 +1143,18 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 				{				 0,							 -1,				  0,	  BTNS_SEP,	{ 0 }, 0,										   NULL },
 				{ MAKELONG( 8, 0 ),					MENU_SEARCH,	TBSTATE_ENABLED, BTNS_AUTOSIZE,	{ 0 }, 0,						 ( INT_PTR )ST_V_Search },
 				{ MAKELONG( 9, 0 ),		MENU_GLOBAL_SPEED_LIMIT,	TBSTATE_ENABLED, BTNS_AUTOSIZE,	{ 0 }, 0,	( INT_PTR )ST_V_Global_Download_Speed_Limit },
-				{ MAKELONG( 10, 0 ),			   MENU_OPTIONS,	TBSTATE_ENABLED, BTNS_AUTOSIZE,	{ 0 }, 0,						( INT_PTR )ST_V_Options }
+				{ MAKELONG( 10, 0 ),		  MENU_SITE_MANAGER,	TBSTATE_ENABLED, BTNS_AUTOSIZE,	{ 0 }, 0,				   ( INT_PTR )ST_V_Site_Manager },
+				{ MAKELONG( 11, 0 ),			   MENU_OPTIONS,	TBSTATE_ENABLED, BTNS_AUTOSIZE,	{ 0 }, 0,						( INT_PTR )ST_V_Options }
 			};
 
-			_SendMessageW( g_hWnd_toolbar, TB_ADDBUTTONS, 14, ( LPARAM )&tbb );
+			_SendMessageW( g_hWnd_toolbar, TB_ADDBUTTONS, 15, ( LPARAM )&tbb );
 
-			g_hWnd_files = _CreateWindowW( WC_LISTVIEW, NULL, LVS_REPORT | LVS_EDITLABELS | LVS_OWNERDRAWFIXED | WS_CHILDWINDOW | WS_VISIBLE | ( cfg_show_toolbar ? WS_BORDER : 0 ) | ( cfg_show_column_headers ? 0 : LVS_NOCOLUMNHEADER ), 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
-			_SendMessageW( g_hWnd_files, LVM_SETEXTENDEDLISTVIEWSTYLE, 0, LVS_EX_DOUBLEBUFFER | LVS_EX_FULLROWSELECT | ( cfg_show_gridlines ? LVS_EX_GRIDLINES : 0 ) | LVS_EX_HEADERDRAGDROP );
+			g_hWnd_tlv_files = _CreateWindowW( L"TreeListView", NULL, WS_VSCROLL | WS_HSCROLL | WS_CHILDWINDOW | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 
 			g_hWnd_status = _CreateWindowW( STATUSCLASSNAME, NULL, SBARS_SIZEGRIP | WS_CHILDWINDOW | ( cfg_show_status_bar ? WS_VISIBLE : 0 ), 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 
-			g_hWnd_tooltip = _CreateWindowExW( WS_EX_TOPMOST, TOOLTIPS_CLASS, NULL, WS_POPUP | TTS_NOPREFIX | TTS_ALWAYSTIP, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, g_hWnd_files, NULL, NULL, NULL );
-
-			TOOLINFO tti;
-			_memzero( &tti, sizeof( TOOLINFO ) );
-			tti.cbSize = sizeof( TOOLINFO );
-			tti.uFlags = TTF_SUBCLASS;
-			tti.hwnd = g_hWnd_files;
-
-			_SendMessageW( g_hWnd_tooltip, TTM_ADDTOOL, 0, ( LPARAM )&tti );
-			_SendMessageW( g_hWnd_tooltip, TTM_SETMAXTIPWIDTH, 0, sizeof( wchar_t ) * ( 2 * MAX_PATH ) );
-			_SendMessageW( g_hWnd_tooltip, TTM_SETDELAYTIME, TTDT_AUTOPOP, 32767 );
-			_SendMessageW( g_hWnd_tooltip, TTM_SETDELAYTIME, TTDT_INITIAL, 2000 );
-
-			_SendMessageW( g_hWnd_files, LVM_SETTOOLTIPS, ( WPARAM )g_hWnd_tooltip, 0 );
-
-
 			_SendMessageW( g_hWnd_toolbar, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_files, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 			_SendMessageW( g_hWnd_status, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-
-			ListViewProc = ( WNDPROC )_GetWindowLongPtrW( g_hWnd_files, GWLP_WNDPROC );
-			_SetWindowLongPtrW( g_hWnd_files, GWLP_WNDPROC, ( LONG_PTR )ListViewSubProc );
 
 			#ifndef OLE32_USE_STATIC_LIB
 				if ( ole32_state == OLE32_STATE_SHUTDOWN )
@@ -1985,7 +1167,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 			{
 				_OleInitialize( NULL );
 
-				RegisterDropWindow( g_hWnd_files, &List_DropTarget );
+				RegisterDropWindow( g_hWnd_tlv_files, &List_DropTarget );
 			}
 
 			int status_bar_widths[] = { 250, 500, -1 };
@@ -2034,56 +1216,6 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 			}
 
 			_SendMessageW( g_hWnd_status, SB_SETTEXT, MAKEWPARAM( 2, 0 ), ( LPARAM )status_bar_buf );
-
-
-			int arr[ NUM_COLUMNS ];
-
-			// Initialize our listview columns
-			LVCOLUMN lvc;
-			_memzero( &lvc, sizeof( LVCOLUMN ) );
-			lvc.mask = LVCF_FMT | LVCF_WIDTH | LVCF_TEXT;
-
-			for ( char i = 0; i < NUM_COLUMNS; ++i )
-			{
-				// Active Parts, Download Speed, Download Speed Limit, Downloaded, File Size, Time Elapsed, Time Remaining
-				if ( i == COLUMN_ACTIVE_PARTS ||
-					 i == COLUMN_DOWNLOAD_SPEED ||
-					 i == COLUMN_DOWNLOAD_SPEED_LIMIT ||
-					 i == COLUMN_DOWNLOADED ||
-					 i == COLUMN_FILE_SIZE ||
-					 i == COLUMN_TIME_ELAPSED ||
-					 i == COLUMN_TIME_REMAINING )
-				{
-					lvc.fmt = LVCFMT_RIGHT;
-				}
-				else if ( i == COLUMN_PROGRESS )	// Progress
-				{
-					lvc.fmt = LVCFMT_CENTER;
-				}
-				else
-				{
-					lvc.fmt = LVCFMT_LEFT;
-				}
-
-				if ( i != 0 && i == cfg_sorted_column_index )
-				{
-					lvc.fmt = lvc.fmt | ( cfg_sorted_direction == 1 ? HDF_SORTUP : HDF_SORTDOWN );
-				}
-
-				if ( *download_columns[ i ] != -1 )
-				{
-					//lvc.pszText = download_string_table[ i ].value;
-					lvc.pszText = g_locale_table[ DOWNLOAD_STRING_TABLE_OFFSET + i ].value;
-					lvc.cx = *download_columns_width[ i ];
-					_SendMessageW( g_hWnd_files, LVM_INSERTCOLUMN, g_total_columns, ( LPARAM )&lvc );
-
-					arr[ g_total_columns++ ] = *download_columns[ i ];
-				}
-			}
-
-			_SendMessageW( g_hWnd_files, LVM_SETCOLUMNORDERARRAY, g_total_columns, ( LPARAM )arr );
-
-			g_hWnd_files_columns = ( HWND )_SendMessageW( g_hWnd_files, LVM_GETHEADER, 0, 0 );
 
 			if ( cfg_tray_icon )
 			{
@@ -2143,6 +1275,12 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 
 			WM_TASKBARBUTTONCREATED = _RegisterWindowMessageW( L"TaskbarButtonCreated" );
 
+			if ( cfg_check_for_updates )
+			{
+				// Check after 10 seconds.
+				_SetTimer( hWnd, IDT_UPDATE_CHECK_TIMER, 10000, ( TIMERPROC )UpdateCheckTimerProc );
+			}
+
 			return 0;
 		}
 		break;
@@ -2161,7 +1299,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 				}
 
 				// Allow us to save the download history if there are any entries in the files listview.
-				_EnableMenuItem( g_hMenu, MENU_SAVE_DOWNLOAD_HISTORY, ( _SendMessageW( g_hWnd_files, LVM_GETITEMCOUNT, 0, 0 ) > 0 ? MF_ENABLED : MF_GRAYED ) );
+				_EnableMenuItem( g_hMenu, MENU_SAVE_DOWNLOAD_HISTORY, ( TLV_GetTotalItemCount() > 0 ? MF_ENABLED : MF_GRAYED ) );
 			}
 			else if ( ( BOOL )wParam == TRUE )
 			{
@@ -2174,105 +1312,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 
 		case WM_COMMAND:
 		{
-			HandleCommand( hWnd, wParam, lParam );
-
-			return 0;
-		}
-		break;
-
-		case WM_KEYDOWN:
-		{
-			// Make sure the control key is down and that we're not already in a worker thread. Prevents threads from queuing in case the user falls asleep on their keyboard.
-			if ( _GetKeyState( VK_CONTROL ) & 0x8000 )
-			{
-				// Determine which key was pressed.
-				switch ( wParam )
-				{
-					case 'A':	// Select all items if Ctrl + A is down and there are items in the list.
-					{
-						if ( !in_worker_thread && _SendMessageW( g_hWnd_files, LVM_GETITEMCOUNT, 0, 0 ) > 0 )
-						{
-							_SendMessageW( hWnd, WM_COMMAND, MENU_SELECT_ALL, 0 );
-						}
-					}
-					break;
-
-					case 'C':	// Copy URL(s).
-					{
-						if ( !in_worker_thread && _SendMessageW( g_hWnd_files, LVM_GETSELECTEDCOUNT, 0, 0 ) > 0 )
-						{
-							_SendMessageW( hWnd, WM_COMMAND, MENU_COPY_URLS, 0 );
-						}
-					}
-					break;
-
-					case 'N':	// Open Add URL(s) window.
-					{
-						_SendMessageW( hWnd, WM_COMMAND, MENU_ADD_URLS, 0 );
-					}
-					break;
-
-					case 'O':	// Open Options window.
-					{
-						_SendMessageW( hWnd, WM_COMMAND, MENU_OPTIONS, 0 );
-					}
-					break;
-
-					case 'R':	// Remove selected items.
-					{
-						if ( !in_worker_thread && _SendMessageW( g_hWnd_files, LVM_GETSELECTEDCOUNT, 0, 0 ) > 0 )
-						{
-							_SendMessageW( hWnd, WM_COMMAND, MENU_REMOVE, 0 );
-						}
-					}
-					break;
-
-					case 'S':	// Open Search window.
-					{
-						_SendMessageW( hWnd, WM_COMMAND, MENU_SEARCH, 0 );
-					}
-					break;
-
-					case 'L':	// Open Global Download Speed Limit window.
-					{
-						_SendMessageW( hWnd, WM_COMMAND, MENU_GLOBAL_SPEED_LIMIT, 0 );
-					}
-					break;
-
-					case VK_DELETE:	// Remove and Delete selected items.
-					{
-						if ( !in_worker_thread && _SendMessageW( g_hWnd_files, LVM_GETSELECTEDCOUNT, 0, 0 ) > 0 )
-						{
-							_SendMessageW( hWnd, WM_COMMAND, MENU_REMOVE_AND_DELETE, 0 );
-						}
-					}
-					break;
-				}
-			}
-			else
-			{
-				// Determine which key was pressed.
-				switch ( wParam )
-				{
-					case VK_DELETE:	// Delete selected items.
-					{
-						if ( !in_worker_thread && _SendMessageW( g_hWnd_files, LVM_GETSELECTEDCOUNT, 0, 0 ) > 0 )
-						{
-							_SendMessageW( hWnd, WM_COMMAND, MENU_DELETE, 0 );
-						}
-					}
-					break;
-
-					case VK_F2:	// Rename selected item.
-					{
-						if ( !in_worker_thread && _SendMessageW( g_hWnd_files, LVM_GETSELECTEDCOUNT, 0, 0 ) == 1 )
-						{
-							_SendMessageW( hWnd, WM_COMMAND, MENU_RENAME, 0 );
-						}
-					}
-					break;
-				}
-			}
+			HandleCommand( hWnd, LOWORD( wParam ) );
 
 			return 0;
 		}
@@ -2283,224 +1323,11 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 			// Get our listview codes.
 			switch ( ( ( LPNMHDR )lParam )->code )
 			{
-				case HDN_BEGINDRAG:
-				{
-					NMHEADER *nmh = ( NMHEADER * )lParam;
-
-					HWND hWnd_parent = _GetParent( nmh->hdr.hwndFrom );
-					if ( hWnd_parent == g_hWnd_files )
-					{
-						// If we're editing a row item and the edit box is visible while we drag the column, then we need to close it.
-						if ( _IsWindowVisible( g_hWnd_lv_edit ) == TRUE )
-						{
-							_SendMessageW( g_hWnd_files, LVM_CANCELEDITLABEL, 0, 0 );
-						}
-					}
-				}
-				break;
-
-				case HDN_ENDDRAG:
-				{
-					NMHEADER *nmh = ( NMHEADER * )lParam;
-
-					// Prevent the # columns from moving and the other columns from becoming the first column.
-					if ( nmh->iItem == 0 || nmh->pitem->iOrder == 0 )
-					{
-						// Make sure the # columns are visible.
-						HWND hWnd_parent = _GetParent( nmh->hdr.hwndFrom );
-						if ( hWnd_parent == g_hWnd_files && *download_columns[ COLUMN_NUM ] != -1 )
-						{
-							nmh->pitem->iOrder = GetColumnIndexFromVirtualIndex( nmh->iItem, download_columns, NUM_COLUMNS );
-							return TRUE;
-						}
-					}
-				}
-				break;
-
-				case HDN_ENDTRACK:
-				{
-					NMHEADER *nmh = ( NMHEADER * )lParam;
-
-					HWND hWnd_parent = _GetParent( nmh->hdr.hwndFrom );
-					if ( hWnd_parent == g_hWnd_files )
-					{
-						int index = GetVirtualIndexFromColumnIndex( nmh->iItem, download_columns, NUM_COLUMNS );
-
-						if ( index != -1 )
-						{
-							*download_columns_width[ index ] = nmh->pitem->cxy;
-						}
-					}
-				}
-				break;
-
-				case LVN_COLUMNCLICK:
-				{
-					NMLISTVIEW *nmlv = ( NMLISTVIEW * )lParam;
-
-					int index = GetVirtualIndexFromColumnIndex( nmlv->iSubItem, download_columns, NUM_COLUMNS );
-
-					// Change the format of the items in the column if Ctrl is held while clicking the column.
-					if ( GetKeyState( VK_CONTROL ) & 0x8000 )
-					{
-						// Change the size column info.
-						if ( index != -1 )
-						{
-							if ( index == COLUMN_DOWNLOAD_SPEED )
-							{
-								if ( cfg_t_down_speed >= SIZE_FORMAT_AUTO )
-								{
-									cfg_t_down_speed = SIZE_FORMAT_BYTE;
-								}
-								else
-								{
-									++cfg_t_down_speed;
-								}
-								InvalidateRect( nmlv->hdr.hwndFrom, NULL, TRUE );
-							}
-							else if ( index == COLUMN_DOWNLOAD_SPEED_LIMIT )
-							{
-								if ( cfg_t_speed_limit >= SIZE_FORMAT_AUTO )
-								{
-									cfg_t_speed_limit = SIZE_FORMAT_BYTE;
-								}
-								else
-								{
-									++cfg_t_speed_limit;
-								}
-								InvalidateRect( nmlv->hdr.hwndFrom, NULL, TRUE );
-							}
-							else if ( index == COLUMN_DOWNLOADED )
-							{
-								if ( cfg_t_downloaded >= SIZE_FORMAT_AUTO )
-								{
-									cfg_t_downloaded = SIZE_FORMAT_BYTE;
-								}
-								else
-								{
-									++cfg_t_downloaded;
-								}
-								InvalidateRect( nmlv->hdr.hwndFrom, NULL, TRUE );
-							}
-							else if ( index == COLUMN_FILE_SIZE )
-							{
-								if ( cfg_t_file_size >= SIZE_FORMAT_AUTO )
-								{
-									cfg_t_file_size = SIZE_FORMAT_BYTE;
-								}
-								else
-								{
-									++cfg_t_file_size;
-								}
-								InvalidateRect( nmlv->hdr.hwndFrom, NULL, TRUE );
-							}
-						}
-					}
-					else	// Normal column click. Sort the items in the column.
-					{
-						LVCOLUMN lvc;
-						_memzero( &lvc, sizeof( LVCOLUMN ) );
-						lvc.mask = LVCF_FMT | LVCF_ORDER;
-						_SendMessageW( nmlv->hdr.hwndFrom, LVM_GETCOLUMN, nmlv->iSubItem, ( LPARAM )&lvc );
-
-						if ( cfg_sorted_column_index != index )
-						{
-							cfg_sorted_column_index = index;
-
-							download_history_changed = true;
-						}
-
-						// The number column doesn't get sorted and its iOrder is always 0, so let's remove any sort arrows that are active.
-						if ( lvc.iOrder == 0 && *download_columns[ COLUMN_NUM ] != -1 )
-						{
-							// Remove the sort format for all columns.
-							for ( unsigned char i = 1; _SendMessageW( nmlv->hdr.hwndFrom, LVM_GETCOLUMN, i, ( LPARAM )&lvc ) == TRUE; ++i )
-							{
-								// Remove sort up and sort down
-								lvc.fmt = lvc.fmt & ( ~HDF_SORTUP ) & ( ~HDF_SORTDOWN );
-								_SendMessageW( nmlv->hdr.hwndFrom, LVM_SETCOLUMN, i, ( LPARAM )&lvc );
-							}
-
-							cfg_sorted_direction = 0;
-
-							break;
-						}
-
-						SORT_INFO si;
-						si.column = lvc.iOrder;
-						si.hWnd = nmlv->hdr.hwndFrom;
-
-						if ( HDF_SORTUP & lvc.fmt )	// Column is sorted upward.
-						{
-							si.direction = 0;	// Now sort down.
-
-							// Sort down
-							lvc.fmt = lvc.fmt & ( ~HDF_SORTUP ) | HDF_SORTDOWN;
-							_SendMessageW( nmlv->hdr.hwndFrom, LVM_SETCOLUMN, ( WPARAM )nmlv->iSubItem, ( LPARAM )&lvc );
-						}
-						else if ( HDF_SORTDOWN & lvc.fmt )	// Column is sorted downward.
-						{
-							si.direction = 1;	// Now sort up.
-
-							// Sort up
-							lvc.fmt = lvc.fmt & ( ~HDF_SORTDOWN ) | HDF_SORTUP;
-							_SendMessageW( nmlv->hdr.hwndFrom, LVM_SETCOLUMN, nmlv->iSubItem, ( LPARAM )&lvc );
-						}
-						else	// Column has no sorting set.
-						{
-							// Remove the sort format for all columns.
-							for ( unsigned char i = 0; _SendMessageW( nmlv->hdr.hwndFrom, LVM_GETCOLUMN, i, ( LPARAM )&lvc ) == TRUE; ++i )
-							{
-								// Remove sort up and sort down
-								lvc.fmt = lvc.fmt & ( ~HDF_SORTUP ) & ( ~HDF_SORTDOWN );
-								_SendMessageW( nmlv->hdr.hwndFrom, LVM_SETCOLUMN, i, ( LPARAM )&lvc );
-							}
-
-							// Read current the format from the clicked column
-							_SendMessageW( nmlv->hdr.hwndFrom, LVM_GETCOLUMN, nmlv->iSubItem, ( LPARAM )&lvc );
-
-							si.direction = 0;	// Start the sort going down.
-
-							// Sort down to start.
-							lvc.fmt = lvc.fmt | HDF_SORTDOWN;
-							_SendMessageW( nmlv->hdr.hwndFrom, LVM_SETCOLUMN, nmlv->iSubItem, ( LPARAM )&lvc );
-						}
-
-						if ( cfg_sorted_direction != si.direction )
-						{
-							cfg_sorted_direction = si.direction;
-
-							download_history_changed = true;
-						}
-
-						_SendMessageW( nmlv->hdr.hwndFrom, LVM_SORTITEMS, ( WPARAM )&si, ( LPARAM )( PFNLVCOMPARE )DMCompareFunc );
-					}
-				}
-				break;
-
 				case NM_RCLICK:
 				{
 					NMITEMACTIVATE *nmitem = ( NMITEMACTIVATE * )lParam;
 
-					if ( nmitem->hdr.hwndFrom == g_hWnd_files )
-					{
-						if ( !in_worker_thread )
-						{
-							UpdateMenus( true );
-						}
-
-						_ClientToScreen( nmitem->hdr.hwndFrom, &nmitem->ptAction );
-
-						_TrackPopupMenu( g_hMenuSub_download, 0, nmitem->ptAction.x, nmitem->ptAction.y, 0, hWnd, NULL );
-					}
-					else if ( nmitem->hdr.hwndFrom == g_hWnd_files_columns )
-					{
-						POINT p;
-						_GetCursorPos( &p );
-
-						_TrackPopupMenu( g_hMenuSub_column, 0, p.x, p.y, 0, hWnd, NULL );
-					}
-					else if ( nmitem->hdr.hwndFrom == g_hWnd_toolbar || nmitem->hdr.hwndFrom == g_hWnd_status )
+					if ( nmitem->hdr.hwndFrom == g_hWnd_toolbar || nmitem->hdr.hwndFrom == g_hWnd_status )
 					{
 						POINT p;
 						_GetCursorPos( &p );
@@ -2606,11 +1433,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 
 					HWND hwndFrom = ( ( LPNMHDR )lParam )->hwndFrom;
 
-					if ( hwndFrom == g_hWnd_files )
-					{
-						_SendMessageW( hWnd, WM_COMMAND, MENU_OPEN_DIRECTORY, 0 );
-					}
-					else if ( hwndFrom == g_hWnd_status )
+					if ( hwndFrom == g_hWnd_status )
 					{
 						// Let NM_CLICK handle fast (double) clicks if Ctrl is down.
 						if ( !( GetKeyState( VK_CONTROL ) & 0x8000 ) )
@@ -2619,229 +1442,6 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 							{
 								_SendMessageW( hWnd, WM_COMMAND, MENU_GLOBAL_SPEED_LIMIT, 0 );
 							}
-						}
-					}
-				}
-				break;
-
-				case LVN_KEYDOWN:
-				{
-					_SendMessageW( hWnd, WM_KEYDOWN, ( ( NMLVKEYDOWN * )lParam )->wVKey, 0 );
-				}
-				break;
-
-				/*case LVN_DELETEITEM:
-				{
-					NMLISTVIEW *nmlv = ( NMLISTVIEW * )lParam;
-
-					// Item count will be 1 since the item hasn't yet been deleted.
-					if ( _SendMessageW( nmlv->hdr.hwndFrom, LVM_GETITEMCOUNT, 0, 0 ) == 1 )
-					{
-						// Disable the menus that require at least one item in the list.
-						UpdateMenus( true );
-					}
-				}
-				break;*/
-
-				case LVN_ITEMCHANGED:
-				{
-					//NMLISTVIEW *nmlv = ( NMLISTVIEW * )lParam;
-
-					if ( !in_worker_thread )
-					{
-						UpdateMenus( true );
-					}
-				}
-				break;
-
-				case LVN_HOTTRACK:
-				{
-					NMLISTVIEW *nmlv = ( NMLISTVIEW * )lParam;
-
-					LVHITTESTINFO lvhti;
-					_memzero( &lvhti, sizeof( LVHITTESTINFO ) );
-					lvhti.pt = nmlv->ptAction;
-
-					_SendMessageW( g_hWnd_files, LVM_HITTEST, 0, ( LPARAM )&lvhti );
-
-					if ( lvhti.iItem != last_tooltip_item && !in_worker_thread )
-					{
-						// Save the last item that was hovered so we don't have to keep calling everything below.
-						last_tooltip_item = lvhti.iItem;
-
-						TOOLINFO ti;
-						_memzero( &ti, sizeof( TOOLINFO ) );
-						ti.cbSize = sizeof( TOOLINFO );
-						ti.hwnd = g_hWnd_files;
-
-						_SendMessageW( g_hWnd_tooltip, TTM_GETTOOLINFO, 0, ( LPARAM )&ti );
-
-						ti.lpszText = NULL;	// If we aren't hovered over an item or the download info is NULL, then we'll end up not showing the tooltip text.
-
-						if ( lvhti.iItem != -1 )
-						{
-							LVITEM lvi;
-							_memzero( &lvi, sizeof( LVITEM ) );
-							lvi.mask = LVIF_PARAM;
-							lvi.iItem = lvhti.iItem;
-
-							_SendMessageW( g_hWnd_files, LVM_GETITEM, 0, ( LPARAM )&lvi );
-
-							DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )lvi.lParam;
-
-							if ( di != NULL )
-							{
-								/*// The 32-bit version of _snwprintf in ntdll.dll on Windows XP crashes when a %s proceeds two %llu.
-								int tooltip_buffer_offset = __snwprintf( tooltip_buffer, 512, L"%s: %s\r\n%s: %llu / ", ST_V_Filename, di->file_path + di->filename_offset, ST_V_Downloaded, di->downloaded );
-
-								if ( di->file_size > 0 )
-								{
-									tooltip_buffer_offset += __snwprintf( tooltip_buffer + tooltip_buffer_offset, 512 - tooltip_buffer_offset, L"%llu", di->file_size );
-								}
-								else
-								{
-									tooltip_buffer[ tooltip_buffer_offset++ ] = L'?';
-								}
-
-								__snwprintf( tooltip_buffer + tooltip_buffer_offset, 512 - tooltip_buffer_offset, L" bytes\r\n%s: %s", ST_V_Added, di->w_add_time );*/
-
-								if ( di->file_size > 0 )
-								{
-									__snwprintf( tooltip_buffer, 512, L"%s: %s\r\n%s: %I64u / %I64u bytes\r\n%s: %s", ST_V_Filename, di->file_path + di->filename_offset, ST_V_Downloaded, di->downloaded, di->file_size, ST_V_Added, di->w_add_time );
-								}
-								else
-								{
-									__snwprintf( tooltip_buffer, 512, L"%s: %s\r\n%s: %I64u / ? bytes\r\n%s: %s", ST_V_Filename, di->file_path + di->filename_offset, ST_V_Downloaded, di->downloaded, ST_V_Added, di->w_add_time );
-								}
-
-								ti.lpszText = tooltip_buffer;
-
-								if ( di->status == STATUS_DOWNLOADING )
-								{
-									last_tooltip_item = -2;	// Allow active downloads to update the tooltip if their item is rehovered.
-								}
-							}
-						}
-
-						_SendMessageW( g_hWnd_tooltip, TTM_UPDATETIPTEXT, 0, ( LPARAM )&ti );
-					}
-				}
-				break;
-
-				case LVN_BEGINLABELEDIT:
-				{
-					NMLVDISPINFO *pdi = ( NMLVDISPINFO * )lParam;
-
-					bool skip_hit_test = edit_from_menu;
-					edit_from_menu = false;
-
-					// If no item is being edited or the filename column is not displayed, then cancel the edit.
-					if ( pdi->item.iItem == -1 || *download_columns[ COLUMN_FILENAME ] == -1 )
-					{
-						return TRUE;
-					}
-
-					// Get the current list item text from its lParam.
-					LVITEM lvi;
-					_memzero( &lvi, sizeof( LVITEM ) );
-					lvi.iItem = pdi->item.iItem;
-					lvi.mask = LVIF_PARAM;
-					_SendMessageW( pdi->hdr.hwndFrom, LVM_GETITEM, 0, ( LPARAM )&lvi );
-
-					DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )lvi.lParam;
-					if ( di != NULL )
-					{
-						if ( skip_hit_test )
-						{
-							current_edit_pos.top = GetColumnIndexFromVirtualIndex( *download_columns[ COLUMN_FILENAME ], download_columns, NUM_COLUMNS );	// Filename column index.
-						}
-						else
-						{
-							LVHITTESTINFO lvhti;
-							_memzero( &lvhti, sizeof( LVHITTESTINFO  ) );
-							_GetCursorPos( &lvhti.pt );
-							_ScreenToClient( g_hWnd_files, &lvhti.pt ); 
-							_SendMessageW( g_hWnd_files, LVM_SUBITEMHITTEST, 0, ( LPARAM )&lvhti );
-
-							// Make sure it's the filename column that we hit.
-							if ( GetVirtualIndexFromColumnIndex( lvhti.iSubItem, download_columns, NUM_COLUMNS ) != COLUMN_FILENAME )
-							{
-								return TRUE;
-							}
-
-							current_edit_pos.top = lvhti.iSubItem;	// Filename column index.
-						}
-
-						current_edit_pos.left = LVIR_BOUNDS;
-						_SendMessageW( pdi->hdr.hwndFrom, LVM_GETSUBITEMRECT, pdi->item.iItem, ( LPARAM )&current_edit_pos );	// Get the bounding box of the Filename column we're editing.
-
-						// Get the edit control that the listview creates.
-						g_hWnd_lv_edit = ( HWND )_SendMessageW( pdi->hdr.hwndFrom, LVM_GETEDITCONTROL, 0, 0 );
-
-						// Subclass our edit window to modify its position.
-						EditProc = ( WNDPROC )_GetWindowLongPtrW( g_hWnd_lv_edit, GWLP_WNDPROC );
-						_SetWindowLongPtrW( g_hWnd_lv_edit, GWLP_WNDPROC, ( LONG_PTR )EditSubProc );
-
-						// Set our edit control's text to the list item's text.
-						_SendMessageW( g_hWnd_lv_edit, WM_SETTEXT, NULL, ( LPARAM )( di->file_path + di->filename_offset ) );
-
-						// Get the length of the filename without the extension.
-						int ext_len = lstrlenW( di->file_path + di->filename_offset );
-						while ( ext_len != 0 && ( di->file_path + di->filename_offset )[ --ext_len ] != L'.' );
-
-						// Select all the text except the file extension (if ext_len = 0, then everything is selected)
-						_SendMessageW( g_hWnd_lv_edit, EM_SETSEL, 0, ext_len );
-
-						// Limit the length of the filename so that the file directory + filename + NULL isn't greater than MAX_PATH.
-						_SendMessageW( g_hWnd_lv_edit, EM_LIMITTEXT, MAX_PATH - ( di->filename_offset + 1 ), 0 );
-					}
-
-					// Allow the edit to proceed.
-				}
-				break;
-
-				case LVN_ENDLABELEDIT:
-				{
-					NMLVDISPINFO *pdi = ( NMLVDISPINFO * )lParam;
-
-					// Prevent the edit if there's no text.
-					if ( pdi->item.pszText != NULL )
-					{
-						// Prevent the edit if the text length is 0.
-						unsigned int filename_length = lstrlenW( pdi->item.pszText );
-						if ( filename_length > 0 )
-						{
-							// Get the current list item text from its lParam.
-							LVITEM lvi;
-							_memzero( &lvi, sizeof( LVITEM ) );
-							lvi.iItem = pdi->item.iItem;
-							lvi.mask = LVIF_PARAM;
-							_SendMessageW( pdi->hdr.hwndFrom, LVM_GETITEM, 0, ( LPARAM )&lvi );
-
-							DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )lvi.lParam;
-							if ( di != NULL )
-							{
-								RENAME_INFO *ri = ( RENAME_INFO * )GlobalAlloc( GPTR, sizeof( RENAME_INFO ) );
-								ri->di = di;
-								ri->filename_length = filename_length;
-								ri->filename = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( ri->filename_length + 1 ) );
-								_wmemcpy_s( ri->filename, ri->filename_length + 1, pdi->item.pszText, ri->filename_length );
-								ri->filename[ ri->filename_length ] = 0;	// Sanity.
-
-								// ri is freed in rename_file.
-								HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, rename_file, ( void * )ri, 0, NULL );
-								if ( thread != NULL )
-								{
-									CloseHandle( thread );
-								}
-								else
-								{
-									GlobalFree( ri->filename );
-									GlobalFree( ri );
-								}
-							}
-
-							return TRUE;
 						}
 					}
 				}
@@ -2914,14 +1514,14 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 			{
 				_GetWindowRect( g_hWnd_status, &rc_status );
 
-				_DeferWindowPos( hdwp, g_hWnd_files, HWND_TOP, rc.left, rc.top, rc.right, rc.bottom - ( rc_status.bottom - rc_status.top ), SWP_NOZORDER );
+				_DeferWindowPos( hdwp, g_hWnd_tlv_files, HWND_TOP, rc.left, rc.top, rc.right, rc.bottom - ( rc_status.bottom - rc_status.top ), SWP_NOZORDER );
 
 				// Apparently status bars want WM_SIZE to be called. (See MSDN)
 				_SendMessageW( g_hWnd_status, WM_SIZE, 0, 0 );
 			}
 			else
 			{
-				_DeferWindowPos( hdwp, g_hWnd_files, HWND_TOP, rc.left, rc.top, rc.right, rc.bottom, SWP_NOZORDER );
+				_DeferWindowPos( hdwp, g_hWnd_tlv_files, HWND_TOP, rc.left, rc.top, rc.right, rc.bottom, SWP_NOZORDER );
 			}
 
 			_EndDeferWindowPos( hdwp );
@@ -3026,450 +1626,6 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 
 			_DefWindowProcW( hWnd, msg, wParam, lParam );
 			return FALSE;
-		}
-		break;
-
-		case WM_MEASUREITEM:
-		{
-			// Set the row height of the list view.
-			if ( ( ( LPMEASUREITEMSTRUCT )lParam )->CtlType = ODT_LISTVIEW )
-			{
-				( ( LPMEASUREITEMSTRUCT )lParam )->itemHeight = g_row_height;// * 4;
-			}
-			return TRUE;
-		}
-		break;
-
-		case WM_DRAWITEM:
-		{
-			DRAWITEMSTRUCT *dis = ( DRAWITEMSTRUCT * )lParam;
-
-			// The item we want to draw is our listview.
-			if ( dis->CtlType == ODT_LISTVIEW && dis->itemData != NULL )
-			{
-				// Alternate item color's background.
-				HBRUSH color = _CreateSolidBrush( ( dis->itemID & 1 ? cfg_even_row_background_color : cfg_odd_row_background_color ) );
-				_FillRect( dis->hDC, &dis->rcItem, color );
-				_DeleteObject( color );
-
-				// Set the selected item's color.
-				bool selected = false;
-				if ( dis->itemState & ( ODS_FOCUS || ODS_SELECTED ) )
-				{
-					if ( skip_list_draw )
-					{
-						return TRUE;	// Don't draw selected items because their lParam values are being deleted.
-					}
-
-					HBRUSH color = _CreateSolidBrush( ( dis->itemID & 1 ? cfg_even_row_highlight_color : cfg_odd_row_highlight_color ) );
-					_FillRect( dis->hDC, &dis->rcItem, color );
-					_DeleteObject( color );
-					selected = true;
-				}
-
-				// Get the item's text.
-				wchar_t tbuf[ 128 ];
-				wchar_t *buf = tbuf;
-
-				// This is the full size of the row.
-				RECT last_rc;
-
-				// This will keep track of the current colunn's left position.
-				int last_left = 0;
-
-				int DT_ALIGN = 0;
-
-				int arr[ NUM_COLUMNS ];
-				int arr2[ NUM_COLUMNS ];
-
-				int column_count = 0;
-				if ( dis->hwndItem == g_hWnd_files )
-				{
-					_SendMessageW( dis->hwndItem, LVM_GETCOLUMNORDERARRAY, g_total_columns, ( LPARAM )arr );
-
-					_memcpy_s( arr2, sizeof( int ) * NUM_COLUMNS, arr, sizeof( int ) * NUM_COLUMNS );
-
-					// Offset the virtual indices to match the actual index.
-					OffsetVirtualIndices( arr2, download_columns, NUM_COLUMNS, g_total_columns );
-
-					column_count = g_total_columns;
-				}
-
-				DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )dis->itemData;
-
-				LVCOLUMN lvc;
-				_memzero( &lvc, sizeof( LVCOLUMN ) );
-				lvc.mask = LVCF_WIDTH;
-
-				// Loop through all the columns
-				for ( int i = 0; i < column_count; ++i )
-				{
-					if ( dis->hwndItem == g_hWnd_files )
-					{
-						// Save the appropriate text in our buffer for the current column.
-						buf = GetDownloadInfoString( di, arr2[ i ], dis->itemID + 1, tbuf, 128 );
-
-						switch ( arr2[ i ] )
-						{
-							case COLUMN_NUM:
-							case COLUMN_DATE_AND_TIME_ADDED:
-							case COLUMN_DOWNLOAD_DIRECTORY:
-							case COLUMN_FILENAME:
-							case COLUMN_SSL_TLS_VERSION:
-							case COLUMN_URL:
-							{
-								DT_ALIGN = DT_LEFT;
-							}
-							break;
-
-							case COLUMN_ACTIVE_PARTS:
-							case COLUMN_DOWNLOAD_SPEED:
-							case COLUMN_DOWNLOAD_SPEED_LIMIT:
-							case COLUMN_DOWNLOADED:
-							case COLUMN_FILE_SIZE:
-							case COLUMN_TIME_ELAPSED:
-							case COLUMN_TIME_REMAINING:
-							{
-								DT_ALIGN = DT_RIGHT;
-							}
-							break;
-
-							/*case COLUMN_FILE_TYPE:
-							{
-							}
-							break;*/
-
-							case COLUMN_PROGRESS:
-							{
-								DT_ALIGN = DT_CENTER;
-							}
-							break;
-						}
-					}
-
-					if ( buf == NULL )
-					{
-						tbuf[ 0 ] = L'\0';
-						buf = tbuf;
-					}
-
-					// Get the dimensions of the listview column
-					_SendMessageW( dis->hwndItem, LVM_GETCOLUMN, arr[ i ], ( LPARAM )&lvc );
-
-					last_rc = dis->rcItem;
-
-					if ( arr2[ i ] != COLUMN_PROGRESS )	// Not progress column.
-					{
-						// This will adjust the text to fit nicely into the rectangle.
-						last_rc.left = 5 + last_left;
-						last_rc.right = lvc.cx + last_left - 5;
-					}
-					else	// Adjust progress bar.
-					{
-						last_rc.left = 2 + last_left;
-						last_rc.right = lvc.cx + last_left - 1;
-						last_rc.top += 1;
-
-						if ( cfg_show_gridlines )
-						{
-							last_rc.bottom -= 2;
-						}
-						else
-						{
-							--last_rc.bottom;
-						}
-					}
-
-					// Save the last left position of our column.
-					last_left += lvc.cx;
-
-					// Save the height and width of this region.
-					int width = last_rc.right - last_rc.left;
-					if ( width <= 0 )
-					{
-						continue;
-					}
-
-					int height = last_rc.bottom - last_rc.top;
-
-					// Normal text position.
-					RECT rc;
-					rc.left = 0;
-					rc.top = 0;
-					rc.right = width;
-					rc.bottom = height;
-
-					// Create and save a bitmap in memory to paint to.
-					HDC hdcMem = _CreateCompatibleDC( dis->hDC );
-					HBITMAP hbm = _CreateCompatibleBitmap( dis->hDC, width, height );
-					HBITMAP ohbm = ( HBITMAP )_SelectObject( hdcMem, hbm );
-					_DeleteObject( ohbm );
-					_DeleteObject( hbm );
-					HFONT ohf = ( HFONT )_SelectObject( hdcMem, ( dis->itemID & 1 ? cfg_even_row_font_settings.font : cfg_odd_row_font_settings.font ) );
-					_DeleteObject( ohf );
-
-					// Transparent background for text.
-					_SetBkMode( hdcMem, TRANSPARENT );
-
-					if ( arr2[ i ] == COLUMN_FILE_TYPE )	// File Type
-					{
-						if ( di->icon != NULL )
-						{
-							int icon_top_offset = g_row_height - ( cfg_show_gridlines ? 18 : 16 );	// 16 pixel height + 2.
-							if ( icon_top_offset > 0 )
-							{
-								if ( icon_top_offset & 1 )
-								{
-									++icon_top_offset;
-								}
-
-								icon_top_offset /= 2;
-							}
-							else
-							{
-								icon_top_offset = 1;
-							}
-
-							_DrawIconEx( dis->hDC, dis->rcItem.left + last_rc.left, last_rc.top + icon_top_offset, *di->icon, 0, 0, NULL, NULL, DI_NORMAL );
-						}
-					}
-					else if ( arr2[ i ] == COLUMN_PROGRESS )	// Progress
-					{
-						COLORREF color_ref_body = 0, color_ref_border = 0, color_ref_background = 0, color_ref_body_text = 0, color_ref_background_text = 0;
-
-						if		( di->status == STATUS_CONNECTING )			{ color_ref_body = cfg_color_4a; color_ref_background = cfg_color_4b; color_ref_body_text = cfg_color_4c; color_ref_background_text = cfg_color_4d; color_ref_border = cfg_color_4e; }
-						else if ( IS_STATUS( di->status, STATUS_RESTART ) )	{ color_ref_body = cfg_color_12a; color_ref_background = cfg_color_12b; color_ref_body_text = cfg_color_12c; color_ref_background_text = cfg_color_12d; color_ref_border = cfg_color_12e; }
-						else if ( IS_STATUS( di->status, STATUS_PAUSED ) )	{ color_ref_body = cfg_color_9a; color_ref_background = cfg_color_9b; color_ref_body_text = cfg_color_9c; color_ref_background_text = cfg_color_9d; color_ref_border = cfg_color_9e; }
-						else if ( IS_STATUS( di->status, STATUS_QUEUED ) )	{ color_ref_body = cfg_color_11a; color_ref_background = cfg_color_11b; color_ref_body_text = cfg_color_11c; color_ref_background_text = cfg_color_11d; color_ref_border = cfg_color_11e; }
-						else if ( di->status == STATUS_COMPLETED )			{ color_ref_body = cfg_color_3a; color_ref_background = cfg_color_3b; color_ref_body_text = cfg_color_3c; color_ref_background_text = cfg_color_3d; color_ref_border = cfg_color_3e; }
-						else if ( di->status == STATUS_STOPPED )			{ color_ref_body = cfg_color_14a; color_ref_background = cfg_color_14b; color_ref_body_text = cfg_color_14c; color_ref_background_text = cfg_color_14d; color_ref_border = cfg_color_14e; }
-						else if ( di->status == STATUS_TIMED_OUT )			{ color_ref_body = cfg_color_15a; color_ref_background = cfg_color_15b; color_ref_body_text = cfg_color_15c; color_ref_background_text = cfg_color_15d; color_ref_border = cfg_color_15e; }
-						else if ( di->status == STATUS_FAILED )				{ color_ref_body = cfg_color_6a; color_ref_background = cfg_color_6b; color_ref_body_text = cfg_color_6c; color_ref_background_text = cfg_color_6d; color_ref_border = cfg_color_6e; }
-						else if ( di->status == STATUS_FILE_IO_ERROR )		{ color_ref_body = cfg_color_7a; color_ref_background = cfg_color_7b; color_ref_body_text = cfg_color_7c; color_ref_background_text = cfg_color_7d; color_ref_border = cfg_color_7e; }
-						else if ( di->status == STATUS_SKIPPED )			{ color_ref_body = cfg_color_13a; color_ref_background = cfg_color_13b; color_ref_body_text = cfg_color_13c; color_ref_background_text = cfg_color_13d; color_ref_border = cfg_color_13e; }
-						else if ( di->status == STATUS_AUTH_REQUIRED )		{ color_ref_body = cfg_color_2a; color_ref_background = cfg_color_2b; color_ref_body_text = cfg_color_2c; color_ref_background_text = cfg_color_2d; color_ref_border = cfg_color_2e; }
-						else if ( di->status == STATUS_PROXY_AUTH_REQUIRED ){ color_ref_body = cfg_color_10a; color_ref_background = cfg_color_10b; color_ref_body_text = cfg_color_10c; color_ref_background_text = cfg_color_10d; color_ref_border = cfg_color_10e; }
-						else if	( di->status == STATUS_ALLOCATING_FILE )	{ color_ref_body = cfg_color_1a; color_ref_background = cfg_color_1b; color_ref_body_text = cfg_color_1c; color_ref_background_text = cfg_color_1d; color_ref_border = cfg_color_1e; }
-						else if	( di->status == STATUS_MOVING_FILE )		{ color_ref_body = cfg_color_8a; color_ref_background = cfg_color_8b; color_ref_body_text = cfg_color_8c; color_ref_background_text = cfg_color_8d; color_ref_border = cfg_color_8e; }
-						else												{ color_ref_body = cfg_color_5a; color_ref_background = cfg_color_5b; color_ref_body_text = cfg_color_5c; color_ref_background_text = cfg_color_5d; color_ref_border = cfg_color_5e; }
-
-						int progress_width = width - 2;
-
-						HBRUSH color = _CreateSolidBrush( color_ref_background );
-						_FillRect( hdcMem, &rc, color );
-						_DeleteObject( color );
-
-						_SetTextColor( hdcMem, color_ref_background_text );
-						_DrawTextW( hdcMem, buf, -1, &rc, DT_NOPREFIX | DT_SINGLELINE | DT_CENTER | DT_VCENTER | DT_END_ELLIPSIS );
-
-						_BitBlt( dis->hDC, dis->rcItem.left + last_rc.left + 1, last_rc.top, progress_width, height, hdcMem, 0, 0, SRCCOPY );
-
-
-						////////////////////
-
-
-						if ( cfg_show_part_progress &&
-							 IS_STATUS( di->status,
-								STATUS_CONNECTING |
-								STATUS_DOWNLOADING |
-								STATUS_STOPPED ) &&
-							 di->print_range_list != NULL )
-						{
-							// We'll pick out sections of this bitmap to paint the progress bar.
-							color = _CreateSolidBrush( color_ref_body );
-							_FillRect( hdcMem, &rc, color );
-							_DeleteObject( color );
-
-							_SetTextColor( hdcMem, color_ref_body_text );
-							_DrawTextW( hdcMem, buf, -1, &rc, DT_NOPREFIX | DT_SINGLELINE | DT_CENTER | DT_VCENTER | DT_END_ELLIPSIS );
-
-							unsigned char range_info_count = 0;
-
-							unsigned long long last_range_end = 0;
-
-							RANGE_INFO *ri;
-							DoublyLinkedList *range_node = di->print_range_list;
-
-							// Determine the number of ranges that still need downloading.
-							while ( range_node != di->range_list_end && range_node->data != NULL )
-							{
-								++range_info_count;
-
-								ri = ( RANGE_INFO * )range_node->data;
-
-								unsigned long long range_end = ri->range_end + 1;
-								unsigned long long range_size = ( range_end - last_range_end );
-								unsigned long long content_offset = ri->content_offset;
-								if ( ri->range_start > last_range_end )
-								{
-									content_offset += ( ri->range_start - last_range_end );
-								}
-
-								int range_offset = 0;
-								if ( di->file_size > 0 )
-								{
-#ifdef _WIN64
-									range_offset = ( int )_ceil( ( double )progress_width * ( ( double )last_range_end / ( double )di->file_size ) );
-#else
-									double f_range_offset = _ceil( ( double )progress_width * ( ( double )last_range_end / ( double )di->file_size ) );
-									__asm
-									{
-										fld f_range_offset;	//; Load the floating point value onto the FPU stack.
-										fistp range_offset;	//; Convert the floating point value into an integer, store it in an integer, and then pop it off the stack.
-									}
-#endif
-								}
-
-								int range_width;
-#ifdef _WIN64
-								range_width = ( int )_ceil( ( double )progress_width * ( ( double )range_size / ( double )di->file_size ) );
-#else
-								double f_range_width = _ceil( ( double )progress_width * ( ( double )range_size / ( double )di->file_size ) );
-								__asm
-								{
-									fld f_range_width;	//; Load the floating point value onto the FPU stack.
-									fistp range_width;	//; Convert the floating point value into an integer, store it in an integer, and then pop it off the stack.
-								}
-#endif
-
-								int range_progress_offset = 0;
-								if ( range_size > 0 )
-								{
-#ifdef _WIN64
-									range_progress_offset = ( int )_ceil( ( double )range_width * ( ( double )content_offset / ( double )range_size ) );
-#else
-									double f_range_progress_offset = _ceil( ( double )range_width * ( ( double )content_offset / ( double )range_size ) );
-									__asm
-									{
-										fld f_range_progress_offset;	//; Load the floating point value onto the FPU stack.
-										fistp range_progress_offset;	//; Convert the floating point value into an integer, store it in an integer, and then pop it off the stack.
-									}
-#endif
-								}
-
-								_BitBlt( dis->hDC, dis->rcItem.left + last_rc.left + 1 + range_offset, last_rc.top, range_progress_offset, height, hdcMem, range_offset, 0, SRCCOPY );
-
-								last_range_end = range_end;
-
-								range_node = range_node->next;
-							}
-
-							// Fill out the remaining progress bar if later parts have completed.
-							if ( ( IS_STATUS_NOT( di->status, STATUS_CONNECTING ) || range_info_count == di->parts ) && last_range_end < di->file_size )
-							{
-								int range_offset = 0;
-								if ( di->file_size > 0 )
-								{
-#ifdef _WIN64
-									range_offset = ( int )_ceil( ( double )progress_width * ( ( double )last_range_end / ( double )di->file_size ) );
-#else
-									double f_range_offset = _ceil( ( double )progress_width * ( ( double )last_range_end / ( double )di->file_size ) );
-									__asm
-									{
-										fld f_range_offset;	//; Load the floating point value onto the FPU stack.
-										fistp range_offset;	//; Convert the floating point value into an integer, store it in an integer, and then pop it off the stack.
-									}
-#endif
-								}
-
-								_BitBlt( dis->hDC, dis->rcItem.left + last_rc.left + 1 + range_offset, last_rc.top, progress_width - range_offset, height, hdcMem, range_offset, 0, SRCCOPY );
-							}
-						}
-						else
-						{
-							//RECT rc_clip = rc;
-							int progress_offset;
-
-							// Connecting, Downloading, Paused, Queued, Stopped.
-							if ( IS_STATUS( di->status,
-									STATUS_CONNECTING |
-									STATUS_DOWNLOADING |
-									STATUS_STOPPED ) )
-							{
-								if ( di->file_size > 0 )
-								{
-									int i_percentage;
-#ifdef _WIN64
-									i_percentage = ( int )_ceil( ( double )progress_width * ( ( double )di->last_downloaded / ( double )di->file_size ) );
-#else
-									// Multiply the floating point division by 100%.
-									double f_percentage = _ceil( ( double )progress_width * ( ( double )di->last_downloaded / ( double )di->file_size ) );
-									__asm
-									{
-										fld f_percentage;	//; Load the floating point value onto the FPU stack.
-										fistp i_percentage;	//; Convert the floating point value into an integer, store it in an integer, and then pop it off the stack.
-									}
-#endif
-									//rc_clip.right = i_percentage;
-									progress_offset = i_percentage;
-								}
-								else
-								{
-									//rc_clip.right = 0;
-									progress_offset = 0;
-								}
-							}
-							else
-							{
-								progress_offset = progress_width;
-							}
-
-							color = _CreateSolidBrush( color_ref_body );
-							_FillRect( hdcMem, &rc/*&rc_clip*/, color );
-							_DeleteObject( color );
-
-							_SetTextColor( hdcMem, color_ref_body_text );
-							_DrawTextW( hdcMem, buf, -1, &rc, DT_NOPREFIX | DT_SINGLELINE | DT_CENTER | DT_VCENTER | DT_END_ELLIPSIS );
-
-							_BitBlt( dis->hDC, dis->rcItem.left + last_rc.left + 1, last_rc.top, progress_offset/*( rc_clip.right - rc_clip.left ) - 2*/, height, hdcMem, 0, 0, SRCCOPY );
-						}
-
-
-						////////////////////
-
-
-						HPEN hPen = _CreatePen( PS_SOLID, 1, color_ref_border );
-						_SelectObject( dis->hDC, hPen );
-						_SelectObject( dis->hDC, _GetStockObject( NULL_BRUSH ) );
-						_Rectangle( dis->hDC, dis->rcItem.left + last_rc.left, last_rc.top, dis->rcItem.left + last_rc.left + width, last_rc.top + height );
-						_DeleteObject( hPen );
-
-						//--last_rc.bottom;
-						//_DrawEdge( dis->hDC, &last_rc, EDGE_RAISED, BF_RECT );
-					}
-					else
-					{
-						// Draw selected text
-						if ( selected )
-						{
-							// Fill the background.
-							HBRUSH color = _CreateSolidBrush( ( dis->itemID & 1 ? cfg_even_row_highlight_color : cfg_odd_row_highlight_color ) );
-							_FillRect( hdcMem, &rc, color );
-							_DeleteObject( color );
-
-							// White text.
-							_SetTextColor( hdcMem, ( dis->itemID & 1 ? cfg_even_row_highlight_font_color : cfg_odd_row_highlight_font_color ) );
-							_DrawTextW( hdcMem, buf, -1, &rc, DT_NOPREFIX | DT_SINGLELINE | DT_ALIGN | DT_VCENTER | DT_END_ELLIPSIS );
-							_BitBlt( dis->hDC, dis->rcItem.left + last_rc.left, last_rc.top, width, height, hdcMem, 0, 0, SRCCOPY );
-						}
-						else
-						{
-							// Fill the background.
-							HBRUSH color = _CreateSolidBrush( ( dis->itemID & 1 ? cfg_even_row_background_color : cfg_odd_row_background_color ) );
-							_FillRect( hdcMem, &rc, color );
-							_DeleteObject( color );
-
-							_SetTextColor( hdcMem, ( dis->itemID & 1 ? cfg_even_row_font_settings.font_color : cfg_odd_row_font_settings.font_color ) );
-							_DrawTextW( hdcMem, buf, -1, &rc, DT_NOPREFIX | DT_SINGLELINE | DT_ALIGN | DT_VCENTER | DT_END_ELLIPSIS );
-							_BitBlt( dis->hDC, dis->rcItem.left + last_rc.left, last_rc.top, width, height, hdcMem, 0, 0, SRCCOPY );
-						}
-					}
-
-					// Delete our back buffer.
-					_DeleteDC( hdcMem );
-				}
-			}
-			return TRUE;
 		}
 		break;
 
@@ -3630,16 +1786,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 					}
 					else
 					{
-						GlobalFree( cla->download_directory );
-						GlobalFree( cla->download_history_file );
-						GlobalFree( cla->url_list_file );
-						GlobalFree( cla->urls );
-						GlobalFree( cla->cookies );
-						GlobalFree( cla->headers );
-						GlobalFree( cla->data );
-						GlobalFree( cla->username );
-						GlobalFree( cla->password );
-						GlobalFree( cla );
+						FreeCommandLineArgs( &cla );
 					}
 				}
 			}
@@ -3647,7 +1794,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 			{
 				if ( g_hWnd_add_urls == NULL )
 				{
-					g_hWnd_add_urls = _CreateWindowExW( WS_EX_COMPOSITED | ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"add_urls", ST_V_Add_URL_s_, WS_OVERLAPPEDWINDOW, ( ( _GetSystemMetrics( SM_CXSCREEN ) - 600 ) / 2 ), ( ( _GetSystemMetrics( SM_CYSCREEN ) - 270 ) / 2 ), 600, 270, NULL, NULL, NULL, NULL );
+					g_hWnd_add_urls = _CreateWindowExW( ( g_is_windows_8_or_higher ? 0 : WS_EX_COMPOSITED ) | ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"add_urls", ST_V_Add_URL_s_, WS_CLIPCHILDREN | WS_OVERLAPPEDWINDOW, ( ( _GetSystemMetrics( SM_CXSCREEN ) - 600 ) / 2 ), ( ( _GetSystemMetrics( SM_CYSCREEN ) - 270 ) / 2 ), 600, 270, NULL, NULL, NULL, NULL );
 				}
 
 				_SendMessageW( g_hWnd_add_urls, WM_PROPAGATE, wParam, lParam );
@@ -3675,7 +1822,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 		{
 			ClearProgressBars();
 
-			_SetFocus( g_hWnd_files );
+			_SetFocus( g_hWnd_tlv_files );
 
 			return 0;
 		}
@@ -3721,6 +1868,24 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 				_ShowWindow( g_hWnd_search, SW_HIDE );
 			}
 
+			if ( g_hWnd_download_speed_limit != NULL )
+			{
+				_EnableWindow( g_hWnd_download_speed_limit, FALSE );
+				_ShowWindow( g_hWnd_download_speed_limit, SW_HIDE );
+			}
+
+			if ( g_hWnd_check_for_updates != NULL )
+			{
+				_EnableWindow( g_hWnd_check_for_updates, FALSE );
+				_ShowWindow( g_hWnd_check_for_updates, SW_HIDE );
+			}
+
+			if ( g_hWnd_site_manager != NULL )
+			{
+				_EnableWindow( g_hWnd_site_manager, FALSE );
+				_ShowWindow( g_hWnd_site_manager, SW_HIDE );
+			}
+
 			if ( g_hWnd_url_drop_window != NULL )
 			{
 				_EnableWindow( g_hWnd_url_drop_window, FALSE );
@@ -3735,6 +1900,12 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 			if ( g_timer_semaphore != NULL )
 			{
 				ReleaseSemaphore( g_timer_semaphore, 1, NULL );
+			}
+
+			// Release the semaphore to complete the update check.
+			if ( g_update_semaphore != NULL )
+			{
+				ReleaseSemaphore( g_update_semaphore, 1, NULL );
 			}
 
 			// If we're in a secondary thread, then kill it (cleanly) and wait for it to exit.
@@ -3784,38 +1955,43 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 				_DestroyWindow( g_hWnd_search );
 			}
 
+			if ( g_hWnd_download_speed_limit != NULL )
+			{
+				_DestroyWindow( g_hWnd_download_speed_limit );
+			}
+
+			if ( g_hWnd_check_for_updates != NULL )
+			{
+				_DestroyWindow( g_hWnd_check_for_updates );
+			}
+
+			if ( g_hWnd_site_manager != NULL )
+			{
+				_DestroyWindow( g_hWnd_site_manager );
+			}
+
 			if ( g_hWnd_url_drop_window != NULL )
 			{
 				_DestroyWindow( g_hWnd_url_drop_window );
 			}
 
-			if ( cfg_enable_download_history && download_history_changed )
+			if ( cfg_enable_download_history && g_download_history_changed )
 			{
 				_wmemcpy_s( base_directory + base_directory_length, MAX_PATH - base_directory_length, L"\\download_history\0", 18 );
 				base_directory[ base_directory_length + 17 ] = 0;	// Sanity.
 
 				save_download_history( base_directory );
-				download_history_changed = false;
+				g_download_history_changed = false;
 			}
 
-			// Get the number of items in the listview.
-			int num_items = ( int )_SendMessageW( g_hWnd_files, LVM_GETITEMCOUNT, 0, 0 );
-
-			LVITEM lvi;
-			_memzero( &lvi, sizeof( LVITEM ) );
-			lvi.mask = LVIF_PARAM;
-
-			// Go through each item, and free their lParam values.
-			for ( lvi.iItem = 0; lvi.iItem < num_items; ++lvi.iItem )
+			TREELISTNODE *tln = g_tree_list;
+			while ( tln != NULL )
 			{
-				_SendMessageW( g_hWnd_files, LVM_GETITEM, 0, ( LPARAM )&lvi );
-
-				DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )lvi.lParam;
+				DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )tln->data;
 				if ( di != NULL )
 				{
 					// di->icon is stored in the icon_handles tree and is destroyed in main.
 					GlobalFree( di->url );
-					GlobalFree( di->w_add_time );
 					GlobalFree( di->cookies );
 					GlobalFree( di->headers );
 					GlobalFree( di->data );
@@ -3823,9 +1999,16 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 					GlobalFree( di->auth_info.username );
 					GlobalFree( di->auth_info.password );
 
-					if ( di->hFile != INVALID_HANDLE_VALUE )
+					if ( di->proxy_info != NULL )
 					{
-						CloseHandle( di->hFile );
+						GlobalFree( di->proxy_info->hostname );
+						GlobalFree( di->proxy_info->punycode_hostname );
+						GlobalFree( di->proxy_info->w_username );
+						GlobalFree( di->proxy_info->w_password );
+						GlobalFree( di->proxy_info->username );
+						GlobalFree( di->proxy_info->password );
+						GlobalFree( di->proxy_info->auth_key );
+						GlobalFree( di->proxy_info );
 					}
 
 					while ( di->range_list != NULL )
@@ -3837,10 +2020,19 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 						GlobalFree( range_node );
 					}
 
-					DeleteCriticalSection( &di->shared_cs );
+					DeleteCriticalSection( &di->di_cs );
+
+					GlobalFree( di->w_add_time );
+
+					if ( di->hFile != INVALID_HANDLE_VALUE )
+					{
+						CloseHandle( di->hFile );
+					}
 
 					GlobalFree( di );
 				}
+
+				tln = TLV_NextNode( tln, true );
 			}
 
 			UpdateColumnOrders();
@@ -3865,7 +2057,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 
 			if ( use_drag_and_drop_main )
 			{
-				UnregisterDropWindow( g_hWnd_files, List_DropTarget );
+				UnregisterDropWindow( g_hWnd_tlv_files, List_DropTarget );
 
 				_OleUninitialize();
 			}
@@ -3902,20 +2094,20 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 			// Save before we shut down/restart/log off of Windows.
 			save_config();
 
-			if ( login_list_changed )
+			if ( site_list_changed )
 			{
-				save_login_info();
+				save_site_info();
 
-				login_list_changed = false;
+				site_list_changed = false;
 			}
 
-			if ( cfg_enable_download_history && download_history_changed )
+			if ( cfg_enable_download_history && g_download_history_changed )
 			{
 				_wmemcpy_s( base_directory + base_directory_length, MAX_PATH - base_directory_length, L"\\download_history\0", 18 );
 				base_directory[ base_directory_length + 17 ] = 0;	// Sanity.
 
 				save_download_history( base_directory );
-				download_history_changed = false;
+				g_download_history_changed = false;
 			}
 
 			return 0;

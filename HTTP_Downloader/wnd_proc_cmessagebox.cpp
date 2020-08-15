@@ -57,23 +57,23 @@ bool InitializeCMessageBox( HINSTANCE hInstance )
 	WNDCLASSEX wcex;
 	_memzero( &wcex, sizeof( WNDCLASSEX ) );
 	wcex.cbSize			= sizeof( WNDCLASSEX );
-	wcex.style          = CS_VREDRAW | CS_HREDRAW;
-	wcex.cbWndExtra     = 0;
-	wcex.hInstance      = hInstance;
-	wcex.hCursor        = _LoadCursorW( NULL, IDC_ARROW );
-	wcex.hbrBackground  = ( HBRUSH )( COLOR_WINDOW );
-	wcex.cbWndExtra     = sizeof( LONG_PTR );		// We're going to pass each message window an info struct pointer.
-	wcex.lpfnWndProc    = CustomMessageBoxWndProc;
+	wcex.style			= CS_VREDRAW | CS_HREDRAW;
+	wcex.cbWndExtra		= 0;
+	wcex.hInstance		= hInstance;
+	wcex.hCursor		= _LoadCursorW( NULL, IDC_ARROW );
+	wcex.hbrBackground	= ( HBRUSH )( COLOR_WINDOW );
+	wcex.cbWndExtra		= sizeof( LONG_PTR );		// We're going to pass each message window an info struct pointer.
+	wcex.lpfnWndProc	= CustomMessageBoxWndProc;
 
-	wcex.lpszClassName  = L"cmessagebox";
+	wcex.lpszClassName	= L"cmessagebox";
 	if ( !_RegisterClassExW( &wcex ) )
 	{
 		return false;
 	}
 
 	// Disable the close button.
-	wcex.style			|= CS_NOCLOSE;
-	wcex.lpszClassName  = L"cmessageboxdc";
+	wcex.style		   |= CS_NOCLOSE;
+	wcex.lpszClassName	= L"cmessageboxdc";
 	if ( !_RegisterClassExW( &wcex ) )
 	{
 		return false;
@@ -322,8 +322,8 @@ void AdjustWindowDimensions( HWND hWnd, HWND static_msg, CMSGBOX_INFO *cmb_info 
 
 LRESULT CALLBACK CustomMessageBoxWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
 {
-    switch ( msg )
-    {
+	switch ( msg )
+	{
 		case WM_CREATE:
 		{
 			CMSGBOX_INFO *cmb_info = ( CMSGBOX_INFO * )( ( CREATESTRUCT * )lParam )->lpCreateParams;

@@ -28,8 +28,6 @@
 #define EDIT_DEFAULT_SPEED_LIMIT		1006
 #define CB_DEFAULT_SSL_VERSION			1007
 
-#define BTN_LOGIN_MANAGER				1008
-
 // Connection Tab
 HWND g_hWnd_max_downloads = NULL;
 HWND g_hWnd_ud_max_downloads = NULL;
@@ -51,15 +49,13 @@ HWND g_hWnd_default_ssl_version = NULL;
 HWND g_hWnd_default_download_parts = NULL;
 HWND g_hWnd_default_ud_download_parts = NULL;
 
-HWND g_hWnd_btn_login_manager = NULL;
-
 wchar_t default_limit_tooltip_text[ 32 ];
 HWND g_hWnd_default_limit_tooltip = NULL;
 
 LRESULT CALLBACK ConnectionTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
 {
-    switch ( msg )
-    {
+	switch ( msg )
+	{
 		case WM_CREATE:
 		{
 			RECT rc;
@@ -203,10 +199,6 @@ LRESULT CALLBACK ConnectionTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 
 			//
 
-			g_hWnd_btn_login_manager = _CreateWindowW( WC_BUTTON, ST_V_Login_Manager___, WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 223, 120, 23, hWnd, ( HMENU )BTN_LOGIN_MANAGER, NULL, NULL );
-
-			//
-
 			_SendMessageW( hWnd_static_max_downloads, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 			_SendMessageW( g_hWnd_max_downloads, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 
@@ -230,8 +222,6 @@ LRESULT CALLBACK ConnectionTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 
 			_SendMessageW( hWnd_static_default_speed_limit, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 			_SendMessageW( g_hWnd_default_speed_limit, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-
-			_SendMessageW( g_hWnd_btn_login_manager, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 
 			return 0;
 		}
@@ -450,17 +440,6 @@ LRESULT CALLBACK ConnectionTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 							_EnableWindow( g_hWnd_options_apply, TRUE );
 						}
 					}
-				}
-				break;
-
-				case BTN_LOGIN_MANAGER:
-				{
-					if ( g_hWnd_login_manager == NULL )
-					{
-						g_hWnd_login_manager = _CreateWindowExW( /*WS_EX_COMPOSITED |*/ ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"login_manager", ST_V_Login_Manager, WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN, ( ( _GetSystemMetrics( SM_CXSCREEN ) - MIN_WIDTH ) / 2 ), ( ( _GetSystemMetrics( SM_CYSCREEN ) - MIN_HEIGHT ) / 2 ), MIN_WIDTH, MIN_HEIGHT, NULL, NULL, NULL, NULL );
-						_ShowWindow( g_hWnd_login_manager, SW_SHOWNORMAL );
-					}
-					_SetForegroundWindow( g_hWnd_login_manager );
 				}
 				break;
 			}

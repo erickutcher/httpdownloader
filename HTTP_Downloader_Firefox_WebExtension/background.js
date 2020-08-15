@@ -1,5 +1,6 @@
 var g_open_windows = [];
 var g_last_requests = [];
+var g_handled_windows = [];
 var g_options = null;
 
 const g_width = 600;
@@ -12,12 +13,11 @@ function OnGetOptions( options )
 	if ( typeof options.server == "undefined" ) { options.server = "http://localhost:80/"; }
 	if ( typeof options.username == "undefined" ) { options.username = ""; }
 	if ( typeof options.password == "undefined" ) { options.password = ""; }
-	if ( typeof options.parts == "undefined" ) { options.parts = "1"; }
-	if ( typeof options.default_download_speed_limit == "undefined" ) { options.default_download_speed_limit = "0"; }
-	if ( typeof options.default_directory == "undefined" ) { options.default_directory = ""; }
 	if ( typeof options.user_agent == "undefined" ) { options.user_agent = true; }
 	if ( typeof options.referer == "undefined" ) { options.referer = true; }
 	if ( typeof options.override == "undefined" ) { options.override = false; }
+	if ( typeof options.theme_support == "undefined" ) { options.theme_support = true; }
+	if ( typeof options.override_prompts == "undefined" ) { options.override_prompts = true; }
 	if ( typeof options.show_add_window == "undefined" ) { options.show_add_window = false; }
 
 	return options;
@@ -36,12 +36,6 @@ function CreateDownloadWindow( download_info, message = "" )
 	} )
 	.then( function( window_info )
 	{
-		var server = g_options.server;
-		var username = g_options.username;
-		var password = g_options.password;
-		var parts = g_options.parts;
-		var speed_limit = g_options.default_download_speed_limit;
-
 		var method = download_info.method;
 		var url = download_info.url;
 		var cookie_string = download_info.cookie_string;
@@ -53,11 +47,8 @@ function CreateDownloadWindow( download_info, message = "" )
 		g_open_windows.push(
 		[
 			window_info.id,
-			server,
-			username,
-			password,
-			parts,
-			speed_limit,
+			window_info.tabs[ 0 ].id,
+			g_options.theme_support,
 			method,
 			url,
 			cookie_string,
@@ -178,27 +169,39 @@ function HandleMessages( request, sender, sendResponse )
 			if ( g_open_windows[ i ][ 0 ] == request.window_id )
 			{
 				var window = g_open_windows[ i ];
-				g_open_windows.splice( i, 1 );
+				g_open_windows.splice( i, 2 );
 
 				sendResponse(
 				{
-					server: window[ 1 ],
-					username: window[ 2 ],
-					password: window[ 3 ],
-					parts: window[ 4 ],
-					speed_limit: window[ 5 ],
-					method: window[ 6 ],
-					urls: window[ 7 ],
-					cookies: window[ 8 ],
-					headers: window[ 9 ],
-					post_data: window[ 10 ],
-					directory: window[ 11 ],
-					filename: window[ 12 ],
-					message: window[ 13 ]
+					theme_support: window[ 2 ],
+					method: window[ 3 ],
+					urls: window[ 4 ],
+					cookies: window[ 5 ],
+					headers: window[ 6 ],
+					post_data: window[ 7 ],
+					directory: window[ 8 ],
+					filename: window[ 9 ],
+					message: window[ 10 ]
 				} );
+
+				g_handled_windows.push( { window_id: window[ 0 ], tab_id: window[ 1 ] } );
 
 				break;
 			}
+		}
+	}
+	else if ( request.type == "close_window" )
+	{
+		for ( var i = 0; i < g_handled_windows.length; ++i )
+		{
+			var window_id;
+			if ( g_handled_windows[ i ] == request.window_id )
+			{
+				window_id = g_handled_windows[ i ];
+				g_handled_windows.splice( i, 1 );
+			}
+
+			sendResponse( { window_id: window_id } );
 		}
 	}
 	else if ( request.type == "server_info" )
@@ -206,12 +209,14 @@ function HandleMessages( request, sender, sendResponse )
 		var server = g_options.server;
 		var username = g_options.username;
 		var password = g_options.password;
+		var override_prompts = g_options.override_prompts;
 
 		sendResponse(
 		{
 			server: server,
 			username: username,
-			password: password
+			password: password,
+			override_prompts: override_prompts
 		} );
 	}
 	else if ( request.type == "refresh_options" )
@@ -219,6 +224,8 @@ function HandleMessages( request, sender, sendResponse )
 		browser.storage.local.get().then( OnGetOptions )
 		.then( function( options )
 		{
+			var theme_support = g_options.theme_support;
+
 			g_options = options;
 
 			if ( browser.webRequest.onBeforeRequest.hasListener( GetURLRequest ) )
@@ -251,6 +258,14 @@ function HandleMessages( request, sender, sendResponse )
 				}
 			}
 
+			if ( g_options.theme_support != theme_support )
+			{
+				for ( var i = 0; i < g_handled_windows.length; ++i )
+				{
+					browser.tabs.sendMessage( g_handled_windows[ i ].tab_id, { type: "theme_support", value: g_options.theme_support } );
+				}
+			}
+
 			browser.browserAction.setIcon( ( g_options.override ? { path: "icons/icon-e-64.png" } : { path: "icons/icon-d-64.png" } ) );
 		} );
 
@@ -268,11 +283,7 @@ function SendDownloadToClient( download_info )
 		var server = g_options.server;
 		var server_username = g_options.server;
 		var server_password = g_options.password;
-		var username = "";
-		var password = "";
-		var parts = g_options.parts;
-		var speed_limit = g_options.default_download_speed_limit;
-		var download_operations = 0;
+		var download_operations = ( g_options.override_prompts ? 2 : 0 );
 		var url;
 
 		if ( download_info.filename != "" )
@@ -315,15 +326,24 @@ function SendDownloadToClient( download_info )
 		request.setRequestHeader( "Content-Type", "application/octet-stream" );
 		request.send( download_info.method + "\x1f" +
 					  url + "\x1f" +
-					  username + "\x1f" +
-					  password + "\x1f" +
-					  parts + "\x1f" +
-					  speed_limit + "\x1f" +
 					  download_info.directory + "\x1f" +
+					  "\x1f" +									// Parts
+					  "\x1f" +									// SSL/TLS version
+					  "\x1f" +									// Username
+					  "\x1f" +									// Password
+					  "\x1f" +									// Speed limit
 					  download_operations + "\x1f" +
 					  download_info.cookie_string + "\x1f" +
 					  download_info.headers + "\x1f" +
-					  download_info.post_data + "\x1f" );
+					  download_info.post_data + "\x1f" +
+					  "\x1f" +									// Proxy type
+					  "\x1f" +									// Proxy hostname/IP address
+					  "\x1f" +									// Proxy port
+					  "\x1f" +									// Proxy username
+					  "\x1f" +									// Proxy password
+					  "\x1f" +									// Proxy resolve domain names
+					  "\x1f"									// Proxy use authentication
+					);
 	}
 	else
 	{
@@ -388,7 +408,7 @@ function OnDownloadItemCreated( item )
 				else
 				{
 					filename = "";
-					directory = g_options.default_directory;
+					directory = "";
 				}
 
 				var url = item.url;
@@ -480,8 +500,6 @@ function OnMenuClicked( info, tab )
 	{
 		headers += "Referer: " + info.pageUrl.split( '#' )[ 0 ] + "\r\n";
 	}
-
-	var directory = g_options.default_directory;
 
 	if ( info.menuItemId == "download-all-images" ||
 		 info.menuItemId == "download-all-media" ||
@@ -577,12 +595,12 @@ function OnMenuClicked( info, tab )
 				.then( function( cookie_stores )
 				{
 					GetCookieDomain( { url: info.pageUrl, cookie_stores: cookie_stores, index: 0 },
-									 { show_add_window: true, id: null, method: "1", url: urls, cookie_string: "", headers: headers, directory: directory, filename: "", post_data: "" } );
+									 { show_add_window: true, id: null, method: "1", url: urls, cookie_string: "", headers: headers, directory: "", filename: "", post_data: "" } );
 				} );
 			}
 			else
 			{
-				CreateDownloadWindow( { show_add_window: true, id: null, method: "1", url: urls, cookie_string: "", headers: headers, directory: directory, filename: "", post_data: "" } );
+				CreateDownloadWindow( { show_add_window: true, id: null, method: "1", url: urls, cookie_string: "", headers: headers, directory: "", filename: "", post_data: "" } );
 			}
 		} );
 	}
@@ -609,7 +627,7 @@ function OnMenuClicked( info, tab )
 		.then( function( cookie_stores )
 		{
 			GetCookies( { url: url, cookie_stores: cookie_stores, index: 0 },
-						{ show_add_window: true, id: null, method: "1", url: url, cookie_string: "", headers: headers, directory: directory, filename: "", post_data: "" } );
+						{ show_add_window: true, id: null, method: "1", url: url, cookie_string: "", headers: headers, directory: "", filename: "", post_data: "" } );
 		} );
 	}
 }

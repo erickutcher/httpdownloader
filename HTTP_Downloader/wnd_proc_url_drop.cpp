@@ -87,8 +87,8 @@ void UpdateDropWindow( unsigned long long start, unsigned long long end, COLORRE
 
 LRESULT CALLBACK URLDropWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
 {
-    switch ( msg )
-    {
+	switch ( msg )
+	{
 		case WM_CREATE:
 		{
 			window_settings.window_position.x = 0;
@@ -265,7 +265,7 @@ LRESULT CALLBACK URLDropWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 			return 0;
 		}
-	    break;
+		break;
 
 		case WM_MOUSEMOVE:
 		{

@@ -1,3 +1,23 @@
+Version:	1.0.3.2
+Released:	2020-08-15
+
+Settings and Download History files have new formats and will be reset.
+Added Update check.
+Removed Login Manager.
+Added Site Manager for per-site settings.
+Updated Add URL(s) window to override default and Site Manager settings.
+Added command-line arguments for proxy settings.
+Added command-line argument for shutdown action.
+Added shutdown action to exit the program when all downloads complete.
+Added option to update the URL of redirected downloads in the download list.
+Fix incorrect filename when getting filename from redirected download.
+Fixed Add URL(s) window painting due to WS_EX_COMPOSITED flag on Windows 8 and newer.
+Replaced Windows ListView control with custom TreeListView control.
+Added multi-host/mirrored download support.
+Added additional Appearance options for download list.
+Updated extensions Add URL(s) window to match the layout of the main program's Add URL(s) window. 
+Firefox extension: Added theme support.
+
 Version:	1.0.3.1
 Released:	2020-02-09
 

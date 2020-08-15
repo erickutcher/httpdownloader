@@ -100,13 +100,6 @@ void HandleAddInfo( UINT cfFormat, PVOID data )
 
 	//ai->download_operations = DOWNLOAD_OPERATION_SIMULATE;	// For testing.
 
-	ai->download_directory = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * MAX_PATH );
-	_wmemcpy_s( ai->download_directory, MAX_PATH, cfg_default_download_directory, g_default_download_directory_length );
-	ai->download_directory[ g_default_download_directory_length ] = 0;	// Sanity.
-
-	ai->parts = cfg_default_download_parts;
-	ai->ssl_version = cfg_default_ssl_version;
-
 	if ( cfFormat == CF_UNICODETEXT || cfFormat == CF_HTML )
 	{
 		ai->urls = GlobalStrDupW( ( wchar_t * )data );

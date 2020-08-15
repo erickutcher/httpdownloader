@@ -42,12 +42,12 @@
 #include "lite_normaliz.h"
 #include "lite_pcre2.h"
 
+#include "treelistview.h"
 #include "cmessagebox.h"
 
 #include "connection.h"
+#include "site_manager_utilities.h"
 #include "ftp_parsing.h"
-
-#include "login_manager_utilities.h"
 
 #include "system_tray.h"
 
@@ -79,6 +79,8 @@ HFONT g_hFont = NULL;			// Handle to our font object.
 
 UINT CF_HTML = 0;
 
+COLORREF g_CustColors[ 16 ];
+
 bool g_use_regular_expressions = false;
 
 int g_row_height = 0;
@@ -92,7 +94,7 @@ unsigned int g_program_directory_length = 0;
 
 dllrbt_tree *g_icon_handles = NULL;
 
-dllrbt_tree *g_login_info = NULL;
+dllrbt_tree *g_site_info = NULL;
 
 bool g_can_fast_allocate = false;
 
@@ -222,6 +224,8 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 	while ( g_program_directory_length != 0 && g_program_directory[ --g_program_directory_length ] != L'\\' );
 	g_program_directory[ g_program_directory_length ] = 0;	// Sanity.
 
+	bool override_shutdown_action = false;
+
 	// Get the new base directory if the user supplied a path.
 	bool default_directory = true;
 	int argCount = 0;
@@ -231,7 +235,6 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 		if ( argCount > 1 )
 		{
 			cla = ( CL_ARGS * )GlobalAlloc( GPTR, sizeof( CL_ARGS ) );
-			cla->ssl_version = -1;	// Default.
 		}
 
 		// The first parameter (index 0) is the path to the executable.
@@ -300,9 +303,9 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 					++arg;
 
 					unsigned char version = ( unsigned char )_wcstoul( szArgList[ arg ], NULL, 10 );
-					if ( version > 4 )
+					if ( version > 5 )
 					{
-						version = 4;	// TLS 1.2
+						version = 5;	// TLS 1.2
 					}
 
 					cla->ssl_version = version;
@@ -460,6 +463,114 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 						( *cl_val )[ length ] = 0;	// Sanity.
 					}
 				}
+				else if ( ( arg + 1 ) < argCount &&
+						  arg_name_length == 10 && _StrCmpNIW( arg_name, L"proxy-type", 10 ) == 0 )	// Proxy type.
+				{
+					++arg;
+
+					cla->proxy_type = ( unsigned char )_wcstoul( szArgList[ arg ], NULL, 10 );
+				}
+				else if ( ( arg + 1 ) < argCount &&
+						  arg_name_length == 16 && _StrCmpNIW( arg_name, L"proxy-ip-address", 16 ) == 0 )	// Proxy IP address.
+				{
+					++arg;
+
+					unsigned int proxy_ip_address = 0;
+
+					wchar_t *ipaddr = szArgList[ arg ];
+
+					for ( char i = 3; i >= 0; --i )
+					{
+						wchar_t *ptr = ipaddr;
+						while ( ptr != NULL && *ptr != NULL )
+						{
+							if ( *ptr == L'.' )
+							{
+								*ptr = 0;
+								++ptr;
+
+								break;
+							}
+
+							++ptr;
+						}
+
+						if ( *ptr == NULL && i > 0 )
+						{
+							break;
+						}
+
+						proxy_ip_address |= ( ( unsigned int )_wcstoul( ipaddr, NULL, 10 ) << ( 8 * i ) );
+
+						if ( *ptr == NULL && i == 0 )
+						{
+							cla->proxy_ip_address = proxy_ip_address;
+						}
+						else
+						{
+							ipaddr = ptr;
+						}
+					}
+				}
+				else if ( ( arg + 1 ) < argCount &&
+						  arg_name_length == 10 && _StrCmpNIW( arg_name, L"proxy-port", 10 ) == 0 )	// Proxy port.
+				{
+					++arg;
+
+					cla->proxy_port = ( unsigned short )_wcstoul( szArgList[ arg ], NULL, 10 );
+				}
+				else if ( arg_name_length == 26 && _StrCmpNIW( arg_name, L"proxy-resolve-domain-names", 26 ) == 0 )	// Resolve domain names.
+				{
+					cla->proxy_resolve_domain_names = true;
+				}
+				else if ( ( arg + 1 ) < argCount &&
+						  ( arg_name_length == 14 && _StrCmpNIW( arg_name, L"proxy-hostname", 14 ) == 0 ) ||
+						  ( arg_name_length == 14 && _StrCmpNIW( arg_name, L"proxy-username", 14 ) == 0 ) ||
+						  ( arg_name_length == 14 && _StrCmpNIW( arg_name, L"proxy-password", 14 ) == 0 ) )	// Proxy hostname, username, and password.
+				{
+					wchar_t **cl_val = NULL;
+
+					int length = lstrlenW( szArgList[ arg + 1 ] );
+					if ( length > 0 )
+					{
+						if ( arg_name[ 6 ] == L'h' )
+						{
+							cl_val = &cla->proxy_hostname;
+							cla->proxy_hostname_length = length;
+						}
+						else if ( arg_name[ 6 ] == L'u' )
+						{
+							cl_val = &cla->proxy_username;
+							cla->proxy_username_length = length;
+						}
+						else if ( arg_name[ 6 ] == L'p' )
+						{
+							cl_val = &cla->proxy_password;
+							cla->proxy_password_length = length;
+						}
+
+						++arg;	// Move to the supplied value.
+
+						if ( *cl_val != NULL )
+						{
+							GlobalFree( *cl_val );
+							*cl_val = NULL;
+						}
+
+						*cl_val = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( length + 1 ) );
+						_wmemcpy_s( *cl_val, length + 1, szArgList[ arg ], length );
+						( *cl_val )[ length ] = 0;	// Sanity.
+					}
+				}
+				else if ( ( arg + 1 ) < argCount &&
+						  arg_name_length == 15 && _StrCmpNIW( arg_name, L"shutdown-action", 15 ) == 0 )	// Shutdown action.
+				{
+					++arg;
+
+					override_shutdown_action = true;
+
+					g_shutdown_action = ( unsigned char )_wcstoul( szArgList[ arg ], NULL, 10 );
+				}
 			}
 			else
 			{
@@ -543,6 +654,7 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 	InitializeCriticalSection( &last_modified_prompt_list_cs );
 	InitializeCriticalSection( &move_file_queue_cs );
 	InitializeCriticalSection( &cleanup_cs );
+	InitializeCriticalSection( &update_check_timeout_cs );
 
 	// Get the default message system font.
 	NONCLIENTMETRICS ncm;
@@ -571,6 +683,8 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 	{
 		g_default_row_height = icon_height;
 	}
+
+	_memset( g_CustColors, 0, sizeof( COLORREF ) * 16 );
 
 	SetDefaultAppearance();
 
@@ -610,6 +724,11 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 	// Once we read in our font settings, we can measure their heights to set the row height of our listview control.
 	AdjustRowHeight();
 
+	if ( !override_shutdown_action )
+	{
+		g_shutdown_action = cfg_shutdown_action;
+	}
+
 	// See if there's an instance of the program running.
 	HANDLE app_instance_mutex = OpenMutexW( MUTEX_ALL_ACCESS, 0, PROGRAM_CAPTION );
 	if ( app_instance_mutex == NULL )
@@ -642,6 +761,9 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 					if ( cla->urls_length > 0 ) { data_size += ( sizeof( wchar_t ) * ( cla->urls_length + 1 ) ); }
 					if ( cla->username_length > 0 ) { data_size += ( sizeof( wchar_t ) * ( cla->username_length + 1 ) ); }
 					if ( cla->password_length > 0 ) { data_size += ( sizeof( wchar_t ) * ( cla->password_length + 1 ) ); }
+					if ( cla->proxy_hostname_length > 0 ) { data_size += ( sizeof( wchar_t ) * ( cla->proxy_hostname_length + 1 ) ); }
+					if ( cla->proxy_username_length > 0 ) { data_size += ( sizeof( wchar_t ) * ( cla->proxy_username_length + 1 ) ); }
+					if ( cla->proxy_password_length > 0 ) { data_size += ( sizeof( wchar_t ) * ( cla->proxy_password_length + 1 ) ); }
 
 					// Make a contiguous memory buffer.
 					CL_ARGS *cla_data = ( CL_ARGS * )GlobalAlloc( GMEM_FIXED, data_size );
@@ -712,6 +834,27 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 						data_offset += ( cla->password_length + 1 );
 					}
 
+					cla_data->proxy_hostname = ( wchar_t * )data_offset;
+					if ( cla->proxy_hostname_length > 0 )
+					{
+						_wmemcpy_s( wbyte_buf + data_offset, data_size - data_offset, cla->proxy_hostname, cla->proxy_hostname_length + 1 );
+						data_offset += ( cla->proxy_hostname_length + 1 );
+					}
+
+					cla_data->proxy_username = ( wchar_t * )data_offset;
+					if ( cla->proxy_username_length > 0 )
+					{
+						_wmemcpy_s( wbyte_buf + data_offset, data_size - data_offset, cla->proxy_username, cla->proxy_username_length + 1 );
+						data_offset += ( cla->proxy_username_length + 1 );
+					}
+
+					cla_data->proxy_password = ( wchar_t * )data_offset;
+					if ( cla->proxy_password_length > 0 )
+					{
+						_wmemcpy_s( wbyte_buf + data_offset, data_size - data_offset, cla->proxy_password, cla->proxy_password_length + 1 );
+						data_offset += ( cla->proxy_password_length + 1 );
+					}
+
 					COPYDATASTRUCT cds;
 					cds.dwData = 0;
 					cds.cbData = data_size;
@@ -730,11 +873,11 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 	}
 
 	if ( cfg_enable_quick_allocation ||
-		 cfg_shutdown_action == SHUTDOWN_ACTION_RESTART ||
-		 cfg_shutdown_action == SHUTDOWN_ACTION_SLEEP ||
-		 cfg_shutdown_action == SHUTDOWN_ACTION_HIBERNATE ||
-		 cfg_shutdown_action == SHUTDOWN_ACTION_SHUT_DOWN ||
-		 cfg_shutdown_action == SHUTDOWN_ACTION_HYBRID_SHUT_DOWN )
+		 g_shutdown_action == SHUTDOWN_ACTION_RESTART ||
+		 g_shutdown_action == SHUTDOWN_ACTION_SLEEP ||
+		 g_shutdown_action == SHUTDOWN_ACTION_HIBERNATE ||
+		 g_shutdown_action == SHUTDOWN_ACTION_SHUT_DOWN ||
+		 g_shutdown_action == SHUTDOWN_ACTION_HYBRID_SHUT_DOWN )
 	{
 		// Check if we're an admin or have elevated privileges. Allow us to pre-allocate a file without zeroing it.
 		HANDLE hToken, hLinkedToken;
@@ -809,11 +952,11 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 					}
 				}
 
-				if ( cfg_shutdown_action == SHUTDOWN_ACTION_RESTART ||
-					 cfg_shutdown_action == SHUTDOWN_ACTION_SLEEP ||
-					 cfg_shutdown_action == SHUTDOWN_ACTION_HIBERNATE ||
-					 cfg_shutdown_action == SHUTDOWN_ACTION_SHUT_DOWN ||
-					 cfg_shutdown_action == SHUTDOWN_ACTION_HYBRID_SHUT_DOWN &&
+				if ( g_shutdown_action == SHUTDOWN_ACTION_RESTART ||
+					 g_shutdown_action == SHUTDOWN_ACTION_SLEEP ||
+					 g_shutdown_action == SHUTDOWN_ACTION_HIBERNATE ||
+					 g_shutdown_action == SHUTDOWN_ACTION_SHUT_DOWN ||
+					 g_shutdown_action == SHUTDOWN_ACTION_HYBRID_SHUT_DOWN &&
 					 _LookupPrivilegeValueW( NULL, SE_SHUTDOWN_NAME, &luid ) )
 				{
 					tp.PrivilegeCount = 1;
@@ -1000,9 +1143,9 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 
 	g_icon_handles = dllrbt_create( dllrbt_compare_w );
 
-	g_login_info = dllrbt_create( dllrbt_compare_login_info );
+	g_site_info = dllrbt_create( dllrbt_compare_site_info );
 
-	read_login_info();
+	read_site_info();
 
 	downloader_ready_semaphore = CreateSemaphore( NULL, 0, 1, NULL );
 
@@ -1017,20 +1160,20 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 	WNDCLASSEX wcex;
 	_memzero( &wcex, sizeof( WNDCLASSEX ) );
 	wcex.cbSize			= sizeof( WNDCLASSEX );
-	wcex.style          = 0;//CS_VREDRAW | CS_HREDRAW;
-	wcex.cbClsExtra     = 0;
-	wcex.cbWndExtra     = 0;
-	wcex.hInstance      = hInstance;
-	wcex.hIcon          = g_default_tray_icon;//_LoadIconW( hInstance, MAKEINTRESOURCE( IDI_ICON ) );
-	wcex.hCursor        = _LoadCursorW( NULL, IDC_ARROW );
-	wcex.hbrBackground  = ( HBRUSH )( COLOR_3DFACE + 1 );
-	wcex.lpszMenuName   = NULL;
-	wcex.hIconSm        = NULL;
+	wcex.style			= 0;//CS_VREDRAW | CS_HREDRAW;
+	wcex.cbClsExtra		= 0;
+	wcex.cbWndExtra		= 0;
+	wcex.hInstance		= hInstance;
+	wcex.hIcon			= g_default_tray_icon;//_LoadIconW( hInstance, MAKEINTRESOURCE( IDI_ICON ) );
+	wcex.hCursor		= _LoadCursorW( NULL, IDC_ARROW );
+	wcex.hbrBackground	= ( HBRUSH )( COLOR_3DFACE + 1 );
+	wcex.lpszMenuName	= NULL;
+	wcex.hIconSm		= NULL;
 
 	// Since the main window's children cover it up, we don't need to redraw the window.
 	// This also prevents the status bar child from flickering during a window resize. Dumb!
-	wcex.lpfnWndProc    = MainWndProc;
-	wcex.lpszClassName  = L"http_downloader_class";
+	wcex.lpfnWndProc	= MainWndProc;
+	wcex.lpszClassName	= L"http_downloader_class";
 
 	if ( !_RegisterClassExW( &wcex ) )
 	{
@@ -1038,9 +1181,9 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 		goto CLEANUP;
 	}
 
-	wcex.style          = CS_VREDRAW | CS_HREDRAW;
-	wcex.lpfnWndProc    = AddURLsWndProc;
-	wcex.lpszClassName  = L"add_urls";
+//	wcex.style			= CS_VREDRAW | CS_HREDRAW;
+	wcex.lpfnWndProc	= AddURLsWndProc;
+	wcex.lpszClassName	= L"add_urls";
 
 	if ( !_RegisterClassExW( &wcex ) )
 	{
@@ -1048,8 +1191,8 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 		goto CLEANUP;
 	}
 
-	wcex.lpfnWndProc    = OptionsWndProc;
-	wcex.lpszClassName  = L"options";
+	wcex.lpfnWndProc	= OptionsWndProc;
+	wcex.lpszClassName	= L"options";
 
 	if ( !_RegisterClassExW( &wcex ) )
 	{
@@ -1057,8 +1200,8 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 		goto CLEANUP;
 	}
 
-	wcex.lpfnWndProc    = UpdateDownloadWndProc;
-	wcex.lpszClassName  = L"update_download";
+	wcex.lpfnWndProc	= UpdateDownloadWndProc;
+	wcex.lpszClassName	= L"update_download";
 
 	if ( !_RegisterClassExW( &wcex ) )
 	{
@@ -1066,8 +1209,8 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 		goto CLEANUP;
 	}
 
-	wcex.lpfnWndProc    = SearchWndProc;
-	wcex.lpszClassName  = L"search";
+	wcex.lpfnWndProc	= SearchWndProc;
+	wcex.lpszClassName	= L"search";
 
 	if ( !_RegisterClassExW( &wcex ) )
 	{
@@ -1075,8 +1218,8 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 		goto CLEANUP;
 	}
 
-	wcex.lpfnWndProc    = DownloadSpeedLimitWndProc;
-	wcex.lpszClassName  = L"download_speed_limit";
+	wcex.lpfnWndProc	= DownloadSpeedLimitWndProc;
+	wcex.lpszClassName	= L"download_speed_limit";
 
 	if ( !_RegisterClassExW( &wcex ) )
 	{
@@ -1084,8 +1227,17 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 		goto CLEANUP;
 	}
 
-	wcex.lpfnWndProc    = LoginManagerWndProc;
-	wcex.lpszClassName  = L"login_manager";
+	wcex.lpfnWndProc	= SiteManagerWndProc;
+	wcex.lpszClassName	= L"site_manager";
+
+	if ( !_RegisterClassExW( &wcex ) )
+	{
+		fail_type = 1;
+		goto CLEANUP;
+	}
+
+	wcex.lpfnWndProc	= CheckForUpdatesWndProc;
+	wcex.lpszClassName	= L"check_for_updates";
 
 	if ( !_RegisterClassExW( &wcex ) )
 	{
@@ -1095,8 +1247,8 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 
 	wcex.hIcon			= NULL;
 
-	wcex.lpfnWndProc    = AdvancedTabWndProc;
-	wcex.lpszClassName  = L"advanced_tab";
+	wcex.lpfnWndProc	= AdvancedTabWndProc;
+	wcex.lpszClassName	= L"advanced_tab";
 
 	if ( !_RegisterClassExW( &wcex ) )
 	{
@@ -1104,8 +1256,8 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 		goto CLEANUP;
 	}
 
-	wcex.lpfnWndProc    = ProxyTabWndProc;
-	wcex.lpszClassName  = L"proxy_tab";
+	wcex.lpfnWndProc	= ProxyTabWndProc;
+	wcex.lpszClassName	= L"proxy_tab";
 
 	if ( !_RegisterClassExW( &wcex ) )
 	{
@@ -1113,8 +1265,8 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 		goto CLEANUP;
 	}
 
-	wcex.lpfnWndProc    = ConnectionTabWndProc;
-	wcex.lpszClassName  = L"connection_tab";
+	wcex.lpfnWndProc	= ConnectionTabWndProc;
+	wcex.lpszClassName	= L"connection_tab";
 
 	if ( !_RegisterClassExW( &wcex ) )
 	{
@@ -1122,8 +1274,8 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 		goto CLEANUP;
 	}
 
-	wcex.lpfnWndProc    = AppearanceTabWndProc;
-	wcex.lpszClassName  = L"appearance_tab";
+	wcex.lpfnWndProc	= AppearanceTabWndProc;
+	wcex.lpszClassName	= L"appearance_tab";
 
 	if ( !_RegisterClassExW( &wcex ) )
 	{
@@ -1131,8 +1283,8 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 		goto CLEANUP;
 	}
 
-	wcex.lpfnWndProc    = GeneralTabWndProc;
-	wcex.lpszClassName  = L"general_tab";
+	wcex.lpfnWndProc	= GeneralTabWndProc;
+	wcex.lpszClassName	= L"general_tab";
 
 	if ( !_RegisterClassExW( &wcex ) )
 	{
@@ -1140,8 +1292,8 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 		goto CLEANUP;
 	}
 
-	wcex.lpfnWndProc    = FTPTabWndProc;
-	wcex.lpszClassName  = L"ftp_tab";
+	wcex.lpfnWndProc	= FTPTabWndProc;
+	wcex.lpszClassName	= L"ftp_tab";
 
 	if ( !_RegisterClassExW( &wcex ) )
 	{
@@ -1149,8 +1301,8 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 		goto CLEANUP;
 	}
 
-	wcex.lpfnWndProc    = WebServerTabWndProc;
-	wcex.lpszClassName  = L"web_server_tab";
+	wcex.lpfnWndProc	= WebServerTabWndProc;
+	wcex.lpszClassName	= L"web_server_tab";
 
 	if ( !_RegisterClassExW( &wcex ) )
 	{
@@ -1159,8 +1311,17 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 	}
 
 	wcex.style		   |= CS_DBLCLKS;
-	wcex.lpfnWndProc    = URLDropWndProc;
-	wcex.lpszClassName  = L"url_drop_window";
+	wcex.lpfnWndProc	= URLDropWndProc;
+	wcex.lpszClassName	= L"url_drop_window";
+
+	if ( !_RegisterClassExW( &wcex ) )
+	{
+		fail_type = 1;
+		goto CLEANUP;
+	}
+
+	wcex.lpfnWndProc	= TreeListViewWndProc;
+	wcex.lpszClassName	= L"TreeListView";
 
 	if ( !_RegisterClassExW( &wcex ) )
 	{
@@ -1194,22 +1355,13 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 		{
 			// cla values will be freed here.
 			_SendMessageW( g_hWnd_main, WM_PROPAGATE, -2, ( LPARAM )cla );
+
+			cla = NULL;	// Make sure it's not freed below.
 		}
 		else
 		{
-			if ( cla->download_directory != NULL ) { GlobalFree( cla->download_directory ); }
-			if ( cla->download_history_file != NULL ) { GlobalFree( cla->download_history_file ); }
-			if ( cla->url_list_file != NULL ) { GlobalFree( cla->url_list_file ); }
-			if ( cla->urls != NULL ) { GlobalFree( cla->urls ); }
-			if ( cla->cookies != NULL ) { GlobalFree( cla->cookies ); }
-			if ( cla->headers != NULL ) { GlobalFree( cla->headers ); }
-			if ( cla->data != NULL ) { GlobalFree( cla->data ); }
-			if ( cla->username != NULL ) { GlobalFree( cla->username ); }
-			if ( cla->password != NULL ) { GlobalFree( cla->password ); }
-			GlobalFree( cla );
+			FreeCommandLineArgs( &cla );
 		}
-
-		cla = NULL;
 	}
 
 	if ( cfg_enable_drop_window )
@@ -1236,24 +1388,12 @@ CLEANUP:
 
 	save_config();
 
-	if ( login_list_changed )
+	if ( site_list_changed )
 	{
-		save_login_info();
+		save_site_info();
 	}
 
-	if ( cla != NULL )
-	{
-		if ( cla->download_directory != NULL ) { GlobalFree( cla->download_directory ); }
-		if ( cla->download_history_file != NULL ) { GlobalFree( cla->download_history_file ); }
-		if ( cla->cookies != NULL ) { GlobalFree( cla->cookies ); }
-		if ( cla->data != NULL ) { GlobalFree( cla->data ); }
-		if ( cla->headers != NULL ) { GlobalFree( cla->headers ); }
-		if ( cla->url_list_file != NULL ) { GlobalFree( cla->url_list_file ); }
-		if ( cla->urls != NULL ) { GlobalFree( cla->urls ); }
-		if ( cla->username != NULL ) { GlobalFree( cla->username ); }
-		if ( cla->password != NULL ) { GlobalFree( cla->password ); }
-		GlobalFree( cla );
-	}
+	FreeCommandLineArgs( &cla );
 
 	if ( base_directory != NULL ) { GlobalFree( base_directory ); }
 	if ( g_program_directory != NULL ) { GlobalFree( g_program_directory ); }
@@ -1326,26 +1466,15 @@ CLEANUP:
 
 	dllrbt_delete_recursively( g_icon_handles );
 
-	node = dllrbt_get_head( g_login_info );
+	node = dllrbt_get_head( g_site_info );
 	while ( node != NULL )
 	{
-		LOGIN_INFO *li = ( LOGIN_INFO * )node->val;
-
-		if ( li != NULL )
-		{
-			GlobalFree( li->w_host );
-			GlobalFree( li->w_username );
-			GlobalFree( li->w_password );
-			GlobalFree( li->host );
-			GlobalFree( li->username );
-			GlobalFree( li->password );
-			GlobalFree( li );
-		}
+		FreeSiteInfo( ( SITE_INFO ** )&( node->val ) );
 
 		node = node->next;
 	}
 
-	dllrbt_delete_recursively( g_login_info );
+	dllrbt_delete_recursively( g_site_info );
 
 	if ( cfg_even_row_font_settings.font != NULL ){ _DeleteObject( cfg_even_row_font_settings.font ); }
 	if ( cfg_odd_row_font_settings.font != NULL ){ _DeleteObject( cfg_odd_row_font_settings.font ); }
@@ -1378,6 +1507,7 @@ CLEANUP:
 	DeleteCriticalSection( &last_modified_prompt_list_cs );
 	DeleteCriticalSection( &move_file_queue_cs );
 	DeleteCriticalSection( &cleanup_cs );
+	DeleteCriticalSection( &update_check_timeout_cs );
 
 	DeleteCriticalSection( &ftp_listen_info_cs );
 
@@ -1390,35 +1520,35 @@ CLEANUP:
 	ReleaseMutex( app_instance_mutex );
 	CloseHandle( app_instance_mutex );
 
-	if ( cfg_shutdown_action != SHUTDOWN_ACTION_NONE && g_perform_shutdown_action )
+	if ( g_shutdown_action != SHUTDOWN_ACTION_NONE && g_perform_shutdown_action )
 	{
 		// SHTDN_REASON_FLAG_PLANNED = SHTDN_REASON_MAJOR_OTHER | SHTDN_REASON_MINOR_OTHER | SHTDN_REASON_FLAG_PLANNED
-		if ( cfg_shutdown_action == SHUTDOWN_ACTION_LOG_OFF )
+		if ( g_shutdown_action == SHUTDOWN_ACTION_LOG_OFF )
 		{
 			_ExitWindowsEx( EWX_LOGOFF, SHTDN_REASON_FLAG_PLANNED );
 		}
 		else if ( g_can_perform_shutdown_action )
 		{
-			if ( cfg_shutdown_action == SHUTDOWN_ACTION_RESTART )
+			if ( g_shutdown_action == SHUTDOWN_ACTION_RESTART )
 			{
 				_ExitWindowsEx( EWX_REBOOT, SHTDN_REASON_FLAG_PLANNED );
 			}
-			else if ( cfg_shutdown_action == SHUTDOWN_ACTION_SLEEP )
+			else if ( g_shutdown_action == SHUTDOWN_ACTION_SLEEP )
 			{
 				_SetSuspendState( FALSE, FALSE, FALSE );
 			}
-			else if ( cfg_shutdown_action == SHUTDOWN_ACTION_HIBERNATE )
+			else if ( g_shutdown_action == SHUTDOWN_ACTION_HIBERNATE )
 			{
 				_SetSuspendState( TRUE, FALSE, FALSE );
 			}
-			else if ( cfg_shutdown_action == SHUTDOWN_ACTION_SHUT_DOWN )
+			else if ( g_shutdown_action == SHUTDOWN_ACTION_SHUT_DOWN )
 			{
 				if ( _ExitWindowsEx( EWX_POWEROFF, SHTDN_REASON_FLAG_PLANNED ) == 0 )
 				{
 					_ExitWindowsEx( EWX_SHUTDOWN, SHTDN_REASON_FLAG_PLANNED );
 				}
 			}
-			else if ( cfg_shutdown_action == SHUTDOWN_ACTION_HYBRID_SHUT_DOWN )
+			else if ( g_shutdown_action == SHUTDOWN_ACTION_HYBRID_SHUT_DOWN )
 			{
 				#define EWX_HYBRID_SHUTDOWN	0x00400000
 				_ExitWindowsEx( EWX_SHUTDOWN | EWX_HYBRID_SHUTDOWN, SHTDN_REASON_FLAG_PLANNED );

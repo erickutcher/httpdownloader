@@ -30,6 +30,11 @@
 				border: 1px solid grey;
 			}
 
+			label, fieldset
+			{
+				user-select: none;
+			}
+
 			.tab > input[type="radio"]
 			{
 				display: none;
@@ -61,7 +66,9 @@
 
 			.tab_frame
 			{
+				display: flex;
 				position: relative;
+				min-height: 205px;
 				background-color: white;
 				border: 1px solid grey;
 				z-index: 1;
@@ -70,22 +77,33 @@
 			.tab_panel
 			{
 				display: none;
+				width: 100%;
 			}
 
 			.tab > input:nth-child(1):checked ~ .tab_frame > .tab_panel:nth-child(1),
-			.tab > input:nth-child(3):checked ~ .tab_frame > .tab_panel:nth-child(2),
-			.tab > input:nth-child(5):checked ~ .tab_frame > .tab_panel:nth-child(3)
+			.tab > input:nth-child(9):checked ~ .tab_frame > .tab_panel:nth-child(5)
 			{
 				display: block;
+			}
+
+			.tab > input:nth-child(3):checked ~ .tab_frame > .tab_panel:nth-child(2),
+			.tab > input:nth-child(5):checked ~ .tab_frame > .tab_panel:nth-child(3),
+			.tab > input:nth-child(7):checked ~ .tab_frame > .tab_panel:nth-child(4)
+			{
+				display: flex;
+				flex-flow: column;
+			}
+
+			.proxy_tab_panel
+			{
+				display: none;
+				margin-top: 10px;
 			}
 		</style>
 		<script src="download.js"></script>
 	</head>
 	<body>
 		<input type="hidden" id="window_id" value="">
-		<input type="hidden" id="server" value="">
-		<input type="hidden" id="server_username" value="">
-		<input type="hidden" id="server_password" value="">
 		<input type="hidden" id="last_urls" value="">
 		<div style="display: flex; flex-flow: column; height: 100%; min-width: 580px;">
 			<div style="flex: 1; display: flex; flex-flow: column; height: 100%; margin: 15px 15px 0px 15px;">
@@ -106,65 +124,83 @@
 						</div>
 					</div>
 					<textarea id="urls" rows="4" style="flex: 1;"></textarea>
-					<div style="margin-top: 10px;">
-						<div style="margin-top: auto;">
-							<label for="directory" data-i18n="download_directory_">Download directory:</label>
-						</div>
-						<div>
-							<input type="text" id="directory" value="" data-i18n="_use_program_default_" placeholder="[Use Program Default]" style="box-sizing: border-box; width: 100%;">
-						</div>
-					</div>
 				</div>
 				<div id="advanced_info" style="display: none; margin-top: 15px;">
-					<div style="display: flex; flex-flow: row wrap;">
-						<div style="margin-right: 15px;">
-							<div style="margin-top: auto;">
-								<label for="parts" data-i18n="download_parts_">Download parts:</label>
-							</div>
-							<div>
-								<input type="number" id="parts" value="" min="0" max="100" style="text-align: center;">
-							</div>
-						</div>
-						<div style="flex: 1;">
-							<fieldset>
-								<legend data-i18n="authentication">Authentication</legend>
-								<div style="display: flex; flex-flow: row wrap;">
-									<div style="margin-right: 10px;">
-										<div style="margin-top: auto;">
-											<label for="username" data-i18n="username_">Username:</label>
-										</div>
-										<div>
-											<input type="text" id="username" value="">
-										</div>
+					<div class="tab">
+						<input type="radio" name="tabs" id="tab_general" checked><label for="tab_general" data-i18n="general">General</label><input type="radio" name="tabs" id="tab_cookies"><label for="tab_cookies" data-i18n="cookies">Cookies</label><input type="radio" name="tabs" id="tab_headers"><label for="tab_headers" data-i18n="headers">Headers</label><input type="radio" name="tabs" id="tab_post_data"><label for="tab_post_data" data-i18n="post_data">POST Data</label><input type="radio" name="tabs" id="tab_proxy"><label for="tab_proxy" data-i18n="proxy">Proxy</label>
+						<div class="tab_frame">
+							<div class="tab_panel" style="margin: 10px;">
+								<div style="margin: auto;">
+									<div style="margin-top: auto;">
+										<input type="checkbox" id="enable_directory"><label for="enable_directory" data-i18n="download_directory_">Download directory:</label>
 									</div>
-									<div style="flex: 1;">
-										<div style="margin-top: auto;">
-											<label for="password" data-i18n="password_">Password:</label>
-										</div>
-										<div>
-											<input type="password" id="password" value="">
-										</div>
+									<div>
+										<input type="text" id="directory" value="" data-i18n="_use_program_default_" placeholder="[Use Program Default]" style="box-sizing: border-box; width: 100%;" disabled>
 									</div>
 								</div>
-							</fieldset>
-						</div>
-					</div>
-					<div style="margin-top: 15px;">
-						<div style="margin-top: auto;">
-							<label for="speed_limit" data-i18n="download_speed_limit_">Download speed limit (bytes/s):</label>
-						</div>
-						<div>
-							<input type="text" id="speed_limit" size="40" value="0" style="text-align: center;">
-						</div>
-					</div>
-					<div class="tab" style="margin-top: 15px;">
-						<input type="radio" name="tabs" id="tab_cookies" checked><label for="tab_cookies" data-i18n="cookies">Cookies</label><input type="radio" name="tabs" id="tab_headers"><label for="tab_headers" data-i18n="headers">Headers</label><input type="radio" name="tabs" id="tab_post_data"><label for="tab_post_data" data-i18n="post_data">POST Data</label>
-						<div class="tab_frame">
+								<div style="display: flex; flex-flow: row wrap; margin-top: 10px;">
+									<div style="margin-right: 15px;">
+										<div style="margin-top: auto;">
+											<input type="checkbox" id="enable_parts"><label for="enable_parts" data-i18n="download_parts_">Download parts:</label>
+										</div>
+										<div>
+											<input type="number" id="parts" value="1" min="1" max="100" style="width: 15ch; text-align: center;" disabled>
+										</div>
+									</div>
+									<div style="margin: 5px 15px 0px 0px;">
+										<div style="margin-top: auto;">
+											<label data-i18n="ssl_tls_version_">SSL / TLS version:</label>
+										</div>
+										<select id="ssl_tls_version" style="width: 100%;">
+											<option value="0" data-i18n="default">Default</option>
+											<option value="1">SSL 2.0</option>
+											<option value="2">SSL 3.0</option>
+											<option value="3">TLS 1.0</option>
+											<option value="4">TLS 1.1</option>
+											<option value="4">TLS 1.2</option>
+										</select>
+									</div>
+									<div style="flex: 1;">
+										<fieldset>
+											<legend data-i18n="authentication">Authentication</legend>
+											<div style="display: flex; flex-flow: row wrap;">
+												<div style="margin-right: 10px;">
+													<div style="margin-top: auto;">
+														<label for="username" data-i18n="username_">Username:</label>
+													</div>
+													<div>
+														<input type="text" id="username" value="" style="width: 12ch;">
+													</div>
+												</div>
+												<div style="flex: 1;">
+													<div style="margin-top: auto;">
+														<label for="password" data-i18n="password_">Password:</label>
+													</div>
+													<div>
+														<input type="password" id="password" value="" style="width: 12ch;">
+													</div>
+												</div>
+											</div>
+										</fieldset>
+									</div>
+								</div>
+								<div>
+									<div style="margin-top: auto;">
+										<input type="checkbox" id="enable_speed_limit"><label for="enable_speed_limit" data-i18n="download_speed_limit_">Download speed limit (bytes/s):</label>
+									</div>
+									<div>
+										<input type="text" id="speed_limit" value="0" style="width: 30ch; text-align: center;" disabled>
+									</div>
+								</div>
+								<div style="margin-top: 10px;">
+									<input type="checkbox" id="simulate_download"><label for="simulate_download" data-i18n="simulate_download">Simulate download</label>
+								</div>
+							</div>
 							<div class="tab_panel" style="margin: 10px;">
 								<div style="margin-top: auto;">
 									<label for="cookies" data-i18n="cookies_">Cookies:</label>
 								</div>
-								<div>
+								<div style="flex: 1;">
 									<textarea id="cookies" rows="5"></textarea>
 								</div>
 							</div>
@@ -172,7 +208,7 @@
 								<div style="margin-top: auto;">
 									<label for="headers" data-i18n="headers_">Headers:</label>
 								</div>
-								<div>
+								<div style="flex: 1;">
 									<textarea id="headers" rows="5"></textarea>
 								</div>
 							</div>
@@ -180,14 +216,107 @@
 								<div style="margin-top: auto;">
 									<input type="checkbox" id="method"><label for="method" data-i18n="send_post_data_">Send POST Data:</label>
 								</div>
-								<div>
+								<div style="flex: 1;">
 									<textarea id="post_data" rows="5"></textarea>
 								</div>
 							</div>
+							<div class="tab_panel" style="margin: 10px;">
+								<div style="margin-top: auto;">
+									<label data-i18n="proxy_">Use proxy:</label>
+								</div>
+								<div>
+									<select id="proxy_type">
+										<option value="0" data-i18n="default">Default</option>
+										<option value="1">HTTP</option>
+										<option value="2">HTTPS</option>
+										<option value="3">SOCK v4</option>
+										<option value="4">SOCKS v5</option>
+									</select>
+									<div id="proxy_tab" class="proxy_tab" style="margin-top: 10px;">
+										<div class="proxy_tab_panel" style="border-top: 1px solid grey; padding-top: 5px;">
+											<div style="display: flex; flex-flow: row wrap;">
+												<div>
+													<div>
+														<label for="proxy_hostname_ip" data-i18n="hostname_ip_">Hostname / IP address:</label>
+													</div>
+													<div>
+														<input type="text" id="proxy_hostname_ip" value="localhost" style="width: 50ch; text-align: center;">
+													</div>
+												</div>
+												<div style="align-self: flex-end; margin: 0px 4px 5px 4px; text-align: center;">
+													<div>:</div>
+												</div>
+												<div style="flex: 1;">
+													<div>
+														<label for="proxy_port" data-i18n="port_">Port:</label>
+													</div>
+													<div>
+														<input type="number" id="proxy_port" value="" min="1" max="65535" style="width: 10ch; text-align: center;">
+													</div>
+												</div>
+											</div>
+										</div>
+										<div class="proxy_tab_panel">
+											<div style="display: flex; flex-flow: row wrap;">
+												<div style="margin-right: 10px;">
+													<div style="margin-top: auto;">
+														<label for="proxy_username" data-i18n="username_">Username:</label>
+													</div>
+													<div>
+														<input type="text" id="proxy_username" value="">
+													</div>
+												</div>
+												<div style="flex: 1;">
+													<div style="margin-top: auto;">
+														<label for="proxy_password" data-i18n="password_">Password:</label>
+													</div>
+													<div>
+														<input type="password" id="proxy_password" value="">
+													</div>
+												</div>
+											</div>
+										</div>
+										<div class="proxy_tab_panel">
+											<div style="margin-top: auto;">
+												<label for="proxy_ident_username" data-i18n="username_">Username:</label>
+											</div>
+											<div>
+												<input type="text" id="proxy_ident_username" value="">
+											</div>
+											<div style="margin-top: 10px;">
+												<input type="checkbox" id="proxy_resolve_domain_names_v4a"><label for="proxy_resolve_domain_names_v4a" data-i18n="resolve_dn_v4a">Allow proxy to resolve domain names (use SOCKS v4a)</label>
+											</div>
+										</div>
+										<div class="proxy_tab_panel">
+											<div style="margin-top: 10px;">
+												<input type="checkbox" id="proxy_use_authentication"><label for="proxy_use_authentication" data-i18n="use_authentication_">Use authentication:</label>
+											</div>
+											<div style="display: flex; flex-flow: row wrap; margin: 5px 0px 0px 20px;">
+												<div style="margin-right: 10px;">
+													<div style="margin-top: auto;">
+														<label id="proxy_socks5_username_label" for="proxy_socks5_username" style="color: grey;" data-i18n="username_">Username:</label>
+													</div>
+													<div>
+														<input type="text" id="proxy_socks5_username" value="" disabled>
+													</div>
+												</div>
+												<div style="flex: 1;">
+													<div style="margin-top: auto;">
+														<label id="proxy_socks5_password_label" for="proxy_socks5_password" style="color: grey;"  data-i18n="password_">Password:</label>
+													</div>
+													<div>
+														<input type="password" id="proxy_socks5_password" value="" disabled>
+													</div>
+												</div>
+											</div>
+											<div style="margin-top: 10px;">
+												<input type="checkbox" id="proxy_resolve_domain_names"><label for="proxy_resolve_domain_names" data-i18n="resolve_dn">Allow proxy to resolve domain names</label>
+											</div>
+										</div>
+									</div>
+								</div>
+							</div>
 						</div>
-					</div>
-					<div style="margin-top: 15px;">
-						<input type="checkbox" id="simulate_download"><label for="simulate_download" data-i18n="simulate_download">Simulate download</label>
 					</div>
 				</div>
 				<div style="display: flex; flex-flow: row; margin-top: 15px; margin-bottom: 15px;">
