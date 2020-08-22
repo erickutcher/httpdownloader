@@ -1,3 +1,13 @@
+Version:	1.0.3.3
+Released:	2020-08-22
+
+Fixed crash when removing active downloads.
+Fixed parsing empty groups.
+Fixed saving 0 byte files.
+Fixed relative path URLs not updating.
+Fixed drag and drop for Add URL(s) window when Advanced option is set to override.
+Fixed selection when removing items.
+
 Version:	1.0.3.2
 Released:	2020-08-15
 

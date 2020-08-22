@@ -3228,7 +3228,9 @@ bool CreateConnection( SOCKET_CONTEXT *context, char *host, unsigned short port 
 
 	PROXY_INFO *pi = NULL;
 
-	if ( context->download_info != NULL && context->download_info->proxy_info != NULL && context->download_info->proxy_info->type != 0 )
+	if ( context->download_info != NULL &&
+		 context->download_info->proxy_info != NULL &&
+		 context->download_info->proxy_info->type != 0 )
 	{
 		pi = context->download_info->proxy_info;
 
@@ -4564,9 +4566,6 @@ DWORD WINAPI AddURL( void *add_info )
 
 	SHFILEINFO *sfi = ( SHFILEINFO * )GlobalAlloc( GMEM_FIXED, sizeof( SHFILEINFO ) );
 
-	// Creates a tree of active and queued downloads.
-	dllrbt_tree *add_files_tree = CreateFilenameTree();
-
 	TREELISTNODE *first_added_tln = NULL;
 	TREELISTNODE *last_added_tln = NULL;
 
@@ -4597,7 +4596,7 @@ DWORD WINAPI AddURL( void *add_info )
 			if ( url_start != NULL )
 			{
 				// Walk back to find the end of the filename.
-				while ( --url_start != filename_start )
+				while ( --url_start >= filename_start )
 				{
 					if ( *url_start == L']' )
 					{
@@ -4679,12 +4678,33 @@ DWORD WINAPI AddURL( void *add_info )
 		DOWNLOAD_INFO *di = NULL;
 		bool add_stopped = false;
 
+		if ( is_group )
+		{
+			url_list = group_start;
+		}
+
 		do
 		{
-			// Remove anything before our URL (spaces, tabs, newlines, etc.)
-			while ( *url_list != 0 && ( ( *url_list != L'h' && *url_list != L'H' ) && ( *url_list != L'f' && *url_list != L'F' ) ) )
+			if ( is_group )
 			{
-				++url_list;
+				// Remove anything before our URL (spaces, tabs, newlines, etc.)
+				while ( *url_list != 0 && url_list != group_end && ( ( *url_list != L'h' && *url_list != L'H' ) && ( *url_list != L'f' && *url_list != L'F' ) ) )
+				{
+					++url_list;
+				}
+
+				if ( url_list == group_end )
+				{
+					break;
+				}
+			}
+			else
+			{
+				// Remove anything before our URL (spaces, tabs, newlines, etc.)
+				while ( *url_list != 0 && ( ( *url_list != L'h' && *url_list != L'H' ) && ( *url_list != L'f' && *url_list != L'F' ) ) )
+				{
+					++url_list;
+				}
 			}
 
 			// Find the end of the current url.
@@ -5580,9 +5600,6 @@ DWORD WINAPI AddURL( void *add_info )
 		}*/
 	}
 
-	// The tree is only used to determine duplicate filenames.
-	DestroyFilenameTree( add_files_tree );
-
 	GlobalFree( sfi );
 
 	FreeAddInfo( &ai );
@@ -5832,7 +5849,10 @@ THREAD_RETURN ProcessMoveQueue( void *pArguments )
 			{
 				if ( MoveFileWithProgressW( file_path, di->shared_info->file_path, MoveFileProgress, di, move_type ) == FALSE )
 				{
-					if ( GetLastError() == ERROR_FILE_EXISTS )
+					DWORD gle = GetLastError();
+
+					if ( gle == ERROR_ALREADY_EXISTS ||
+						 gle == ERROR_FILE_EXISTS )	// Exists on same drive, exists on different drive.
 					{
 						if ( cfg_prompt_rename == 0 && di->shared_info->download_operations & DOWNLOAD_OPERATION_OVERRIDE_PROMPTS )
 						{
@@ -5895,8 +5915,10 @@ THREAD_RETURN ProcessMoveQueue( void *pArguments )
 							}
 						}
 					}
-					else// if ( GetLastError() == ERROR_REQUEST_ABORTED )
+					else// if ( gle == ERROR_REQUEST_ABORTED )
 					{
+						// ERROR_FILE_NOT_FOUND might happen if we have it set to override and the same file is downloaded multiple times.
+
 						di->shared_info->status = STATUS_STOPPED;
 					}
 					/*else
@@ -6618,13 +6640,6 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 										DeleteFileW( file_path_delete );
 									}
 
-									if ( shared_info->hosts == 1 )
-									{
-										DeleteCriticalSection( &di->di_cs );
-
-										GlobalFree( di );
-									}
-
 									free_shared_info = true;
 								}
 							}
@@ -6633,6 +6648,8 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 
 							if ( free_shared_info )
 							{
+								DeleteCriticalSection( &shared_info->di_cs );
+
 								GlobalFree( shared_info );
 							}
 						}
@@ -6834,21 +6851,21 @@ void FreeAddInfo( ADD_INFO **add_info )
 {
 	if ( *add_info != NULL )
 	{
-		if ( ( *add_info )->proxy_info.hostname ) { GlobalFree( ( *add_info )->proxy_info.hostname ); }
-		if ( ( *add_info )->proxy_info.punycode_hostname ) { GlobalFree( ( *add_info )->proxy_info.punycode_hostname ); }
-		if ( ( *add_info )->proxy_info.w_username ) { GlobalFree( ( *add_info )->proxy_info.w_username ); }
-		if ( ( *add_info )->proxy_info.w_password ) { GlobalFree( ( *add_info )->proxy_info.w_password ); }
-		if ( ( *add_info )->proxy_info.username ) { GlobalFree( ( *add_info )->proxy_info.username ); }
-		if ( ( *add_info )->proxy_info.password ) { GlobalFree( ( *add_info )->proxy_info.password ); }
-		if ( ( *add_info )->proxy_info.auth_key ) { GlobalFree( ( *add_info )->proxy_info.auth_key ); }
+		if ( ( *add_info )->proxy_info.hostname != NULL ) { GlobalFree( ( *add_info )->proxy_info.hostname ); }
+		if ( ( *add_info )->proxy_info.punycode_hostname != NULL ) { GlobalFree( ( *add_info )->proxy_info.punycode_hostname ); }
+		if ( ( *add_info )->proxy_info.w_username != NULL ) { GlobalFree( ( *add_info )->proxy_info.w_username ); }
+		if ( ( *add_info )->proxy_info.w_password != NULL ) { GlobalFree( ( *add_info )->proxy_info.w_password ); }
+		if ( ( *add_info )->proxy_info.username != NULL ) { GlobalFree( ( *add_info )->proxy_info.username ); }
+		if ( ( *add_info )->proxy_info.password != NULL ) { GlobalFree( ( *add_info )->proxy_info.password ); }
+		if ( ( *add_info )->proxy_info.auth_key != NULL ) { GlobalFree( ( *add_info )->proxy_info.auth_key ); }
 
-		if ( ( *add_info )->utf8_data ) { GlobalFree( ( *add_info )->utf8_data ); }
-		if ( ( *add_info )->utf8_headers ) { GlobalFree( ( *add_info )->utf8_headers ); }
-		if ( ( *add_info )->utf8_cookies ) { GlobalFree( ( *add_info )->utf8_cookies ); }
-		if ( ( *add_info )->auth_info.username ) { GlobalFree( ( *add_info )->auth_info.username ); }
-		if ( ( *add_info )->auth_info.password ) { GlobalFree( ( *add_info )->auth_info.password ); }
-		if ( ( *add_info )->download_directory ) { GlobalFree( ( *add_info )->download_directory ); }
-		if ( ( *add_info )->urls ) { GlobalFree( ( *add_info )->urls ); }
+		if ( ( *add_info )->utf8_data != NULL ) { GlobalFree( ( *add_info )->utf8_data ); }
+		if ( ( *add_info )->utf8_headers != NULL ) { GlobalFree( ( *add_info )->utf8_headers ); }
+		if ( ( *add_info )->utf8_cookies != NULL ) { GlobalFree( ( *add_info )->utf8_cookies ); }
+		if ( ( *add_info )->auth_info.username != NULL ) { GlobalFree( ( *add_info )->auth_info.username ); }
+		if ( ( *add_info )->auth_info.password != NULL ) { GlobalFree( ( *add_info )->auth_info.password ); }
+		if ( ( *add_info )->download_directory != NULL ) { GlobalFree( ( *add_info )->download_directory ); }
+		if ( ( *add_info )->urls != NULL ) { GlobalFree( ( *add_info )->urls ); }
 
 		GlobalFree( *add_info );
 

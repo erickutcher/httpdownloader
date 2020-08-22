@@ -2976,14 +2976,23 @@ char GetHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int h
 			{
 				if ( cfg_update_redirected )
 				{
-					int updated_hostname_length = MultiByteToWideChar( CP_UTF8, 0, context->header_info.url_location.host, -1, NULL, 0 ) - 1;
+					char *updated_hostname;
+					if ( context->header_info.url_location.host != NULL )
+					{
+						updated_hostname = context->header_info.url_location.host;
+					}
+					else
+					{
+						updated_hostname = context->request_info.host;
+					}
+
+					int updated_hostname_length = MultiByteToWideChar( CP_UTF8, 0, updated_hostname, -1, NULL, 0 ) - 1;	// Don't include the NULL terminator.
 					int updated_resource_length = MultiByteToWideChar( CP_UTF8, 0, context->header_info.url_location.resource, -1, NULL, 0 );	// Include the NULL temrinator.
 
 					int update_url_offset = 0;
 					int update_url_length = ( context->header_info.url_location.protocol == PROTOCOL_HTTPS ? 8 : 7 ) + updated_hostname_length + updated_resource_length;
 
-					wchar_t *updated_url = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * update_url_length );
-					_memset( updated_url, -3, update_url_length * sizeof( wchar_t ) );
+					wchar_t *updated_url = ( wchar_t * )GlobalAlloc( GPTR, sizeof( wchar_t ) * update_url_length );
 
 					if ( context->header_info.url_location.protocol == PROTOCOL_HTTPS )
 					{
@@ -2996,7 +3005,7 @@ char GetHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int h
 						update_url_offset += 7;
 					}
 
-					MultiByteToWideChar( CP_UTF8, 0, context->header_info.url_location.host, -1, updated_url + update_url_offset, updated_hostname_length );
+					MultiByteToWideChar( CP_UTF8, 0, updated_hostname, -1, updated_url + update_url_offset, updated_hostname_length );
 					update_url_offset += updated_hostname_length;
 					MultiByteToWideChar( CP_UTF8, 0, context->header_info.url_location.resource, -1, updated_url + update_url_offset, updated_resource_length );
 
@@ -3236,13 +3245,16 @@ char GetHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int h
 			{
 				if ( !context->processed_header )
 				{
-					EnterCriticalSection( &context->download_info->shared_info->di_cs );
+					if ( context->download_info != NULL )
+					{
+						EnterCriticalSection( &context->download_info->shared_info->di_cs );
 
-					// If we've processed the header for a group of hosts, then there's no need to prompt for every other host.
-					// A single host will not have had its header processed so we can set this to true to prompt.
-					context->show_file_size_prompt = !context->download_info->shared_info->processed_header;
+						// If we've processed the header for a group of hosts, then there's no need to prompt for every other host.
+						// A single host will not have had its header processed so we can set this to true to prompt.
+						context->show_file_size_prompt = !context->download_info->shared_info->processed_header;
 
-					LeaveCriticalSection( &context->download_info->shared_info->di_cs );
+						LeaveCriticalSection( &context->download_info->shared_info->di_cs );
+					}
 				}
 			}
 
@@ -4249,43 +4261,47 @@ char AllocateFile( SOCKET_CONTEXT *context )
 							}
 							else	// Trigger the system to allocate the file on disk. Sloooow.
 							{
-								file_status = 1;
-
-								context->download_info->status = STATUS_ALLOCATING_FILE;
-								context->status = STATUS_ALLOCATING_FILE;
-
-								// For groups.
-								if ( IS_GROUP( context->download_info ) )
-								{
-									context->download_info->shared_info->status = STATUS_ALLOCATING_FILE;
-								}
-
-								InterlockedIncrement( &context->pending_operations );
-
-								context->overlapped.current_operation = IO_ResumeGetContent;
-
-								// Adjust the offset back 1.
 								if ( li.QuadPart > 0 )
 								{
-									--li.QuadPart;
+									--li.QuadPart;	// Adjust the offset back 1.
+
+									file_status = 1;
+
+									context->download_info->status = STATUS_ALLOCATING_FILE;
+									context->status = STATUS_ALLOCATING_FILE;
+
+									// For groups.
+									if ( IS_GROUP( context->download_info ) )
+									{
+										context->download_info->shared_info->status = STATUS_ALLOCATING_FILE;
+									}
+
+									InterlockedIncrement( &context->pending_operations );
+
+									context->overlapped.current_operation = IO_ResumeGetContent;
+
+									context->overlapped.overlapped.hEvent = NULL;
+									context->overlapped.overlapped.Internal = NULL;
+									context->overlapped.overlapped.InternalHigh = NULL;
+									//context->overlapped.overlapped.Pointer = NULL; // union
+									context->overlapped.overlapped.Offset = li.LowPart;
+									context->overlapped.overlapped.OffsetHigh = li.HighPart;
+
+									// Write a non-NULL character to the end of the file to zero it out.
+									BOOL bRet = WriteFile( context->download_info->shared_info->hFile, "\x03", 1, NULL, ( OVERLAPPED * )&context->overlapped );
+									if ( bRet == FALSE && ( GetLastError() != ERROR_IO_PENDING ) )
+									{
+										InterlockedDecrement( &context->pending_operations );
+
+										file_status = 0;
+
+										CloseHandle( context->download_info->shared_info->hFile );
+										context->download_info->shared_info->hFile = INVALID_HANDLE_VALUE;
+									}
 								}
-								context->overlapped.overlapped.hEvent = NULL;
-								context->overlapped.overlapped.Internal = NULL;
-								context->overlapped.overlapped.InternalHigh = NULL;
-								//context->overlapped.overlapped.Pointer = NULL; // union
-								context->overlapped.overlapped.Offset = li.LowPart;
-								context->overlapped.overlapped.OffsetHigh = li.HighPart;
-
-								// Write a non-NULL character to the end of the file to zero it out.
-								BOOL bRet = WriteFile( context->download_info->shared_info->hFile, "\x03", 1, NULL, ( OVERLAPPED * )&context->overlapped );
-								if ( bRet == FALSE && ( GetLastError() != ERROR_IO_PENDING ) )
+								else
 								{
-									InterlockedDecrement( &context->pending_operations );
-
-									file_status = 0;
-
-									CloseHandle( context->download_info->shared_info->hFile );
-									context->download_info->shared_info->hFile = INVALID_HANDLE_VALUE;
+									file_status = 2;	// Start writing to the file immediately. If it's a 0 byte file, then it'll just be closed.
 								}
 							}
 						}
@@ -4611,7 +4627,20 @@ char GetHTTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, uns
 			response_buffer_length -= ( unsigned int )( context->header_info.end_of_header - response_buffer );
 			response_buffer = context->header_info.end_of_header;
 
-			context->content_status = CONTENT_STATUS_GET_CONTENT;
+			// Handle zero byte files.
+			if ( response_buffer_length == 0 &&
+				 context->header_info.range_info->content_length == 0 &&
+				!context->header_info.chunked_transfer &&
+				 context->header_info.content_encoding == CONTENT_ENCODING_NONE )
+			{
+				context->header_info.range_info->content_offset = 1;	// Prevents us from retrying the connection in CleanupConnection().
+
+				return CONTENT_STATUS_FAILED;	// We have no more data, so just close the connection.
+			}
+			else
+			{
+				context->content_status = CONTENT_STATUS_GET_CONTENT;
+			}
 		}
 		else
 		{

@@ -1017,6 +1017,14 @@ char ProcessFTPFileInfo( SOCKET_CONTEXT *context )
 		}
 	}
 
+	// Handle zero byte files.
+	if ( context->header_info.range_info->content_length == 0 )
+	{
+		context->header_info.range_info->content_offset = 1;	// Prevents us from retrying the connection in CleanupConnection().
+
+		content_status = FTP_CONTENT_STATUS_FAILED;	// Close the connection.
+	}
+
 	return content_status;
 }
 

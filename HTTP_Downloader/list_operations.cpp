@@ -147,6 +147,15 @@ THREAD_RETURN remove_items( void *pArguments )
 		sel_index = TLV_GetParentIndex( tln->parent, sel_index );
 		sel_index += ( tln->child_count + 1 );
 
+		// Remove any selection flag from the children.
+		TREELISTNODE *child_tln = tln;
+		while ( child_tln != NULL )
+		{
+			child_tln->flag = TLVS_NONE;
+
+			child_tln = child_tln->next;
+		}
+
 		tln = tln->parent->next;
 	}
 

@@ -119,7 +119,6 @@ void HandleAddInfo( UINT cfFormat, PVOID data )
 	}
 	else
 	{
-		GlobalFree( ai->download_directory );
 		GlobalFree( ai->urls );
 		GlobalFree( ai );
 	}
@@ -779,7 +778,7 @@ HRESULT STDMETHODCALLTYPE Drop( IDropTarget *This, IDataObject *pDataObj, DWORD 
 				}
 				else
 				{
-					if ( cfg_drag_and_drop_action != DRAG_AND_DROP_ACTION_NONE )
+					if ( cfg_drag_and_drop_action != DRAG_AND_DROP_ACTION_NONE && _GetParent( _This->m_hWnd ) != g_hWnd_add_urls )
 					{
 						HandleAddInfo( cfFormat, data );
 					}
