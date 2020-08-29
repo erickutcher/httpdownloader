@@ -1900,7 +1900,7 @@ void HandleMouseMovement( HWND hWnd )
 
 		// See if any modifier key is pressed.
 		bool ctrl_down = ( _GetKeyState( VK_CONTROL ) & 0x8000 ) ? true : false;
-		bool shift_down = ( _GetKeyState( VK_SHIFT ) & 0x8000 ) ? true : false;
+		bool shift_down = ( _GetKeyState( VK_SHIFT ) & 0x8000 ) && !ctrl_down ? true : false;
 
 		if ( ctrl_down || shift_down )
 		{
@@ -2547,7 +2547,7 @@ void HandleMouseClick( HWND hWnd, bool right_button )
 
 	// See if any modifier key is pressed.
 	bool ctrl_down = ( _GetKeyState( VK_CONTROL ) & 0x8000 ) ? true : false;
-	bool shift_down = ( _GetKeyState( VK_SHIFT ) & 0x8000 ) ? true : false;
+	bool shift_down = ( _GetKeyState( VK_SHIFT ) & 0x8000 ) && !ctrl_down ? true : false;
 
 	// Remove the selection flag for all items in the list.
 	TLV_ClearSelected( ctrl_down, shift_down );
@@ -4471,7 +4471,7 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 							int old_focused_index = g_focused_index;
 
 							bool ctrl_down = ( _GetKeyState( VK_CONTROL ) & 0x8000 ) ? true : false;
-							bool shift_down = ( _GetKeyState( VK_SHIFT ) & 0x8000 ) ? true : false;
+							bool shift_down = ( _GetKeyState( VK_SHIFT ) & 0x8000 ) && !ctrl_down ? true : false;
 
 							bool update_selection_bounds = true;
 
@@ -4951,13 +4951,24 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 				tli_node = TLV_NextNode( tli_node, false );
 			}
 
-			if ( tli_node != NULL && tli_node->child_count > 0 )
+			if ( tli_node != NULL )
 			{
-				TLV_ExpandCollapseParent( tli_node, pick_index, !tli_node->is_expanded );
+				if ( ( _GetKeyState( VK_CONTROL ) & 0x8000 ) &&
+					 ( _GetKeyState( VK_SHIFT ) & 0x8000 ) )
+				{
+					HandleCommand( hWnd, MENU_OPEN_DIRECTORY );
+				}
+				else
+				{
+					if ( tli_node->child_count > 0 )
+					{
+						TLV_ExpandCollapseParent( tli_node, pick_index, !tli_node->is_expanded );
 
-				HandleWindowChange( hWnd );
+						HandleWindowChange( hWnd );
 
-				_InvalidateRect( hWnd, &g_client_rc, TRUE );
+						_InvalidateRect( hWnd, &g_client_rc, TRUE );
+					}
+				}
 			}
 
 			if ( !in_worker_thread )

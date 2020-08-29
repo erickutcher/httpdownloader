@@ -289,6 +289,7 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 					}
 
 					cla->parts = parts;
+					cla->use_parts = true;
 				}
 				else if ( ( arg + 1 ) < argCount &&
 						  arg_name_length == 11 && _StrCmpNIW( arg_name, L"speed-limit", 11 ) == 0 )	// Download speed limit.
@@ -296,6 +297,7 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 					++arg;
 
 					cla->download_speed_limit = ( unsigned long long )wcstoull( szArgList[ arg ] );
+					cla->use_download_speed_limit = true;
 				}
 				else if ( ( arg + 1 ) < argCount &&
 						  arg_name_length == 10 && _StrCmpNIW( arg_name, L"encryption", 10 ) == 0 )	// SSL / TLS version.
@@ -317,11 +319,9 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 				else if ( arg_name_length == 11 && _StrCmpNIW( arg_name, L"add-stopped", 11 ) == 0 )	// Add the download in the Stopped state.
 				{
 					cla->download_operations |= DOWNLOAD_OPERATION_ADD_STOPPED;
-					cla->download_immediately = 1;
 				}
 				else if ( arg_name_length == 9 && _StrCmpNIW( arg_name, L"immediate", 9 ) == 0 )	// Download immediately.
 				{
-					cla->download_operations &= ~DOWNLOAD_OPERATION_ADD_STOPPED;
 					cla->download_immediately = 1;
 				}
 				else if ( ( arg + 1 ) < argCount &&
@@ -393,7 +393,7 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 						}
 						else if ( arg_name[ 0 ] == L'p' )
 						{
-							if ( arg_name[ 1 ] == L'o' )	// Portable
+							if ( arg_name[ 1 ] == L'o' )	// Post Data
 							{
 								cl_val = &cla->data;
 								cla->data_length = length;
@@ -423,6 +423,7 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 
 								cl_val = &cla->download_directory;
 								cla->download_directory_length = length;
+								cla->use_download_directory = true;
 							}
 							else
 							{

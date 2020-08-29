@@ -1346,6 +1346,20 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 								}
 							}
 						}
+
+						if ( ai->proxy_info.w_username != NULL )
+						{
+							auth_length = WideCharToMultiByte( CP_UTF8, 0, ai->proxy_info.w_username, -1, NULL, 0, NULL, NULL );
+							ai->proxy_info.username = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * auth_length ); // Size includes the null character.
+							WideCharToMultiByte( CP_UTF8, 0, ai->proxy_info.w_username, -1, ai->proxy_info.username, auth_length, NULL, NULL );
+						}
+
+						if ( ai->proxy_info.w_password != NULL )
+						{
+							auth_length = WideCharToMultiByte( CP_UTF8, 0, ai->proxy_info.w_password, -1, NULL, 0, NULL, NULL );
+							ai->proxy_info.password = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * auth_length ); // Size includes the null character.
+							WideCharToMultiByte( CP_UTF8, 0, ai->proxy_info.w_password, -1, ai->proxy_info.password, auth_length, NULL, NULL );
+						}
 					}
 
 					//

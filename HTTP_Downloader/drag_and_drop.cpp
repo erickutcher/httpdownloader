@@ -208,17 +208,17 @@ wchar_t *ParseHTMLClipboard( char *data )
 					{
 						if ( found_domain == 0 )
 						{
-							// Compare the previous characters in the string to see if it's an HTTP/S URL.
+							// Compare the previous characters in the string to see if it's an HTTP/S / FTP/S/ES URL.
 							// We already know that the last two characters are "//".
-							if ( ( source_url_end - source_url_start ) == 6 && _StrCmpNIA( source_url_start, "http:", 5 ) == 0 )
+							if ( ( ( source_url_end - source_url_start ) == 6 && _StrCmpNIA( source_url_start, "http:", 5 ) == 0 ) ||
+								 ( ( source_url_end - source_url_start ) == 7 && _StrCmpNIA( source_url_start, "https:", 6 ) == 0 ) ||
+								 ( ( source_url_end - source_url_start ) == 5 && _StrCmpNIA( source_url_start, "ftp:", 4 ) == 0 ) ||
+								 ( ( source_url_end - source_url_start ) == 6 && _StrCmpNIA( source_url_start, "ftps:", 5 ) == 0 ) ||
+								 ( ( source_url_end - source_url_start ) == 7 && _StrCmpNIA( source_url_start, "ftpes:", 6 ) == 0 ) )
 							{
 								found_domain = 1;
 							}
-							else if ( ( source_url_end - source_url_start ) == 7 && _StrCmpNIA( source_url_start, "https:", 6 ) == 0 )
-							{
-								found_domain = 1;
-							}
-							else	// Not an HTTP/S URL.
+							else	// Not an HTTP/S / FTP/S/ES URL.
 							{
 								source_url_start = source_url_end = source_url_root_end = NULL;
 

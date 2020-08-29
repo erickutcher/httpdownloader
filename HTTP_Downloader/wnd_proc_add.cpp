@@ -1554,6 +1554,20 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 									_SendMessageW( g_hWnd_add_auth_password_socks, WM_GETTEXT, auth_length, ( LPARAM )ai->proxy_info.w_password );
 								}
 							}
+
+							if ( ai->proxy_info.w_username != NULL )
+							{
+								auth_length = WideCharToMultiByte( CP_UTF8, 0, ai->proxy_info.w_username, -1, NULL, 0, NULL, NULL );
+								ai->proxy_info.username = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * auth_length ); // Size includes the null character.
+								WideCharToMultiByte( CP_UTF8, 0, ai->proxy_info.w_username, -1, ai->proxy_info.username, auth_length, NULL, NULL );
+							}
+
+							if ( ai->proxy_info.w_password != NULL )
+							{
+								auth_length = WideCharToMultiByte( CP_UTF8, 0, ai->proxy_info.w_password, -1, NULL, 0, NULL, NULL );
+								ai->proxy_info.password = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * auth_length ); // Size includes the null character.
+								WideCharToMultiByte( CP_UTF8, 0, ai->proxy_info.w_password, -1, ai->proxy_info.password, auth_length, NULL, NULL );
+							}
 						}
 
 						//
@@ -1766,6 +1780,13 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 						_SendMessageW( g_hWnd_download_directory, WM_SETTEXT, 0, ( LPARAM )t_download_directory );
 					}
 
+					if ( cla->use_download_directory )
+					{
+						_SendMessageW( g_hWnd_chk_add_enable_download_directory, BM_SETCHECK, BST_CHECKED, 0 );
+						_EnableWindow( g_hWnd_download_directory, TRUE );
+						_EnableWindow( g_hWnd_btn_download_directory, TRUE );
+					}
+
 					if ( cla->urls != NULL )
 					{
 						_SendMessageW( g_hWnd_edit_add, EM_REPLACESEL, 0, ( LPARAM )cla->urls );
@@ -1793,10 +1814,23 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 						_SendMessageW( g_hWnd_ud_download_parts, UDM_SETPOS, 0, cla->parts );
 					}
 
+					if ( cla->use_parts )
+					{
+						_SendMessageW( g_hWnd_chk_add_enable_download_parts, BM_SETCHECK, BST_CHECKED, 0 );
+						_EnableWindow( g_hWnd_download_parts, TRUE );
+						_EnableWindow( g_hWnd_ud_download_parts, TRUE );
+					}
+
 					char value[ 21 ];
 					_memzero( value, sizeof( char ) * 21 );
 					__snprintf( value, 21, "%I64u", cla->download_speed_limit );
 					_SendMessageA( g_hWnd_add_speed_limit, WM_SETTEXT, 0, ( LPARAM )value );
+
+					if ( cla->use_download_speed_limit )
+					{
+						_SendMessageW( g_hWnd_chk_add_enable_speed_limit, BM_SETCHECK, BST_CHECKED, 0 );
+						_EnableWindow( g_hWnd_add_speed_limit, TRUE );
+					}
 
 					if ( cla->ssl_version >= 0 )
 					{
@@ -1830,6 +1864,11 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 							_SendMessageW( g_hWnd_chk_add_type_hostname_socks, BM_SETCHECK, BST_UNCHECKED, 0 );
 							_SendMessageW( g_hWnd_chk_add_type_ip_address_socks, BM_SETCHECK, BST_CHECKED, 0 );
+						}
+
+						if ( cla->proxy_port == 0 )
+						{
+							cla->proxy_port = ( cla->proxy_type == 1 ? 80 : ( cla->proxy_type == 2 ? 443 : 1080 ) );
 						}
 
 						__snprintf( value, 6, "%hu", cla->proxy_port );
@@ -1877,8 +1916,46 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 						_EnableWindow( g_hWnd_btn_download_directory, FALSE );
 					}
 
+					HWND hWnd_focus;
+
+					if ( use_add_split )
+					{
+						if ( cla->download_operations & DOWNLOAD_OPERATION_ADD_STOPPED )
+						{
+							add_split_type = 1;
+
+							_SendMessageW( g_hWnd_btn_download, WM_SETTEXT, 0, ( LPARAM )ST_V_Add );
+						}
+						else
+						{
+							add_split_type = 0;
+
+							_SendMessageW( g_hWnd_btn_download, WM_SETTEXT, 0, ( LPARAM )ST_V_Download );
+						}
+
+						hWnd_focus = g_hWnd_btn_download;
+					}
+					else
+					{
+						// Adjust the default push button since SetFocus doesn't work.
+						if ( cla->download_operations & DOWNLOAD_OPERATION_ADD_STOPPED )
+						{
+							_SetWindowLongPtrW( g_hWnd_btn_download, GWL_STYLE, _GetWindowLongPtrW( g_hWnd_btn_download, GWL_STYLE ) & ~BS_DEFPUSHBUTTON );
+							_SetWindowLongPtrW( g_hWnd_btn_add_download, GWL_STYLE, _GetWindowLongPtrW( g_hWnd_btn_add_download, GWL_STYLE ) | BS_DEFPUSHBUTTON );
+
+							hWnd_focus = g_hWnd_btn_add_download;
+						}
+						else
+						{
+							_SetWindowLongPtrW( g_hWnd_btn_add_download, GWL_STYLE, _GetWindowLongPtrW( g_hWnd_btn_add_download, GWL_STYLE ) & ~BS_DEFPUSHBUTTON );
+							_SetWindowLongPtrW( g_hWnd_btn_download, GWL_STYLE, _GetWindowLongPtrW( g_hWnd_btn_download, GWL_STYLE ) | BS_DEFPUSHBUTTON );
+
+							hWnd_focus = g_hWnd_btn_download;
+						}
+					}
+
 					// http://a.b + \r\n
-					_SetFocus( ( cla->urls_length >= 12 ? g_hWnd_btn_download : g_hWnd_edit_add ) );
+					_SetFocus( ( cla->urls_length >= 12 ? hWnd_focus : g_hWnd_edit_add ) );
 				}
 			}
 			else if ( wParam != 0 )
@@ -1952,30 +2029,43 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 							wchar_t *data = ( wchar_t * )GlobalLock( cbh );
 							if ( data != NULL )
 							{
-								// Make sure the text starts with http(s) protocol.
-								char offset = 0;
-								if ( _StrCmpNIW( data, L"http://", 7 ) == 0 )
+								char offset;
+								if ( *data == L'{' && *( data + 1 ) == L'\r' && *( data + 2 ) == L'\n' )
 								{
-									offset = 7;
+									offset = 3;
 								}
-								else if ( _StrCmpNIW( data, L"https://", 8 ) == 0 )
+								else
 								{
-									offset = 8;
-								}
-								else if ( _StrCmpNIW( data, L"ftp://", 6 ) == 0 )
-								{
-									offset = 6;
-								}
-								else if ( _StrCmpNIW( data, L"ftps://", 7 ) == 0 )
-								{
-									offset = 7;
-								}
-								else if ( _StrCmpNIW( data, L"ftpes://", 8 ) == 0 )
-								{
-									offset = 8;
+									offset = 0;
 								}
 
-								// Make sure there's at least 3 characters after http(s)://
+								// Make sure the text starts with a supported protocol.
+								if ( _StrCmpNIW( data + offset, L"http://", 7 ) == 0 )
+								{
+									offset += 7;
+								}
+								else if ( _StrCmpNIW( data + offset, L"https://", 8 ) == 0 )
+								{
+									offset += 8;
+								}
+								else if ( _StrCmpNIW( data + offset, L"ftp://", 6 ) == 0 )
+								{
+									offset += 6;
+								}
+								else if ( _StrCmpNIW( data + offset, L"ftps://", 7 ) == 0 )
+								{
+									offset += 7;
+								}
+								else if ( _StrCmpNIW( data + offset, L"ftpes://", 8 ) == 0 )
+								{
+									offset += 8;
+								}
+								else
+								{
+									offset = 0;
+								}
+
+								// Make sure there's at least 3 characters after ://
 								if ( offset > 0 )
 								{
 									for ( char i = 0; i < 3; ++i, ++offset )
@@ -2046,6 +2136,9 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			if ( !use_add_split )
 			{
 				_EnableWindow( g_hWnd_btn_add_download, FALSE );
+
+				_SetWindowLongPtrW( g_hWnd_btn_add_download, GWL_STYLE, _GetWindowLongPtrW( g_hWnd_btn_add_download, GWL_STYLE ) & ~BS_DEFPUSHBUTTON );
+				_SetWindowLongPtrW( g_hWnd_btn_download, GWL_STYLE, _GetWindowLongPtrW( g_hWnd_btn_download, GWL_STYLE ) | BS_DEFPUSHBUTTON );
 			}
 
 			_SendMessageW( g_hWnd_btn_download, BM_SETSTYLE, BS_DEFPUSHBUTTON, TRUE );

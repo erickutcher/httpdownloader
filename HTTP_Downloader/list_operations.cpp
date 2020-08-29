@@ -3162,7 +3162,7 @@ THREAD_RETURN process_command_line_args( void *pArguments )
 			ai->download_operations = cla->download_operations;
 
 			ai->download_directory = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * MAX_PATH );
-			if ( cla->download_directory != NULL )
+			if ( cla->use_download_directory && cla->download_directory != NULL )
 			{
 				_wmemcpy_s( ai->download_directory, MAX_PATH, cla->download_directory, cla->download_directory_length );
 				ai->download_directory[ cla->download_directory_length ] = 0;	// Sanity.
@@ -3173,8 +3173,8 @@ THREAD_RETURN process_command_line_args( void *pArguments )
 				ai->download_directory[ g_default_download_directory_length ] = 0;	// Sanity.
 			}
 
-			ai->parts = ( cla->parts != 0 ? cla->parts : cfg_default_download_parts );
-			ai->download_speed_limit = cla->download_speed_limit;
+			ai->parts = ( cla->use_parts ? cla->parts : cfg_default_download_parts );
+			ai->download_speed_limit = ( cla->use_download_speed_limit ? cla->download_speed_limit : cfg_download_speed_limit );
 			ai->ssl_version = ( cla->ssl_version != 0 ? cla->ssl_version : cfg_default_ssl_version + 1 );
 
 			if ( cla->urls != NULL )
@@ -3226,7 +3226,7 @@ THREAD_RETURN process_command_line_args( void *pArguments )
 				if ( cla->proxy_hostname != NULL )
 				{
 					ai->proxy_info.hostname = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( cla->proxy_hostname_length + 1 ) );
-					_wmemcpy_s( ai->proxy_info.hostname, cla->proxy_hostname_length + 1, cla->urls, cla->proxy_hostname_length );
+					_wmemcpy_s( ai->proxy_info.hostname, cla->proxy_hostname_length + 1, cla->proxy_hostname, cla->proxy_hostname_length );
 					ai->proxy_info.hostname[ cla->proxy_hostname_length ] = 0;	// Sanity.
 
 					if ( normaliz_state == NORMALIZ_STATE_RUNNING )
@@ -3249,24 +3249,35 @@ THREAD_RETURN process_command_line_args( void *pArguments )
 					ai->proxy_info.address_type = 1;
 				}
 
-				ai->proxy_info.port = cla->proxy_port;
+				if ( cla->proxy_port == 0 )
+				{
+					ai->proxy_info.port = ( cla->proxy_type == 1 ? 80 : ( cla->proxy_type == 2 ? 443 : 1080 ) );
+				}
 
 				if ( cla->proxy_username != NULL )
 				{
+					ai->proxy_info.use_authentication = true;	// For SOCKS v5 connections.
+
 					ai->proxy_info.w_username = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( cla->proxy_username_length + 1 ) );
-					_wmemcpy_s( ai->proxy_info.w_username, cla->proxy_username_length + 1, cla->urls, cla->proxy_username_length );
+					_wmemcpy_s( ai->proxy_info.w_username, cla->proxy_username_length + 1, cla->proxy_username, cla->proxy_username_length );
 					ai->proxy_info.w_username[ cla->proxy_username_length ] = 0;	// Sanity.
 
-					ai->proxy_info.use_authentication = true;
+					utf8_val_length = WideCharToMultiByte( CP_UTF8, 0, ai->proxy_info.w_username, -1, NULL, 0, NULL, NULL );
+					ai->proxy_info.username = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * utf8_val_length ); // Size includes the null character.
+					WideCharToMultiByte( CP_UTF8, 0, ai->proxy_info.w_username, -1, ai->proxy_info.username, utf8_val_length, NULL, NULL );
 				}
 
 				if ( cla->proxy_password != NULL )
 				{
+					ai->proxy_info.use_authentication = true;	// For SOCKS v5 connections.
+
 					ai->proxy_info.w_password = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( cla->proxy_password_length + 1 ) );
-					_wmemcpy_s( ai->proxy_info.w_password, cla->proxy_password_length + 1, cla->urls, cla->proxy_password_length );
+					_wmemcpy_s( ai->proxy_info.w_password, cla->proxy_password_length + 1, cla->proxy_password, cla->proxy_password_length );
 					ai->proxy_info.w_password[ cla->proxy_password_length ] = 0;	// Sanity.
 
-					ai->proxy_info.use_authentication = true;
+					utf8_val_length = WideCharToMultiByte( CP_UTF8, 0, ai->proxy_info.w_password, -1, NULL, 0, NULL, NULL );
+					ai->proxy_info.password = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * utf8_val_length ); // Size includes the null character.
+					WideCharToMultiByte( CP_UTF8, 0, ai->proxy_info.w_password, -1, ai->proxy_info.password, utf8_val_length, NULL, NULL );
 				}
 
 				ai->proxy_info.resolve_domain_names = cla->proxy_resolve_domain_names;

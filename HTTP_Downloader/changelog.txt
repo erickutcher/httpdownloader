@@ -1,3 +1,11 @@
+Version:	1.0.3.4
+Released:	2020-08-29
+
+Added command-line argument support to Add URL(s) window for per-URL settings.
+Fixed broken command-line arguments.
+Fixed TreeListView selection when holding Ctrl and Shift.
+Fixed proxy authentication not being set.
+
 Version:	1.0.3.3
 Released:	2020-08-22
 

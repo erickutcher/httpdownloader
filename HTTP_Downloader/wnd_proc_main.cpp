@@ -1696,6 +1696,9 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 				cla->data = ( cla->data_length > 0 ? cl_val + ( unsigned int )cla->data : NULL );
 				cla->username = ( cla->username_length > 0 ? cl_val + ( unsigned int )cla->username : NULL );
 				cla->password = ( cla->password_length > 0 ? cl_val + ( unsigned int )cla->password : NULL );
+				cla->proxy_hostname = ( cla->proxy_hostname_length > 0 ? cl_val + ( unsigned int )cla->proxy_hostname : NULL );
+				cla->proxy_username = ( cla->proxy_username_length > 0 ? cl_val + ( unsigned int )cla->proxy_username : NULL );
+				cla->proxy_password = ( cla->proxy_password_length > 0 ? cl_val + ( unsigned int )cla->proxy_password : NULL );
 
 				CL_ARGS *new_cla = ( CL_ARGS * )GlobalAlloc( GMEM_FIXED, sizeof( CL_ARGS ) );
 				_memcpy_s( new_cla, sizeof( CL_ARGS ), cla, sizeof( CL_ARGS ) );
@@ -1763,6 +1766,27 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 					new_cla->password[ cla->password_length ] = 0;	// Sanity.
 				}
 
+				if ( cla->proxy_hostname != NULL )
+				{
+					new_cla->proxy_hostname = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( cla->proxy_hostname_length + 1 ) );
+					_wmemcpy_s( new_cla->proxy_hostname, cla->proxy_hostname_length + 1, cla->proxy_hostname, cla->proxy_hostname_length );
+					new_cla->proxy_hostname[ cla->proxy_hostname_length ] = 0;	// Sanity.
+				}
+
+				if ( cla->proxy_username != NULL )
+				{
+					new_cla->proxy_username = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( cla->proxy_username_length + 1 ) );
+					_wmemcpy_s( new_cla->proxy_username, cla->proxy_username_length + 1, cla->proxy_username, cla->proxy_username_length );
+					new_cla->proxy_username[ cla->proxy_username_length ] = 0;	// Sanity.
+				}
+
+				if ( cla->proxy_password != NULL )
+				{
+					new_cla->proxy_password = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( cla->proxy_password_length + 1 ) );
+					_wmemcpy_s( new_cla->proxy_password, cla->proxy_password_length + 1, cla->proxy_password, cla->proxy_password_length );
+					new_cla->proxy_password[ cla->proxy_password_length ] = 0;	// Sanity.
+				}
+
 				_SendMessageW( hWnd, WM_PROPAGATE, -2, ( LPARAM )new_cla );
 			}
 
@@ -1778,7 +1802,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 
 				if ( cla != NULL )
 				{
-					// cli is freed in process_command_line_args.
+					// cla is freed in process_command_line_args.
 					HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, process_command_line_args, ( void * )cla, 0, NULL );
 					if ( thread != NULL )
 					{

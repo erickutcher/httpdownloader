@@ -4396,6 +4396,416 @@ void RemoveCachedIcon( DOWNLOAD_INFO *di, wchar_t *file_extension )
 	}
 }
 
+wchar_t *ParseURLSettings( wchar_t *url_list, ADD_INFO *ai )
+{
+	if ( ai != NULL )
+	{
+		wchar_t *download_directory = NULL;
+		wchar_t *username = NULL;
+		wchar_t *password = NULL;
+		wchar_t *cookies = NULL;
+		wchar_t *data = NULL;
+		wchar_t *headers = NULL;
+		int headers_length = 0;
+		wchar_t *proxy_hostname = NULL;
+		int proxy_hostname_length = 0;
+		wchar_t *proxy_username = NULL;
+		wchar_t *proxy_password = NULL;
+
+		while ( *url_list != 0 )
+		{
+			if ( *url_list == L'-' && *( url_list + 1 ) == L'-' )
+			{
+				url_list += 2;
+
+				wchar_t *param_name_start = url_list;
+				wchar_t *param_name_end = NULL;
+				wchar_t *param_value_start = NULL;
+				wchar_t *param_value_end = NULL;
+
+				while ( *url_list != 0 )
+				{
+					if ( *url_list == L' ' && param_name_end == NULL )
+					{
+						param_name_end = url_list;
+						*param_name_end = 0;	// This will be safe to zero out.
+
+						++url_list;
+
+						param_value_start = url_list;
+					}
+					else if ( *url_list == L'\r' && *( url_list + 1 ) == L'\n' )
+					{
+						if ( param_name_end == NULL )
+						{
+							param_name_end = url_list;
+						}
+						else
+						{
+							param_value_end = url_list;
+							*param_value_end = 0;	// This will be safe to zero out.
+						}
+
+						url_list += 2;
+
+						break;
+					}
+					
+					++url_list;
+				}
+
+				if ( param_name_end == NULL )
+				{
+					param_name_end = url_list;
+				}
+				else if ( param_value_start != NULL && param_value_end == NULL )
+				{
+					param_value_end = url_list;
+				}
+
+				unsigned int param_name_length = ( unsigned int )( param_name_end - param_name_start );
+
+				if ( param_name_length == 5 && _StrCmpNIW( param_name_start, L"parts", 5 ) == 0 )	// Split download into parts.
+				{
+					if ( param_value_start != NULL )
+					{
+						ai->use_parts = true;
+
+						ai->parts = ( unsigned char )_wcstoul( param_value_start, NULL, 10 );
+						if ( ai->parts > 100 )
+						{
+							ai->parts = 100;
+						}
+						else if ( ai->parts == 0 )
+						{
+							ai->parts = 1;
+						}
+					}
+				}
+				else if (  param_name_length == 11 && _StrCmpNIW( param_name_start, L"speed-limit", 11 ) == 0 )	// Download speed limit.
+				{
+					if ( param_value_start != NULL )
+					{
+						ai->use_download_speed_limit = true;
+
+						ai->download_speed_limit = ( unsigned long long )wcstoull( param_value_start );
+					}
+				}
+				else if ( param_name_length == 10 && _StrCmpNIW( param_name_start, L"encryption", 10 ) == 0 )	// SSL / TLS version.
+				{
+					if ( param_value_start != NULL )
+					{
+						ai->ssl_version = ( unsigned char )_wcstoul( param_value_start, NULL, 10 );
+						if ( ai->ssl_version > 5 )
+						{
+							ai->ssl_version = 5;	// TLS 1.2
+						}
+					}
+				}
+				else if ( param_name_length == 8 && _StrCmpNIW( param_name_start, L"simulate", 8 ) == 0 )	// Simulate the download.
+				{
+					ai->download_operations |= DOWNLOAD_OPERATION_SIMULATE;
+				}
+				else if ( param_name_length == 11 && _StrCmpNIW( param_name_start, L"add-stopped", 11 ) == 0 )	// Add the download in the Stopped state.
+				{
+					ai->download_operations |= DOWNLOAD_OPERATION_ADD_STOPPED;
+				}
+				else if ( ( param_name_length == 13 && _StrCmpNIW( param_name_start, L"cookie-string", 13 ) == 0 ) ||
+						  ( param_name_length == 9 && _StrCmpNIW( param_name_start, L"post-data", 9 ) == 0 ) ||
+						  ( param_name_length == 16 && _StrCmpNIW( param_name_start, L"output-directory", 16 ) == 0 ) ||
+						  ( param_name_length == 8 && _StrCmpNIW( param_name_start, L"username", 8 ) == 0 ) ||
+						  ( param_name_length == 8 && _StrCmpNIW( param_name_start, L"password", 8 ) == 0 ) ||
+						  ( param_name_length == 14 && _StrCmpNIW( param_name_start, L"proxy-hostname", 14 ) == 0 ) ||
+						  ( param_name_length == 14 && _StrCmpNIW( param_name_start, L"proxy-username", 14 ) == 0 ) ||
+						  ( param_name_length == 14 && _StrCmpNIW( param_name_start, L"proxy-password", 14 ) == 0 ) )
+				{
+					if ( param_value_start != NULL )
+					{
+						wchar_t **param_value = NULL;
+						int param_value_length = ( int )( param_value_end - param_value_start );
+						if ( param_value_length > 0 )
+						{
+							if ( *param_name_start == L'c' )
+							{
+								param_value = &cookies;
+							}
+							else if ( param_name_start[ 0 ] == L'p' )
+							{
+								if ( param_name_start[ 1 ] == L'o' )	// Post Data
+								{
+									param_value = &data;
+								}
+								else if ( param_name_start[ 6 ] == L'h' )	// Proxy Hostname
+								{
+									param_value = &proxy_hostname;
+									proxy_hostname_length = param_value_length;
+								}
+								else if ( param_name_start[ 6 ] == L'u' )	// Proxy Username
+								{
+									param_value = &proxy_username;
+								}
+								else if ( param_name_start[ 6 ] == L'p' )	// Proxy Password
+								{
+									param_value = &proxy_password;
+								}
+								else	// Password
+								{
+									param_value = &password;
+								}
+							}
+							else if ( *param_name_start == L'o' )
+							{
+								if ( GetFileAttributesW( param_value_start ) & FILE_ATTRIBUTE_DIRECTORY )
+								{
+									// Remove any trailing slash.
+									while ( param_value_length != 0 )
+									{
+										if ( param_value_start[ param_value_length - 1 ] == L'\\' )
+										{
+											--param_value_length;
+										}
+										else
+										{
+											break;
+										}
+									}
+
+									param_value = &download_directory;
+								}
+								else
+								{
+									continue;
+								}
+							}
+							else if ( *param_name_start == L'u' )
+							{
+								param_value = &username;
+							}
+
+							if ( *param_value != NULL )
+							{
+								GlobalFree( *param_value );
+								*param_value = NULL;
+							}
+
+							*param_value = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( param_value_length + 1 ) );
+							_wmemcpy_s( *param_value, param_value_length + 1, param_value_start, param_value_length );
+							( *param_value )[ param_value_length ] = 0;	// Sanity.
+						}
+					}
+				}
+				else if ( param_name_length == 12 && _StrCmpNIW( param_name_start, L"header-field", 12 ) == 0 )
+				{
+					if ( param_value_start != NULL )
+					{
+						int param_value_length = ( int )( param_value_end - param_value_start );
+						if ( param_value_length > 0 )
+						{
+							if ( headers == NULL )
+							{
+								headers = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( param_value_length + 2 + 1 ) );
+								_wmemcpy_s( headers + headers_length, param_value_length + 1, param_value_start, param_value_length );
+								headers_length += param_value_length;
+								headers[ headers_length++ ] = L'\r';
+								headers[ headers_length++ ] = L'\n';
+							}
+							else
+							{
+								wchar_t *realloc_buffer = ( wchar_t * )GlobalReAlloc( headers, sizeof( wchar_t ) * ( headers_length + param_value_length + 2 + 1 ), GMEM_MOVEABLE );
+								if ( realloc_buffer != NULL )
+								{
+									headers = realloc_buffer;
+
+									_wmemcpy_s( headers + headers_length, param_value_length + 1, param_value_start, param_value_length );
+									headers_length += param_value_length;
+									headers[ headers_length++ ] = L'\r';
+									headers[ headers_length++ ] = L'\n';
+								}
+							}
+
+							headers[ headers_length ] = 0;	// Sanity.
+						}
+					}
+				}
+				else if ( param_name_length == 10 && _StrCmpNIW( param_name_start, L"proxy-type", 10 ) == 0 )	// Proxy type.
+				{
+					ai->proxy_info.type = ( unsigned char )_wcstoul( param_value_start, NULL, 10 );
+				}
+				else if ( param_name_length == 16 && _StrCmpNIW( param_name_start, L"proxy-ip-address", 16 ) == 0 )	// Proxy IP address.
+				{
+					unsigned int proxy_ip_address = 0;
+
+					wchar_t *ipaddr = param_value_start;
+
+					for ( char i = 3; i >= 0; --i )
+					{
+						wchar_t *ptr = ipaddr;
+						while ( ptr != NULL && *ptr != NULL )
+						{
+							if ( *ptr == L'.' )
+							{
+								*ptr = 0;
+								++ptr;
+
+								break;
+							}
+
+							++ptr;
+						}
+
+						if ( *ptr == NULL && i > 0 )
+						{
+							break;
+						}
+
+						proxy_ip_address |= ( ( unsigned int )_wcstoul( ipaddr, NULL, 10 ) << ( 8 * i ) );
+
+						if ( *ptr == NULL && i == 0 )
+						{
+							ai->proxy_info.ip_address = proxy_ip_address;
+						}
+						else
+						{
+							ipaddr = ptr;
+						}
+					}
+				}
+				else if ( param_name_length == 10 && _StrCmpNIW( param_name_start, L"proxy-port", 10 ) == 0 )	// Proxy port.
+				{
+					ai->proxy_info.port = ( unsigned short )_wcstoul( param_value_start, NULL, 10 );
+				}
+				else if ( param_name_length == 26 && _StrCmpNIW( param_name_start, L"proxy-resolve-domain-names", 26 ) == 0 )	// Resolve domain names.
+				{
+					ai->proxy_info.resolve_domain_names = true;
+				}
+
+				continue;
+			}
+			else
+			{
+				break;
+			}
+
+			++url_list;
+		}
+
+		if ( download_directory != NULL )
+		{
+			ai->use_download_directory = true;
+			ai->download_directory = download_directory;
+		}
+
+		if ( username != NULL )
+		{
+			int utf8_length = WideCharToMultiByte( CP_UTF8, 0, username, -1, NULL, 0, NULL, NULL );	// Size includes NULL character.
+			ai->auth_info.username = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * utf8_length ); // Size includes the NULL character.
+			WideCharToMultiByte( CP_UTF8, 0, username, -1, ai->auth_info.username, utf8_length, NULL, NULL );
+
+			GlobalFree( username );
+		}
+
+		if ( password != NULL )
+		{
+			int utf8_length = WideCharToMultiByte( CP_UTF8, 0, password, -1, NULL, 0, NULL, NULL );	// Size includes NULL character.
+			ai->auth_info.password = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * utf8_length ); // Size includes the NULL character.
+			WideCharToMultiByte( CP_UTF8, 0, password, -1, ai->auth_info.password, utf8_length, NULL, NULL );
+
+			GlobalFree( password );
+		}
+
+		if ( headers != NULL )
+		{
+			int utf8_length = WideCharToMultiByte( CP_UTF8, 0, headers, -1, NULL, 0, NULL, NULL );	// Size includes NULL character.
+			ai->utf8_headers = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * utf8_length ); // Size includes the NULL character.
+			WideCharToMultiByte( CP_UTF8, 0, headers, -1, ai->utf8_headers, utf8_length, NULL, NULL );
+
+			GlobalFree( headers );
+		}
+
+		if ( cookies != NULL )
+		{
+			int utf8_length = WideCharToMultiByte( CP_UTF8, 0, cookies, -1, NULL, 0, NULL, NULL );	// Size includes NULL character.
+			ai->utf8_cookies = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * utf8_length ); // Size includes the NULL character.
+			WideCharToMultiByte( CP_UTF8, 0, cookies, -1, ai->utf8_cookies, utf8_length, NULL, NULL );
+
+			GlobalFree( cookies );
+		}
+
+		if ( data != NULL )
+		{
+			ai->method = METHOD_POST;
+
+			int utf8_length = WideCharToMultiByte( CP_UTF8, 0, data, -1, NULL, 0, NULL, NULL );	// Size includes NULL character.
+			ai->utf8_data = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * utf8_length ); // Size includes the NULL character.
+			WideCharToMultiByte( CP_UTF8, 0, data, -1, ai->utf8_data, utf8_length, NULL, NULL );
+
+			GlobalFree( data );
+		}
+		else
+		{
+			ai->method = METHOD_GET;
+		}
+
+		if ( ai->proxy_info.type != 0 )
+		{
+			if ( proxy_hostname != NULL )
+			{
+				ai->proxy_info.hostname = proxy_hostname;
+
+				if ( normaliz_state == NORMALIZ_STATE_RUNNING )
+				{
+					int punycode_length = _IdnToAscii( 0, ai->proxy_info.hostname, proxy_hostname_length + 1, NULL, 0 );
+
+					if ( punycode_length > ( proxy_hostname_length + 1 ) )
+					{
+						ai->proxy_info.punycode_hostname = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * punycode_length );
+						_IdnToAscii( 0, ai->proxy_info.hostname, proxy_hostname_length + 1, ai->proxy_info.punycode_hostname, punycode_length );
+					}
+				}
+
+				ai->proxy_info.address_type = 0;
+			}
+
+			if ( ai->proxy_info.port == 0 )
+			{
+				ai->proxy_info.port = ( ai->proxy_info.type == 1 ? 80 : ( ai->proxy_info.type == 2 ? 443 : 1080 ) );
+			}
+
+			int auth_length;
+
+			if ( proxy_username != NULL )
+			{
+				ai->proxy_info.use_authentication = true;	// For SOCKS v5 connections.
+
+				ai->proxy_info.w_username = proxy_username;
+
+				auth_length = WideCharToMultiByte( CP_UTF8, 0, ai->proxy_info.w_username, -1, NULL, 0, NULL, NULL );
+				ai->proxy_info.username = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * auth_length ); // Size includes the null character.
+				WideCharToMultiByte( CP_UTF8, 0, ai->proxy_info.w_username, -1, ai->proxy_info.username, auth_length, NULL, NULL );
+			}
+
+			if ( proxy_password != NULL )
+			{
+				ai->proxy_info.use_authentication = true;	// For SOCKS v5 connections.
+
+				ai->proxy_info.w_password = proxy_password;
+
+				auth_length = WideCharToMultiByte( CP_UTF8, 0, ai->proxy_info.w_password, -1, NULL, 0, NULL, NULL );
+				ai->proxy_info.password = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * auth_length ); // Size includes the null character.
+				WideCharToMultiByte( CP_UTF8, 0, ai->proxy_info.w_password, -1, ai->proxy_info.password, auth_length, NULL, NULL );
+			}
+		}
+		else
+		{
+			GlobalFree( proxy_hostname );
+			GlobalFree( proxy_username );
+			GlobalFree( proxy_password );
+		}
+	}
+
+	return url_list;
+}
+
 DWORD WINAPI AddURL( void *add_info )
 {
 	if ( add_info == NULL )
@@ -4413,6 +4823,8 @@ DWORD WINAPI AddURL( void *add_info )
 	SITE_INFO *last_si = NULL;
 
 	ADD_INFO *ai = ( ADD_INFO * )add_info;
+	ADD_INFO u_ai;	// Per URL add info.
+	ADD_INFO g_ai;	// Per Group add info.
 
 	wchar_t *url_list = ai->urls;
 
@@ -4470,25 +4882,21 @@ DWORD WINAPI AddURL( void *add_info )
 
 	if ( ai->auth_info.username != NULL )
 	{
-		username = ai->auth_info.username;
 		username_length = ai_username_length = lstrlenA( username );
 	}
 
 	if ( ai->auth_info.password != NULL )
 	{
-		password = ai->auth_info.password;
 		password_length = ai_password_length = lstrlenA( password );
 	}
 
 	if ( ai->utf8_cookies != NULL )
 	{
-		cookies = ai->utf8_cookies;
 		cookies_length = ai_cookies_length = lstrlenA( ai->utf8_cookies );
 	}
 
 	if ( ai->utf8_headers != NULL )
 	{
-		headers = ai->utf8_headers;
 		headers_length = ai_headers_length = lstrlenA( ai->utf8_headers );
 	}
 
@@ -4559,7 +4967,6 @@ DWORD WINAPI AddURL( void *add_info )
 	{
 		if ( ai->utf8_data != NULL )
 		{
-			data = ai->utf8_data;
 			data_length = ai_data_length = lstrlenA( ai->utf8_data );
 		}
 	}
@@ -4627,6 +5034,7 @@ DWORD WINAPI AddURL( void *add_info )
 
 		unsigned group_count = 0;
 		bool is_group = false;
+		_memzero( &g_ai, sizeof( ADD_INFO ) );
 
 		if ( group_start == NULL )
 		{
@@ -4656,7 +5064,13 @@ DWORD WINAPI AddURL( void *add_info )
 					}
 					else if ( *( group_end + 1 ) == L'\r' && *( group_end + 2 ) == L'\n' )
 					{
-						next_url = group_end + 3;
+						// Parse URL settings.
+						next_url = ParseURLSettings( group_end + 3, &g_ai );
+
+						if ( *next_url == NULL )
+						{
+							next_url = NULL;
+						}
 
 						is_group = true;
 
@@ -4795,6 +5209,19 @@ DWORD WINAPI AddURL( void *add_info )
 				*pbuf = L'\0';
 			}
 
+			_memzero( &u_ai, sizeof( ADD_INFO ) );
+
+			if ( url_list != NULL )
+			{
+				// Parse URL settings.
+				url_list = ParseURLSettings( url_list, &u_ai );
+
+				if ( *url_list == NULL )
+				{
+					url_list = NULL;
+				}
+			}
+
 			// Reset.
 			protocol = PROTOCOL_UNKNOWN;
 			host = NULL;
@@ -4822,13 +5249,22 @@ DWORD WINAPI AddURL( void *add_info )
 				si = NULL;
 			}
 
-			if ( si != NULL && si != last_si )
+			// If we get the same site info, then the variables below will still be set.
+			if ( si == NULL || si != last_si )
 			{
-				if ( ai->use_download_directory )
+				if ( u_ai.use_download_directory )
+				{
+					download_directory = u_ai.download_directory;
+				}
+				else if ( is_group && g_ai.use_download_directory )
+				{
+					download_directory = g_ai.download_directory;
+				}
+				else if ( ai->use_download_directory )
 				{
 					download_directory = ai->download_directory;
 				}
-				else if ( si->use_download_directory )
+				else if ( si != NULL && si->use_download_directory )
 				{
 					download_directory = si->download_directory;
 				}
@@ -4837,11 +5273,19 @@ DWORD WINAPI AddURL( void *add_info )
 					download_directory = cfg_default_download_directory;
 				}
 
-				if ( ai->use_parts )
+				if ( u_ai.use_parts )
+				{
+					parts = u_ai.parts;
+				}
+				else if ( is_group && g_ai.use_parts )
+				{
+					parts = g_ai.parts;
+				}
+				else if ( ai->use_parts )
 				{
 					parts = ai->parts;
 				}
-				else if ( si->use_parts )
+				else if ( si != NULL && si->use_parts )
 				{
 					parts = si->parts;
 				}
@@ -4850,11 +5294,19 @@ DWORD WINAPI AddURL( void *add_info )
 					parts = cfg_default_download_parts;
 				}
 
-				if ( ai->ssl_version > 0 )
+				if ( u_ai.ssl_version > 0 )
+				{
+					ssl_version = u_ai.ssl_version - 1;
+				}
+				else if ( is_group && g_ai.ssl_version > 0 )
+				{
+					ssl_version = g_ai.ssl_version - 1;
+				}
+				else if ( ai->ssl_version > 0 )
 				{
 					ssl_version = ai->ssl_version - 1;
 				}
-				else if ( si->ssl_version > 0 )
+				else if ( si != NULL && si->ssl_version > 0 )
 				{
 					ssl_version = si->ssl_version - 1;
 				}
@@ -4863,11 +5315,19 @@ DWORD WINAPI AddURL( void *add_info )
 					ssl_version = cfg_default_ssl_version;
 				}
 
-				if ( ai->use_download_speed_limit )
+				if ( u_ai.use_download_speed_limit )
+				{
+					download_speed_limit = u_ai.download_speed_limit;
+				}
+				else if ( is_group && g_ai.use_download_speed_limit )
+				{
+					download_speed_limit = g_ai.download_speed_limit;
+				}
+				else if ( ai->use_download_speed_limit )
 				{
 					download_speed_limit = ai->download_speed_limit;
 				}
-				else if ( si->use_download_speed_limit )
+				else if ( si != NULL && si->use_download_speed_limit )
 				{
 					download_speed_limit = si->download_speed_limit;
 				}
@@ -4876,20 +5336,32 @@ DWORD WINAPI AddURL( void *add_info )
 					download_speed_limit = cfg_default_speed_limit;
 				}
 
-				download_operations = ai->download_operations | si->download_operations;	// Include ai and si together.
+				download_operations = u_ai.download_operations | g_ai.download_operations | ai->download_operations | ( si != NULL ? si->download_operations : DOWNLOAD_OPERATION_NONE );	// Include u_ai, ai and si together.
 
-				if ( url_username == NULL )
+				if ( url_username != NULL )
 				{
-					if ( si->username == NULL )
-					{
-						username = ai->auth_info.username;
-						username_length = ai_username_length;
-					}
-					else
-					{
-						username = si->username;
-						username_length = lstrlenA( username );
-					}
+					username = NULL;
+					username_length = 0;
+				}
+				else if ( u_ai.auth_info.username != NULL )
+				{
+					username = u_ai.auth_info.username;
+					username_length = lstrlenA( username );
+				}
+				else if ( is_group && g_ai.auth_info.username != NULL )
+				{
+					username = g_ai.auth_info.username;
+					username_length = lstrlenA( username );
+				}
+				else if ( ai->auth_info.username != NULL )
+				{
+					username = ai->auth_info.username;
+					username_length = ai_username_length;
+				}
+				else if ( si != NULL && si->username != NULL )
+				{
+					username = si->username;
+					username_length = lstrlenA( username );
 				}
 				else
 				{
@@ -4897,18 +5369,30 @@ DWORD WINAPI AddURL( void *add_info )
 					username_length = 0;
 				}
 
-				if ( url_password == NULL )
+				if ( url_password != NULL )
 				{
-					if ( si->password == NULL )
-					{
-						password = ai->auth_info.password;
-						password_length = ai_password_length;
-					}
-					else
-					{
-						password = si->password;
-						password_length = lstrlenA( password );
-					}
+					password = NULL;
+					password_length = 0;
+				}
+				else if ( u_ai.auth_info.password != NULL )
+				{
+					password = u_ai.auth_info.password;
+					password_length = lstrlenA( password );
+				}
+				else if ( is_group && g_ai.auth_info.password != NULL )
+				{
+					password = g_ai.auth_info.password;
+					password_length = lstrlenA( password );
+				}
+				else if ( ai->auth_info.password != NULL )
+				{
+					password = ai->auth_info.password;
+					password_length = ai_password_length;
+				}
+				else if ( si != NULL && si->password != NULL )
+				{
+					password = si->password;
+					password_length = lstrlenA( password );
 				}
 				else
 				{
@@ -4916,32 +5400,143 @@ DWORD WINAPI AddURL( void *add_info )
 					password_length = 0;
 				}
 
-				if ( ai->utf8_cookies == NULL && si->utf8_cookies != NULL )
+				if ( u_ai.utf8_cookies != NULL )
+				{
+					cookies = u_ai.utf8_cookies;
+					cookies_length = lstrlenA( cookies );
+				}
+				else if ( is_group && g_ai.utf8_cookies != NULL )
+				{
+					cookies = g_ai.utf8_cookies;
+					cookies_length = lstrlenA( cookies );
+				}
+				else if ( ai->utf8_cookies != NULL )
+				{
+					cookies = ai->utf8_cookies;
+					cookies_length = ai_cookies_length;
+				}
+				else if ( si != NULL && si->utf8_cookies != NULL )
 				{
 					cookies = si->utf8_cookies;
-					cookies_length = lstrlenA( si->utf8_cookies );
+					cookies_length = lstrlenA( cookies );
+				}
+				else
+				{
+					cookies = NULL;
+					cookies_length = 0;
 				}
 
-				if ( ai->utf8_headers == NULL && si->utf8_headers != NULL )
+				if ( u_ai.utf8_headers != NULL )
+				{
+					headers = u_ai.utf8_headers;
+					headers_length = lstrlenA( headers );
+				}
+				else if ( is_group && g_ai.utf8_headers != NULL )
+				{
+					headers = g_ai.utf8_headers;
+					headers_length = lstrlenA( headers );
+				}
+				else if ( ai->utf8_headers != NULL )
+				{
+					headers = ai->utf8_headers;
+					headers_length = ai_headers_length;
+				}
+				else if ( si != NULL && si->utf8_headers != NULL )
 				{
 					headers = si->utf8_headers;
-					headers_length = lstrlenA( si->utf8_headers );
+					headers_length = lstrlenA( headers );
+				}
+				else
+				{
+					headers = NULL;
+					headers_length = 0;
 				}
 
-				if ( ai->method == METHOD_NONE && si->method == METHOD_POST )
+				if ( u_ai.method == METHOD_POST )
 				{
 					method = METHOD_POST;
 
-					if ( si->utf8_data != NULL )
-					{
-						data = si->utf8_data;
-						data_length = lstrlenA( si->utf8_data );
-					}
+					data = u_ai.utf8_data;
+					data_length = lstrlenA( data );
+				}
+				else if ( is_group && g_ai.method == METHOD_POST )
+				{
+					method = METHOD_POST;
+
+					data = g_ai.utf8_data;
+					data_length = lstrlenA( data );
+				}
+				else if ( ai->method == METHOD_POST )
+				{
+					method = METHOD_POST;
+
+					data = ai->utf8_data;
+					data_length = ai_data_length;
+				}
+				else if ( si != NULL && si->method == METHOD_POST )
+				{
+					method = METHOD_POST;
+
+					data = si->utf8_data;
+					data_length = lstrlenA( data );
+				}
+				else
+				{
+					method = METHOD_GET;
+
+					data = NULL;
+					data_length = 0;
 				}
 
 				//
 
-				if ( ai->proxy_info.type != 0 )
+				if ( u_ai.proxy_info.type != 0 )
+				{
+					proxy_info.type = u_ai.proxy_info.type;
+					proxy_info.hostname = u_ai.proxy_info.hostname;
+					proxy_info.punycode_hostname = u_ai.proxy_info.punycode_hostname;
+					proxy_info.ip_address = u_ai.proxy_info.ip_address;
+					proxy_info.port = u_ai.proxy_info.port;
+					proxy_info.address_type = u_ai.proxy_info.address_type;
+					proxy_info.type = u_ai.proxy_info.type;
+					proxy_info.use_authentication = u_ai.proxy_info.use_authentication;
+					proxy_info.w_username = u_ai.proxy_info.w_username;
+					proxy_info.w_password = u_ai.proxy_info.w_password;
+					proxy_info.username = u_ai.proxy_info.username;
+					proxy_info.password = u_ai.proxy_info.password;
+					proxy_info.resolve_domain_names = u_ai.proxy_info.resolve_domain_names;
+
+					proxy_hostname_length = lstrlenW( u_ai.proxy_info.hostname );
+					proxy_punycode_hostname_length = lstrlenW( u_ai.proxy_info.punycode_hostname );
+					proxy_w_username_length = lstrlenW( u_ai.proxy_info.w_username );
+					proxy_w_password_length = lstrlenW( u_ai.proxy_info.w_password );
+					proxy_username_length = lstrlenA( u_ai.proxy_info.username );
+					proxy_password_length = lstrlenA( u_ai.proxy_info.password );
+				}
+				else if ( is_group && g_ai.proxy_info.type != 0 )
+				{
+					proxy_info.type = g_ai.proxy_info.type;
+					proxy_info.hostname = g_ai.proxy_info.hostname;
+					proxy_info.punycode_hostname = g_ai.proxy_info.punycode_hostname;
+					proxy_info.ip_address = g_ai.proxy_info.ip_address;
+					proxy_info.port = g_ai.proxy_info.port;
+					proxy_info.address_type = g_ai.proxy_info.address_type;
+					proxy_info.type = g_ai.proxy_info.type;
+					proxy_info.use_authentication = g_ai.proxy_info.use_authentication;
+					proxy_info.w_username = g_ai.proxy_info.w_username;
+					proxy_info.w_password = g_ai.proxy_info.w_password;
+					proxy_info.username = g_ai.proxy_info.username;
+					proxy_info.password = g_ai.proxy_info.password;
+					proxy_info.resolve_domain_names = g_ai.proxy_info.resolve_domain_names;
+
+					proxy_hostname_length = lstrlenW( g_ai.proxy_info.hostname );
+					proxy_punycode_hostname_length = lstrlenW( g_ai.proxy_info.punycode_hostname );
+					proxy_w_username_length = lstrlenW( g_ai.proxy_info.w_username );
+					proxy_w_password_length = lstrlenW( g_ai.proxy_info.w_password );
+					proxy_username_length = lstrlenA( g_ai.proxy_info.username );
+					proxy_password_length = lstrlenA( g_ai.proxy_info.password );
+				}
+				else if ( ai->proxy_info.type != 0 )
 				{
 					proxy_info.type = ai->proxy_info.type;
 					proxy_info.hostname = ai->proxy_info.hostname;
@@ -4964,7 +5559,7 @@ DWORD WINAPI AddURL( void *add_info )
 					proxy_username_length = ai_proxy_username_length;
 					proxy_password_length = ai_proxy_password_length;
 				}
-				else if ( si->proxy_info.type != 0 )
+				else if ( si != NULL && si->proxy_info.type != 0 )
 				{
 					proxy_info.type = si->proxy_info.type;
 					proxy_info.hostname = si->proxy_info.hostname;
@@ -4994,122 +5589,6 @@ DWORD WINAPI AddURL( void *add_info )
 			}
 
 			last_si = si;
-
-			if ( si == NULL )
-			{
-				if ( ai->use_download_directory )
-				{
-					download_directory = ai->download_directory;
-				}
-				else
-				{
-					download_directory = cfg_default_download_directory;
-				}
-
-				if ( ai->use_parts )
-				{
-					parts = ai->parts;
-				}
-				else
-				{
-					parts = cfg_default_download_parts;
-				}
-
-				if ( ai->ssl_version > 0 )
-				{
-					ssl_version = ai->ssl_version - 1;
-				}
-				else
-				{
-					ssl_version = cfg_default_ssl_version;
-				}
-
-				if ( ai->use_download_speed_limit )
-				{
-					download_speed_limit = ai->download_speed_limit;
-				}
-				else
-				{
-					download_speed_limit = cfg_default_speed_limit;
-				}
-
-				download_operations = ai->download_operations;
-
-				if ( url_username == NULL )
-				{
-					username = ai->auth_info.username;
-					username_length = ai_username_length;
-				}
-				else
-				{
-					username = NULL;
-					username_length = 0;
-				}
-
-				if ( url_password == NULL )
-				{
-					password = ai->auth_info.password;
-					password_length = ai_password_length;
-				}
-				else
-				{
-					password = NULL;
-					password_length = 0;
-				}
-
-				if ( ai->utf8_cookies != NULL )
-				{
-					cookies = ai->utf8_cookies;
-					cookies_length = ai_cookies_length;
-				}
-
-				if ( ai->utf8_headers != NULL )
-				{
-					headers = ai->utf8_headers;
-					headers_length = ai_headers_length;
-				}
-
-				method = ai->method;
-
-				if ( ai->method == METHOD_POST )
-				{
-					if ( ai->utf8_data != NULL )
-					{
-						data = ai->utf8_data;
-						data_length = ai_data_length;
-					}
-				}
-
-				//
-
-				if ( ai->proxy_info.type != 0 )
-				{
-					proxy_info.type = ai->proxy_info.type;
-					proxy_info.hostname = ai->proxy_info.hostname;
-					proxy_info.punycode_hostname = ai->proxy_info.punycode_hostname;
-					proxy_info.ip_address = ai->proxy_info.ip_address;
-					proxy_info.port = ai->proxy_info.port;
-					proxy_info.address_type = ai->proxy_info.address_type;
-					proxy_info.type = ai->proxy_info.type;
-					proxy_info.use_authentication = ai->proxy_info.use_authentication;
-					proxy_info.w_username = ai->proxy_info.w_username;
-					proxy_info.w_password = ai->proxy_info.w_password;
-					proxy_info.username = ai->proxy_info.username;
-					proxy_info.password = ai->proxy_info.password;
-					proxy_info.resolve_domain_names = ai->proxy_info.resolve_domain_names;
-
-					proxy_hostname_length = ai_proxy_hostname_length;
-					proxy_punycode_hostname_length = ai_proxy_punycode_hostname_length;
-					proxy_w_username_length = ai_proxy_w_username_length;
-					proxy_w_password_length = ai_proxy_w_password_length;
-					proxy_username_length = ai_proxy_username_length;
-					proxy_password_length = ai_proxy_password_length;
-				}
-				else
-				{
-					proxy_info.type = 0;
-				}
-			}
 
 			// The username and password could be encoded.
 			if ( url_username != NULL )
@@ -5572,6 +6051,20 @@ DWORD WINAPI AddURL( void *add_info )
 			if ( url_username != NULL ) { GlobalFree( username ); GlobalFree( url_username ); }
 			if ( url_password != NULL ) { GlobalFree( password ); GlobalFree( url_password ); }
 
+			if ( u_ai.download_directory != NULL ) { GlobalFree( u_ai.download_directory ); }
+			if ( u_ai.auth_info.username != NULL ) { GlobalFree( u_ai.auth_info.username ); }
+			if ( u_ai.auth_info.password != NULL ) { GlobalFree( u_ai.auth_info.password ); }
+			if ( u_ai.utf8_headers != NULL ) { GlobalFree( u_ai.utf8_headers ); }
+			if ( u_ai.utf8_cookies != NULL ) { GlobalFree( u_ai.utf8_cookies ); }
+			if ( u_ai.utf8_data != NULL ) { GlobalFree( u_ai.utf8_data ); }
+
+			if ( u_ai.proxy_info.hostname != NULL ) { GlobalFree( u_ai.proxy_info.hostname ); }
+			if ( u_ai.proxy_info.punycode_hostname != NULL ) { GlobalFree( u_ai.proxy_info.punycode_hostname ); }
+			if ( u_ai.proxy_info.w_username != NULL ) { GlobalFree( u_ai.proxy_info.w_username ); }
+			if ( u_ai.proxy_info.w_password != NULL ) { GlobalFree( u_ai.proxy_info.w_password ); }
+			if ( u_ai.proxy_info.username != NULL ) { GlobalFree( u_ai.proxy_info.username ); }
+			if ( u_ai.proxy_info.password != NULL ) { GlobalFree( u_ai.proxy_info.password ); }
+
 			// Limit the total number of hosts in a group to 100.
 			if ( ++group_count >= 100 )
 			{
@@ -5583,6 +6076,20 @@ DWORD WINAPI AddURL( void *add_info )
 		if ( is_group )
 		{
 			url_list = next_url;
+
+			if ( g_ai.download_directory != NULL ) { GlobalFree( g_ai.download_directory ); }
+			if ( g_ai.auth_info.username != NULL ) { GlobalFree( g_ai.auth_info.username ); }
+			if ( g_ai.auth_info.password != NULL ) { GlobalFree( g_ai.auth_info.password ); }
+			if ( g_ai.utf8_headers != NULL ) { GlobalFree( g_ai.utf8_headers ); }
+			if ( g_ai.utf8_cookies != NULL ) { GlobalFree( g_ai.utf8_cookies ); }
+			if ( g_ai.utf8_data != NULL ) { GlobalFree( g_ai.utf8_data ); }
+
+			if ( g_ai.proxy_info.hostname != NULL ) { GlobalFree( g_ai.proxy_info.hostname ); }
+			if ( g_ai.proxy_info.punycode_hostname != NULL ) { GlobalFree( g_ai.proxy_info.punycode_hostname ); }
+			if ( g_ai.proxy_info.w_username != NULL ) { GlobalFree( g_ai.proxy_info.w_username ); }
+			if ( g_ai.proxy_info.w_password != NULL ) { GlobalFree( g_ai.proxy_info.w_password ); }
+			if ( g_ai.proxy_info.username != NULL ) { GlobalFree( g_ai.proxy_info.username ); }
+			if ( g_ai.proxy_info.password != NULL ) { GlobalFree( g_ai.proxy_info.password ); }
 		}
 
 		/*if ( di != NULL )
