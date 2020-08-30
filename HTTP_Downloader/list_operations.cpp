@@ -3161,6 +3161,7 @@ THREAD_RETURN process_command_line_args( void *pArguments )
 
 			ai->download_operations = cla->download_operations;
 
+			ai->use_download_directory = cla->use_download_directory;
 			ai->download_directory = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * MAX_PATH );
 			if ( cla->use_download_directory && cla->download_directory != NULL )
 			{
@@ -3173,7 +3174,9 @@ THREAD_RETURN process_command_line_args( void *pArguments )
 				ai->download_directory[ g_default_download_directory_length ] = 0;	// Sanity.
 			}
 
+			ai->use_parts = cla->use_parts;
 			ai->parts = ( cla->use_parts ? cla->parts : cfg_default_download_parts );
+			ai->use_download_speed_limit = cla->use_download_speed_limit;
 			ai->download_speed_limit = ( cla->use_download_speed_limit ? cla->download_speed_limit : cfg_download_speed_limit );
 			ai->ssl_version = ( cla->ssl_version != 0 ? cla->ssl_version : cfg_default_ssl_version + 1 );
 

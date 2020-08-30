@@ -1,4 +1,4 @@
-16777988
-https://github.com/erickutcher/httpdownloader/releases/download/v1.0.3.4/HTTP_Downloader_32.zip
-16777988
-https://github.com/erickutcher/httpdownloader/releases/download/v1.0.3.4/HTTP_Downloader_64.zip
+16777989
+https://github.com/erickutcher/httpdownloader/releases/download/v1.0.3.5/HTTP_Downloader_32.zip
+16777989
+https://github.com/erickutcher/httpdownloader/releases/download/v1.0.3.5/HTTP_Downloader_64.zip
