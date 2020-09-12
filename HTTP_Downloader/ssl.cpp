@@ -1192,7 +1192,6 @@ SECURITY_STATUS SSL_WSASend( SOCKET_CONTEXT *context, OVERLAPPEDEX *overlapped, 
 	return scRet;
 }
 
-
 SECURITY_STATUS SSL_WSARecv( SOCKET_CONTEXT *context, OVERLAPPEDEX *overlapped, bool &sent )
 {
 	sent = false;
@@ -1327,7 +1326,7 @@ SECURITY_STATUS SSL_WSARecv_Decrypt( SSL *ssl, LPWSABUF lpBuffers, DWORD &lpNumb
 	// Locate data and (optional) extra buffers.
 	pDataBuffer  = NULL;
 	pExtraBuffer = NULL;
-	for ( int i = 1; i < 4; i++ )
+	for ( int i = 1; i < 4; ++i )
 	{
 		if ( pDataBuffer == NULL && ssl->rd.Buffers[ i ].BufferType == SECBUFFER_DATA )
 		{

@@ -75,56 +75,6 @@ LRESULT CALLBACK CheckForUpdatesWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPA
 		{
 			switch ( LOWORD( wParam ) )
 			{
-				/*case IDOK:
-				case BTN_SEARCH:
-				case BTN_SEARCH_ALL:
-				{
-					// Prevents the user from holding down the button and queuing up a bunch of threads.
-					if ( in_worker_thread )
-					{
-						break;
-					}
-
-					SEARCH_INFO *si = ( SEARCH_INFO * )GlobalAlloc( GMEM_FIXED, sizeof( SEARCH_INFO ) );
-					si->search_all = ( LOWORD( wParam ) == BTN_SEARCH_ALL ? true : false );
-
-					if ( _SendMessageW( g_hWnd_chk_regular_expression, BM_GETCHECK, 0, 0 ) == BST_CHECKED )
-					{
-						si->search_flag = 0x04;	// Use regular expression.
-					}
-					else
-					{
-						si->search_flag = ( _SendMessageW( g_hWnd_chk_match_case, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? 0x01 : 0x00 );
-						si->search_flag |= ( _SendMessageW( g_hWnd_chk_match_whole_word, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? 0x02 : 0x00 );
-					}
-
-					si->type = ( _SendMessageW( g_hWnd_chk_type_url, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? 1 : 0 );
-
-					unsigned int text_length = ( unsigned int )_SendMessageW( g_hWnd_search_for, WM_GETTEXTLENGTH, 0, 0 ) + 1;	// Include the NULL terminator.
-					si->text = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * text_length );
-					_SendMessageW( g_hWnd_search_for, WM_GETTEXT, text_length, ( LPARAM )si->text );
-
-					// Enabled, when our thread completes.
-					_EnableWindow( g_hWnd_btn_search_all, FALSE );
-					_EnableWindow( g_hWnd_btn_search, FALSE );
-
-					// si is freed in search_list.
-					HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, search_list, ( void * )si, 0, NULL );
-					if ( thread != NULL )
-					{
-						CloseHandle( thread );
-					}
-					else
-					{
-						_EnableWindow( g_hWnd_btn_search_all, TRUE );
-						_EnableWindow( g_hWnd_btn_search, TRUE );
-
-						GlobalFree( si->text );
-						GlobalFree( si );
-					}
-				}
-				break;*/
-
 				case BTN_DOWNLOAD_UPDATE:
 				{
 					_SendMessageW( ( g_hWnd_add_urls != NULL ? g_hWnd_add_urls : g_hWnd_main ), WM_PROPAGATE, CF_TEXT, ( LPARAM )g_new_version_url );
@@ -248,16 +198,6 @@ LRESULT CALLBACK CheckForUpdatesWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPA
 
 		case WM_CLOSE:
 		{
-			/*_ShowWindow( hWnd, SW_HIDE );
-
-			_SendMessageW( g_hWnd_static_check_for_updates, WM_SETTEXT, NULL, ( LPARAM )L"Checking for updates..." );
-
-			_EnableWindow( g_hWnd_download_update, FALSE );
-			_ShowWindow( g_hWnd_download_update, SW_HIDE );
-
-			_EnableWindow( g_hWnd_visit_home_page, FALSE );
-			_ShowWindow( g_hWnd_visit_home_page, SW_HIDE );*/
-
 			// Release the semaphore to complete the update check.
 			if ( g_update_semaphore != NULL )
 			{

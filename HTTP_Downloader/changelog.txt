@@ -1,3 +1,8 @@
+Version:	1.0.3.6
+Released:	2020-09-12
+
+Strange fix for HTTPS connections not working in Wine.
+
 Version:	1.0.3.5
 Released:	2020-08-30
 

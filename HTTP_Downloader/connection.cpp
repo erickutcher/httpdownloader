@@ -1417,6 +1417,10 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 	int nRet = 0;
 	DWORD dwFlags = 0;
 
+	// WINE doesn't download HTTPS URLs unless some ntdll function is called in this thread. Why?
+	char wine_hack;
+	_memset( &wine_hack, 0, sizeof( char ) );
+
 	while ( true )
 	{
 		completion_status = GetQueuedCompletionStatus( hIOCP, &io_size, ( ULONG_PTR * )&context, ( OVERLAPPED ** )&overlapped, INFINITE );
@@ -3442,6 +3446,7 @@ bool CreateConnection( SOCKET_CONTEXT *context, char *host, unsigned short port 
 		/*if ( context->address_info != NULL )
 		{
 			_FreeAddrInfoW( context->address_info );
+			context->address_info = NULL;
 		}*/
 
 		return false;
@@ -3450,6 +3455,7 @@ bool CreateConnection( SOCKET_CONTEXT *context, char *host, unsigned short port 
 	/*if ( context->address_info != NULL )
 	{
 		_FreeAddrInfoW( context->address_info );
+		context->address_info = NULL;
 	}*/
 
 	return true;
@@ -3964,10 +3970,6 @@ void StartDownload( DOWNLOAD_INFO *di, char start_type, bool check_if_file_exist
 
 					di->status = STATUS_CONNECTING;
 
-					EnterCriticalSection( &cleanup_cs );
-
-					EnableTimers( true );
-
 					EnterCriticalSection( &active_download_list_cs );
 
 					// Add to the global active download list.
@@ -3986,9 +3988,13 @@ void StartDownload( DOWNLOAD_INFO *di, char start_type, bool check_if_file_exist
 						LeaveCriticalSection( &di->shared_info->di_cs );
 					}
 
+					LeaveCriticalSection( &active_download_list_cs );
+
+					EnterCriticalSection( &cleanup_cs );
+
 					++g_total_downloading;
 
-					LeaveCriticalSection( &active_download_list_cs );
+					EnableTimers( true );
 
 					LeaveCriticalSection( &cleanup_cs );
 
@@ -6239,11 +6245,14 @@ bool RetryTimedOut( SOCKET_CONTEXT *context )
 			context->ssl = NULL;
 		}
 
-		addrinfoW *old_address_info = context->address_info;
-		context->address_info = context->address_info->ai_next;
-		old_address_info->ai_next = NULL;
+		if ( context->address_info != NULL )
+		{
+			addrinfoW *old_address_info = context->address_info;
+			context->address_info = context->address_info->ai_next;
+			old_address_info->ai_next = NULL;
 
-		_FreeAddrInfoW( old_address_info );
+			_FreeAddrInfoW( old_address_info );
+		}
 
 		// If we're going to restart the download, then we need to reset these values.
 		context->header_info.chunk_length = 0;

@@ -3050,8 +3050,6 @@ THREAD_RETURN filter_urls( void *pArguments )
 		GlobalFree( fi );
 	}
 
-	_SendMessageW( g_hWnd_search, WM_PROPAGATE, 1, 0 );
-
 	// Release the semaphore if we're killing the thread.
 	if ( worker_semaphore != NULL )
 	{
