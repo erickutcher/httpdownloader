@@ -1,3 +1,17 @@
+Version:	1.0.3.7
+Released:	2021-04-04
+
+Added SFTP support based on PuTTY's SFTP client.
+Fixed drag and drop action when set to add in stopped state.
+Fixed parsing URLs with encoded '#' and '?' characters.
+Fixed username and password not being set from Add URL(s) window.
+Prevented timeout for downloads that display a prompt.
+Checked for existing file in download directory when temporary directory is used.
+Reworked how downloads are restarted and resumed.
+Improved custom message box layout.
+Replaced Windows message box with custom message box.
+Various optimizations and bug fixes.
+
 Version:	1.0.3.6
 Released:	2020-09-12
 

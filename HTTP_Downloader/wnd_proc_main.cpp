@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S) and FTP(S) connections.
-	Copyright (C) 2015-2020 Eric Kutcher
+	Copyright (C) 2015-2021 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -22,10 +22,12 @@
 #include "lite_ole32.h"
 #include "lite_comctl32.h"
 #include "lite_winmm.h"
+//#include "lite_uxtheme.h"
 
 #include "list_operations.h"
 #include "file_operations.h"
 #include "site_manager_utilities.h"
+#include "sftp.h"
 
 #include "connection.h"
 #include "menus.h"
@@ -43,6 +45,7 @@
 #include "drop_window.h"
 
 #include "treelistview.h"
+#include "cmessagebox.h"
 
 HWND g_hWnd_toolbar = NULL;
 HWND g_hWnd_files_columns = NULL;		// The header control window for the listview.
@@ -60,6 +63,8 @@ bool g_skip_list_draw = false;
 
 int cx = 0;								// Current x (left) position of the main window based on the mouse.
 int cy = 0;								// Current y (top) position of the main window based on the mouse.
+
+int g_border_width = 0;
 
 unsigned char g_total_columns = 0;
 
@@ -98,7 +103,7 @@ UINT WM_TASKBARBUTTONCREATED = 0;
 /////////////////////////////////////////////////////
 
 
-VOID CALLBACK UpdateCheckTimerProc( HWND hWnd, UINT msg, UINT idTimer, DWORD dwTime )
+VOID CALLBACK UpdateCheckTimerProc( HWND hWnd, UINT /*msg*/, UINT /*idTimer*/, DWORD /*dwTime*/ )
 {
 	// We'll check the setting again in case the user turned it off before the 10 second grace period.
 	// We'll also check to see if the update was manually checked.
@@ -183,27 +188,27 @@ unsigned int FormatSizes( wchar_t *buffer, unsigned int buffer_size, unsigned ch
 
 	if ( toggle_type == SIZE_FORMAT_AUTO )
 	{
-		if ( data_size > ( 1ULL << 60 ) )
+		if ( data_size >= ( 1ULL << 60 ) )
 		{
 			toggle_type = SIZE_FORMAT_EXABYTE;	// Exabyte
 		}
-		else if ( data_size > ( 1ULL << 50 ) )
+		else if ( data_size >= ( 1ULL << 50 ) )
 		{
 			toggle_type = SIZE_FORMAT_PETABYTE;	// Petabyte
 		}
-		else if ( data_size > ( 1ULL << 40 ) )
+		else if ( data_size >= ( 1ULL << 40 ) )
 		{
 			toggle_type = SIZE_FORMAT_TERABYTE;	// Terabyte
 		}
-		else if ( data_size > ( 1 << 30 ) )
+		else if ( data_size >= ( 1 << 30 ) )
 		{
 			toggle_type = SIZE_FORMAT_GIGABYTE;	// Gigabyte
 		}
-		else if ( data_size > ( 1 << 20 ) )
+		else if ( data_size >= ( 1 << 20 ) )
 		{
 			toggle_type = SIZE_FORMAT_MEGABYTE;	// Megabyte
 		}
-		else if ( data_size > ( 1 << 10 ) )
+		else if ( data_size >= ( 1 << 10 ) )
 		{
 			toggle_type = SIZE_FORMAT_KILOBYTE;	// Kilobyte
 		}
@@ -243,7 +248,7 @@ unsigned int FormatSizes( wchar_t *buffer, unsigned int buffer_size, unsigned ch
 	return length;
 }
 
-DWORD WINAPI UpdateWindow( LPVOID WorkThreadContext )
+DWORD WINAPI UpdateWindow( LPVOID /*WorkThreadContext*/ )
 {
 	QFILETIME current_time, last_update;
 
@@ -266,11 +271,11 @@ DWORD WINAPI UpdateWindow( LPVOID WorkThreadContext )
 
 	last_update.ull = 0;
 
-	unsigned char speed_buf_length = ( ST_L_Download_speed_ > 102 ? 102 : ST_L_Download_speed_ ); // Let's not overflow. 128 - ( ' ' + 22 +  '/' + 's' + NULL ) = 102 remaining bytes for our string.
+	unsigned char speed_buf_length = ( unsigned char )( ST_L_Download_speed_ > 102 ? 102 : ST_L_Download_speed_ ); // Let's not overflow. 128 - ( ' ' + 22 +  '/' + 's' + NULL ) = 102 remaining bytes for our string.
 	_wmemcpy_s( sb_download_speed_buf, 128, ST_V_Download_speed_, speed_buf_length );
 	sb_download_speed_buf[ speed_buf_length++ ] = ' ';
 
-	unsigned char download_buf_length = ( ST_L_Total_downloaded_ > 104 ? 104 : ST_L_Total_downloaded_ ); // Let's not overflow. 128 - ( ' ' + 22 + NULL ) = 104 remaining bytes for our string.
+	unsigned char download_buf_length = ( unsigned char )( ST_L_Total_downloaded_ > 104 ? 104 : ST_L_Total_downloaded_ ); // Let's not overflow. 128 - ( ' ' + 22 + NULL ) = 104 remaining bytes for our string.
 	_wmemcpy_s( sb_downloaded_buf, 128, ST_V_Total_downloaded_, download_buf_length );
 	sb_downloaded_buf[ download_buf_length++ ] = ' ';
 
@@ -706,7 +711,7 @@ DWORD WINAPI UpdateWindow( LPVOID WorkThreadContext )
 	g_timer_semaphore = NULL;
 
 	_ExitThread( 0 );
-	return 0;
+	//return 0;
 }
 
 wchar_t *GetDownloadInfoString( DOWNLOAD_INFO *di, int column, int root_index, int item_index, wchar_t *tbuf, unsigned short tbuf_size )
@@ -1177,7 +1182,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 			wchar_t status_bar_buf[ 128 ];
 			unsigned char buf_length;
 
-			buf_length = ( ST_L_Download_speed_ > 102 ? 102 : ST_L_Download_speed_ ); // Let's not overflow. 128 - ( ' ' + 22 +  '/' + 's' + NULL ) = 102 remaining bytes for our string.
+			buf_length = ( unsigned char )( ST_L_Download_speed_ > 102 ? 102 : ST_L_Download_speed_ ); // Let's not overflow. 128 - ( ' ' + 22 +  '/' + 's' + NULL ) = 102 remaining bytes for our string.
 			_wmemcpy_s( status_bar_buf, 128, ST_V_Download_speed_, buf_length );
 			status_bar_buf[ buf_length++ ] = ' ';
 			// The maximum length that FormatSizes can return is 22 bytes excluding the NULL terminator.
@@ -1189,7 +1194,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 			_SendMessageW( g_hWnd_status, SB_SETTEXT, MAKEWPARAM( 0, 0 ), ( LPARAM )status_bar_buf );
 
 
-			buf_length = ( ST_L_Total_downloaded_ > 104 ? 104 : ST_L_Total_downloaded_ ); // Let's not overflow. 128 - ( ' ' + 22 + NULL ) = 104 remaining bytes for our string.
+			buf_length = ( unsigned char )( ST_L_Total_downloaded_ > 104 ? 104 : ST_L_Total_downloaded_ ); // Let's not overflow. 128 - ( ' ' + 22 + NULL ) = 104 remaining bytes for our string.
 			_wmemcpy_s( status_bar_buf, 128, ST_V_Total_downloaded_, buf_length );
 			status_bar_buf[ buf_length++ ] = ' ';
 			// The maximum length that FormatSizes can return is 22 bytes excluding the NULL terminator.
@@ -1198,7 +1203,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 			_SendMessageW( g_hWnd_status, SB_SETTEXT, MAKEWPARAM( 1, 0 ), ( LPARAM )status_bar_buf );
 
 
-			buf_length = ( ST_L_Global_download_speed_limit_ > 102 ? 102 : ST_L_Global_download_speed_limit_ ); // Let's not overflow. 128 - ( ' ' + 22 +  '/' + 's' + NULL ) = 102 remaining bytes for our string.
+			buf_length = ( unsigned char )( ST_L_Global_download_speed_limit_ > 102 ? 102 : ST_L_Global_download_speed_limit_ ); // Let's not overflow. 128 - ( ' ' + 22 +  '/' + 's' + NULL ) = 102 remaining bytes for our string.
 			_wmemcpy_s( status_bar_buf, 128, ST_V_Global_download_speed_limit_, buf_length );
 			status_bar_buf[ buf_length++ ] = ' ';
 
@@ -1250,10 +1255,10 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 
 				// Include an empty string.
 				iei->file_paths = ( wchar_t * )GlobalAlloc( GPTR, sizeof( wchar_t ) * ( MAX_PATH + 1 ) );
-				_wmemcpy_s( iei->file_paths, MAX_PATH, base_directory, base_directory_length );
-				_wmemcpy_s( iei->file_paths + ( base_directory_length + 1 ), MAX_PATH - ( base_directory_length - 1 ), L"download_history\0", 17 );
-				iei->file_paths[ base_directory_length + 17 ] = 0;	// Sanity.
-				iei->file_offset = ( unsigned short )( base_directory_length + 1 );
+				_wmemcpy_s( iei->file_paths, MAX_PATH, g_base_directory, g_base_directory_length );
+				_wmemcpy_s( iei->file_paths + ( g_base_directory_length + 1 ), MAX_PATH - ( g_base_directory_length - 1 ), L"download_history\0", 17 );
+				iei->file_paths[ g_base_directory_length + 17 ] = 0;	// Sanity.
+				iei->file_offset = ( unsigned short )( g_base_directory_length + 1 );
 				iei->type = 0;	// Load during startup.
 
 				// iei will be freed in the import_list thread.
@@ -1279,6 +1284,28 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 			{
 				// Check after 10 seconds.
 				_SetTimer( hWnd, IDT_UPDATE_CHECK_TIMER, 10000, ( TIMERPROC )UpdateCheckTimerProc );
+			}
+
+			// Windows 10 uses an invisible border that we need to take into account when snapping the window.
+			if ( IsWindowsVersionOrGreater( HIBYTE( _WIN32_WINNT_WIN10 ), LOBYTE( _WIN32_WINNT_WIN10 ), 0 ) )
+			{
+				/*bool use_theme = true;
+
+				#ifndef UXTHEME_USE_STATIC_LIB
+				if ( uxtheme_state == UXTHEME_STATE_SHUTDOWN )
+				{
+					use_theme = InitializeUXTheme();
+				}
+				#endif
+
+				if ( use_theme && _IsThemeActive() == TRUE )*/
+				{
+					RECT rc, rc2;
+					_GetWindowRect( hWnd, &rc );
+					_GetClientRect( hWnd, &rc2 );
+
+					g_border_width = ( ( rc.right - rc.left - rc2.right ) / 2 ) - 1; // Leave the 1 px border.
+				}
 			}
 
 			return 0;
@@ -1360,7 +1387,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 									++cfg_t_status_down_speed;
 								}
 
-								buf_length = ( ST_L_Download_speed_ > 102 ? 102 : ST_L_Download_speed_ ); // Let's not overflow. 128 - ( ' ' + 22 +  '/' + 's' + NULL ) = 102 remaining bytes for our string.
+								buf_length = ( unsigned char )( ST_L_Download_speed_ > 102 ? 102 : ST_L_Download_speed_ ); // Let's not overflow. 128 - ( ' ' + 22 +  '/' + 's' + NULL ) = 102 remaining bytes for our string.
 								_wmemcpy_s( status_bar_buf, 128, ST_V_Download_speed_, buf_length );
 								status_bar_buf[ buf_length++ ] = ' ';
 								// The maximum length that FormatSizes can return is 22 bytes excluding the NULL terminator.
@@ -1382,7 +1409,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 									++cfg_t_status_downloaded;
 								}
 
-								buf_length = ( ST_L_Total_downloaded_ > 104 ? 104 : ST_L_Total_downloaded_ ); // Let's not overflow. 128 - ( ' ' + 22 + NULL ) = 104 remaining bytes for our string.
+								buf_length = ( unsigned char )( ST_L_Total_downloaded_ > 104 ? 104 : ST_L_Total_downloaded_ ); // Let's not overflow. 128 - ( ' ' + 22 + NULL ) = 104 remaining bytes for our string.
 								_wmemcpy_s( status_bar_buf, 128, ST_V_Total_downloaded_, buf_length );
 								status_bar_buf[ buf_length++ ] = ' ';
 								// The maximum length that FormatSizes can return is 22 bytes excluding the NULL terminator.
@@ -1393,7 +1420,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 							}
 							else if ( nm->dwItemSpec == 2 )
 							{
-								buf_length = ( ST_L_Global_download_speed_limit_ > 102 ? 102 : ST_L_Global_download_speed_limit_ ); // Let's not overflow. 128 - ( ' ' + 22 +  '/' + 's' + NULL ) = 102 remaining bytes for our string.
+								buf_length = ( unsigned char )( ST_L_Global_download_speed_limit_ > 102 ? 102 : ST_L_Global_download_speed_limit_ ); // Let's not overflow. 128 - ( ' ' + 22 +  '/' + 's' + NULL ) = 102 remaining bytes for our string.
 								_wmemcpy_s( status_bar_buf, 128, ST_V_Global_download_speed_limit_, buf_length );
 								status_bar_buf[ buf_length++ ] = ' ';
 
@@ -1544,6 +1571,8 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 			cfg_pos_y = rc->top;
 			cfg_width = rc->right - rc->left;
 			cfg_height = rc->bottom - rc->top;
+
+			return TRUE;
 		}
 		break;
 
@@ -1558,22 +1587,22 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 
 			// Allow our main window to attach to the desktop edge.
 			_SystemParametersInfoW( SPI_GETWORKAREA, 0, &wa, 0 );			
-			if ( is_close( rc->left, wa.left ) )				// Attach to left side of the desktop.
+			if ( is_close( rc->left + g_border_width, wa.left ) )				// Attach to left side of the desktop.
 			{
-				_OffsetRect( rc, wa.left - rc->left, 0 );
+				_OffsetRect( rc, wa.left - rc->left - g_border_width, 0 );
 			}
-			else if ( is_close( wa.right, rc->right ) )		// Attach to right side of the desktop.
+			else if ( is_close( wa.right, rc->right + g_border_width ) )		// Attach to right side of the desktop.
 			{
-				_OffsetRect( rc, wa.right - rc->right, 0 );
+				_OffsetRect( rc, wa.right - rc->right + g_border_width, 0 );
 			}
 
-			if ( is_close( rc->top, wa.top ) )				// Attach to top of the desktop.
+			if ( is_close( rc->top, wa.top ) )									// Attach to top of the desktop.
 			{
 				_OffsetRect( rc, 0, wa.top - rc->top );
 			}
-			else if ( is_close( wa.bottom, rc->bottom ) )	// Attach to bottom of the desktop.
+			else if ( is_close( wa.bottom, rc->bottom + g_border_width ) )		// Attach to bottom of the desktop.
 			{
-				_OffsetRect( rc, 0, wa.bottom - rc->bottom );
+				_OffsetRect( rc, 0, wa.bottom - rc->bottom + g_border_width );
 			}
 
 			// Save our settings for the position/dimensions of the window.
@@ -1613,6 +1642,8 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 				_SetCursor( _LoadCursorW( NULL, IDC_ARROW ) );	// Default arrow.
 				wait_cursor = NULL;
 			}
+
+			return TRUE;
 		}
 		break;
 
@@ -1672,6 +1703,8 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 				}
 				break;
 			}
+
+			return TRUE;
 		}
 		break;
 
@@ -1787,7 +1820,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 					new_cla->proxy_password[ cla->proxy_password_length ] = 0;	// Sanity.
 				}
 
-				_SendMessageW( hWnd, WM_PROPAGATE, -2, ( LPARAM )new_cla );
+				_SendMessageW( hWnd, WM_PROPAGATE, ( WPARAM )-2, ( LPARAM )new_cla );
 			}
 
 			return TRUE;
@@ -1823,6 +1856,8 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 
 				_SendMessageW( g_hWnd_add_urls, WM_PROPAGATE, wParam, lParam );
 			}
+
+			return TRUE;
 		}
 		break;
 
@@ -1830,15 +1865,17 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 		{
 			if ( wParam == 0 )
 			{
-				_MessageBoxW( hWnd, ( LPCWSTR )lParam, PROGRAM_CAPTION, MB_APPLMODAL | MB_ICONWARNING );
+				CMessageBoxW( hWnd, ( LPCWSTR )lParam, PROGRAM_CAPTION, /*CMB_APPLMODAL |*/ CMB_ICONWARNING );
 			}
 			else if ( wParam == 1 )
 			{
-				if ( _MessageBoxW( hWnd, ST_V_PROMPT_The_specified_file_was_not_found, PROGRAM_CAPTION, MB_APPLMODAL | MB_ICONWARNING | MB_YESNO ) == IDYES )
+				if ( CMessageBoxW( hWnd, ST_V_PROMPT_The_specified_file_was_not_found, PROGRAM_CAPTION, /*CMB_APPLMODAL |*/ CMB_ICONWARNING | CMB_YESNO ) == CMBIDYES )
 				{
 					CloseHandle( ( HANDLE )_CreateThread( NULL, 0, handle_download_list, ( void * )3, 0, NULL ) );	// Restart download (from the beginning).
 				}
 			}
+
+			return TRUE;
 		}
 		break;
 
@@ -1942,6 +1979,8 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 				kill_worker_thread_flag = true;
 				_SendMessageW( hWnd, WM_DESTROY_ALT, 0, 0 );
 			}
+
+			return TRUE;
 		}
 		break;
 
@@ -2001,10 +2040,10 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 
 			if ( cfg_enable_download_history && g_download_history_changed )
 			{
-				_wmemcpy_s( base_directory + base_directory_length, MAX_PATH - base_directory_length, L"\\download_history\0", 18 );
-				base_directory[ base_directory_length + 17 ] = 0;	// Sanity.
+				_wmemcpy_s( g_base_directory + g_base_directory_length, MAX_PATH - g_base_directory_length, L"\\download_history\0", 18 );
+				g_base_directory[ g_base_directory_length + 17 ] = 0;	// Sanity.
 
-				save_download_history( base_directory );
+				save_download_history( g_base_directory );
 				g_download_history_changed = false;
 			}
 
@@ -2103,6 +2142,8 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 			}
 
 			_DestroyWindow( hWnd );
+
+			return TRUE;
 		}
 		break;
 
@@ -2125,12 +2166,26 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 				site_list_changed = false;
 			}
 
+			if ( sftp_fps_host_list_changed )
+			{
+				save_sftp_fps_host_info();
+
+				sftp_fps_host_list_changed = false;
+			}
+
+			if ( sftp_keys_host_list_changed )
+			{
+				save_sftp_keys_host_info();
+
+				sftp_keys_host_list_changed = false;
+			}
+
 			if ( cfg_enable_download_history && g_download_history_changed )
 			{
-				_wmemcpy_s( base_directory + base_directory_length, MAX_PATH - base_directory_length, L"\\download_history\0", 18 );
-				base_directory[ base_directory_length + 17 ] = 0;	// Sanity.
+				_wmemcpy_s( g_base_directory + g_base_directory_length, MAX_PATH - g_base_directory_length, L"\\download_history\0", 18 );
+				g_base_directory[ g_base_directory_length + 17 ] = 0;	// Sanity.
 
-				save_download_history( base_directory );
+				save_download_history( g_base_directory );
 				g_download_history_changed = false;
 			}
 
@@ -2145,6 +2200,8 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 			{
 				di->print_range_list = NULL;
 			}
+
+			return TRUE;
 		}
 		break;
 
@@ -2171,6 +2228,5 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 		}
 		break;
 	}
-
-	return TRUE;
+	//return TRUE;
 }

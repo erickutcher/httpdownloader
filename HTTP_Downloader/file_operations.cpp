@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S) and FTP(S) connections.
-	Copyright (C) 2015-2020 Eric Kutcher
+	Copyright (C) 2015-2021 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -53,15 +53,16 @@ char read_config()
 {
 	char ret_status = 0;
 
-	_wmemcpy_s( base_directory + base_directory_length, MAX_PATH - base_directory_length, L"\\http_downloader_settings\0", 26 );
-	base_directory[ base_directory_length + 25 ] = 0;	// Sanity.
+	_wmemcpy_s( g_base_directory + g_base_directory_length, MAX_PATH - g_base_directory_length, L"\\http_downloader_settings\0", 26 );
+	g_base_directory[ g_base_directory_length + 25 ] = 0;	// Sanity.
 
-	HANDLE hFile_cfg = CreateFile( base_directory, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL );
+	HANDLE hFile_cfg = CreateFile( g_base_directory, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL );
 	if ( hFile_cfg != INVALID_HANDLE_VALUE )
 	{
-		DWORD read = 0, pos = 0;
+		DWORD read = 0;
 		DWORD fz = GetFileSize( hFile_cfg, NULL );
 
+		unsigned char i;
 		int reserved;
 
 		// Our config file is going to be small. If it's something else, we're not going to read it.
@@ -74,9 +75,11 @@ char read_config()
 			cfg_buf[ fz ] = 0;	// Guarantee a NULL terminated buffer.
 
 			// Read the config. It must be in the order specified below.
-			if ( read == fz && _memcmp( cfg_buf, MAGIC_ID_SETTINGS, 4 ) == 0 )
+			if ( read == fz && _memcmp( cfg_buf, MAGIC_ID_SETTINGS, 3 ) == 0 && ( unsigned char )cfg_buf[ 3 ] >= 6 )
 			{
-				reserved = 1024 - 661;
+				unsigned char cfg_version = ( unsigned char )cfg_buf[ 3 ];
+
+				reserved = 1024 - ( cfg_version >= 7 ? 695 : 661 );
 
 				char *next = cfg_buf + 4;
 
@@ -293,7 +296,7 @@ char read_config()
 				_memcpy_s( &cfg_even_row_highlight_font_color, sizeof( COLORREF ), next, sizeof( COLORREF ) );
 				next += sizeof( COLORREF );
 
-				for ( unsigned char i = 0; i < NUM_COLORS; ++i )
+				for ( i = 0; i < NUM_COLORS; ++i )
 				{
 					_memcpy_s( progress_colors[ i ], sizeof( COLORREF ), next, sizeof( COLORREF ) );
 					next += sizeof( COLORREF );
@@ -301,7 +304,7 @@ char read_config()
 
 				// Tray and URL Drop window progress colors.
 
-				for ( unsigned char i = 0; i < TD_NUM_COLORS; ++i )
+				for ( i = 0; i < TD_NUM_COLORS; ++i )
 				{
 					_memcpy_s( td_progress_colors[ i ], sizeof( COLORREF ), next, sizeof( COLORREF ) );
 					next += sizeof( COLORREF );
@@ -484,6 +487,46 @@ char read_config()
 
 				_memcpy_s( &cfg_thread_count, sizeof( unsigned long ), next, sizeof( unsigned long ) );
 				next += sizeof( unsigned long );
+
+				// Options SFTP
+
+				if ( cfg_version >= 7 )
+				{
+					_memcpy_s( &cfg_sftp_enable_compression, sizeof( bool ), next, sizeof( bool ) );
+					next += sizeof( bool );
+
+					_memcpy_s( &cfg_sftp_attempt_gssapi_authentication, sizeof( bool ), next, sizeof( bool ) );
+					next += sizeof( bool );
+					_memcpy_s( &cfg_sftp_attempt_gssapi_key_exchange, sizeof( bool ), next, sizeof( bool ) );
+					next += sizeof( bool );
+
+					_memcpy_s( &cfg_sftp_keep_alive_time, sizeof( int ), next, sizeof( int ) );
+					next += sizeof( int );
+					_memcpy_s( &cfg_sftp_rekey_time, sizeof( int ), next, sizeof( int ) );
+					next += sizeof( int );
+					_memcpy_s( &cfg_sftp_gss_rekey_time, sizeof( int ), next, sizeof( int ) );
+					next += sizeof( int );
+					_memcpy_s( &cfg_sftp_rekey_data_limit, sizeof( unsigned long ), next, sizeof( unsigned long ) );
+					next += sizeof( unsigned long );
+
+					for ( i = 0; i < KEX_ALGORITHM_COUNT; ++i )
+					{
+						_memcpy_s( &cfg_priority_kex_algorithm[ i ], sizeof( unsigned char ), next, sizeof( unsigned char ) );
+						next += sizeof( unsigned char );
+					}
+
+					for ( i = 0; i < HOST_KEY_COUNT; ++i )
+					{
+						_memcpy_s( &cfg_priority_host_key[ i ], sizeof( unsigned char ), next, sizeof( unsigned char ) );
+						next += sizeof( unsigned char );
+					}
+
+					for ( i = 0; i < ENCRYPTION_CIPHER_COUNT; ++i )
+					{
+						_memcpy_s( &cfg_priority_encryption_cipher[ i ], sizeof( unsigned char ), next, sizeof( unsigned char ) );
+						next += sizeof( unsigned char );
+					}
+				}
 
 
 				//
@@ -1165,9 +1208,9 @@ char read_config()
 	{
 		cfg_temp_download_directory = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * MAX_PATH );
 
-		_wmemcpy_s( cfg_temp_download_directory, base_directory_length, base_directory, base_directory_length );
-		_wmemcpy_s( cfg_temp_download_directory + base_directory_length, MAX_PATH - base_directory_length, L"\\incomplete\0", 12 );
-		g_temp_download_directory_length = base_directory_length + 11;
+		_wmemcpy_s( cfg_temp_download_directory, g_base_directory_length, g_base_directory, g_base_directory_length );
+		_wmemcpy_s( cfg_temp_download_directory + g_base_directory_length, MAX_PATH - g_base_directory_length, L"\\incomplete\0", 12 );
+		g_temp_download_directory_length = g_base_directory_length + 11;
 		cfg_temp_download_directory[ g_temp_download_directory_length ] = 0;	// Sanity.
 
 		// Check to see if the new path exists and create it if it doesn't.
@@ -1184,23 +1227,24 @@ char save_config()
 {
 	char ret_status = 0;
 
-	_wmemcpy_s( base_directory + base_directory_length, MAX_PATH - base_directory_length, L"\\http_downloader_settings\0", 26 );
-	base_directory[ base_directory_length + 25 ] = 0;	// Sanity.
+	_wmemcpy_s( g_base_directory + g_base_directory_length, MAX_PATH - g_base_directory_length, L"\\http_downloader_settings\0", 26 );
+	g_base_directory[ g_base_directory_length + 25 ] = 0;	// Sanity.
 
-	HANDLE hFile_cfg = CreateFile( base_directory, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL );
+	HANDLE hFile_cfg = CreateFile( g_base_directory, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL );
 	if ( hFile_cfg != INVALID_HANDLE_VALUE )
 	{
-		int reserved = 1024 - 661;
-		int size = ( sizeof( int ) * 22 ) +
+		int reserved = 1024 - 695;
+		int size = ( sizeof( int ) * 25 ) +
 				   ( sizeof( unsigned short ) * 7 ) +
-				   ( sizeof( char ) * 50 ) +
-				   ( sizeof( bool ) * 39 ) +
-				   ( sizeof( unsigned long ) * 6 ) +
+				   ( sizeof( char ) * ( 50 + KEX_ALGORITHM_COUNT + HOST_KEY_COUNT + ENCRYPTION_CIPHER_COUNT ) ) +
+				   ( sizeof( bool ) * 42 ) +
+				   ( sizeof( unsigned long ) * 7 ) +
 				   ( sizeof( LONG ) * 4 ) +
 				   ( sizeof( BYTE ) * 6 ) +
 				   ( sizeof( COLORREF ) * ( NUM_COLORS + 11 + TD_NUM_COLORS ) ) +
 				   ( sizeof( unsigned long long ) * 4 ) + reserved;
 		int pos = 0;
+		unsigned char i;
 
 		char *write_buf = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * size );
 
@@ -1420,7 +1464,7 @@ char save_config()
 		_memcpy_s( write_buf + pos, size - pos, &cfg_even_row_highlight_font_color, sizeof( COLORREF ) );
 		pos += sizeof( COLORREF );
 
-		for ( unsigned char i = 0; i < NUM_COLORS; ++i )
+		for ( i = 0; i < NUM_COLORS; ++i )
 		{
 			_memcpy_s( write_buf + pos, size - pos, progress_colors[ i ], sizeof( COLORREF ) );
 			pos += sizeof( COLORREF );
@@ -1428,7 +1472,7 @@ char save_config()
 
 		// Tray and URL Drop window progress colors.
 
-		for ( unsigned char i = 0; i < TD_NUM_COLORS; ++i )
+		for ( i = 0; i < TD_NUM_COLORS; ++i )
 		{
 			_memcpy_s( write_buf + pos, size - pos, td_progress_colors[ i ], sizeof( COLORREF ) );
 			pos += sizeof( COLORREF );
@@ -1611,6 +1655,43 @@ char save_config()
 
 		_memcpy_s( write_buf + pos, size - pos, &cfg_thread_count, sizeof( unsigned long ) );
 		pos += sizeof( unsigned long );
+
+		// Options SFTP
+
+		_memcpy_s( write_buf + pos, size - pos, &cfg_sftp_enable_compression, sizeof( bool ) );
+		pos += sizeof( bool );
+
+		_memcpy_s( write_buf + pos, size - pos, &cfg_sftp_attempt_gssapi_authentication, sizeof( bool ) );
+		pos += sizeof( bool );
+		_memcpy_s( write_buf + pos, size - pos, &cfg_sftp_attempt_gssapi_key_exchange, sizeof( bool ) );
+		pos += sizeof( bool );
+
+		_memcpy_s( write_buf + pos, size - pos, &cfg_sftp_keep_alive_time, sizeof( int ) );
+		pos += sizeof( int );
+		_memcpy_s( write_buf + pos, size - pos, &cfg_sftp_rekey_time, sizeof( int ) );
+		pos += sizeof( int );
+		_memcpy_s( write_buf + pos, size - pos, &cfg_sftp_gss_rekey_time, sizeof( int ) );
+		pos += sizeof( int );
+		_memcpy_s( write_buf + pos, size - pos, &cfg_sftp_rekey_data_limit, sizeof( unsigned long ) );
+		pos += sizeof( unsigned long );
+
+		for ( i = 0; i < KEX_ALGORITHM_COUNT; ++i )
+		{
+			_memcpy_s( write_buf + pos, size - pos, &cfg_priority_kex_algorithm[ i ], sizeof( unsigned char ) );
+			pos += sizeof( unsigned char );
+		}
+
+		for ( i = 0; i < HOST_KEY_COUNT; ++i )
+		{
+			_memcpy_s( write_buf + pos, size - pos, &cfg_priority_host_key[ i ], sizeof( unsigned char ) );
+			pos += sizeof( unsigned char );
+		}
+
+		for ( i = 0; i < ENCRYPTION_CIPHER_COUNT; ++i )
+		{
+			_memcpy_s( write_buf + pos, size - pos, &cfg_priority_encryption_cipher[ i ], sizeof( unsigned char ) );
+			pos += sizeof( unsigned char );
+		}
 
 
 		//
@@ -2251,8 +2332,6 @@ char read_download_history( wchar_t *file_path )
 						++expanded_item_count;
 						++total_item_count;
 
-						int shared_status = 0;
-
 						////////////////
 
 						for ( unsigned char i = 0; i < host_count; ++i )
@@ -2806,7 +2885,9 @@ char read_download_history( wchar_t *file_path )
 									{
 										g_download_history_changed = true;
 
-										StartDownload( di, 0, false );
+										di->status = STATUS_NONE;
+
+										StartDownload( di, START_TYPE_NONE, START_OPERATION_NONE );
 									}
 									else
 									{
@@ -2817,8 +2898,6 @@ char read_download_history( wchar_t *file_path )
 								{
 									di->status = STATUS_FILE_IO_ERROR;
 								}
-
-								shared_status |= di->status;
 							}
 							else
 							{
@@ -2834,7 +2913,7 @@ char read_download_history( wchar_t *file_path )
 							shared_info->print_range_list = shared_info->host_list;
 						}
 
-						SetSharedInfoStatus( shared_info, shared_status );
+						SetSharedInfoStatus( shared_info );
 
 						continue;
 					}
@@ -3604,7 +3683,7 @@ wchar_t *read_url_list_file( wchar_t *file_path, unsigned int &url_list_length )
 	HANDLE hFile_url_list = CreateFile( file_path, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL );
 	if ( hFile_url_list != INVALID_HANDLE_VALUE )
 	{
-		DWORD read = 0, pos = 0;
+		DWORD read = 0;
 		DWORD fz = GetFileSize( hFile_url_list, NULL );
 
 		// http://a.b

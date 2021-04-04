@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S) and FTP(S) connections.
-	Copyright (C) 2015-2020 Eric Kutcher
+	Copyright (C) 2015-2021 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -27,6 +27,7 @@
 #include "folder_browser.h"
 
 #include "site_manager_utilities.h"
+#include "cmessagebox.h"
 
 #define SM_COLUMN_NUM						0
 #define SM_COLUMN_SITE						1
@@ -689,7 +690,6 @@ LRESULT CALLBACK SMListSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 						largest_width = 26;	// 5 + 16 + 5.
 
 						wchar_t tbuf[ 128 ];
-						wchar_t *buf = NULL;
 
 						LVITEM lvi;
 						_memzero( &lvi, sizeof( LVITEM ) );
@@ -1567,6 +1567,8 @@ void SelectSiteItem( int index )
 		g_selected_site_info = NULL;
 		g_selected_site_index = -1;
 
+		_EnableWindow( g_hWnd_remove_site, FALSE );
+
 		ResetSMTabPages();
 	}
 }
@@ -2078,7 +2080,7 @@ LRESULT CALLBACK SiteManagerWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 					_memzero( &lvi, sizeof( LVITEM ) );
 					lvi.mask = LVIF_STATE;
 					lvi.stateMask = LVIS_SELECTED;
-					_SendMessageW( g_hWnd_site_list, LVM_SETITEMSTATE, -1, ( LPARAM )&lvi );
+					_SendMessageW( g_hWnd_site_list, LVM_SETITEMSTATE, ( WPARAM )-1, ( LPARAM )&lvi );
 
 					_SetFocus( g_hWnd_edit_sm_site );
 				}
@@ -2368,7 +2370,7 @@ LRESULT CALLBACK SiteManagerWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 					}
 					else
 					{
-						_MessageBoxW( hWnd, ST_V_The_specified_site_is_invalid, PROGRAM_CAPTION, MB_APPLMODAL | MB_ICONWARNING );
+						CMessageBoxW( hWnd, ST_V_The_specified_site_is_invalid, PROGRAM_CAPTION, /*CMB_APPLMODAL |*/ CMB_ICONWARNING );
 					}
 				}
 				break;
@@ -2376,7 +2378,7 @@ LRESULT CALLBACK SiteManagerWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 				case BTN_REMOVE_SITE:
 				case MENU_SM_REMOVE_SEL:
 				{
-					if ( _MessageBoxW( hWnd, ST_V_PROMPT_remove_selected_entries, PROGRAM_CAPTION, MB_APPLMODAL | MB_ICONWARNING | MB_YESNO ) == IDYES )
+					if ( CMessageBoxW( hWnd, ST_V_PROMPT_remove_selected_entries, PROGRAM_CAPTION, /*CMB_APPLMODAL |*/ CMB_ICONWARNING | CMB_YESNO ) == CMBIDYES )
 					{
 						SITE_UPDATE_INFO *sui = ( SITE_UPDATE_INFO * )GlobalAlloc( GMEM_FIXED, sizeof( SITE_UPDATE_INFO ) );
 						sui->update_type = 1;	// Remove
@@ -2418,7 +2420,7 @@ LRESULT CALLBACK SiteManagerWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 					lvi.mask = LVIF_STATE;
 					lvi.state = LVIS_SELECTED;
 					lvi.stateMask = LVIS_SELECTED;
-					_SendMessageW( g_hWnd_site_list, LVM_SETITEMSTATE, -1, ( LPARAM )&lvi );
+					_SendMessageW( g_hWnd_site_list, LVM_SETITEMSTATE, ( WPARAM )-1, ( LPARAM )&lvi );
 				}
 				break;
 
@@ -2583,7 +2585,7 @@ LRESULT CALLBACK SiteManagerWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 						LVITEM lvi;
 						_memzero( &lvi, sizeof( LVITEM ) );
 						lvi.mask = LVIF_PARAM;
-						lvi.iItem = ( int )_SendMessageW( nmitem->hdr.hwndFrom, LVM_GETNEXTITEM, -1, LVNI_FOCUSED | LVNI_SELECTED );
+						lvi.iItem = ( int )_SendMessageW( nmitem->hdr.hwndFrom, LVM_GETNEXTITEM, ( WPARAM )-1, LVNI_FOCUSED | LVNI_SELECTED );
 						_SendMessageW( nmitem->hdr.hwndFrom, LVM_GETITEM, 0, ( LPARAM )&lvi );
 
 						if ( lvi.iItem != -1 && lvi.lParam != NULL )
@@ -2783,7 +2785,6 @@ LRESULT CALLBACK SiteManagerWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 				}
 
 				wchar_t tbuf[ 128 ];
-				wchar_t *buf = tbuf;
 
 				// This is the full size of the row.
 				RECT last_rc;
@@ -2962,7 +2963,7 @@ LRESULT CALLBACK SiteManagerWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 		case WM_MEASUREITEM:
 		{
 			// Set the row height of the list view.
-			if ( ( ( LPMEASUREITEMSTRUCT )lParam )->CtlType = ODT_LISTVIEW )
+			if ( ( ( LPMEASUREITEMSTRUCT )lParam )->CtlType == ODT_LISTVIEW )
 			{
 				( ( LPMEASUREITEMSTRUCT )lParam )->itemHeight = g_default_row_height;
 			}
@@ -2974,11 +2975,11 @@ LRESULT CALLBACK SiteManagerWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 		{
 			if ( wParam == 1 )
 			{
-				_MessageBoxW( hWnd, ST_V_The_specified_site_already_exists, PROGRAM_CAPTION, MB_APPLMODAL | MB_ICONWARNING );
+				CMessageBoxW( hWnd, ST_V_The_specified_site_already_exists, PROGRAM_CAPTION, /*CMB_APPLMODAL |*/ CMB_ICONWARNING );
 			}
 			else if ( wParam == 2 )
 			{
-				_MessageBoxW( hWnd, ST_V_A_protocol_must_be_supplied, PROGRAM_CAPTION, MB_APPLMODAL | MB_ICONWARNING );
+				CMessageBoxW( hWnd, ST_V_A_protocol_must_be_supplied, PROGRAM_CAPTION, /*CMB_APPLMODAL |*/ CMB_ICONWARNING );
 			}
 			else if ( wParam == 3 )
 			{
@@ -2989,8 +2990,31 @@ LRESULT CALLBACK SiteManagerWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 
 				ResetSMTabPages();
 			}
+			else if ( wParam == 4 )
+			{
+				SITE_UPDATE_INFO *sui = ( SITE_UPDATE_INFO * )lParam;
+				if ( sui->si != NULL )
+				{
+					g_selected_site_info = sui->si;
+					g_selected_site_index = ( int )_SendMessageW( g_hWnd_site_list, LVM_GETITEMCOUNT, 0, 0 ) - 1;
+
+					LVITEM lvi;
+					_memzero( &lvi, sizeof( LVITEM ) );
+					lvi.mask = LVIF_STATE;
+					lvi.stateMask = LVIS_SELECTED;
+					lvi.state = 0;
+					_SendMessageW( g_hWnd_site_list, LVM_SETITEMSTATE, ( WPARAM )-1, ( LPARAM )&lvi );	// Clear all states.
+
+					lvi.state = LVIS_SELECTED;
+					_SendMessageW( g_hWnd_site_list, LVM_SETITEMSTATE, g_selected_site_index, ( LPARAM )&lvi );
+
+					_EnableWindow( g_hWnd_remove_site, TRUE );
+				}
+			}
 
 			_SetFocus( g_hWnd_edit_sm_site );
+
+			return TRUE;
 		}
 		break;
 
@@ -3053,6 +3077,5 @@ LRESULT CALLBACK SiteManagerWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 		}
 		break;
 	}
-
-	return TRUE;
+	//return TRUE;
 }

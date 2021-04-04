@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S) and FTP(S) connections.
-	Copyright (C) 2015-2020 Eric Kutcher
+	Copyright (C) 2015-2021 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -21,13 +21,23 @@
 
 #ifndef COMCTL32_USE_STATIC_LIB
 
-	//pImageList_Create		_ImageList_Create;
-	pImageList_Destroy		_ImageList_Destroy;
+	//pImageList_Create			_ImageList_Create;
+	pImageList_Destroy			_ImageList_Destroy;
 	//pImageList_Add			_ImageList_Add;
-	pImageList_LoadImageW	_ImageList_LoadImageW;
+	pImageList_LoadImageW		_ImageList_LoadImageW;
 	//pImageList_ReplaceIcon	_ImageList_ReplaceIcon;
 
-	//pInitCommonControlsEx	_InitCommonControlsEx;
+	//pInitCommonControlsEx		_InitCommonControlsEx;
+
+	pMakeDragList				_MakeDragList;
+	//pDrawInsert				_DrawInsert;
+	pLBItemFromPt				_LBItemFromPt;
+
+	//pImageList_BeginDrag		_ImageList_BeginDrag;
+	//pImageList_DragEnter		_ImageList_DragEnter;
+	//pImageList_DragMove			_ImageList_DragMove;
+	//pImageList_DragShowNolock	_ImageList_DragShowNolock;
+	//pImageList_EndDrag			_ImageList_EndDrag;
 
 	HMODULE hModule_comctl32 = NULL;
 
@@ -54,6 +64,16 @@
 		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_comctl32, ( void ** )&_ImageList_ReplaceIcon, "ImageList_ReplaceIcon" ) )
 
 		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_comctl32, ( void ** )&_InitCommonControlsEx, "InitCommonControlsEx" ) )
+
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_comctl32, ( void ** )&_MakeDragList, "MakeDragList" ) )
+		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_comctl32, ( void ** )&_DrawInsert, "DrawInsert" ) )
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_comctl32, ( void ** )&_LBItemFromPt, "LBItemFromPt" ) )
+
+		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_comctl32, ( void ** )&_ImageList_BeginDrag, "ImageList_BeginDrag" ) )
+		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_comctl32, ( void ** )&_ImageList_DragEnter, "ImageList_DragEnter" ) )
+		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_comctl32, ( void ** )&_ImageList_DragMove, "ImageList_DragMove" ) )
+		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_comctl32, ( void ** )&_ImageList_DragShowNolock, "ImageList_DragShowNolock" ) )
+		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_comctl32, ( void ** )&_ImageList_EndDrag, "ImageList_EndDrag" ) )
 
 		comctl32_state = COMCTL32_STATE_RUNNING;
 

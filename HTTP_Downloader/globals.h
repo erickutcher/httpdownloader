@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S) and FTP(S) connections.
-	Copyright (C) 2015-2020 Eric Kutcher
+	Copyright (C) 2015-2021 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -106,7 +106,7 @@
 #define CURRENT_VERSION_A	1
 #define CURRENT_VERSION_B	0
 #define CURRENT_VERSION_C	3
-#define CURRENT_VERSION_D	6
+#define CURRENT_VERSION_D	7
 
 #define CURRENT_VERSION		( ( CURRENT_VERSION_A << 24 ) | \
 							  ( CURRENT_VERSION_B << 16 ) | \
@@ -230,8 +230,13 @@ extern HWND g_hWnd_url_drop_window;
 
 extern HWND g_hWnd_check_for_updates;
 
+extern HWND g_hWnd_fingerprint_prompt;
+
 extern HWND g_hWnd_site_manager;
 extern HWND g_hWnd_site_list;
+
+extern HWND g_hWnd_sftp_fps_host_list;
+extern HWND g_hWnd_sftp_keys_host_list;
 
 extern HWND g_hWnd_toolbar;
 extern HWND g_hWnd_status;
@@ -245,10 +250,10 @@ extern HFONT g_hFont;
 extern dllrbt_tree *g_icon_handles;
 
 extern dllrbt_tree *g_site_info;
+extern dllrbt_tree *g_sftp_fps_host_info;
+extern dllrbt_tree *g_sftp_keys_host_info;
 
 extern bool	g_can_fast_allocate;			// Prevent the pre-allocation from zeroing the file.
-
-extern bool g_use_regular_expressions;
 
 extern int g_row_height;
 extern int g_default_row_height;
@@ -271,8 +276,8 @@ extern CRITICAL_SECTION session_totals_cs;
 
 extern CRITICAL_SECTION icon_cache_cs;
 
-extern wchar_t *base_directory;
-extern unsigned int base_directory_length;
+extern wchar_t *g_base_directory;
+extern unsigned int g_base_directory_length;
 
 extern wchar_t *g_program_directory;
 extern unsigned int g_program_directory_length;
@@ -399,6 +404,24 @@ extern unsigned short cfg_ftp_port_start;
 extern unsigned short cfg_ftp_port_end;
 
 extern bool cfg_ftp_send_keep_alive;
+
+// SFTP
+
+extern bool cfg_sftp_enable_compression;
+extern bool cfg_sftp_attempt_gssapi_authentication;
+extern bool cfg_sftp_attempt_gssapi_key_exchange;
+extern int cfg_sftp_keep_alive_time;
+extern int cfg_sftp_rekey_time;
+extern int cfg_sftp_gss_rekey_time;
+extern unsigned long cfg_sftp_rekey_data_limit;
+
+#define KEX_ALGORITHM_COUNT		5
+#define HOST_KEY_COUNT			4
+#define ENCRYPTION_CIPHER_COUNT	6
+
+extern unsigned char cfg_priority_kex_algorithm[ KEX_ALGORITHM_COUNT ];
+extern unsigned char cfg_priority_host_key[ HOST_KEY_COUNT ];
+extern unsigned char cfg_priority_encryption_cipher[ ENCRYPTION_CIPHER_COUNT ];
 
 // Server
 

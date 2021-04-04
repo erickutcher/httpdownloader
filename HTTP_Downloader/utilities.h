@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S) and FTP(S) connections.
-	Copyright (C) 2015-2020 Eric Kutcher
+	Copyright (C) 2015-2021 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -29,6 +29,7 @@
 //#define _WIN32_WINNT_WIN7		0x0601
 #define _WIN32_WINNT_WIN8		0x0602
 //#define _WIN32_WINNT_WINBLUE	0x0603
+#define _WIN32_WINNT_WIN10		0x0A00
 
 bool IsWindowsVersionOrGreater( WORD wMajorVersion, WORD wMinorVersion, WORD wServicePackMajor );
 
@@ -74,6 +75,8 @@ char *escape_csv( const char *string );
 
 unsigned long long strtoull( char *str, bool base16 = false );
 unsigned long long wcstoull( wchar_t *str, bool base16 = false );
+
+int GetDomainParts( wchar_t *site, wchar_t *offsets[ 128 ] );
 
 char *GetUTF8Domain( wchar_t *domain );
 

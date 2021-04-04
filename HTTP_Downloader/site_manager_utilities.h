@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S) and FTP(S) connections.
-	Copyright (C) 2015-2020 Eric Kutcher
+	Copyright (C) 2015-2021 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -34,14 +34,14 @@ struct SITE_INFO
 	wchar_t				*w_username;
 	wchar_t				*w_password;
 
-	PROTOCOL			protocol;
-	unsigned short		port;
-
 	char				*username;
 	char				*password;
 	char				*utf8_cookies;
 	char				*utf8_headers;
 	char				*utf8_data;		// POST payload.
+
+	PROTOCOL			protocol;
+	unsigned short		port;
 
 	unsigned char		parts;
 	unsigned char		method;			// 1 = GET, 2 = POST

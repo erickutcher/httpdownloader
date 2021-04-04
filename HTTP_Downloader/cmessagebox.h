@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S) and FTP(S) connections.
-	Copyright (C) 2015-2020 Eric Kutcher
+	Copyright (C) 2015-2021 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -38,6 +38,7 @@
 
 #define CMBIDOKALL				1000
 #define CMBIDYESALL				60
+#define CMBIDYESADD				600
 #define CMBIDNOALL				70
 #define CMBIDCONTINUEALL		110
 #define CMBIDRENAME				12
@@ -79,6 +80,19 @@ struct CMSGBOX_INFO
 	wchar_t *cmsgbox_message;
 	HWND hWnd_checkbox;
 	UINT type;
+	bool use_theme;
+};
+
+struct CPROMPT_INFO
+{
+	void *data;
+	wchar_t *cp_message;
+	HWND hWnd_host;
+	HWND hWnd_key_algorithm;
+	HWND hWnd_key_fingerprints;
+	HWND hWnd_key_size;
+	HWND hWnd_checkbox;
+	UINT type;
 };
 
 bool InitializeCMessageBox( HINSTANCE hInstance );
@@ -86,6 +100,7 @@ bool InitializeCMessageBox( HINSTANCE hInstance );
 LRESULT CALLBACK CustomMessageBoxWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam );
 
 int CMessageBoxW( HWND hWnd, LPCWSTR lpText, LPCWSTR lpCaption, UINT uType );
+int CPromptW( HWND hWnd, LPCWSTR lpText, LPCWSTR lpCaption, UINT uType, void *data );
 
 extern CRITICAL_SECTION cmessagebox_prompt_cs;	// Guard access to the tray menu when creating a cmessagebox.
 

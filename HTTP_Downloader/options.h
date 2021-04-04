@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S) and FTP(S) connections.
-	Copyright (C) 2015-2020 Eric Kutcher
+	Copyright (C) 2015-2021 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -69,6 +69,9 @@ extern HWND g_hWnd_appearance_tab;
 extern HWND g_hWnd_connection_tab;
 extern HWND g_hWnd_web_server_tab;
 extern HWND g_hWnd_ftp_tab;
+extern HWND g_hWnd_sftp_tab;
+extern HWND g_hWnd_sftp_fps_tab;
+extern HWND g_hWnd_sftp_keys_tab;
 extern HWND g_hWnd_proxy_tab;
 extern HWND g_hWnd_advanced_tab;
 
@@ -142,6 +145,19 @@ extern HWND g_hWnd_ftp_port_start;
 extern HWND g_hWnd_ftp_port_end;
 
 extern HWND g_hWnd_chk_send_keep_alive;
+
+// SFTP Tab
+extern HWND g_hWnd_chk_enable_compression;
+extern HWND g_hWnd_chk_attempt_gssapi_authentication;
+extern HWND g_hWnd_chk_attempt_gssapi_key_exchange;
+extern HWND g_hWnd_sftp_keep_alive_time;
+extern HWND g_hWnd_sftp_rekey_time;
+extern HWND g_hWnd_sftp_gss_rekey_time;
+extern HWND g_hWnd_sftp_rekey_data_limit;
+
+extern unsigned char g_priority_kex_algorithm[ KEX_ALGORITHM_COUNT ];
+extern unsigned char g_priority_host_key[ HOST_KEY_COUNT ];
+extern unsigned char g_priority_encryption_cipher[ ENCRYPTION_CIPHER_COUNT ];
 
 // Proxy Tab
 // HTTP proxy

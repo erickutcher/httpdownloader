@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S) and FTP(S) connections.
-	Copyright (C) 2015-2020 Eric Kutcher
+	Copyright (C) 2015-2021 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -24,6 +24,7 @@
 #include "lite_gdi32.h"
 #include "lite_uxtheme.h"
 #include "lite_normaliz.h"
+#include "lite_pcre2.h"
 
 #include "list_operations.h"
 
@@ -33,6 +34,7 @@
 #include "string_tables.h"
 
 #include "wnd_proc.h"
+#include "cmessagebox.h"
 
 #define MIN_ADVANCED_HEIGHT					510
 #define MIN_SIMPLE_HEIGHT					270
@@ -843,7 +845,7 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 	{
 		case WM_CREATE:
 		{
-			DWORD enabled = ( g_use_regular_expressions ? 0 : WS_DISABLED );
+			DWORD enabled = ( pcre2_state == PCRE2_STATE_RUNNING ? 0 : WS_DISABLED );
 			g_hWnd_static_regex_filter = _CreateWindowW( WC_STATIC, ST_V_RegEx_filter_, SS_OWNERDRAW | WS_CHILD | WS_VISIBLE | enabled, 85, 14, 90, 15, hWnd, NULL, NULL, NULL );
 			g_hWnd_regex_filter_preset = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_COMBOBOX, NULL, CBS_AUTOHSCROLL | CBS_DROPDOWNLIST | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE | enabled, 180, 10, 80, 23, hWnd, ( HMENU )CB_REGEX_FILTER_PRESET, NULL, NULL );
 			_SendMessageW( g_hWnd_regex_filter_preset, CB_ADDSTRING, 0, ( LPARAM )ST_V_Custom );
@@ -1306,7 +1308,7 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 					if ( !( download_operations & DOWNLOAD_OPERATION_SIMULATE ) && t_download_directory == NULL )
 					{
-						_MessageBoxW( hWnd, ST_V_You_must_supply_download_directory, PROGRAM_CAPTION, MB_APPLMODAL | MB_ICONWARNING );
+						CMessageBoxW( hWnd, ST_V_You_must_supply_download_directory, PROGRAM_CAPTION, /*CMB_APPLMODAL |*/ CMB_ICONWARNING );
 
 						_SendMessageW( hWnd, WM_COMMAND, MAKEWPARAM( BTN_DOWNLOAD_DIRECTORY, 0 ), 0 );
 
@@ -1663,9 +1665,9 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 						wchar_t *filter = NULL;
 						switch ( index )
 						{
-							case 1: { filter = L"(?i)(^(http|ftpe?)s?:\\/\\/[^\\/\\s]+\\/[^\\?#\\s]+\\.(jp(e?g|e)|gif|png|bmp|tiff?|dib|ico)(\\?|#|$))"; } break;
-							case 2: { filter = L"(?i)(^(http|ftpe?)s?:\\/\\/[^\\/\\s]+\\/[^\\?#\\s]+\\.(mp3|wave?|flac?|ogg|m4a|wma|aac|midi?|ape|shn|wv|aiff?|oga)(\\?|#|$))"; } break;
-							case 3: { filter = L"(?i)(^(http|ftpe?)s?:\\/\\/[^\\/\\s]+\\/[^\\?#\\s]+\\.(avi|mp[124]|m4v|mp(e?g|e)|mkv|webm|wmv|3gp|ogm|ogv|flv|vob)(\\?|#|$))"; } break;
+							case 1: { filter = L"(?i)(^((http|ftpe?)s?|sftp):\\/\\/[^\\/\\s]+\\/[^\\?#\\s]+\\.(jp(e?g|e)|gif|png|bmp|tiff?|dib|ico)(\\?|#|$))"; } break;
+							case 2: { filter = L"(?i)(^((http|ftpe?)s?|sftp):\\/\\/[^\\/\\s]+\\/[^\\?#\\s]+\\.(mp3|wave?|flac?|ogg|m4a|wma|aac|midi?|ape|shn|wv|aiff?|oga)(\\?|#|$))"; } break;
+							case 3: { filter = L"(?i)(^((http|ftpe?)s?|sftp):\\/\\/[^\\/\\s]+\\/[^\\?#\\s]+\\.(avi|mp[124]|m4v|mp(e?g|e)|mkv|webm|wmv|3gp|ogm|ogv|flv|vob)(\\?|#|$))"; } break;
 						}
 
 						_SendMessageW( g_hWnd_regex_filter, WM_SETTEXT, 0, ( LPARAM )filter );
@@ -2060,6 +2062,10 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 								{
 									offset += 8;
 								}
+								else if ( _StrCmpNIW( data + offset, L"sftp://", 7 ) == 0 )
+								{
+									offset += 7;
+								}
 								else
 								{
 									offset = 0;
@@ -2101,6 +2107,8 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 			_ShowWindow( hWnd, SW_SHOWNORMAL );
 			_SetForegroundWindow( hWnd );
+
+			return TRUE;
 		}
 		break;
 
@@ -2112,6 +2120,8 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			_SetFocus( g_hWnd_edit_add );
 
 			GlobalFree( ( HGLOBAL )lParam );
+
+			return TRUE;
 		}
 		break;
 
@@ -2261,6 +2271,5 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 		}
 		break;
 	}
-
-	return TRUE;
+	//return TRUE;
 }

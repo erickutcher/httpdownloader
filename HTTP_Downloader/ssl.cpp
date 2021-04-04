@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S) and FTP(S) connections.
-	Copyright (C) 2015-2020 Eric Kutcher
+	Copyright (C) 2015-2021 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -150,7 +150,7 @@ SSL *SSL_new( DWORD protocol, bool is_server )
 			SchannelCred.dwVersion = SCHANNEL_CRED_VERSION;
 			SchannelCred.cCreds = 1;
 			SchannelCred.paCred = &g_pCertContext;
-			SchannelCred.dwMinimumCipherStrength = -1;
+			SchannelCred.dwMinimumCipherStrength = ( DWORD )-1;
 			SchannelCred.grbitEnabledProtocols = protocol;
 			SchannelCred.dwFlags = ( SCH_CRED_NO_SYSTEM_MAPPER | SCH_CRED_NO_DEFAULT_CREDS | SCH_CRED_REVOCATION_CHECK_CHAIN );
 
@@ -1561,7 +1561,7 @@ PCCERT_CONTEXT LoadPKCS12( wchar_t *p12_file, wchar_t *password )
 	if ( hFile_cfg != INVALID_HANDLE_VALUE )
 	{
 		CRYPT_DATA_BLOB cdb;
-		DWORD read = 0, pos = 0;
+		DWORD read = 0;
 		DWORD fz = GetFileSize( hFile_cfg, NULL );
 
 		cdb.cbData = fz;

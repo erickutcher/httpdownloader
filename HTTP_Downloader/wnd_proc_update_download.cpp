@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S) and FTP(S) connections.
-	Copyright (C) 2015-2020 Eric Kutcher
+	Copyright (C) 2015-2021 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -1581,6 +1581,8 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 
 			_ShowWindow( hWnd, SW_SHOWNORMAL );
 			_SetForegroundWindow( hWnd );
+
+			return TRUE;
 		}
 		break;
 
@@ -1608,6 +1610,8 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 		case WM_DESTROY_ALT:
 		{
 			_DestroyWindow( hWnd );
+
+			return TRUE;
 		}
 		break;
 
@@ -1640,6 +1644,5 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 		}
 		break;
 	}
-
-	return TRUE;
+	//return TRUE;
 }

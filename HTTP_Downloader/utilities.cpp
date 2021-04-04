@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S) and FTP(S) connections.
-	Copyright (C) 2015-2020 Eric Kutcher
+	Copyright (C) 2015-2021 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -137,6 +137,22 @@ unsigned short cfg_ftp_port_start = 0;
 unsigned short cfg_ftp_port_end = 0;
 
 bool cfg_ftp_send_keep_alive = false;
+
+// SFTP
+
+bool cfg_sftp_enable_compression = false;
+bool cfg_sftp_attempt_gssapi_authentication = true;
+bool cfg_sftp_attempt_gssapi_key_exchange = true;
+int cfg_sftp_keep_alive_time = 0;
+int cfg_sftp_rekey_time = 60;
+int cfg_sftp_gss_rekey_time = 2;
+unsigned long cfg_sftp_rekey_data_limit = 1073741824;
+
+// 0x40 = enabled. OR it with the enum values in putty.h.
+// The order is the same as what's in the main PuTTY program.
+unsigned char cfg_priority_kex_algorithm[ KEX_ALGORITHM_COUNT ] = { 0x45, 0x43, 0x42, 0x44, 0x01 };
+unsigned char cfg_priority_host_key[ HOST_KEY_COUNT ] = { 0x44, 0x43, 0x41, 0x42 };
+unsigned char cfg_priority_encryption_cipher[ ENCRYPTION_CIPHER_COUNT ] = { 0x43, 0x46, 0x41, 0x04, 0x02, 0x05 };
 
 // Server
 
@@ -1007,6 +1023,38 @@ int GetTemporaryFilePath( DOWNLOAD_INFO *di, wchar_t file_path[] )
 	return filename_length;
 }
 
+int GetDomainParts( wchar_t *site, wchar_t *offsets[ 128 ] )
+{
+	int count = 0;
+	wchar_t *ptr = site;
+	wchar_t *ptr_s = ptr;
+
+	while ( ptr != NULL && count < 127 )
+	{
+		if ( *ptr == L'.' )
+		{
+			offsets[ count++ ] = ptr_s;
+
+			ptr_s = ptr + 1;
+		}
+		else if ( *ptr == NULL )
+		{
+			offsets[ count++ ] = ptr_s;
+
+			break;
+		}
+
+		++ptr;
+	}
+
+	if ( ptr != NULL )
+	{
+		offsets[ count ] = ptr;	// End of string.
+	}
+
+	return count;
+}
+
 char *GetUTF8Domain( wchar_t *domain )
 {
 	int domain_length = WideCharToMultiByte( CP_UTF8, 0, domain, -1, NULL, 0, NULL, NULL );
@@ -1247,7 +1295,7 @@ wchar_t *url_encode_w( wchar_t *str, unsigned int str_len, unsigned int *enc_len
 			 ( *pstr >= 0x00 && *pstr <= 0x1F ) )
 		{
 			*pbuf++ = L'%';
-			*pbuf++ = to_hex_w( *pstr >> 4 );
+			*pbuf++ = to_hex_w( ( char )( *pstr >> 4 ) );
 			*pbuf++ = to_hex_w( *pstr & 15 );
 		}
 		else
@@ -1443,7 +1491,7 @@ void kill_worker_thread()
 }
 
 // This will allow our main thread to continue while secondary threads finish their processing.
-THREAD_RETURN cleanup( void *pArguments )
+THREAD_RETURN cleanup( void * /*pArguments*/ )
 {
 	kill_worker_thread();
 
@@ -1451,7 +1499,7 @@ THREAD_RETURN cleanup( void *pArguments )
 	_SendMessageW( g_hWnd_main, WM_DESTROY_ALT, 0, 0 );
 
 	_ExitThread( 0 );
-	return 0;
+	//return 0;
 }
 
 void FreeCommandLineArgs( CL_ARGS **cla )
@@ -1899,12 +1947,12 @@ bool VerifyDigestAuthorization( char *username, unsigned long username_length, c
 		return false;
 	}
 
-	if ( client_nonce_length != nonce_length || _StrCmpNA( auth_info->nonce, nonce, nonce_length ) != 0 )
+	if ( ( unsigned long )client_nonce_length != nonce_length || _StrCmpNA( auth_info->nonce, nonce, nonce_length ) != 0 )
 	{
 		return false;
 	}
 
-	if ( client_opaque_length != opaque_length || _StrCmpNA( auth_info->opaque, opaque, opaque_length ) != 0 )
+	if ( ( unsigned long )client_opaque_length != opaque_length || _StrCmpNA( auth_info->opaque, opaque, opaque_length ) != 0 )
 	{
 		return false;
 	}
@@ -2030,7 +2078,7 @@ bool VerifyDigestAuthorization( char *username, unsigned long username_length, c
 
 	if ( response != NULL )
 	{
-		if ( response_length == client_response_length && _StrCmpNA( response, auth_info->response, response_length ) == 0 )
+		if ( response_length == ( DWORD )client_response_length && _StrCmpNA( response, auth_info->response, response_length ) == 0 )
 		{
 			ret = true;
 		}

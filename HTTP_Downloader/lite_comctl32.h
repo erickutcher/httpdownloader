@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S) and FTP(S) connections.
-	Copyright (C) 2015-2020 Eric Kutcher
+	Copyright (C) 2015-2021 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -39,6 +39,16 @@
 
 	//#define _InitCommonControlsEx	InitCommonControlsEx
 
+	#define _MakeDragList	MakeDragList
+	//#define _DrawInsert		DrawInsert
+	#define _LBItemFromPt	LBItemFromPt
+
+	//#define _ImageList_BeginDrag		ImageList_BeginDrag
+	//#define _ImageList_DragEnter		ImageList_DragEnter
+	//#define _ImageList_DragMove			ImageList_DragMove
+	//#define _ImageList_DragShowNolock	ImageList_DragShowNolock
+	//#define _ImageList_EndDrag			ImageList_EndDrag
+
 #else
 
 	#define COMCTL32_STATE_SHUTDOWN		0
@@ -52,13 +62,33 @@
 
 	//typedef BOOL ( WINAPI *pInitCommonControlsEx )( const INITCOMMONCONTROLSEX *picce );
 
-	//extern pImageList_Create		_ImageList_Create;
-	extern pImageList_Destroy		_ImageList_Destroy;
-	//extern pImageList_Add			_ImageList_Add;
-	extern pImageList_LoadImageW	_ImageList_LoadImageW;
-	//extern pImageList_ReplaceIcon	_ImageList_ReplaceIcon;
+	typedef BOOL ( WINAPI *pMakeDragList )( HWND hLB );
+	//typedef void ( WINAPI *pDrawInsert )( HWND handParent, HWND hLB, int nItem );
+	typedef int ( WINAPI *pLBItemFromPt )( HWND hLB, POINT pt, BOOL bAutoScroll );
 
-	//extern pInitCommonControlsEx	_InitCommonControlsEx;
+	//typedef BOOL ( WINAPI *pImageList_BeginDrag )( HIMAGELIST himlTrack, int iTrack, int dxHotspot, int dyHotspot );
+	//typedef BOOL ( WINAPI *pImageList_DragEnter )( HWND hwndLock, int x, int y );
+	//typedef BOOL ( WINAPI *pImageList_DragMove )( int x, int y );
+	//typedef BOOL ( WINAPI *pImageList_DragShowNolock )( BOOL fShow );
+	//typedef void ( WINAPI *pImageList_EndDrag )();
+
+	//extern pImageList_Create			_ImageList_Create;
+	extern pImageList_Destroy			_ImageList_Destroy;
+	//extern pImageList_Add				_ImageList_Add;
+	extern pImageList_LoadImageW		_ImageList_LoadImageW;
+	//extern pImageList_ReplaceIcon		_ImageList_ReplaceIcon;
+
+	//extern pInitCommonControlsEx		_InitCommonControlsEx;
+
+	extern pMakeDragList				_MakeDragList;
+	//extern pDrawInsert				_DrawInsert;
+	extern pLBItemFromPt				_LBItemFromPt;
+
+	//extern pImageList_BeginDrag			_ImageList_BeginDrag;
+	//extern pImageList_DragEnter			_ImageList_DragEnter;
+	//extern pImageList_DragMove			_ImageList_DragMove;
+	//extern pImageList_DragShowNolock	_ImageList_DragShowNolock;
+	//extern pImageList_EndDrag			_ImageList_EndDrag;
 
 	extern unsigned char comctl32_state;
 

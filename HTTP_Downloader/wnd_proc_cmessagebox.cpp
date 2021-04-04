@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S) and FTP(S) connections.
-	Copyright (C) 2015-2020 Eric Kutcher
+	Copyright (C) 2015-2021 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -21,10 +21,12 @@
 
 #include "lite_gdi32.h"
 #include "lite_winmm.h"
+#include "lite_uxtheme.h"
 
 #include "menus.h"
 #include "string_tables.h"
 #include "cmessagebox.h"
+#include "wnd_proc.h"
 
 #define BTN_YES			1001
 #define BTN_NO			1002
@@ -47,6 +49,17 @@ HWND g_hWnd_btn_continue = NULL;
 HWND g_hWnd_btn_restart = NULL;
 HWND g_hWnd_btn_skip = NULL;
 
+#define BTN_AREA_HEIGHT			42
+
+#define ICON_X_POS				21
+#define ICON_Y_POS				23
+
+#define ICON_WIDTH				32
+#define ICON_HEIGHT				32
+
+#define ICON_PADDING			10
+#define TEXT_PADDING			10
+
 bool InitializeCMessageBox( HINSTANCE hInstance )
 {
 	// Set/Get won't work after a window has been created. Have to register separate classes.
@@ -57,11 +70,11 @@ bool InitializeCMessageBox( HINSTANCE hInstance )
 	WNDCLASSEX wcex;
 	_memzero( &wcex, sizeof( WNDCLASSEX ) );
 	wcex.cbSize			= sizeof( WNDCLASSEX );
-	wcex.style			= CS_VREDRAW | CS_HREDRAW;
+	wcex.style			= 0;//CS_VREDRAW | CS_HREDRAW;
 	wcex.cbWndExtra		= 0;
 	wcex.hInstance		= hInstance;
 	wcex.hCursor		= _LoadCursorW( NULL, IDC_ARROW );
-	wcex.hbrBackground	= ( HBRUSH )( COLOR_WINDOW );
+	wcex.hbrBackground	= ( HBRUSH )( COLOR_3DFACE + 1 );
 	wcex.cbWndExtra		= sizeof( LONG_PTR );		// We're going to pass each message window an info struct pointer.
 	wcex.lpfnWndProc	= CustomMessageBoxWndProc;
 
@@ -72,8 +85,16 @@ bool InitializeCMessageBox( HINSTANCE hInstance )
 	}
 
 	// Disable the close button.
-	wcex.style		   |= CS_NOCLOSE;
+	//wcex.style		   |= CS_NOCLOSE;
 	wcex.lpszClassName	= L"cmessageboxdc";
+	if ( !_RegisterClassExW( &wcex ) )
+	{
+		return false;
+	}
+
+	//wcex.style		   &= ~CS_NOCLOSE;
+	wcex.lpfnWndProc	= FingerprintPromptWndProc;
+	wcex.lpszClassName	= L"fingerprint_prompt";
 	if ( !_RegisterClassExW( &wcex ) )
 	{
 		return false;
@@ -91,6 +112,17 @@ int CMessageBoxW( HWND hWnd, LPCWSTR lpText, LPCWSTR lpCaption, UINT uType )
 	cmb_info->cmsgbox_message = GlobalStrDupW( lpText );
 	cmb_info->type = uType;
 	cmb_info->hWnd_checkbox = NULL;
+
+	bool use_theme = true;
+
+	#ifndef UXTHEME_USE_STATIC_LIB
+	if ( uxtheme_state == UXTHEME_STATE_SHUTDOWN )
+	{
+		use_theme = InitializeUXTheme();
+	}
+	#endif
+
+	cmb_info->use_theme = use_theme && ( _IsThemeActive() == TRUE ? true : false );
 
 	HWND hWnd_cmsgbox = _CreateWindowExW( WS_EX_DLGMODALFRAME, ( ( ( uType & 0x0F ) == CMB_YESNO ||
 																   ( uType & 0x0F ) == CMB_YESNOALL ||
@@ -163,17 +195,95 @@ int CMessageBoxW( HWND hWnd, LPCWSTR lpText, LPCWSTR lpCaption, UINT uType )
 	return ret;
 }
 
+int CPromptW( HWND hWnd, LPCWSTR lpText, LPCWSTR lpCaption, UINT uType, void *data )
+{
+	int ret = 0;
+
+	// This struct is created for each instance of a messagebox window.
+	CPROMPT_INFO *cp_info = ( CPROMPT_INFO * )GlobalAlloc( GMEM_FIXED, sizeof( CPROMPT_INFO ) );
+	cp_info->cp_message = GlobalStrDupW( lpText );
+	cp_info->type = uType;
+	cp_info->hWnd_checkbox = NULL;
+	cp_info->data = data;
+
+	HWND hWnd_cmsgbox = _CreateWindowExW( WS_EX_DLGMODALFRAME, L"fingerprint_prompt", lpCaption, WS_POPUP | WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_CLIPCHILDREN, ( ( _GetSystemMetrics( SM_CXSCREEN ) - 600 ) / 2 ), ( ( _GetSystemMetrics( SM_CYSCREEN ) - 253 ) / 2 ), 600, 253, hWnd, NULL, NULL, ( LPVOID )cp_info );
+	if ( hWnd_cmsgbox != NULL )
+	{
+		EnterCriticalSection( &cmessagebox_prompt_cs );
+
+		if ( cmessagebox_prompt_count == 0 )
+		{
+			//_EnableMenuItem( g_hMenuSub_tray, MENU_RESTORE, MF_GRAYED );
+			_EnableMenuItem( g_hMenuSub_tray, MENU_OPTIONS, MF_GRAYED );
+			_EnableMenuItem( g_hMenuSub_tray, MENU_ADD_URLS, MF_GRAYED );
+			_EnableMenuItem( g_hMenuSub_tray, MENU_EXIT, MF_GRAYED );
+		}
+
+		++cmessagebox_prompt_count;
+
+		LeaveCriticalSection( &cmessagebox_prompt_cs );
+
+		// Pass our messagebox info to the window.
+		_SetWindowLongPtrW( hWnd_cmsgbox, 0, ( LONG_PTR )cp_info );
+
+		// Force the window to be painted.
+		_ShowWindow( hWnd_cmsgbox, SW_SHOW );
+
+		// CMessageBox message loop:
+		MSG msg;
+		while ( _GetMessageW( &msg, NULL, 0, 0 ) > 0 )
+		{
+			// Destroy the window and exit the loop.
+			if ( msg.message == WM_DESTROY_CMSGBOX )
+			{
+				ret = ( int )msg.wParam;	// The messagebox's return value before being destroyed.
+
+				_DestroyWindow( msg.hwnd );
+
+				break;
+			}
+
+			if ( g_hWnd_active == NULL || !_IsDialogMessageW( g_hWnd_active, &msg ) )	// Checks tab stops.
+			{
+				_TranslateMessage( &msg );
+				_DispatchMessageW( &msg );
+			}
+		}
+
+		EnterCriticalSection( &cmessagebox_prompt_cs );
+
+		--cmessagebox_prompt_count;
+
+		if ( cmessagebox_prompt_count == 0 )
+		{
+			//_EnableMenuItem( g_hMenuSub_tray, MENU_RESTORE, MF_ENABLED );
+			_EnableMenuItem( g_hMenuSub_tray, MENU_OPTIONS, MF_ENABLED );
+			_EnableMenuItem( g_hMenuSub_tray, MENU_ADD_URLS, MF_ENABLED );
+			_EnableMenuItem( g_hMenuSub_tray, MENU_EXIT, MF_ENABLED );
+		}
+
+		LeaveCriticalSection( &cmessagebox_prompt_cs );
+	}
+	else
+	{
+		GlobalFree( cp_info->cp_message );
+		GlobalFree( cp_info );
+	}
+
+	return ret;
+}
+
 // Width and height are hardcoded to match a messagebox window with 8 point (13 px) Tahoma font.
-void AdjustWindowDimensions( HWND hWnd, HWND static_msg, CMSGBOX_INFO *cmb_info )
+void AdjustWindowDimensions( HWND hWnd, HWND static_msg, CMSGBOX_INFO *cmb_info, wchar_t *cb_message )
 {
 	// Limit the width of the text area that's being drawn.
 
-	RECT text_rc;
-	_memzero( &text_rc, sizeof( text_rc ) );
+	RECT text_rc, cb_text_rc;
+	_memzero( &text_rc, sizeof( RECT ) );
+	_memzero( &cb_text_rc, sizeof( RECT ) );
 
-	int screen_width = _GetSystemMetrics( SM_CXSCREEN );
-
-	text_rc.right = screen_width;
+	RECT wa;
+	_SystemParametersInfoW( SPI_GETWORKAREA, 0, &wa, 0 );
 
 	TEXTMETRIC tm;
 
@@ -182,142 +292,145 @@ void AdjustWindowDimensions( HWND hWnd, HWND static_msg, CMSGBOX_INFO *cmb_info 
 	_GetTextMetricsW( hDC, &tm );
 	_DeleteObject( ohf );
 
-	int font_height = tm.tmHeight + tm.tmExternalLeading;
-
 	// Calculate the height and width of the message.
-	_DrawTextW( hDC, cmb_info->cmsgbox_message, -1, &text_rc, DT_CALCRECT | DT_NOPREFIX | DT_EDITCONTROL | DT_WORDBREAK );
-	_ReleaseDC( hWnd, hDC );
-
-	LONG width = text_rc.right - text_rc.left;
-	LONG height = text_rc.bottom - text_rc.top;
-
-	// The scale divisor should be based on the size of the font.
-	// The larger the font, the smaller the divisor.
-	// I use 8pt Tahoma on my system and 6 matches the dimensions of the standard message box.
-	// Ideally the dimensions and padding should be based on a factor, but I have no interest in matching the look of the message box 100%.
-	int max_width = screen_width / 6;
-
-	if ( width > max_width )
+	if ( cmb_info->cmsgbox_message != NULL )
 	{
-		height = height * width / max_width;
-		width = max_width - 1;
+		text_rc.right = wa.right;
+		text_rc.bottom = wa.bottom;
 
-		if ( !( cmb_info->type & 0xF0 ) )	// No icon.
-		{
-			width += 48;
-		}
-
-		text_rc.left = 0;
-		text_rc.right = width;
-		text_rc.top = 0;
-		text_rc.bottom = height;
-
-		hDC = _GetDC( hWnd );
-		ohf = ( HFONT )_SelectObject( hDC, g_hFont );
-		_DeleteObject( ohf );
-
-		// Calculate the height and width of the message.
 		_DrawTextW( hDC, cmb_info->cmsgbox_message, -1, &text_rc, DT_CALCRECT | DT_NOPREFIX | DT_EDITCONTROL | DT_WORDBREAK );
-		_ReleaseDC( hWnd, hDC );
+	}
 
-		width = text_rc.right - text_rc.left;
+	int cb_width;
 
-		if ( height == font_height && ( cmb_info->type & 0xF0 ) )	// One line of text and display icon.
-		{
-			height = ( text_rc.bottom - text_rc.top ) + 6;
-		}
-		else														// Multiple lines and no icon.
-		{
-			height = text_rc.bottom - text_rc.top;
-		}
+	if ( cb_message != NULL )
+	{
+		cb_text_rc.right = wa.right;
+		cb_text_rc.bottom = wa.bottom;
 
-		if ( ( cmb_info->type & 0xF0 ) )		// Display icon.
-		{
-			width += 99;
-		}
-		else									// No icon.
-		{
-			width += 48;
-		}
+		_DrawTextW( hDC, cb_message, -1, &cb_text_rc, DT_CALCRECT | DT_NOPREFIX | DT_SINGLELINE );
+
+		cb_width = ( cb_text_rc.right - cb_text_rc.left ) + MulDiv( 15, tm.tmAveCharWidth, 4 );	// Add padding for checkbox glyph.
 	}
 	else
 	{
-		if ( ( cmb_info->type & 0xF0 ) )		// Display icon.
-		{
-			if ( height < font_height )			// No text.
-			{
-				height += 32;
-			}
-			else if ( height == font_height )	// One line of text.
-			{
-				height += 18;
-			}
-
-			width += 96;
-		}
-		else									// No icon.
-		{
-			width += 64;
-		}
+		cb_width = 0;
 	}
 
-	height += 114;
+	int msgbox_width;
+
+	if ( cmb_info->type & 0xF0 )	// Icon.
+	{
+		msgbox_width = ICON_X_POS + ICON_WIDTH + ICON_PADDING + ( text_rc.right - text_rc.left ) + ICON_X_POS;
+	}
+	else
+	{
+		msgbox_width = TEXT_PADDING + ( text_rc.right - text_rc.left ) + TEXT_PADDING;
+	}
+
+	int twidth = MulDiv( 278, max( tm.tmAveCharWidth, 6 ), 4 );	// DLU to px.
+	if ( twidth < msgbox_width ) { msgbox_width = twidth; }
 
 	// Minimum widths for the windows.
-	if ( ( cmb_info->type & 0x0F ) == CMB_YESNOALL )
+	if ( ( cmb_info->type & 0x0F ) == CMB_RENAMEOVERWRITESKIPALL ||
+		 ( cmb_info->type & 0x0F ) == CMB_CONTINUERESTARTSKIPALL )
 	{
-		if ( width < 310 )
+		if ( msgbox_width < ( 283 + cb_width ) )
 		{
-			width = 310;
+			msgbox_width = 283 + cb_width;	// ( 75 + 8 + 75 + 8 + 75 + 10 ) + 32
+		}
+	}
+	else if ( ( cmb_info->type & 0x0F ) == CMB_YESNOALL )
+	{
+		if ( msgbox_width < ( 200 + cb_width ) )
+		{
+			msgbox_width = 200 + cb_width;
 		}
 	}
 	else if ( ( cmb_info->type & 0x0F ) == CMB_YESNO )
 	{
-		if ( width < 206 )
+		if ( msgbox_width < 200 )
 		{
-			width = 206;
-		}
-	}
-	else if ( ( cmb_info->type & 0x0F ) == CMB_RENAMEOVERWRITESKIPALL ||
-			  ( cmb_info->type & 0x0F ) == CMB_CONTINUERESTARTSKIPALL )
-	{
-		if ( width < 390 )
-		{
-			width = 390;
+			msgbox_width = 200;	// ( 75 + 8 + 75 + 10 ) + 32
 		}
 	}
 	else if ( ( cmb_info->type & 0x0F ) == CMB_OKALL )
 	{
-		if ( width < 260 )
+		if ( msgbox_width < ( 117 + cb_width ) )
 		{
-			width = 260;
+			msgbox_width = 117 + cb_width;
 		}
 	}
 	else	// CMB_OK or anything that's unsupported.
 	{
-		if ( width < 128 )
+		if ( msgbox_width < 117 )
 		{
-			width = 128;
+			msgbox_width = 117;	// ( 75 + 10 ) + 32
 		}
 	}
 
+	/*int tmsgbox_width = msgbox_width;
+
+	int twidth = MulDiv( 278, tm.tmAveCharWidth, 4 );	// DLU to px.
+	if ( twidth < msgbox_width ) { tmsgbox_width = twidth; }
+	twidth = MulDiv( wa.right, 5, 8 );
+	if ( twidth < msgbox_width ) { tmsgbox_width = twidth; }
+	twidth = MulDiv( wa.right, 3, 4 );
+	if ( twidth < msgbox_width ) { tmsgbox_width = twidth; }
+	twidth = MulDiv( wa.right, 7, 8 );
+	if ( twidth < msgbox_width ) { tmsgbox_width = twidth; }
+
+	msgbox_width = tmsgbox_width;*/
+
+	if ( cmb_info->type & 0xF0 )	// Icon.
+	{
+		text_rc.right = msgbox_width - ( ICON_X_POS + ICON_WIDTH + ICON_PADDING + ICON_X_POS );
+	}
+	else
+	{
+		text_rc.right = msgbox_width - ( TEXT_PADDING + TEXT_PADDING );
+	}
+
+	// Recalculate the text message area based on the new message box width.
+	if ( cmb_info->cmsgbox_message != NULL )
+	{
+		text_rc.bottom = wa.bottom;
+
+		_DrawTextW( hDC, cmb_info->cmsgbox_message, -1, &text_rc, DT_CALCRECT | DT_NOPREFIX | DT_EDITCONTROL | DT_WORDBREAK );
+	}
+	_ReleaseDC( hWnd, hDC );
+
+	LONG msgbox_height = ICON_Y_POS + max( ( text_rc.bottom - text_rc.top ), ICON_HEIGHT ) + ICON_Y_POS + BTN_AREA_HEIGHT;
+
+	// We need dimensions to calculate the non-client difference.
+	_SetWindowPos( hWnd, NULL, 0, 0, msgbox_width, msgbox_height, 0 );
+
+	RECT rc, rc2;
+	_GetWindowRect( hWnd, &rc );
+	_GetClientRect( hWnd, &rc2 );
+
+	msgbox_width += ( rc.right - rc.left - rc2.right );
+	msgbox_height += ( rc.bottom - rc.top - rc2.bottom );
+
 	// Center the window on screen.
-	_SetWindowPos( hWnd, NULL, ( ( _GetSystemMetrics( SM_CXSCREEN ) - width ) / 2 ),
-							   ( ( _GetSystemMetrics( SM_CYSCREEN ) - height ) / 2 ),
-							   width,
-							   height,
+	_SetWindowPos( hWnd, NULL, ( ( _GetSystemMetrics( SM_CXSCREEN ) - msgbox_width ) / 2 ),
+							   ( ( _GetSystemMetrics( SM_CYSCREEN ) - msgbox_height ) / 2 ),
+							   msgbox_width,
+							   msgbox_height,
 							   0 );
 
-	// Get the new dimensions of the window.
-	RECT rc;
 	_GetClientRect( hWnd, &rc );
-
-	// Position the static text.
-	_SetWindowPos( static_msg, NULL, ( ( cmb_info->type & 0xF0 ) != 0 ? 62 : 11 ),
-									 ( ( ( ( rc.bottom - 42 ) - rc.top ) - ( text_rc.bottom - text_rc.top ) ) / 2 ),
+	// Position the message text.
+	_SetWindowPos( static_msg, NULL, ( ( cmb_info->type & 0xF0 ) != 0 ? ICON_X_POS + ICON_WIDTH + ICON_PADDING : TEXT_PADDING ),
+									 ( ( rc.bottom - rc.top ) - BTN_AREA_HEIGHT - ( text_rc.bottom - text_rc.top ) ) / 2,
 									 text_rc.right - text_rc.left,
 									 text_rc.bottom - text_rc.top,
 									 0 );
+
+	if ( cmb_info->hWnd_checkbox != NULL )
+	{
+		_SetWindowPos( cmb_info->hWnd_checkbox, NULL, 10, rc.bottom - 32, cb_width, 23, 0 );
+	}
 }
 
 LRESULT CALLBACK CustomMessageBoxWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
@@ -329,7 +442,7 @@ LRESULT CALLBACK CustomMessageBoxWndProc( HWND hWnd, UINT msg, WPARAM wParam, LP
 			CMSGBOX_INFO *cmb_info = ( CMSGBOX_INFO * )( ( CREATESTRUCT * )lParam )->lpCreateParams;
 			if ( cmb_info != NULL )
 			{
-				HWND hWnd_static_icon = _CreateWindowW( WC_STATIC, NULL, SS_ICON | WS_CHILD | ( ( cmb_info->type & 0xF0 ) != 0 ? WS_VISIBLE : 0 ), 21, 23, 0, 0, hWnd, NULL, NULL, NULL );
+				HWND hWnd_static_icon = _CreateWindowW( WC_STATIC, NULL, SS_ICON | WS_CHILD | ( ( cmb_info->type & 0xF0 ) != 0 ? WS_VISIBLE : 0 ), ICON_X_POS, ICON_Y_POS, 0, 0, hWnd, NULL, NULL, NULL );
 
 				bool play = true;
 				#ifndef WINMM_USE_STATIC_LIB
@@ -378,42 +491,41 @@ LRESULT CALLBACK CustomMessageBoxWndProc( HWND hWnd, UINT msg, WPARAM wParam, LP
 
 				_SendMessageW( hWnd_static_message, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 
-				// This will resize the window and static control based on the text dimensions and cmessagebox type.
-				AdjustWindowDimensions( hWnd, hWnd_static_message, cmb_info );
-
-				RECT rc;
-				_GetClientRect( hWnd, &rc );
-
+				wchar_t *cb_message;
 				if ( ( cmb_info->type & 0x0F ) == CMB_OKALL ||
 					 ( cmb_info->type & 0x0F ) == CMB_YESNOALL ||
 					 ( cmb_info->type & 0x0F ) == CMB_RENAMEOVERWRITESKIPALL ||
 					 ( cmb_info->type & 0x0F ) == CMB_CONTINUERESTARTSKIPALL )
 				{
-					if ( ( cmb_info->type & 0x0F ) == CMB_OKALL )
-					{
-						cmb_info->hWnd_checkbox = _CreateWindowW( WC_BUTTON, ST_V_Skip_remaining_messages, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 10, rc.bottom - 32, 150, 23, hWnd, NULL, NULL, NULL );
-					}
-					else
-					{
-						cmb_info->hWnd_checkbox = _CreateWindowW( WC_BUTTON, ST_V_Remember_choice, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 10, rc.bottom - 32, 120, 23, hWnd, NULL, NULL, NULL );
-					}
+					cb_message = ( ( cmb_info->type & 0x0F ) == CMB_OKALL ? ST_V_Skip_remaining_messages : ST_V_Remember_choice );
 
+					cmb_info->hWnd_checkbox = _CreateWindowW( WC_BUTTON, cb_message, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 					_SendMessageW( cmb_info->hWnd_checkbox, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 				}
+				else
+				{
+					cb_message = NULL;
+				}
+
+				// This will resize the window and static control based on the text dimensions and cmessagebox type.
+				AdjustWindowDimensions( hWnd, hWnd_static_message, cmb_info, cb_message );
+
+				RECT rc;
+				_GetClientRect( hWnd, &rc );
 
 				if ( ( cmb_info->type & 0x0F ) == CMB_YESNO || ( cmb_info->type & 0x0F ) == CMB_YESNOALL )
 				{
-					g_hWnd_btn_yes = _CreateWindowW( WC_BUTTON, ST_V_Yes, BS_DEFPUSHBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 165, rc.bottom - 32, 75, 23, hWnd, ( HMENU )BTN_YES, NULL, NULL );
-					g_hWnd_btn_no = _CreateWindowW( WC_BUTTON, ST_V_No, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 83, rc.bottom - 32, 75, 23, hWnd, ( HMENU )BTN_NO, NULL, NULL );
+					g_hWnd_btn_yes = _CreateWindowW( WC_BUTTON, ST_V_Yes, BS_DEFPUSHBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 167, rc.bottom - 32, 75, 23, hWnd, ( HMENU )BTN_YES, NULL, NULL );
+					g_hWnd_btn_no = _CreateWindowW( WC_BUTTON, ST_V_No, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 84, rc.bottom - 32, 75, 23, hWnd, ( HMENU )BTN_NO, NULL, NULL );
 
 					_SendMessageW( g_hWnd_btn_yes, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 					_SendMessageW( g_hWnd_btn_no, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 				}
 				else if ( ( cmb_info->type & 0x0F ) == CMB_RENAMEOVERWRITESKIPALL )
 				{
-					g_hWnd_btn_rename = _CreateWindowW( WC_BUTTON, ST_V_Rename, BS_DEFPUSHBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 247, rc.bottom - 32, 75, 23, hWnd, ( HMENU )BTN_RENAME, NULL, NULL );
-					g_hWnd_btn_overwrite = _CreateWindowW( WC_BUTTON, ST_V_Overwrite, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 165, rc.bottom - 32, 75, 23, hWnd, ( HMENU )BTN_OVERWRITE, NULL, NULL );
-					g_hWnd_btn_skip = _CreateWindowW( WC_BUTTON, ST_V_Skip, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 83, rc.bottom - 32, 75, 23, hWnd, ( HMENU )BTN_SKIP, NULL, NULL );
+					g_hWnd_btn_rename = _CreateWindowW( WC_BUTTON, ST_V_Rename, BS_DEFPUSHBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 250, rc.bottom - 32, 75, 23, hWnd, ( HMENU )BTN_RENAME, NULL, NULL );
+					g_hWnd_btn_overwrite = _CreateWindowW( WC_BUTTON, ST_V_Overwrite, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 167, rc.bottom - 32, 75, 23, hWnd, ( HMENU )BTN_OVERWRITE, NULL, NULL );
+					g_hWnd_btn_skip = _CreateWindowW( WC_BUTTON, ST_V_Skip, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 84, rc.bottom - 32, 75, 23, hWnd, ( HMENU )BTN_SKIP, NULL, NULL );
 
 					_SendMessageW( g_hWnd_btn_rename, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 					_SendMessageW( g_hWnd_btn_overwrite, WM_SETFONT, ( WPARAM )g_hFont, 0 );
@@ -421,9 +533,9 @@ LRESULT CALLBACK CustomMessageBoxWndProc( HWND hWnd, UINT msg, WPARAM wParam, LP
 				}
 				else if ( ( cmb_info->type & 0x0F ) == CMB_CONTINUERESTARTSKIPALL )
 				{
-					g_hWnd_btn_continue = _CreateWindowW( WC_BUTTON, ST_V_Continue, BS_DEFPUSHBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 247, rc.bottom - 32, 75, 23, hWnd, ( HMENU )BTN_CONTINUE, NULL, NULL );
-					g_hWnd_btn_restart = _CreateWindowW( WC_BUTTON, ST_V_Restart, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 165, rc.bottom - 32, 75, 23, hWnd, ( HMENU )BTN_RESTART, NULL, NULL );
-					g_hWnd_btn_skip = _CreateWindowW( WC_BUTTON, ST_V_Skip, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 83, rc.bottom - 32, 75, 23, hWnd, ( HMENU )BTN_SKIP, NULL, NULL );
+					g_hWnd_btn_continue = _CreateWindowW( WC_BUTTON, ST_V_Continue, BS_DEFPUSHBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 250, rc.bottom - 32, 75, 23, hWnd, ( HMENU )BTN_CONTINUE, NULL, NULL );
+					g_hWnd_btn_restart = _CreateWindowW( WC_BUTTON, ST_V_Restart, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 167, rc.bottom - 32, 75, 23, hWnd, ( HMENU )BTN_RESTART, NULL, NULL );
+					g_hWnd_btn_skip = _CreateWindowW( WC_BUTTON, ST_V_Skip, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 84, rc.bottom - 32, 75, 23, hWnd, ( HMENU )BTN_SKIP, NULL, NULL );
 
 					_SendMessageW( g_hWnd_btn_continue, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 					_SendMessageW( g_hWnd_btn_restart, WM_SETFONT, ( WPARAM )g_hFont, 0 );
@@ -431,7 +543,7 @@ LRESULT CALLBACK CustomMessageBoxWndProc( HWND hWnd, UINT msg, WPARAM wParam, LP
 				}
 				else	// CMB_OK/ALL or anything that's unsupported.
 				{
-					g_hWnd_btn_ok = _CreateWindowW( WC_BUTTON, ST_V_OK, BS_DEFPUSHBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 83, rc.bottom - 32, 75, 23, hWnd, ( HMENU )BTN_OK, NULL, NULL );
+					g_hWnd_btn_ok = _CreateWindowW( WC_BUTTON, ST_V_OK, BS_DEFPUSHBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 84, rc.bottom - 32, 75, 23, hWnd, ( HMENU )BTN_OK, NULL, NULL );
 
 					_SendMessageW( g_hWnd_btn_ok, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 				}
@@ -451,7 +563,7 @@ LRESULT CALLBACK CustomMessageBoxWndProc( HWND hWnd, UINT msg, WPARAM wParam, LP
 		case WM_CTLCOLORSTATIC:
 		{
 			CMSGBOX_INFO *cmb_info = ( CMSGBOX_INFO * )_GetWindowLongPtrW( hWnd, 0 );
-			if ( cmb_info != NULL )
+			if ( cmb_info != NULL && cmb_info->use_theme )
 			{
 				if ( ( HWND )lParam != cmb_info->hWnd_checkbox )
 				{
@@ -465,34 +577,42 @@ LRESULT CALLBACK CustomMessageBoxWndProc( HWND hWnd, UINT msg, WPARAM wParam, LP
 
 		case WM_PAINT:
 		{
-			PAINTSTRUCT ps;
-			HDC hDC = _BeginPaint( hWnd, &ps );
+			CMSGBOX_INFO *cmb_info = ( CMSGBOX_INFO * )_GetWindowLongPtrW( hWnd, 0 );
+			if ( cmb_info != NULL && cmb_info->use_theme )
+			{
+				PAINTSTRUCT ps;
+				HDC hDC = _BeginPaint( hWnd, &ps );
 
-			RECT client_rc;
-			_GetClientRect( hWnd, &client_rc );
-			client_rc.bottom -= 42;
+				RECT client_rc;
+				_GetClientRect( hWnd, &client_rc );
+				client_rc.bottom -= BTN_AREA_HEIGHT;
 
-			// Create a memory buffer to draw to.
-			HDC hdcMem = _CreateCompatibleDC( hDC );
+				// Create a memory buffer to draw to.
+				HDC hdcMem = _CreateCompatibleDC( hDC );
 
-			HBITMAP hbm = _CreateCompatibleBitmap( hDC, client_rc.right - client_rc.left, client_rc.bottom - client_rc.top );
-			HBITMAP ohbm = ( HBITMAP )_SelectObject( hdcMem, hbm );
-			_DeleteObject( ohbm );
-			_DeleteObject( hbm );
+				HBITMAP hbm = _CreateCompatibleBitmap( hDC, client_rc.right - client_rc.left, client_rc.bottom - client_rc.top );
+				HBITMAP ohbm = ( HBITMAP )_SelectObject( hdcMem, hbm );
+				_DeleteObject( ohbm );
+				_DeleteObject( hbm );
 
-			// Fill the background.
-			HBRUSH color = _CreateSolidBrush( ( COLORREF )_GetSysColor( COLOR_WINDOW ) );
-			_FillRect( hdcMem, &client_rc, color );
-			_DeleteObject( color );
+				// Fill the background.
+				HBRUSH color = _CreateSolidBrush( ( COLORREF )_GetSysColor( COLOR_WINDOW ) );
+				_FillRect( hdcMem, &client_rc, color );
+				_DeleteObject( color );
 
-			// Draw our memory buffer to the main device context.
-			_BitBlt( hDC, client_rc.left, client_rc.top, client_rc.right, client_rc.bottom, hdcMem, 0, 0, SRCCOPY );
+				// Draw our memory buffer to the main device context.
+				_BitBlt( hDC, client_rc.left, client_rc.top, client_rc.right, client_rc.bottom, hdcMem, 0, 0, SRCCOPY );
 
-			// Delete our back buffer.
-			_DeleteDC( hdcMem );
-			_EndPaint( hWnd, &ps );
+				// Delete our back buffer.
+				_DeleteDC( hdcMem );
+				_EndPaint( hWnd, &ps );
 
-			return 0;
+				return 0;
+			}
+			else
+			{
+				return _DefWindowProcW( hWnd, msg, wParam, lParam );
+			}
 		}
 		break;
 
@@ -617,8 +737,32 @@ LRESULT CALLBACK CustomMessageBoxWndProc( HWND hWnd, UINT msg, WPARAM wParam, LP
 			// Enable the parent window.
 			_EnableWindow( _GetParent( hWnd ), TRUE );
 
+			WPARAM ret_type = CMBIDOK;
+
+			if ( wParam == 0 )
+			{
+				CMSGBOX_INFO *cmb_info = ( CMSGBOX_INFO * )_GetWindowLongPtrW( hWnd, 0 );
+				if ( cmb_info != NULL )
+				{
+					if ( ( cmb_info->type & 0x0F ) == CMB_YESNO ||
+						 ( cmb_info->type & 0x0F ) == CMB_YESNOALL )
+					{
+						ret_type = CMBIDNO;
+					}
+					else if ( ( cmb_info->type & 0x0F ) == CMB_RENAMEOVERWRITESKIPALL ||
+							  ( cmb_info->type & 0x0F ) == CMB_CONTINUERESTARTSKIPALL )
+					{
+						ret_type = CMBIDSKIP;
+					}
+				}
+			}
+			else
+			{
+				ret_type = wParam;
+			}
+
 			// Post a message to our message loop to trigger it to destroy the window and exit the loop.
-			_PostMessageW( hWnd, WM_DESTROY_CMSGBOX, wParam, lParam );
+			_PostMessageW( hWnd, WM_DESTROY_CMSGBOX, ret_type, lParam );
 
 			return 0;
 		}
@@ -643,6 +787,5 @@ LRESULT CALLBACK CustomMessageBoxWndProc( HWND hWnd, UINT msg, WPARAM wParam, LP
 		}
 		break;
 	}
-
-	return TRUE;
+	//return TRUE;
 }

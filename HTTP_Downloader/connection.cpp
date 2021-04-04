@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S) and FTP(S) connections.
-	Copyright (C) 2015-2020 Eric Kutcher
+	Copyright (C) 2015-2021 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -27,6 +27,7 @@
 
 #include "http_parsing.h"
 #include "ftp_parsing.h"
+#include "sftp.h"
 
 #include "utilities.h"
 #include "site_manager_utilities.h"
@@ -111,6 +112,7 @@ DoublyLinkedList *active_download_list = NULL;		// List of active DOWNLOAD_INFO 
 DoublyLinkedList *file_size_prompt_list = NULL;		// List of downloads that need to be prompted to continue.
 DoublyLinkedList *rename_file_prompt_list = NULL;	// List of downloads that need to be prompted to continue.
 DoublyLinkedList *last_modified_prompt_list = NULL;	// List of downloads that need to be prompted to continue.
+DoublyLinkedList *fingerprint_prompt_list;	// List of downloads that need to be prompted to continue.
 
 DoublyLinkedList *move_file_queue = NULL;			// List of downloads that need to be moved to a new folder.
 
@@ -123,6 +125,7 @@ CRITICAL_SECTION download_queue_cs;				// Guard access to the download queue.
 CRITICAL_SECTION file_size_prompt_list_cs;		// Guard access to the file size prompt list.
 CRITICAL_SECTION rename_file_prompt_list_cs;	// Guard access to the rename file prompt list.
 CRITICAL_SECTION last_modified_prompt_list_cs;	// Guard access to the last modified prompt list.
+CRITICAL_SECTION fingerprint_prompt_list_cs;	// Guard access to the file fingerprint prompt list.
 CRITICAL_SECTION move_file_queue_cs;			// Guard access to the move file queue.
 CRITICAL_SECTION cleanup_cs;
 CRITICAL_SECTION update_check_timeout_cs;
@@ -139,6 +142,9 @@ int g_rename_file_cmb_ret2 = 0;	// Message box prompt to rename files.
 
 bool last_modified_prompt_active = false;
 int g_last_modified_cmb_ret = 0;	// Message box prompt for modified files.
+
+bool fingerprint_prompt_active = false;
+int g_fingerprint_cmb_ret = 0;	// Message box prompt for key fingerprints.
 
 int g_file_not_exist_cmb_ret = 0;	// Message box prompt for non existent file.
 
@@ -168,10 +174,24 @@ void SetSessionStatusCount( unsigned int status )
 	}
 }
 
-void SetSharedInfoStatus( DOWNLOAD_INFO *shared_info, unsigned int shared_status )
+void SetSharedInfoStatus( DOWNLOAD_INFO *shared_info )
 {
 	if ( shared_info != NULL )
 	{
+		unsigned int shared_status = 0;
+
+		DoublyLinkedList *host_node = shared_info->host_list;
+		while ( host_node != NULL )
+		{
+			DOWNLOAD_INFO *host_di = ( DOWNLOAD_INFO * )host_node->data;
+			if ( host_di != NULL )
+			{
+				shared_status |= host_di->status;
+			}
+
+			host_node = host_node->next;
+		}
+
 		if ( IS_STATUS( shared_status, STATUS_FILE_IO_ERROR ) )				{ shared_info->status = STATUS_FILE_IO_ERROR; }
 		else if ( IS_STATUS( shared_status, STATUS_ALLOCATING_FILE ) )		{ shared_info->status = STATUS_ALLOCATING_FILE; }
 		else if ( IS_STATUS( shared_status, STATUS_FAILED ) )				{ shared_info->status = STATUS_FAILED; }
@@ -225,7 +245,7 @@ void EnableTimers( bool timer_state )
 	}
 }
 
-DWORD WINAPI Timeout( LPVOID WorkThreadContext )
+DWORD WINAPI Timeout( LPVOID /*WorkThreadContext*/ )
 {
 	bool run_timer = g_timers_running;
 
@@ -258,7 +278,7 @@ DWORD WINAPI Timeout( LPVOID WorkThreadContext )
 
 				if ( TryEnterCriticalSection( &context->context_cs ) == TRUE )
 				{
-					if ( context->cleanup == 0 && context->status != STATUS_ALLOCATING_FILE )
+					if ( context->cleanup == 0 && IS_STATUS_NOT( context->status, STATUS_ALLOCATING_FILE | STATUS_INPUT_REQUIRED ) )
 					{
 						// Don't increment the Control connection's timeout value.
 						// It'll be forced to time out if the Data connection times out.
@@ -292,13 +312,33 @@ DWORD WINAPI Timeout( LPVOID WorkThreadContext )
 								{
 									context->timed_out = TIME_OUT_TRUE;
 
-									context->cleanup = 2;	// Force the cleanup.
+									if ( context->ssh != NULL )
+									{
+										// We've initiated a clean shutdown of the SSH connection, but it's stuck.
+										if ( context->overlapped_close.current_operation == IO_SFTPCleanup )
+										{
+											// Force close the socket to release the operation.
+											if ( context->socket != INVALID_SOCKET )
+											{
+												SOCKET s = context->socket;
+												context->socket = INVALID_SOCKET;
+												_shutdown( s, SD_BOTH );
+												_closesocket( s );	// Saves us from having to post if there's already a pending IO operation. Should force the operation to complete.
+											}
+										}
+										else
+										{
+											context->overlapped_close.current_operation = IO_SFTPCleanup;
+										}
+									}
+									else
+									{
+										context->cleanup = 2;	// Force the cleanup.
 
-									InterlockedIncrement( &context->pending_operations );
-
-									context->overlapped_close.current_operation = ( context->ssl != NULL ? IO_Shutdown : IO_Close );
-
-									PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped_close );
+										InterlockedIncrement( &context->pending_operations );
+										context->overlapped_close.current_operation = ( context->ssl != NULL ? IO_Shutdown : IO_Close );
+										PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped_close );
+									}
 								}
 							}
 						}
@@ -318,7 +358,7 @@ DWORD WINAPI Timeout( LPVOID WorkThreadContext )
 	g_timeout_semaphore = NULL;
 
 	_ExitThread( 0 );
-	return 0;
+	//return 0;
 }
 
 void InitializeServerInfo()
@@ -465,7 +505,7 @@ void CleanupServer()
 	}
 }
 
-DWORD WINAPI IOCPDownloader( LPVOID pArgs )
+THREAD_RETURN IOCPDownloader( void * /*pArguments*/ )
 {
 	HANDLE *g_ThreadHandles = NULL;
 
@@ -629,7 +669,7 @@ HARD_CLEANUP:
 	}
 
 	_ExitThread( 0 );
-	return 0;
+	//return 0;
 }
 
 bool LoadConnectEx()
@@ -736,6 +776,8 @@ SOCKET CreateListenSocket()
 {
 	int nRet = 0;
 
+	SOCKET socket = INVALID_SOCKET;
+
 	DWORD bytes = 0;
 	GUID acceptex_guid = WSAID_ACCEPTEX;	// GUID to Microsoft specific extensions
 
@@ -828,7 +870,7 @@ SOCKET CreateListenSocket()
 		goto CLEANUP;
 	}
 
-	SOCKET socket = CreateSocket( g_server_use_ipv6 );
+	socket = CreateSocket( g_server_use_ipv6 );
 	if ( socket == INVALID_SOCKET )
 	{
 		goto CLEANUP;
@@ -1002,16 +1044,16 @@ SECURITY_STATUS DecryptRecv( SOCKET_CONTEXT *context, DWORD &io_size )
 	return scRet;
 }
 
-THREAD_RETURN RenameFilePrompt( void *pArguments )
+THREAD_RETURN PromptRenameFile( void *pArguments )
 {
-	SOCKET_CONTEXT *context = NULL;
-
 	unsigned char rename_only = ( unsigned char )pArguments;
 
 	bool skip_processing = false;
 
 	do
 	{
+		SOCKET_CONTEXT *context = NULL;
+
 		EnterCriticalSection( &rename_file_prompt_list_cs );
 
 		DoublyLinkedList *context_node = rename_file_prompt_list;
@@ -1027,98 +1069,126 @@ THREAD_RETURN RenameFilePrompt( void *pArguments )
 
 		LeaveCriticalSection( &rename_file_prompt_list_cs );
 
-		DOWNLOAD_INFO *di = context->download_info;
-		if ( di != NULL )
+		if ( context != NULL )
 		{
-			wchar_t prompt_message[ MAX_PATH + 512 ];
-			wchar_t file_path[ MAX_PATH ];
-
-			int filename_offset;
-			int file_extension_offset;
-
-			if ( cfg_use_temp_download_directory )
+			DOWNLOAD_INFO *di = context->download_info;
+			if ( di != NULL )
 			{
-				int filename_length = GetTemporaryFilePath( di, file_path );
+				wchar_t prompt_message[ MAX_PATH + 512 ];
+				wchar_t file_path[ MAX_PATH ];
 
-				filename_offset = g_temp_download_directory_length + 1;
-				file_extension_offset = filename_offset + get_file_extension_offset( di->shared_info->file_path + di->shared_info->filename_offset, filename_length );
-			}
-			else
-			{
-				filename_offset = di->shared_info->filename_offset;
-				file_extension_offset = di->shared_info->file_extension_offset;
+				int filename_offset;
+				int file_extension_offset;
 
-				GetDownloadFilePath( di, file_path );
-			}
-
-			if ( rename_only == 0 )
-			{
-				// If the last return value was not set to remember our choice, then prompt again.
-				if ( g_rename_file_cmb_ret != CMBIDRENAMEALL && g_rename_file_cmb_ret != CMBIDOVERWRITEALL && g_rename_file_cmb_ret != CMBIDSKIPALL )
+				if ( cfg_use_temp_download_directory )
 				{
-					__snwprintf( prompt_message, MAX_PATH + 512, ST_V_PROMPT___already_exists, file_path );
+					int filename_length = GetTemporaryFilePath( di, file_path );
 
-					g_rename_file_cmb_ret = CMessageBoxW( g_hWnd_main, prompt_message, PROGRAM_CAPTION, CMB_ICONWARNING | CMB_RENAMEOVERWRITESKIPALL );
+					filename_offset = g_temp_download_directory_length + 1;
+					file_extension_offset = filename_offset + get_file_extension_offset( di->shared_info->file_path + di->shared_info->filename_offset, filename_length );
 				}
-			}
-
-			// Rename the file and try again.
-			if ( rename_only == 1 || g_rename_file_cmb_ret == CMBIDRENAME || g_rename_file_cmb_ret == CMBIDRENAMEALL )
-			{
-				// Creates a tree of active and queued downloads.
-				dllrbt_tree *add_files_tree = CreateFilenameTree();
-
-				bool rename_succeeded;
-
-				EnterCriticalSection( &di->di_cs );
-
-				rename_succeeded = RenameFile( di, add_files_tree, file_path, filename_offset, file_extension_offset );
-
-				LeaveCriticalSection( &di->di_cs );
-
-				// The tree is only used to determine duplicate filenames.
-				DestroyFilenameTree( add_files_tree );
-
-				if ( !rename_succeeded )
+				else
 				{
-					if ( g_rename_file_cmb_ret2 != CMBIDOKALL && !( di->shared_info->download_operations & DOWNLOAD_OPERATION_OVERRIDE_PROMPTS ) )
+					filename_offset = di->shared_info->filename_offset;
+					file_extension_offset = di->shared_info->file_extension_offset;
+
+					GetDownloadFilePath( di, file_path );
+				}
+
+				if ( rename_only == 0 )
+				{
+					// If the last return value was not set to remember our choice, then prompt again.
+					if ( g_rename_file_cmb_ret != CMBIDRENAMEALL && g_rename_file_cmb_ret != CMBIDOVERWRITEALL && g_rename_file_cmb_ret != CMBIDSKIPALL )
 					{
-						__snwprintf( prompt_message, MAX_PATH + 512, ST_V_PROMPT___could_not_be_renamed, file_path );
+						__snwprintf( prompt_message, MAX_PATH + 512, ST_V_PROMPT___already_exists, file_path );
 
-						g_rename_file_cmb_ret2 = CMessageBoxW( g_hWnd_main, prompt_message, PROGRAM_CAPTION, CMB_ICONWARNING | CMB_OKALL );
+						g_rename_file_cmb_ret = CMessageBoxW( g_hWnd_main, prompt_message, PROGRAM_CAPTION, CMB_ICONWARNING | CMB_RENAMEOVERWRITESKIPALL );
 					}
+				}
 
+				// Rename the file and try again.
+				if ( rename_only == 1 || g_rename_file_cmb_ret == CMBIDRENAME || g_rename_file_cmb_ret == CMBIDRENAMEALL )
+				{
+					// Creates a tree of active and queued downloads.
+					dllrbt_tree *add_files_tree = CreateFilenameTree();
+
+					bool rename_succeeded;
+
+					EnterCriticalSection( &di->di_cs );
+
+					rename_succeeded = RenameFile( di, add_files_tree, file_path, filename_offset, file_extension_offset );
+
+					LeaveCriticalSection( &di->di_cs );
+
+					// The tree is only used to determine duplicate filenames.
+					DestroyFilenameTree( add_files_tree );
+
+					if ( !rename_succeeded )
+					{
+						if ( g_rename_file_cmb_ret2 != CMBIDOKALL && !( di->shared_info->download_operations & DOWNLOAD_OPERATION_OVERRIDE_PROMPTS ) )
+						{
+							__snwprintf( prompt_message, MAX_PATH + 512, ST_V_PROMPT___could_not_be_renamed, file_path );
+
+							g_rename_file_cmb_ret2 = CMessageBoxW( g_hWnd_main, prompt_message, PROGRAM_CAPTION, CMB_ICONWARNING | CMB_OKALL );
+						}
+
+						EnterCriticalSection( &context->context_cs );
+
+						context->status = STATUS_FILE_IO_ERROR;
+
+						if ( context->cleanup == 0 )
+						{
+							context->cleanup = 1;	// Auto cleanup.
+
+							InterlockedIncrement( &context->pending_operations );
+							context->overlapped_close.current_operation = ( context->ssl != NULL ? IO_Shutdown : IO_Close );
+							PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped_close );
+						}
+					}
+					else	// Continue where we left off when getting the content.
+					{
+						EnterCriticalSection( &context->context_cs );
+
+						context->status &= ~STATUS_INPUT_REQUIRED;
+
+						InterlockedIncrement( &context->pending_operations );
+						context->overlapped.current_operation = IO_ResumeGetContent;
+						PostQueuedCompletionStatus( g_hIOCP, context->current_bytes_read, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped );
+					}
+				}
+				else if ( g_rename_file_cmb_ret == CMBIDFAIL || g_rename_file_cmb_ret == CMBIDSKIP || g_rename_file_cmb_ret == CMBIDSKIPALL ) // Skip the rename or overwrite if the return value fails, or the user selected skip.
+				{
 					EnterCriticalSection( &context->context_cs );
 
-					context->status = STATUS_FILE_IO_ERROR;
+					EnterCriticalSection( &di->shared_info->di_cs );
+
+					di->shared_info->status = STATUS_SKIPPED;
+
+					LeaveCriticalSection( &di->shared_info->di_cs );
+
+					context->status = STATUS_SKIPPED;
 
 					if ( context->cleanup == 0 )
 					{
 						context->cleanup = 1;	// Auto cleanup.
 
 						InterlockedIncrement( &context->pending_operations );
-
 						context->overlapped_close.current_operation = ( context->ssl != NULL ? IO_Shutdown : IO_Close );
-
 						PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped_close );
 					}
-
-					LeaveCriticalSection( &context->context_cs );
 				}
 				else	// Continue where we left off when getting the content.
 				{
 					EnterCriticalSection( &context->context_cs );
 
+					context->status &= ~STATUS_INPUT_REQUIRED;
+
 					InterlockedIncrement( &context->pending_operations );
-
 					context->overlapped.current_operation = IO_ResumeGetContent;
-
 					PostQueuedCompletionStatus( g_hIOCP, context->current_bytes_read, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped );
-
-					LeaveCriticalSection( &context->context_cs );
 				}
 			}
-			else if ( g_rename_file_cmb_ret == CMBIDFAIL || g_rename_file_cmb_ret == CMBIDSKIP || g_rename_file_cmb_ret == CMBIDSKIPALL ) // Skip the rename or overwrite if the return value fails, or the user selected skip.
+			else	// No DOWNLOAD_INFO? Then skip.
 			{
 				EnterCriticalSection( &context->context_cs );
 
@@ -1129,26 +1199,12 @@ THREAD_RETURN RenameFilePrompt( void *pArguments )
 					context->cleanup = 1;	// Auto cleanup.
 
 					InterlockedIncrement( &context->pending_operations );
-
 					context->overlapped_close.current_operation = ( context->ssl != NULL ? IO_Shutdown : IO_Close );
-
 					PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped_close );
 				}
-
-				LeaveCriticalSection( &context->context_cs );
 			}
-			else	// Continue where we left off when getting the content.
-			{
-				EnterCriticalSection( &context->context_cs );
 
-				InterlockedIncrement( &context->pending_operations );
-
-				context->overlapped.current_operation = IO_ResumeGetContent;
-
-				PostQueuedCompletionStatus( g_hIOCP, context->current_bytes_read, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped );
-
-				LeaveCriticalSection( &context->context_cs );
-			}
+			LeaveCriticalSection( &context->context_cs );
 		}
 
 		EnterCriticalSection( &rename_file_prompt_list_cs );
@@ -1165,17 +1221,17 @@ THREAD_RETURN RenameFilePrompt( void *pArguments )
 	while ( !skip_processing );
 
 	_ExitThread( 0 );
-	return 0;
+	//return 0;
 }
 
-THREAD_RETURN FileSizePrompt( void *pArguments )
+THREAD_RETURN PromptFileSize( void * /*pArguments*/ )
 {
-	SOCKET_CONTEXT *context = NULL;
-
 	bool skip_processing = false;
 
 	do
 	{
+		SOCKET_CONTEXT *context = NULL;
+
 		EnterCriticalSection( &file_size_prompt_list_cs );
 
 		DoublyLinkedList *context_node = file_size_prompt_list;
@@ -1191,58 +1247,100 @@ THREAD_RETURN FileSizePrompt( void *pArguments )
 
 		LeaveCriticalSection( &file_size_prompt_list_cs );
 
-		DOWNLOAD_INFO *di = context->download_info;
-		if ( di != NULL )
+		if ( context != NULL )
 		{
-			// If we don't want to prevent all large downloads, then prompt the user.
-			if ( g_file_size_cmb_ret != CMBIDNOALL && g_file_size_cmb_ret != CMBIDYESALL )
+			DOWNLOAD_INFO *di = context->download_info;
+			if ( di != NULL )
 			{
-				wchar_t file_path[ MAX_PATH ];
-				if ( cfg_use_temp_download_directory )
+				// If we don't want to prevent all large downloads, then prompt the user.
+				if ( g_file_size_cmb_ret != CMBIDNOALL && g_file_size_cmb_ret != CMBIDYESALL )
 				{
-					GetTemporaryFilePath( di, file_path );
-				}
-				else
-				{
-					GetDownloadFilePath( di, file_path );
+					wchar_t file_path[ MAX_PATH ];
+					if ( cfg_use_temp_download_directory )
+					{
+						GetTemporaryFilePath( di, file_path );
+					}
+					else
+					{
+						GetDownloadFilePath( di, file_path );
+					}
+
+					wchar_t prompt_message[ MAX_PATH + 512 ];
+					__snwprintf( prompt_message, MAX_PATH + 512, ST_V_PROMPT___will_be___size, file_path, di->shared_info->file_size );
+					g_file_size_cmb_ret = CMessageBoxW( g_hWnd_main, prompt_message, PROGRAM_CAPTION, CMB_ICONWARNING | CMB_YESNOALL );
 				}
 
-				wchar_t prompt_message[ MAX_PATH + 512 ];
-				__snwprintf( prompt_message, MAX_PATH + 512, ST_V_PROMPT___will_be___size, file_path, di->shared_info->file_size );
-				g_file_size_cmb_ret = CMessageBoxW( g_hWnd_main, prompt_message, PROGRAM_CAPTION, CMB_ICONWARNING | CMB_YESNOALL );
+				EnterCriticalSection( &context->context_cs );
+
+				// Close all large downloads.
+				if ( g_file_size_cmb_ret == CMBIDNO || g_file_size_cmb_ret == CMBIDNOALL )
+				{
+					EnterCriticalSection( &di->shared_info->di_cs );
+
+					di->shared_info->status = STATUS_SKIPPED;
+
+					LeaveCriticalSection( &di->shared_info->di_cs );
+
+					context->status = STATUS_SKIPPED;
+
+					if ( context->cleanup == 0 )
+					{
+						InterlockedIncrement( &context->pending_operations );
+
+						if ( context->ssh != NULL )
+						{
+							context->status &= ~STATUS_INPUT_REQUIRED;
+
+							//context->cleanup = 0;
+							context->overlapped_close.current_operation = IO_SFTPCleanup;
+
+							context->overlapped.current_operation = IO_SFTPReadContent;//IO_SFTPResumeReadContent;
+							PostQueuedCompletionStatus( g_hIOCP, 0/*context->current_bytes_read*/, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped );
+						}
+						else
+						{
+							context->cleanup = 1;	// Auto cleanup.
+							context->overlapped_close.current_operation = ( context->ssl != NULL ? IO_Shutdown : IO_Close );
+							PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped_close );
+						}
+					}
+				}
+				else	// Continue where we left off when getting the content.
+				{
+					context->status &= ~STATUS_INPUT_REQUIRED;
+
+					InterlockedIncrement( &context->pending_operations );
+					context->overlapped.current_operation = ( context->ssh != NULL ? IO_SFTPResumeReadContent : IO_ResumeGetContent );
+					PostQueuedCompletionStatus( g_hIOCP, context->current_bytes_read, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped );
+				}
 			}
-
-			EnterCriticalSection( &context->context_cs );
-
-			// Close all large downloads.
-			if ( g_file_size_cmb_ret == CMBIDNO || g_file_size_cmb_ret == CMBIDNOALL )
+			else	// No DOWNLOAD_INFO? Then skip.
 			{
-				context->header_info.range_info->content_length = 0;
-				context->header_info.range_info->range_start = 0;
-				context->header_info.range_info->range_end = 0;
-				context->header_info.range_info->content_offset = 0;
-				context->header_info.range_info->file_write_offset = 0;
+				EnterCriticalSection( &context->context_cs );
 
 				context->status = STATUS_SKIPPED;
 
 				if ( context->cleanup == 0 )
 				{
-					context->cleanup = 1;	// Auto cleanup.
-
 					InterlockedIncrement( &context->pending_operations );
 
-					context->overlapped_close.current_operation = ( context->ssl != NULL ? IO_Shutdown : IO_Close );
+					if ( context->ssh != NULL )
+					{
+						context->status &= ~STATUS_INPUT_REQUIRED;
 
-					PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped_close );
+						//context->cleanup = 0;
+						context->overlapped_close.current_operation = IO_SFTPCleanup;
+
+						context->overlapped.current_operation = IO_SFTPReadContent;//IO_SFTPResumeReadContent;
+						PostQueuedCompletionStatus( g_hIOCP, 0/*context->current_bytes_read*/, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped );
+					}
+					else
+					{
+						context->cleanup = 1;	// Auto cleanup.
+						context->overlapped_close.current_operation = ( context->ssl != NULL ? IO_Shutdown : IO_Close );
+						PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped_close );
+					}
 				}
-			}
-			else	// Continue where we left off when getting the content.
-			{
-				InterlockedIncrement( &context->pending_operations );
-
-				context->overlapped.current_operation = IO_ResumeGetContent;
-
-				PostQueuedCompletionStatus( g_hIOCP, context->current_bytes_read, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped );
 			}
 
 			LeaveCriticalSection( &context->context_cs );
@@ -1262,19 +1360,19 @@ THREAD_RETURN FileSizePrompt( void *pArguments )
 	while ( !skip_processing );
 
 	_ExitThread( 0 );
-	return 0;
+	//return 0;
 }
 
-THREAD_RETURN LastModifiedPrompt( void *pArguments )
+THREAD_RETURN PromptLastModified( void *pArguments )
 {
-	SOCKET_CONTEXT *context = NULL;
-
 	unsigned char restart_only = ( unsigned char )pArguments;
 
 	bool skip_processing = false;
 
 	do
 	{
+		SOCKET_CONTEXT *context = NULL;
+
 		EnterCriticalSection( &last_modified_prompt_list_cs );
 
 		DoublyLinkedList *context_node = last_modified_prompt_list;
@@ -1290,59 +1388,118 @@ THREAD_RETURN LastModifiedPrompt( void *pArguments )
 
 		LeaveCriticalSection( &last_modified_prompt_list_cs );
 
-		DOWNLOAD_INFO *di = context->download_info;
-		if ( di != NULL )
+		if ( context != NULL )
 		{
-			wchar_t prompt_message[ MAX_PATH + 512 ];
+			DOWNLOAD_INFO *di = context->download_info;
+			if ( di != NULL )
+			{
+				wchar_t prompt_message[ MAX_PATH + 512 ];
 
-			wchar_t file_path[ MAX_PATH ];
-			if ( cfg_use_temp_download_directory )
-			{
-				GetTemporaryFilePath( di, file_path );
-			}
-			else
-			{
-				GetDownloadFilePath( di, file_path );
-			}
-
-			if ( restart_only == 0 )
-			{
-				// If the last return value was not set to remember our choice, then prompt again.
-				if ( g_last_modified_cmb_ret != CMBIDCONTINUEALL && g_last_modified_cmb_ret != CMBIDRESTARTALL && g_last_modified_cmb_ret != CMBIDSKIPALL )
+				wchar_t file_path[ MAX_PATH ];
+				if ( cfg_use_temp_download_directory )
 				{
-					__snwprintf( prompt_message, MAX_PATH + 512, ST_V_PROMPT___has_been_modified, file_path );
-
-					g_last_modified_cmb_ret = CMessageBoxW( g_hWnd_main, prompt_message, PROGRAM_CAPTION, CMB_ICONWARNING | CMB_CONTINUERESTARTSKIPALL );
+					GetTemporaryFilePath( di, file_path );
 				}
-			}
+				else
+				{
+					GetDownloadFilePath( di, file_path );
+				}
 
-			// Restart the download.
-			if ( restart_only == 1 || g_last_modified_cmb_ret == CMBIDRESTART || g_last_modified_cmb_ret == CMBIDRESTARTALL )
-			{
-				EnterCriticalSection( &di->di_cs );
+				if ( restart_only == 0 )
+				{
+					// If the last return value was not set to remember our choice, then prompt again.
+					if ( g_last_modified_cmb_ret != CMBIDCONTINUEALL && g_last_modified_cmb_ret != CMBIDRESTARTALL && g_last_modified_cmb_ret != CMBIDSKIPALL )
+					{
+						__snwprintf( prompt_message, MAX_PATH + 512, ST_V_PROMPT___has_been_modified, file_path );
 
-				di->status = STATUS_STOPPED | STATUS_RESTART;
-
-				LeaveCriticalSection( &di->di_cs );
+						g_last_modified_cmb_ret = CMessageBoxW( g_hWnd_main, prompt_message, PROGRAM_CAPTION, CMB_ICONWARNING | CMB_CONTINUERESTARTSKIPALL );
+					}
+				}
 
 				EnterCriticalSection( &context->context_cs );
 
-				context->status = STATUS_STOPPED | STATUS_RESTART;
-
-				if ( context->cleanup == 0 )
+				// Restart the download.
+				if ( restart_only == 1 || g_last_modified_cmb_ret == CMBIDRESTART || g_last_modified_cmb_ret == CMBIDRESTARTALL )
 				{
-					context->cleanup = 1;	// Auto cleanup.
+					EnterCriticalSection( &di->di_cs );
+
+					di->status = STATUS_STOPPED | STATUS_RESTART;
+
+					LeaveCriticalSection( &di->di_cs );
+
+					context->status = STATUS_STOPPED | STATUS_RESTART;
+
+					if ( context->cleanup == 0 )
+					{
+						InterlockedIncrement( &context->pending_operations );
+
+						if ( context->ssh != NULL )
+						{
+							context->status &= ~STATUS_INPUT_REQUIRED;
+
+							//context->cleanup = 0;
+							context->overlapped_close.current_operation = IO_SFTPCleanup;
+
+							context->overlapped.current_operation = IO_SFTPReadContent;//IO_SFTPResumeReadContent;
+							PostQueuedCompletionStatus( g_hIOCP, 0/*context->current_bytes_read*/, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped );
+						}
+						else
+						{
+							context->cleanup = 1;	// Auto cleanup.
+							context->overlapped_close.current_operation = ( context->ssl != NULL ? IO_Shutdown : IO_Close );
+							PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped_close );
+						}
+					}
+				}
+				else if ( g_last_modified_cmb_ret == CMBIDFAIL || g_last_modified_cmb_ret == CMBIDSKIP || g_last_modified_cmb_ret == CMBIDSKIPALL ) // Skip the download if the return value fails, or the user selected skip.
+				{
+					EnterCriticalSection( &di->shared_info->di_cs );
+
+					di->shared_info->status = STATUS_SKIPPED;
+
+					LeaveCriticalSection( &di->shared_info->di_cs );
+
+					context->status = STATUS_SKIPPED;
+
+					if ( context->cleanup == 0 )
+					{
+						InterlockedIncrement( &context->pending_operations );
+
+						if ( context->ssh != NULL )
+						{
+							context->status &= ~STATUS_INPUT_REQUIRED;
+
+							//context->cleanup = 0;
+							context->overlapped_close.current_operation = IO_SFTPCleanup;
+
+							context->overlapped.current_operation = IO_SFTPReadContent/*IO_SFTPResumeReadContent*/;
+							PostQueuedCompletionStatus( g_hIOCP, 0/*context->current_bytes_read*/, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped );
+						}
+						else
+						{
+							context->cleanup = 1;	// Auto cleanup.
+							context->overlapped_close.current_operation = ( context->ssl != NULL ? IO_Shutdown : IO_Close );
+							PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped_close );
+						}
+					}
+				}
+				else	// Continue where we left off when getting the content.
+				{
+					EnterCriticalSection( &di->di_cs );
+
+					di->last_modified.HighPart = context->header_info.last_modified.dwHighDateTime;
+					di->last_modified.LowPart = context->header_info.last_modified.dwLowDateTime;
+
+					LeaveCriticalSection( &di->di_cs );
+
+					context->status &= ~STATUS_INPUT_REQUIRED;
 
 					InterlockedIncrement( &context->pending_operations );
-
-					context->overlapped_close.current_operation = ( context->ssl != NULL ? IO_Shutdown : IO_Close );
-
-					PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped_close );
+					context->overlapped.current_operation = ( context->ssh != NULL ? IO_SFTPResumeReadContent : IO_ResumeGetContent );
+					PostQueuedCompletionStatus( g_hIOCP, context->current_bytes_read, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped );
 				}
-
-				LeaveCriticalSection( &context->context_cs );
 			}
-			else if ( g_last_modified_cmb_ret == CMBIDFAIL || g_last_modified_cmb_ret == CMBIDSKIP || g_last_modified_cmb_ret == CMBIDSKIPALL ) // Skip the download if the return value fails, or the user selected skip.
+			else	// No DOWNLOAD_INFO? Then skip.
 			{
 				EnterCriticalSection( &context->context_cs );
 
@@ -1350,36 +1507,28 @@ THREAD_RETURN LastModifiedPrompt( void *pArguments )
 
 				if ( context->cleanup == 0 )
 				{
-					context->cleanup = 1;	// Auto cleanup.
-
 					InterlockedIncrement( &context->pending_operations );
 
-					context->overlapped_close.current_operation = ( context->ssl != NULL ? IO_Shutdown : IO_Close );
+					if ( context->ssh != NULL )
+					{
+						context->status &= ~STATUS_INPUT_REQUIRED;
 
-					PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped_close );
+						//context->cleanup = 0;
+						context->overlapped_close.current_operation = IO_SFTPCleanup;
+
+						context->overlapped.current_operation = IO_SFTPReadContent;//IO_SFTPResumeReadContent;
+						PostQueuedCompletionStatus( g_hIOCP, 0/*context->current_bytes_read*/, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped );
+					}
+					else
+					{
+						context->cleanup = 1;	// Auto cleanup.
+						context->overlapped_close.current_operation = ( context->ssl != NULL ? IO_Shutdown : IO_Close );
+						PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped_close );
+					}
 				}
-
-				LeaveCriticalSection( &context->context_cs );
 			}
-			else	// Continue where we left off when getting the content.
-			{
-				EnterCriticalSection( &di->di_cs );
 
-				di->last_modified.HighPart = context->header_info.last_modified.dwHighDateTime;
-				di->last_modified.LowPart = context->header_info.last_modified.dwLowDateTime;
-
-				LeaveCriticalSection( &di->di_cs );
-
-				EnterCriticalSection( &context->context_cs );
-
-				InterlockedIncrement( &context->pending_operations );
-
-				context->overlapped.current_operation = IO_ResumeGetContent;
-
-				PostQueuedCompletionStatus( g_hIOCP, context->current_bytes_read, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped );
-
-				LeaveCriticalSection( &context->context_cs );
-			}
+			LeaveCriticalSection( &context->context_cs );
 		}
 
 		EnterCriticalSection( &last_modified_prompt_list_cs );
@@ -1396,7 +1545,7 @@ THREAD_RETURN LastModifiedPrompt( void *pArguments )
 	while ( !skip_processing );
 
 	_ExitThread( 0 );
-	return 0;
+	//return 0;
 }
 
 DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
@@ -1421,7 +1570,7 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 	char wine_hack;
 	_memset( &wine_hack, 0, sizeof( char ) );
 
-	while ( true )
+	for ( ;; )
 	{
 		completion_status = GetQueuedCompletionStatus( hIOCP, &io_size, ( ULONG_PTR * )&context, ( OVERLAPPED ** )&overlapped, INFINITE );
 
@@ -1496,12 +1645,20 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 					}
 				}
 
-				*current_operation = IO_Close;//( use_ssl ? IO_Shutdown : IO_Close );
+				if ( context->ssh != NULL )
+				{
+					context->overlapped_close.current_operation = IO_SFTPCleanup;
+				}
+				else
+				{
+					*current_operation = IO_Close;	// Can't go through a shutdown routine if the connection is dead. So we can only close it.
+				}
 			}
 		}
 		else
 		{
 			if ( *current_operation == IO_GetContent ||
+				 *current_operation == IO_SFTPReadContent ||
 				 *current_operation == IO_GetCONNECTResponse ||
 				 *current_operation == IO_SOCKSResponse )
 			{
@@ -1509,14 +1666,21 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 				// Can occur when no file size has been set and the connection header is set to close.
 				if ( io_size == 0 )
 				{
-					if ( *current_operation != IO_GetContent )
+					if ( context->ssh != NULL )
 					{
-						// We don't need to shutdown the SSL/TLS connection since it will not have been established yet.
-						*current_operation = IO_Close;
+						context->overlapped_close.current_operation = IO_SFTPCleanup;
 					}
 					else
 					{
-						*current_operation = ( use_ssl ? IO_Shutdown : IO_Close );
+						if ( *current_operation != IO_GetContent )
+						{
+							// We don't need to shutdown the SSL/TLS connection since it will not have been established yet.
+							*current_operation = IO_Close;
+						}
+						else
+						{
+							*current_operation = ( use_ssl ? IO_Shutdown : IO_Close );
+						}
 					}
 				}
 				else
@@ -1532,14 +1696,21 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 							STATUS_RESTART |
 							STATUS_UPDATING ) )	// Stop, Stop and Remove, Restart, or Updating.
 					{
-						if ( *current_operation != IO_GetContent )
+						if ( context->ssh != NULL )
 						{
-							// We don't need to shutdown the SSL/TLS connection since it will not have been established yet.
-							*current_operation = IO_Close;
+							context->overlapped_close.current_operation = IO_SFTPCleanup;
 						}
 						else
 						{
-							*current_operation = ( use_ssl ? IO_Shutdown : IO_Close );
+							if ( *current_operation != IO_GetContent )
+							{
+								// We don't need to shutdown the SSL/TLS connection since it will not have been established yet.
+								*current_operation = IO_Close;
+							}
+							else
+							{
+								*current_operation = ( use_ssl ? IO_Shutdown : IO_Close );
+							}
 						}
 					}
 					else if ( IS_STATUS( context->status, STATUS_PAUSED ) )	// Pause.
@@ -1563,7 +1734,6 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 						context->current_bytes_read = io_size;
 
 						InterlockedIncrement( &context->pending_operations );
-
 						PostQueuedCompletionStatus( hIOCP, context->current_bytes_read, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
 
 						skip_process = true;
@@ -1638,9 +1808,7 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 						else
 						{
 							InterlockedIncrement( &ftp_control_context->pending_operations );
-
 							ftp_control_context->overlapped.current_operation = IO_Close;
-
 							PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )ftp_control_context, ( WSAOVERLAPPED * )&ftp_control_context->overlapped );
 						}
 
@@ -1737,7 +1905,6 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 							if ( !sent )
 							{
 								new_context->overlapped.current_operation = IO_Close;
-
 								PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )new_context, ( WSAOVERLAPPED * )&new_context->overlapped );
 							}
 						}
@@ -1748,9 +1915,7 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 						else	// We've already shutdown and/or closed the connection.
 						{
 							InterlockedIncrement( &new_context->pending_operations );
-
 							new_context->overlapped.current_operation = IO_Close;
-
 							PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )new_context, ( WSAOVERLAPPED * )&new_context->overlapped );
 						}
 
@@ -1768,9 +1933,7 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 				else	// We've already shutdown and/or closed the connection.
 				{
 					InterlockedIncrement( &context->pending_operations );
-
 					*current_operation = IO_Close;
-
 					PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
 				}
 
@@ -1820,6 +1983,49 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 								ssl->s = context->socket;
 
 								context->ssl = ssl;
+							}
+						}
+						else if ( context->request_info.protocol == PROTOCOL_SFTP )
+						{
+							if ( psftp_state == PSFTP_STATE_RUNNING )
+							{
+								char *key_info = NULL;
+
+								SFTP_FPS_HOST_INFO tsfhi;
+								tsfhi.host = context->request_info.host;
+								tsfhi.port = context->request_info.port;
+
+								DoublyLinkedList *dll_node = ( DoublyLinkedList * )dllrbt_find( g_sftp_fps_host_info, ( void * )&tsfhi, true );
+								key_info = CreateKeyInfoString( dll_node );
+
+								char *private_key_file_path = NULL;
+
+								SFTP_KEYS_HOST_INFO tskhi;
+								tskhi.username = context->download_info->auth_info.username;
+								tskhi.host = context->request_info.host;
+								tskhi.port = context->request_info.port;
+
+								SFTP_KEYS_HOST_INFO *skhi = ( SFTP_KEYS_HOST_INFO * )dllrbt_find( g_sftp_keys_host_info, ( void * )&tskhi, true );
+								if ( skhi != NULL && skhi->enable )
+								{
+									private_key_file_path = skhi->key_file_path;
+								}
+
+								context->ssh = ( SSH * )_SFTP_CreateSSHHandle( context->address_info->ai_canonname,
+																			   context->download_info->auth_info.username, context->download_info->auth_info.password,
+																			   key_info,
+																			   private_key_file_path,
+																			   &context->ssh_wsabuf );
+								if ( context->ssh == NULL )
+								{
+									connection_failed = true;
+								}
+
+								GlobalFree( key_info );
+							}
+							else
+							{
+								connection_failed = true;
 							}
 						}
 
@@ -1931,6 +2137,21 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 									}
 								}
 							}
+							else if ( context->request_info.protocol == PROTOCOL_SFTP )	// SFTP connection needs to receive initialization data.
+							{
+								*current_operation = IO_SFTPReadContent;
+
+								context->wsabuf.buf = context->buffer;
+								context->wsabuf.len = context->buffer_size;
+
+								nRet = _WSARecv( context->socket, &context->wsabuf, 1, NULL, &dwFlags, ( WSAOVERLAPPED * )overlapped, NULL );
+								if ( nRet == SOCKET_ERROR && ( _WSAGetLastError() != ERROR_IO_PENDING ) )
+								{
+									InterlockedDecrement( &context->pending_operations );
+
+									connection_failed = true;
+								}
+							}
 							else	// HTTP and tunneled HTTPS requests send/recv data normally.
 							{
 								*current_operation = IO_Write;
@@ -1987,9 +2208,7 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 				if ( connection_failed )
 				{
 					InterlockedIncrement( &context->pending_operations );
-
 					*current_operation = IO_Close;
-
 					PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
 				}
 
@@ -2057,9 +2276,7 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 								if ( MakeFTPResponse( context ) == FTP_CONTENT_STATUS_FAILED )
 								{
 									InterlockedIncrement( &context->pending_operations );
-
 									*current_operation = IO_Shutdown;
-
 									PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
 								}
 							}
@@ -2071,7 +2288,6 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 								if ( !sent )
 								{
 									*current_operation = IO_Shutdown;
-
 									PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
 								}
 							}
@@ -2086,7 +2302,6 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 							if ( !sent )
 							{
 								*current_operation = IO_Shutdown;
-
 								PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
 							}
 						}
@@ -2096,9 +2311,7 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 						// Have seen SEC_E_ILLEGAL_MESSAGE (for a bad target name in InitializeSecurityContext), SEC_E_BUFFER_TOO_SMALL, and SEC_E_MESSAGE_ALTERED.
 
 						InterlockedIncrement( &context->pending_operations );
-
 						*current_operation = IO_Close;
-
 						PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
 					}
 				}
@@ -2109,9 +2322,7 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 				else	// We've already shutdown and/or closed the connection.
 				{
 					InterlockedIncrement( &context->pending_operations );
-
 					*current_operation = IO_Close;
-
 					PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
 				}
 
@@ -2170,7 +2381,6 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 							if ( /*scRet != SEC_E_OK ||*/ !sent )
 							{
 								*current_operation = IO_Shutdown;
-
 								PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
 							}
 						}
@@ -2214,16 +2424,13 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 						if ( nRet == SOCKET_ERROR && ( _WSAGetLastError() != ERROR_IO_PENDING ) )
 						{
 							*current_operation = IO_Close;
-
 							PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
 						}
 					}
 					else if ( scRet != SEC_I_CONTINUE_NEEDED && scRet != SEC_E_INCOMPLETE_MESSAGE && scRet != SEC_I_INCOMPLETE_CREDENTIALS )	// Stop handshake and close the connection.
 					{
 						InterlockedIncrement( &context->pending_operations );
-
 						*current_operation = IO_Close;
-
 						PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
 					}
 				}
@@ -2234,9 +2441,34 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 				else	// We've already shutdown and/or closed the connection.
 				{
 					InterlockedIncrement( &context->pending_operations );
-
 					*current_operation = IO_Close;
+					PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
+				}
 
+				LeaveCriticalSection( &context->context_cs );
+			}
+			break;
+
+			case IO_SFTPReadContent:
+			case IO_SFTPWriteContent:
+			case IO_SFTPResumeInit:
+			case IO_SFTPResumeReadContent:
+			//case IO_SFTPCleanup:
+			{
+				EnterCriticalSection( &context->context_cs );
+
+				if ( context->cleanup == 0 )
+				{
+					SFTP_HandleContent( context, *current_operation, io_size );
+				}
+				else if ( context->cleanup == 2 )	// If we've forced the cleanup, then allow it to continue its steps.
+				{
+					context->cleanup = 1;	// Auto cleanup.
+				}
+				else	// We've already shutdown and/or closed the connection.
+				{
+					InterlockedIncrement( &context->pending_operations );
+					*current_operation = IO_Close;
 					PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
 				}
 
@@ -2268,7 +2500,6 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 						if ( nRet == SOCKET_ERROR && ( _WSAGetLastError() != ERROR_IO_PENDING ) )
 						{
 							*current_operation = IO_Close;
-
 							PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
 						}
 					}
@@ -2277,10 +2508,7 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 						context->status = STATUS_FAILED;
 
 						InterlockedIncrement( &context->pending_operations );
-
-						// We don't need to shutdown the SSL/TLS connection since it will not have been established yet.
-						*current_operation = IO_Close;
-
+						*current_operation = IO_Close;	// We don't need to shutdown the SSL/TLS connection since it will not have been established yet.
 						PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
 					}
 					else// if ( content_status == CONTENT_STATUS_GET_CONTENT );
@@ -2318,7 +2546,6 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 							if ( !sent )
 							{
 								*current_operation = IO_Shutdown;
-
 								PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
 							}
 						}
@@ -2380,10 +2607,7 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 							if ( !skip_close )
 							{
 								InterlockedIncrement( &context->pending_operations );
-
-								// We don't need to shutdown the SSL/TLS connection since it will not have been established yet.
-								*current_operation = IO_Close;
-
+								*current_operation = IO_Close;	// We don't need to shutdown the SSL/TLS connection since it will not have been established yet.
 								PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
 							}
 						}
@@ -2396,9 +2620,7 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 				else	// We've already shutdown and/or closed the connection.
 				{
 					InterlockedIncrement( &context->pending_operations );
-
 					*current_operation = IO_Close;
-
 					PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
 				}
 
@@ -2546,7 +2768,6 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 									if ( nRet == SOCKET_ERROR && ( _WSAGetLastError() != ERROR_IO_PENDING ) )
 									{
 										*current_operation = IO_Close;
-
 										PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
 									}
 								}
@@ -2587,7 +2808,6 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 				if ( connection_status == 1 )
 				{
 					*current_operation = IO_Close;
-
 					PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
 				}
 
@@ -2694,9 +2914,7 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 					if ( content_status == CONTENT_STATUS_FAILED )
 					{
 						InterlockedIncrement( &context->pending_operations );
-
 						*current_operation = ( use_ssl ? IO_Shutdown : IO_Close );
-
 						PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
 					}
 					else if ( content_status == CONTENT_STATUS_HANDLE_RESPONSE )
@@ -2706,9 +2924,7 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 						if ( MakeRangeRequest( context ) == CONTENT_STATUS_FAILED )
 						{
 							InterlockedIncrement( &context->pending_operations );
-
 							*current_operation = ( use_ssl ? IO_Shutdown : IO_Close );
-
 							PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
 						}
 					}
@@ -2719,9 +2935,7 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 						if ( MakeResponse( context ) == CONTENT_STATUS_FAILED )
 						{
 							InterlockedIncrement( &context->pending_operations );
-
 							*current_operation = ( use_ssl ? IO_Shutdown : IO_Close );
-
 							PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
 						}
 					}
@@ -2730,9 +2944,7 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 						if ( MakeFTPResponse( context ) == FTP_CONTENT_STATUS_FAILED )
 						{
 							InterlockedIncrement( &context->pending_operations );
-
 							*current_operation = ( use_ssl ? IO_Shutdown : IO_Close );
-
 							PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
 						}
 					}
@@ -2756,7 +2968,6 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 								if ( !sent )
 								{
 									*current_operation = IO_Shutdown;
-
 									PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
 								}
 							}
@@ -2767,7 +2978,6 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 							if ( nRet == SOCKET_ERROR && ( _WSAGetLastError() != ERROR_IO_PENDING ) )
 							{
 								*current_operation = IO_Close;
-
 								PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
 							}
 						}
@@ -2780,9 +2990,7 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 				else	// We've already shutdown and/or closed the connection.
 				{
 					InterlockedIncrement( &context->pending_operations );
-
 					*current_operation = IO_Close;
-
 					PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
 				}
 
@@ -2799,9 +3007,7 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 					if ( IS_GROUP( context->download_info ) )
 					{
 						EnterCriticalSection( &context->download_info->shared_info->di_cs );
-
 						context->download_info->shared_info->downloaded += io_size;				// The total amount of data (decoded) that was saved/simulated.
-
 						LeaveCriticalSection( &context->download_info->shared_info->di_cs );
 					}
 
@@ -2819,30 +3025,40 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 					// Make sure we've written everything before we do anything else.
 					if ( io_size < context->write_wsabuf.len )
 					{
-						EnterCriticalSection( &context->download_info->shared_info->di_cs );
-
 						InterlockedIncrement( &context->pending_operations );
 
 						context->write_wsabuf.buf += io_size;
 						context->write_wsabuf.len -= io_size;
 
+						EnterCriticalSection( &context->download_info->shared_info->di_cs );
 						BOOL bRet = WriteFile( context->download_info->shared_info->hFile, context->write_wsabuf.buf, context->write_wsabuf.len, NULL, ( WSAOVERLAPPED * )overlapped );
 						if ( bRet == FALSE && ( GetLastError() != ERROR_IO_PENDING ) )
 						{
-							*current_operation = ( use_ssl ? IO_Shutdown : IO_Close );
+							LeaveCriticalSection( &context->download_info->shared_info->di_cs );
 
-							PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
+							if ( context->ssh != NULL )
+							{
+								InterlockedDecrement( &context->pending_operations );
+
+								context->overlapped_close.current_operation = IO_SFTPCleanup;
+
+								*current_operation = IO_SFTPReadContent;
+
+								SFTP_HandleContent( context, IO_SFTPReadContent, 0 );	// Causes the download or backend to get closed.
+							}
+							else
+							{
+								*current_operation = ( use_ssl ? IO_Shutdown : IO_Close );
+								PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
+							}
 						}
-
-						LeaveCriticalSection( &context->download_info->shared_info->di_cs );
+						else
+						{
+							LeaveCriticalSection( &context->download_info->shared_info->di_cs );
+						}
 					}
 					else
 					{
-						char content_status = context->content_status;
-
-						// Reset so we don't try to process the header again.
-						context->content_status = CONTENT_STATUS_GET_CONTENT;
-
 						// We had set the overlapped structure for file operations, but now we need to reset it for socket operations.
 						_memzero( &overlapped->overlapped, sizeof( WSAOVERLAPPED ) );
 
@@ -2851,95 +3067,136 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 						context->header_info.range_info->content_offset += context->content_offset;	// The true amount that was downloaded. Allows us to resume if we stop the download.
 						context->content_offset = 0;
 
-						if ( context->header_info.chunked_transfer )
+						if ( context->ssh != NULL )
 						{
-							if ( ( context->parts == 1 && context->header_info.connection == CONNECTION_KEEP_ALIVE && context->header_info.got_chunk_terminator ) ||
-							   ( ( context->parts > 1 || ( context->download_info != NULL && IS_GROUP( context->download_info ) ) ) &&
-								 ( context->header_info.range_info->content_offset >= ( ( context->header_info.range_info->range_end - context->header_info.range_info->range_start ) + 1 ) ) ) )
+							_SFTP_FreeDownloadData( context->write_wsabuf.buf );
+							context->write_wsabuf.buf = NULL;
+							context->write_wsabuf.len = 0;
+
+							context->wsabuf.buf = context->buffer;
+							context->wsabuf.len = context->buffer_size;
+
+							context->content_status = SFTP_CONTENT_STATUS_NONE;
+
+							INT op_ret = SFTP_WriteContent( context );
+							if ( op_ret != SFTP_CONTENT_STATUS_READ_MORE_CONTENT )
 							{
-								InterlockedIncrement( &context->pending_operations );
+								op_ret = _SFTP_IsDownloadDone( context->ssh );
+								if ( op_ret != 0 )	// Transfer is complete.
+								{
+									_SFTP_SetStatus( context->ssh, _SFTP_GetStatus( context->ssh ) | SSH_STATUS_USER_CLEANUP );
+									_SFTP_DownloadClose( context->ssh );
+								}
+								else
+								{
+									if ( context->overlapped_close.current_operation == IO_SFTPCleanup )
+									{
+										_SFTP_SetStatus( context->ssh, _SFTP_GetStatus( context->ssh ) | SSH_STATUS_USER_CLEANUP );
+										_SFTP_DownloadClose( context->ssh );
+									}
+									else
+									{
+										op_ret = _SFTP_DownloadQueue( context->ssh );
+										if ( op_ret != 0 )
+										{
+											_SFTP_SetStatus( context->ssh, _SFTP_GetStatus( context->ssh ) | SSH_STATUS_USER_CLEANUP );
+											_SFTP_DownloadClose( context->ssh );
+										}
+									}
+								}
 
-								*current_operation = ( use_ssl ? IO_Shutdown : IO_Close );
+								context->overlapped.current_operation = IO_SFTPWriteContent;
 
-								PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
-
-								content_status = CONTENT_STATUS_NONE;
+								SFTP_HandleContent( context, IO_SFTPWriteContent, 0 );
 							}
 						}
 						else
 						{
-							// We need to force the keep-alive connections closed since the server will just keep it open after we've gotten all the data.
-							if ( ( ( ( context->request_info.protocol == PROTOCOL_FTP ||
-									   context->request_info.protocol == PROTOCOL_FTPS ||
-									   context->request_info.protocol == PROTOCOL_FTPES ) && ( context->parts > 1 || ( context->download_info != NULL && IS_GROUP( context->download_info ) ) ) ) ||
-								   context->header_info.connection == CONNECTION_KEEP_ALIVE ) &&
-								 ( context->header_info.range_info->content_length == 0 ||
-								 ( context->header_info.range_info->content_offset >= ( ( context->header_info.range_info->range_end - context->header_info.range_info->range_start ) + 1 ) ) ) )
+							char content_status = context->content_status;
+
+							// Reset so we don't try to process the header again.
+							context->content_status = CONTENT_STATUS_GET_CONTENT;
+
+							if ( context->header_info.chunked_transfer )
 							{
-								InterlockedIncrement( &context->pending_operations );
-
-								*current_operation = ( use_ssl ? IO_Shutdown : IO_Close );
-
-								PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
-
-								content_status = CONTENT_STATUS_NONE;
-							}
-						}
-
-						//
-
-						if ( content_status == CONTENT_STATUS_FAILED )
-						{
-							InterlockedIncrement( &context->pending_operations );
-
-							*current_operation = ( use_ssl ? IO_Shutdown : IO_Close );
-
-							PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
-						}
-						else if ( content_status == CONTENT_STATUS_HANDLE_RESPONSE )
-						{
-							if ( MakeRangeRequest( context ) == CONTENT_STATUS_FAILED )
-							{
-								InterlockedIncrement( &context->pending_operations );
-
-								*current_operation = ( use_ssl ? IO_Shutdown : IO_Close );
-
-								PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
-							}
-						}
-						else if ( content_status == CONTENT_STATUS_READ_MORE_CONTENT || content_status == CONTENT_STATUS_READ_MORE_HEADER ) // Read more header information, or continue to read more content. Do not reset context->wsabuf since it may have been offset to handle partial data.
-						{
-							InterlockedIncrement( &context->pending_operations );
-
-							*current_operation = IO_GetContent;
-
-							if ( use_ssl )
-							{
-								if ( context->ssl->continue_decrypt )
+								if ( ( context->parts == 1 && context->header_info.connection == CONNECTION_KEEP_ALIVE && context->header_info.got_chunk_terminator ) ||
+								   ( ( context->parts > 1 || ( context->download_info != NULL && IS_GROUP( context->download_info ) ) ) &&
+									 ( context->header_info.range_info->content_offset >= ( ( context->header_info.range_info->range_end - context->header_info.range_info->range_start ) + 1 ) ) ) )
 								{
-									// We need to post a non-zero status to avoid our code shutting down the connection.
-									// We'll use context->current_bytes_read for that, but it can be anything that's not zero.
-									PostQueuedCompletionStatus( hIOCP, context->current_bytes_read, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
-								}
-								else
-								{
-									SSL_WSARecv( context, overlapped, sent );
-									if ( !sent )
-									{
-										*current_operation = IO_Shutdown;
+									InterlockedIncrement( &context->pending_operations );
+									*current_operation = ( use_ssl ? IO_Shutdown : IO_Close );
+									PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
 
-										PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
-									}
+									content_status = CONTENT_STATUS_NONE;
 								}
 							}
 							else
 							{
-								nRet = _WSARecv( context->socket, &context->wsabuf, 1, NULL, &dwFlags, ( WSAOVERLAPPED * )overlapped, NULL );
-								if ( nRet == SOCKET_ERROR && ( _WSAGetLastError() != ERROR_IO_PENDING ) )
+								// We need to force the keep-alive connections closed since the server will just keep it open after we've gotten all the data.
+								if ( ( ( ( context->request_info.protocol == PROTOCOL_FTP ||
+										   context->request_info.protocol == PROTOCOL_FTPS ||
+										   context->request_info.protocol == PROTOCOL_FTPES ) && ( context->parts > 1 || ( context->download_info != NULL && IS_GROUP( context->download_info ) ) ) ) ||
+									   context->header_info.connection == CONNECTION_KEEP_ALIVE ) &&
+									 ( context->header_info.range_info->content_length == 0 ||
+									 ( context->header_info.range_info->content_offset >= ( ( context->header_info.range_info->range_end - context->header_info.range_info->range_start ) + 1 ) ) ) )
 								{
-									*current_operation = IO_Close;
-
+									InterlockedIncrement( &context->pending_operations );
+									*current_operation = ( use_ssl ? IO_Shutdown : IO_Close );
 									PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
+
+									content_status = CONTENT_STATUS_NONE;
+								}
+							}
+
+							//
+
+							if ( content_status == CONTENT_STATUS_FAILED )
+							{
+								InterlockedIncrement( &context->pending_operations );
+								*current_operation = ( use_ssl ? IO_Shutdown : IO_Close );
+								PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
+							}
+							else if ( content_status == CONTENT_STATUS_HANDLE_RESPONSE )
+							{
+								if ( MakeRangeRequest( context ) == CONTENT_STATUS_FAILED )
+								{
+									InterlockedIncrement( &context->pending_operations );
+									*current_operation = ( use_ssl ? IO_Shutdown : IO_Close );
+									PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
+								}
+							}
+							else if ( content_status == CONTENT_STATUS_READ_MORE_CONTENT || content_status == CONTENT_STATUS_READ_MORE_HEADER ) // Read more header information, or continue to read more content. Do not reset context->wsabuf since it may have been offset to handle partial data.
+							{
+								InterlockedIncrement( &context->pending_operations );
+
+								*current_operation = IO_GetContent;
+
+								if ( use_ssl )
+								{
+									if ( context->ssl->continue_decrypt )
+									{
+										// We need to post a non-zero status to avoid our code shutting down the connection.
+										// We'll use context->current_bytes_read for that, but it can be anything that's not zero.
+										PostQueuedCompletionStatus( hIOCP, context->current_bytes_read, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
+									}
+									else
+									{
+										SSL_WSARecv( context, overlapped, sent );
+										if ( !sent )
+										{
+											*current_operation = IO_Shutdown;
+											PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
+										}
+									}
+								}
+								else
+								{
+									nRet = _WSARecv( context->socket, &context->wsabuf, 1, NULL, &dwFlags, ( WSAOVERLAPPED * )overlapped, NULL );
+									if ( nRet == SOCKET_ERROR && ( _WSAGetLastError() != ERROR_IO_PENDING ) )
+									{
+										*current_operation = IO_Close;
+										PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
+									}
 								}
 							}
 						}
@@ -2952,9 +3209,7 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 				else	// We've already shutdown and/or closed the connection.
 				{
 					InterlockedIncrement( &context->pending_operations );
-
 					*current_operation = IO_Close;
-
 					PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
 				}
 
@@ -2985,9 +3240,21 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 						nRet = _WSASend( context->socket, &context->wsabuf, 1, NULL, dwFlags, ( WSAOVERLAPPED * )overlapped, NULL );
 						if ( nRet == SOCKET_ERROR && ( _WSAGetLastError() != ERROR_IO_PENDING ) )
 						{
-							*current_operation = IO_Close;
+							if ( context->ssh != NULL )
+							{
+								InterlockedDecrement( &context->pending_operations );
 
-							PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
+								context->overlapped_close.current_operation = IO_SFTPCleanup;
+
+								*current_operation = IO_SFTPReadContent;
+
+								SFTP_HandleContent( context, IO_SFTPReadContent, 0 );	// Causes the download or backend to get closed.
+							}
+							else
+							{
+								*current_operation = IO_Close;
+								PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
+							}
 						}
 					}
 					else	// All the data that we wanted to send has been sent. Post our next operation.
@@ -2997,10 +3264,16 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 						context->wsabuf.buf = context->buffer;
 						context->wsabuf.len = context->buffer_size;
 
-						if ( *current_operation == IO_ServerHandshakeResponse ||
-							 *current_operation == IO_ClientHandshakeResponse ||
-							 *current_operation == IO_Shutdown ||
-							 *current_operation == IO_Close )
+						if ( *current_operation == IO_SFTPWriteContent )
+						{
+							InterlockedDecrement( &context->pending_operations );
+
+							SFTP_HandleContent( context, IO_SFTPWriteContent, 0 );
+						}
+						else if ( *current_operation == IO_ServerHandshakeResponse ||
+								  *current_operation == IO_ClientHandshakeResponse ||
+								  *current_operation == IO_Shutdown ||
+								  *current_operation == IO_Close )
 						{
 							PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
 						}
@@ -3014,7 +3287,6 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 								if ( !sent )
 								{
 									*current_operation = IO_Shutdown;
-
 									PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
 								}
 							}
@@ -3024,7 +3296,6 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 								if ( nRet == SOCKET_ERROR && ( _WSAGetLastError() != ERROR_IO_PENDING ) )
 								{
 									*current_operation = IO_Close;
-
 									PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
 								}
 							}
@@ -3038,9 +3309,7 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 				else	// We've already shutdown and/or closed the connection.
 				{
 					InterlockedIncrement( &context->pending_operations );
-
 					*current_operation = IO_Close;
-
 					PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
 				}
 
@@ -3067,7 +3336,6 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 						if ( nRet == SOCKET_ERROR && ( _WSAGetLastError() != ERROR_IO_PENDING ) )
 						{
 							*current_operation = IO_Close;
-
 							PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
 						}
 					}
@@ -3079,9 +3347,7 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 				else	// We've already shutdown and/or closed the connection.
 				{
 					InterlockedIncrement( &context->pending_operations );
-
 					*current_operation = IO_Close;
-
 					PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
 				}
 
@@ -3114,7 +3380,6 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 						context->cleanup -= 10;
 
 						InterlockedDecrement( &context->pending_operations );
-
 						*current_operation = IO_Close;
 					}
 					else	// The shutdown sent data. IO_Close will be called in IO_Write.
@@ -3127,9 +3392,7 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 					fall_through = false;
 
 					InterlockedIncrement( &context->pending_operations );
-
 					*current_operation = IO_Close;
-
 					PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
 				}*/
 
@@ -3174,7 +3437,7 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 	}
 
 	_ExitThread( 0 );
-	return 0;
+	//return 0;
 }
 
 SOCKET_CONTEXT *CreateSocketContext()
@@ -3227,8 +3490,8 @@ bool CreateConnection( SOCKET_CONTEXT *context, char *host, unsigned short port 
 	wchar_t wport[ 6 ];
 
 	bool _enable_proxy_socks;
-	unsigned char _socks_type;
-	bool _resolve_domain_names;
+	unsigned char _socks_type = SOCKS_TYPE_V4;
+	bool _resolve_domain_names = false;
 
 	PROXY_INFO *pi = NULL;
 
@@ -3269,14 +3532,15 @@ bool CreateConnection( SOCKET_CONTEXT *context, char *host, unsigned short port 
 		hints.ai_family = AF_INET;
 		hints.ai_socktype = SOCK_STREAM;
 		hints.ai_protocol = IPPROTO_IP;
+		hints.ai_flags = AI_CANONNAME;
 
 		bool use_supplied_params = false;
 
-		wchar_t *_hostname;
-		wchar_t *_punycode_hostname;
-		unsigned long _ip_address;
+		wchar_t *_hostname = NULL;
+		wchar_t *_punycode_hostname = NULL;
+		unsigned long _ip_address = 0;
 
-		unsigned char _address_type;
+		unsigned char _address_type = 0;
 
 		if ( pi != NULL )
 		{
@@ -3375,6 +3639,7 @@ bool CreateConnection( SOCKET_CONTEXT *context, char *host, unsigned short port 
 		hints.ai_family = AF_INET;
 		hints.ai_socktype = SOCK_STREAM;
 		hints.ai_protocol = IPPROTO_IP;
+		hints.ai_flags = AI_CANONNAME;
 
 		__snwprintf( wport, 6, L"%hu", context->request_info.port );
 
@@ -3475,7 +3740,7 @@ void UpdateRangeList( DOWNLOAD_INFO *di )
 
 	if ( range_node != NULL )
 	{
-		unsigned char range_info_count = 0;
+		unsigned short range_info_count = 0;
 
 		DoublyLinkedList *active_range_list = NULL;
 
@@ -3507,16 +3772,15 @@ void UpdateRangeList( DOWNLOAD_INFO *di )
 		// Can we split any remaining parts to fill the total?
 		if ( range_info_count > 0 && range_info_count < di->parts )
 		{
-			unsigned char parts = di->parts / range_info_count;
-			unsigned char rem_parts = di->parts % range_info_count;
-			unsigned char total_parts = di->parts - rem_parts;
+			unsigned short parts = di->parts / range_info_count;
+			unsigned short rem_parts = di->parts % range_info_count;
 
 			range_node = di->range_list;
 			range_node_copy = active_range_list;
 
 			while ( range_node_copy != NULL )
 			{
-				unsigned char t_parts = parts;
+				unsigned short t_parts = parts;
 
 				if ( rem_parts > 0 )	// Distribute any remainder parts amongst the remaining ranges.
 				{
@@ -3539,7 +3803,7 @@ void UpdateRangeList( DOWNLOAD_INFO *di )
 				unsigned long long range_offset = ri_copy->range_start + ri_copy->content_offset;
 				unsigned long long range_end = ri_copy->range_end;
 
-				for ( unsigned char i = 1; i <= t_parts; ++i )
+				for ( unsigned short i = 1; i <= t_parts; ++i )
 				{
 					// Download was restarted before a range list was created.
 					if ( range_node == NULL )
@@ -3619,11 +3883,11 @@ void UpdateRangeList( DOWNLOAD_INFO *di )
 }
 
 // reset_type: 1 = file beginning, 2 = host beginning
-void ResetDownload( DOWNLOAD_INFO *di, char reset_type, bool reset_progress )
+void ResetDownload( DOWNLOAD_INFO *di, unsigned char reset_type, bool reset_progress )
 {
 	if ( di != NULL )
 	{
-		if ( reset_type == 1 )	// Reset host not in a group.
+		if ( reset_type == START_TYPE_HOST )	// Reset host not in a group.
 		{
 			if ( reset_progress )
 			{
@@ -3647,23 +3911,73 @@ void ResetDownload( DOWNLOAD_INFO *di, char reset_type, bool reset_progress )
 
 			EnterCriticalSection( &di->shared_info->di_cs );
 
-			di->shared_info->downloaded = 0;
+			di->shared_info->downloaded -= di->downloaded;
 
 			LeaveCriticalSection( &di->shared_info->di_cs );
 
+			di->last_downloaded = 0;
 			di->downloaded = 0;
+			di->file_size = 0;
+			di->status = STATUS_NONE;
 		}
-		else if ( reset_type == 2 )	// Reset host in a group.
+		else if ( reset_type == START_TYPE_HOST_IN_GROUP )	// Reset host in a group.
 		{
 			DoublyLinkedList *range_node = di->range_list;
-			while ( range_node != NULL )
-			{
-				RANGE_INFO *ri = ( RANGE_INFO * )range_node->data;
-				ri->content_offset = 0;
-				ri->content_length = 0;
-				ri->file_write_offset = ri->range_start;
 
-				range_node = range_node->next;
+			unsigned long long content_length = di->file_size;
+			if ( content_length > 0 )
+			{
+				unsigned long long range_size = content_length / di->parts;
+				unsigned long long range_offset;
+
+				RANGE_INFO *ri;
+				if ( range_node != NULL )
+				{
+					ri = ( RANGE_INFO * )range_node->data;
+					range_offset = ( ri->range_end + 1 ) - content_length;
+					content_length = ri->range_end + 1;	// The true end.
+				}
+				else
+				{
+					ri = NULL;
+					range_offset = 0;
+				}
+
+				for ( unsigned char part = 1; part <= di->parts; ++part )
+				{
+					if ( range_node != NULL )
+					{
+						ri = ( RANGE_INFO * )range_node->data;
+						ri->content_length = 0;
+						ri->content_offset = 0;
+						ri->file_write_offset = 0;
+						ri->range_start = 0;
+						ri->range_end = 0;
+
+						range_node = range_node->next;
+					}
+					else
+					{
+						ri = ( RANGE_INFO * )GlobalAlloc( GPTR, sizeof( RANGE_INFO ) );
+
+						DoublyLinkedList *range_node = DLL_CreateNode( ( void * )ri );
+						DLL_AddNode( &di->range_list, range_node, -1 );
+					}
+
+					ri->range_start = range_offset;
+
+					if ( part < di->parts )
+					{
+						ri->range_end += range_size;
+						range_offset = ri->range_end + 1;
+					}
+					else	// Make sure we have an accurate range end for the last part.
+					{
+						ri->range_end = content_length - 1;
+					}
+
+					ri->file_write_offset = ri->range_start;
+				}
 			}
 
 			EnterCriticalSection( &di->shared_info->di_cs );
@@ -3672,15 +3986,20 @@ void ResetDownload( DOWNLOAD_INFO *di, char reset_type, bool reset_progress )
 
 			LeaveCriticalSection( &di->shared_info->di_cs );
 
+			di->last_downloaded = 0;
 			di->downloaded = 0;
+			di->status = STATUS_NONE;
 		}
-		else if ( reset_type == 3 )	// Reset group
+		else if ( reset_type == START_TYPE_GROUP )	// Reset group
 		{
 			EnterCriticalSection( &di->shared_info->di_cs );
 
 			di->shared_info->processed_header = false;
 
+			di->shared_info->last_downloaded = 0;
 			di->shared_info->downloaded = 0;
+			di->shared_info->file_size = 0;
+			di->shared_info->status = STATUS_NONE;
 
 			LeaveCriticalSection( &di->shared_info->di_cs );
 		}
@@ -3701,16 +4020,47 @@ void ResetDownload( DOWNLOAD_INFO *di, char reset_type, bool reset_progress )
 	}
 }
 
-void RestartDownload( DOWNLOAD_INFO *di, char restart_type, bool check_if_file_exists )
+void RestartDownload( DOWNLOAD_INFO *di, unsigned char restart_type, unsigned char start_operation )
 {
 	if ( di != NULL )
 	{
 		ResetDownload( di, restart_type );
-		StartDownload( di, restart_type, check_if_file_exists );
+		StartDownload( di, restart_type, start_operation );
 	}
 }
 
-void StartDownload( DOWNLOAD_INFO *di, char start_type, bool check_if_file_exists )
+void SetSkippedStatus( DOWNLOAD_INFO *di, unsigned char start_type )
+{
+	if ( di != NULL )
+	{
+		if ( IS_GROUP( di ) && start_type == START_TYPE_GROUP )
+		{
+			EnterCriticalSection( &di->shared_info->di_cs );
+			di->shared_info->status = STATUS_SKIPPED;
+			LeaveCriticalSection( &di->shared_info->di_cs );
+
+			DoublyLinkedList *host_node = di->shared_info->host_list;
+			while ( host_node != NULL )
+			{
+				DOWNLOAD_INFO *host_di = ( DOWNLOAD_INFO * )host_node->data;
+				if ( host_di != NULL )
+				{
+					EnterCriticalSection( &host_di->di_cs );
+					host_di->status = STATUS_SKIPPED;
+					LeaveCriticalSection( &host_di->di_cs );
+				}
+
+				host_node = host_node->next;
+			}
+		}
+		else
+		{
+			di->status = STATUS_SKIPPED;
+		}
+	}
+}
+
+void StartDownload( DOWNLOAD_INFO *di, unsigned char start_type, unsigned char start_operation )
 {
 	if ( di == NULL )
 	{
@@ -3729,59 +4079,89 @@ void StartDownload( DOWNLOAD_INFO *di, char start_type, bool check_if_file_exist
 	EnterCriticalSection( &di->di_cs );
 
 	wchar_t prompt_message[ MAX_PATH + 512 ];
-	wchar_t file_path[ MAX_PATH ];
+	wchar_t temp_file_path[ MAX_PATH ];
+	wchar_t final_file_path[ MAX_PATH ];
 
-	int filename_offset;
-	int file_extension_offset;
+	int temp_filename_offset = 0, final_filename_offset = 0;
+	int temp_file_extension_offset = 0, final_file_extension_offset = 0;
+
+	bool prompt_final_path = false;
+	bool prompt_temp_path = false;
 
 	if ( cfg_use_temp_download_directory )
 	{
-		int filename_length = GetTemporaryFilePath( di, file_path );
+		int filename_length = GetTemporaryFilePath( di, temp_file_path );
 
-		filename_offset = g_temp_download_directory_length + 1;
-		file_extension_offset = filename_offset + get_file_extension_offset( di->shared_info->file_path + di->shared_info->filename_offset, filename_length );
-	}
-	else
-	{
-		GetDownloadFilePath( di, file_path );
+		temp_filename_offset = g_temp_download_directory_length + 1;
+		temp_file_extension_offset = temp_filename_offset + get_file_extension_offset( di->shared_info->file_path + di->shared_info->filename_offset, filename_length );
 
-		filename_offset = di->shared_info->filename_offset;
-		file_extension_offset = di->shared_info->file_extension_offset;
+		// See if the file exits.
+		if ( GetFileAttributesW( temp_file_path ) != INVALID_FILE_ATTRIBUTES )
+		{
+			prompt_temp_path = true;
+		}
 	}
+
+	GetDownloadFilePath( di, final_file_path );
+
+	final_filename_offset = di->shared_info->filename_offset;
+	final_file_extension_offset = di->shared_info->file_extension_offset;
 
 	// See if the file exits.
-	if ( GetFileAttributesW( file_path ) != INVALID_FILE_ATTRIBUTES )
+	if ( GetFileAttributesW( final_file_path ) != INVALID_FILE_ATTRIBUTES )
 	{
-		if ( check_if_file_exists )
+		prompt_final_path = true;
+	}
+
+	if ( prompt_final_path || prompt_temp_path )
+	{
+		if ( start_operation & START_OPERATION_CHECK_FILE )
 		{
+			di->download_operations &= ~( DOWNLOAD_OPERATION_RENAME | DOWNLOAD_OPERATION_OVERWRITE );
+
 			if ( cfg_prompt_rename == 0 && di->shared_info->download_operations & DOWNLOAD_OPERATION_OVERRIDE_PROMPTS )
 			{
-				di->status = STATUS_SKIPPED;
+				SetSkippedStatus( di, start_type );
 
 				skip_start = true;
 			}
 			else
 			{
 				// If the last return value was not set to remember our choice, then prompt again.
-				if ( cfg_prompt_rename == 0 &&
+				if ( ( cfg_prompt_rename == 0 || start_operation & START_OPERATION_FORCE_PROMPT ) &&
 					 g_rename_file_cmb_ret != CMBIDRENAMEALL &&
 					 g_rename_file_cmb_ret != CMBIDOVERWRITEALL &&
 					 g_rename_file_cmb_ret != CMBIDSKIPALL )
 				{
-					__snwprintf( prompt_message, MAX_PATH + 512, ST_V_PROMPT___already_exists, file_path );
+					__snwprintf( prompt_message, MAX_PATH + 512, ST_V_PROMPT___already_exists, ( prompt_final_path ? final_file_path : temp_file_path ) );
 
 					g_rename_file_cmb_ret = CMessageBoxW( g_hWnd_main, prompt_message, PROGRAM_CAPTION, CMB_ICONWARNING | CMB_RENAMEOVERWRITESKIPALL );
 				}
 
 				// Rename the file and try again.
-				if ( cfg_prompt_rename == 1 ||
-				   ( cfg_prompt_rename == 0 && ( g_rename_file_cmb_ret == CMBIDRENAME ||
-												 g_rename_file_cmb_ret == CMBIDRENAMEALL ) ) )
+				if ( ( cfg_prompt_rename == 1 && !( start_operation & START_OPERATION_FORCE_PROMPT ) ) ||
+				   ( ( cfg_prompt_rename == 0 || start_operation & START_OPERATION_FORCE_PROMPT ) &&
+					 ( g_rename_file_cmb_ret == CMBIDRENAME ||
+					   g_rename_file_cmb_ret == CMBIDRENAMEALL ) ) )
 				{
 					// Creates a tree of active and queued downloads.
 					dllrbt_tree *add_files_tree = CreateFilenameTree();
 
-					bool rename_succeeded = RenameFile( di, add_files_tree, file_path, filename_offset, file_extension_offset );
+					bool rename_succeeded;
+
+					if ( prompt_temp_path )
+					{
+						rename_succeeded = RenameFile( di, add_files_tree, temp_file_path, temp_filename_offset, temp_file_extension_offset );
+					}
+					else
+					{
+						rename_succeeded = RenameFile( di, add_files_tree, final_file_path, final_filename_offset, final_file_extension_offset );
+					}
+
+					if ( prompt_final_path )
+					{
+						di->download_operations |= DOWNLOAD_OPERATION_RENAME;	// When moving the file, we'll automatically rename it instead of prompting.
+					}
 
 					// The tree is only used to determine duplicate filenames.
 					DestroyFilenameTree( add_files_tree );
@@ -3790,24 +4170,32 @@ void StartDownload( DOWNLOAD_INFO *di, char start_type, bool check_if_file_exist
 					{
 						if ( g_rename_file_cmb_ret2 != CMBIDOKALL && !( di->shared_info->download_operations & DOWNLOAD_OPERATION_OVERRIDE_PROMPTS ) )
 						{
-							__snwprintf( prompt_message, MAX_PATH + 512, ST_V_PROMPT___could_not_be_renamed, file_path );
+							__snwprintf( prompt_message, MAX_PATH + 512, ST_V_PROMPT___could_not_be_renamed, ( prompt_final_path ? final_file_path : temp_file_path ) );
 
 							g_rename_file_cmb_ret2 = CMessageBoxW( g_hWnd_main, prompt_message, PROGRAM_CAPTION, CMB_ICONWARNING | CMB_OKALL );
 						}
 
-						di->status = STATUS_SKIPPED;
+						SetSkippedStatus( di, start_type );
 
 						skip_start = true;
 					}
 				}
-				else if ( cfg_prompt_rename == 3 ||
-						( cfg_prompt_rename == 0 && ( g_rename_file_cmb_ret == CMBIDFAIL ||
-													  g_rename_file_cmb_ret == CMBIDSKIP ||
-													  g_rename_file_cmb_ret == CMBIDSKIPALL ) ) ) // Skip the rename or overwrite if the return value fails, or the user selected skip.
+				else if ( ( cfg_prompt_rename == 3 && !( start_operation & START_OPERATION_FORCE_PROMPT ) ) ||
+						( ( cfg_prompt_rename == 0 || start_operation & START_OPERATION_FORCE_PROMPT ) &&
+						  ( g_rename_file_cmb_ret == CMBIDFAIL ||
+							g_rename_file_cmb_ret == CMBIDSKIP ||
+							g_rename_file_cmb_ret == CMBIDSKIPALL ) ) ) // Skip the rename or overwrite if the return value fails, or the user selected skip.
 				{
-					di->status = STATUS_SKIPPED;
+					SetSkippedStatus( di, start_type );
 
 					skip_start = true;
+				}
+				else	// Overwrite
+				{
+					if ( prompt_final_path )
+					{
+						di->shared_info->download_operations |= DOWNLOAD_OPERATION_OVERWRITE;	// When moving the file, we'll automatically overwrite it instead of prompting.
+					}
 				}
 			}
 		}
@@ -3822,14 +4210,35 @@ void StartDownload( DOWNLOAD_INFO *di, char start_type, bool check_if_file_exist
 
 		if ( g_file_not_exist_cmb_ret == CMBIDYES || g_file_not_exist_cmb_ret == CMBIDYESALL )
 		{
-			ResetDownload( di, start_type );
+			bool is_group = IS_GROUP( di );
+
+			DoublyLinkedList *host_node = di->shared_info->host_list;
+			while ( host_node != NULL )
+			{
+				DOWNLOAD_INFO *host_di = ( DOWNLOAD_INFO * )host_node->data;
+				if ( host_di != NULL )
+				{
+					ResetDownload( host_di, START_TYPE_HOST );
+
+					// Last child, restart group using the first host in the list.
+					if ( is_group && host_node->next == NULL )
+					{
+						ResetDownload( host_di, START_TYPE_GROUP );
+					}
+				}
+
+				host_node = host_node->next;
+			}
+
+			// di->shared_info->downloaded will have been set to 0 above. It shouldn't get into a recursive loop.
+			StartDownload( ( DOWNLOAD_INFO * )di->shared_info->host_list->data, ( is_group ? START_TYPE_GROUP : START_TYPE_HOST ), start_operation );
 		}
 		else
 		{
-			di->status = STATUS_SKIPPED;
-
-			skip_start = true;
+			SetSkippedStatus( di, start_type );
 		}
+
+		skip_start = true;
 	}
 
 	LeaveCriticalSection( &di->di_cs );
@@ -3848,7 +4257,8 @@ void StartDownload( DOWNLOAD_INFO *di, char start_type, bool check_if_file_exist
 
 	if ( protocol == PROTOCOL_FTP ||
 		 protocol == PROTOCOL_FTPS ||
-		 protocol == PROTOCOL_FTPES )
+		 protocol == PROTOCOL_FTPES ||
+		 protocol == PROTOCOL_SFTP )
 	{
 		w_resource = url_decode_w( resource, resource_length, &resource_length );
 
@@ -3863,9 +4273,10 @@ void StartDownload( DOWNLOAD_INFO *di, char start_type, bool check_if_file_exist
 
 	if ( protocol != PROTOCOL_FTP &&
 		 protocol != PROTOCOL_FTPS &&
-		 protocol != PROTOCOL_FTPES )
+		 protocol != PROTOCOL_FTPES &&
+		 protocol != PROTOCOL_SFTP )
 	{
-		while ( *w_resource != NULL )
+		while ( w_resource != NULL && *w_resource != NULL )
 		{
 			if ( *w_resource == L'#' )
 			{
@@ -4010,15 +4421,43 @@ void StartDownload( DOWNLOAD_INFO *di, char start_type, bool check_if_file_exist
 				{
 					add_state = 2;	// Queue the download.
 
-					di->status = STATUS_CONNECTING | STATUS_QUEUED;	// Queued.
+					if ( di->queue_node.data == NULL && !( di->download_operations & DOWNLOAD_OPERATION_ADD_STOPPED ) )
+					{
+						di->status = STATUS_CONNECTING | STATUS_QUEUED;	// Queued.
 
-					EnterCriticalSection( &download_queue_cs );
-					
-					// Add to the global download queue.
-					di->queue_node.data = di;
-					DLL_AddNode( &download_queue, &di->queue_node, -1 );
+						// If we haven't processed the header information, then the other items (non-driver hosts) aren't going to be started and won't queue naturally.
+						// We'll do it here.
+						if ( IS_GROUP( di ) && !di->shared_info->processed_header )
+						{
+							EnterCriticalSection( &di->shared_info->di_cs );
+							di->shared_info->status = STATUS_CONNECTING | STATUS_QUEUED;	// Queued.
+							LeaveCriticalSection( &di->shared_info->di_cs );
 
-					LeaveCriticalSection( &download_queue_cs );
+							DoublyLinkedList *host_node = di->shared_info->host_list;
+							while ( host_node != NULL )
+							{
+								DOWNLOAD_INFO *host_di = ( DOWNLOAD_INFO * )host_node->data;
+								if ( host_di != NULL )
+								{
+									if ( host_di->status != STATUS_COMPLETED &&
+									  !( host_di->download_operations & DOWNLOAD_OPERATION_ADD_STOPPED ) )	// status might have been set to stopped when added.
+									{
+										host_di->status = STATUS_CONNECTING | STATUS_QUEUED;
+									}
+								}
+
+								host_node = host_node->next;
+							}
+						}
+
+						EnterCriticalSection( &download_queue_cs );
+
+						// Add to the global download queue.
+						di->queue_node.data = di;
+						DLL_AddNode( &download_queue, &di->queue_node, -1 );
+
+						LeaveCriticalSection( &download_queue_cs );
+					}
 				}
 			}
 
@@ -4159,9 +4598,7 @@ void StartDownload( DOWNLOAD_INFO *di, char start_type, bool check_if_file_exist
 					context->status = STATUS_FAILED;
 
 					InterlockedIncrement( &context->pending_operations );
-
 					context->overlapped.current_operation = IO_Close;
-
 					PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped );
 				}
 			}
@@ -4691,8 +5128,6 @@ wchar_t *ParseURLSettings( wchar_t *url_list, ADD_INFO *ai )
 			{
 				break;
 			}
-
-			++url_list;
 		}
 
 		if ( download_directory != NULL )
@@ -4817,7 +5252,7 @@ DWORD WINAPI AddURL( void *add_info )
 	if ( add_info == NULL )
 	{
 		_ExitThread( 0 );
-		return 0;
+		//return 0;
 	}
 
 	EnterCriticalSection( &worker_cs );
@@ -4826,6 +5261,7 @@ DWORD WINAPI AddURL( void *add_info )
 
 	ProcessingList( true );
 
+	SITE_INFO *si = NULL;
 	SITE_INFO *last_si = NULL;
 
 	ADD_INFO *ai = ( ADD_INFO * )add_info;
@@ -4888,12 +5324,12 @@ DWORD WINAPI AddURL( void *add_info )
 
 	if ( ai->auth_info.username != NULL )
 	{
-		username_length = ai_username_length = lstrlenA( username );
+		username_length = ai_username_length = lstrlenA( ai->auth_info.username );
 	}
 
 	if ( ai->auth_info.password != NULL )
 	{
-		password_length = ai_password_length = lstrlenA( password );
+		password_length = ai_password_length = lstrlenA( ai->auth_info.password );
 	}
 
 	if ( ai->utf8_cookies != NULL )
@@ -4909,6 +5345,7 @@ DWORD WINAPI AddURL( void *add_info )
 	//
 
 	PROXY_INFO proxy_info;
+	_memzero( &proxy_info, sizeof( PROXY_INFO ) );
 
 	int proxy_hostname_length = 0;
 	int proxy_punycode_hostname_length = 0;
@@ -4961,6 +5398,18 @@ DWORD WINAPI AddURL( void *add_info )
 	}
 
 	//
+
+	if ( ai->ssl_version > 0 )
+	{
+		ssl_version = ai->ssl_version - 1;
+	}
+	else
+	{
+		ssl_version = -1;
+	}
+
+	parts = ai->parts;
+	download_speed_limit = ai->download_speed_limit;
 
 	if ( ai->method == METHOD_NONE )
 	{
@@ -5044,6 +5493,16 @@ DWORD WINAPI AddURL( void *add_info )
 
 		if ( group_start == NULL )
 		{
+			// Ignore anything before our URL/group (spaces, tabs, newlines, etc.)
+			while ( *url_list != 0 && ( *url_list == L'\r' ||
+										*url_list == L'\n' ||
+										*url_list == L' ' ||
+										*url_list == L'\t' ||
+										*url_list == L'\f' ) )
+			{
+				++url_list;
+			}
+
 			if ( _StrCmpNIW( url_list, L"{\r\n", 3 ) == 0 )
 			{
 				group_start = url_list;
@@ -5054,8 +5513,6 @@ DWORD WINAPI AddURL( void *add_info )
 		{
 			group_start += 3;
 			group_end = group_start;
-
-			bool bad_group_format = false;
 
 			while ( group_end != NULL )
 			{
@@ -5108,7 +5565,9 @@ DWORD WINAPI AddURL( void *add_info )
 			if ( is_group )
 			{
 				// Remove anything before our URL (spaces, tabs, newlines, etc.)
-				while ( *url_list != 0 && url_list != group_end && ( ( *url_list != L'h' && *url_list != L'H' ) && ( *url_list != L'f' && *url_list != L'F' ) ) )
+				while ( *url_list != 0 && url_list != group_end && ( ( *url_list != L'h' && *url_list != L'H' ) &&
+																	 ( *url_list != L'f' && *url_list != L'F' ) &&
+																	 ( *url_list != L's' && *url_list != L'S' ) ) )
 				{
 					++url_list;
 				}
@@ -5121,7 +5580,9 @@ DWORD WINAPI AddURL( void *add_info )
 			else
 			{
 				// Remove anything before our URL (spaces, tabs, newlines, etc.)
-				while ( *url_list != 0 && ( ( *url_list != L'h' && *url_list != L'H' ) && ( *url_list != L'f' && *url_list != L'F' ) ) )
+				while ( *url_list != 0 && ( ( *url_list != L'h' && *url_list != L'H' ) &&
+											( *url_list != L'f' && *url_list != L'F' ) &&
+											( *url_list != L's' && *url_list != L'S' ) ) )
 				{
 					++url_list;
 				}
@@ -5215,12 +5676,24 @@ DWORD WINAPI AddURL( void *add_info )
 				*pbuf = L'\0';
 			}
 
+			last_si = ( last_si == ( SITE_INFO * )&u_ai ? NULL : si );
+
 			_memzero( &u_ai, sizeof( ADD_INFO ) );
 
 			if ( url_list != NULL )
 			{
+				wchar_t *t_url_list = url_list;
+
 				// Parse URL settings.
 				url_list = ParseURLSettings( url_list, &u_ai );
+
+				// We've moved the pointer of the URL list. Maybe we got some valid settings.
+				if ( url_list != t_url_list )
+				{
+					// We're only using last_si to trigger the (si != last_si) conditional below.
+					// The structure's variables are never used.
+					last_si = ( SITE_INFO * )&u_ai;
+				}
 
 				if ( *url_list == NULL )
 				{
@@ -5249,7 +5722,7 @@ DWORD WINAPI AddURL( void *add_info )
 			tsi.host = host;
 			tsi.protocol = protocol;
 			tsi.port = port;
-			SITE_INFO *si = ( SITE_INFO * )dllrbt_find( g_site_info, ( void * )&tsi, true );
+			si = ( SITE_INFO * )dllrbt_find( g_site_info, ( void * )&tsi, true );
 			if ( si != NULL && !si->enable )
 			{
 				si = NULL;
@@ -5594,8 +6067,6 @@ DWORD WINAPI AddURL( void *add_info )
 				}
 			}
 
-			last_si = si;
-
 			// The username and password could be encoded.
 			if ( url_username != NULL )
 			{
@@ -5664,7 +6135,10 @@ DWORD WINAPI AddURL( void *add_info )
 						{
 							shared_info->shared_info = shared_info;
 
-							InitializeCriticalSection( &shared_info->di_cs );
+							if ( is_group )
+							{
+								InitializeCriticalSection( &shared_info->di_cs );
+							}
 
 							if ( !( download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
 							{
@@ -5690,13 +6164,59 @@ DWORD WINAPI AddURL( void *add_info )
 							}
 							else
 							{
+								// Try to create a filename from the resource path.
+								wchar_t *directory_ptr = resource;
+								wchar_t *current_directory = resource;
+								wchar_t *last_directory = NULL;
+
+								// Iterate forward because '/' can be found after '#'.
+								while ( *directory_ptr != NULL )
+								{
+									if ( *directory_ptr == L'?' || *directory_ptr == L'#' )
+									{
+										*directory_ptr = 0;	// Sanity.
+
+										break;
+									}
+									else if ( *directory_ptr == L'/' )
+									{
+										last_directory = current_directory;
+										current_directory = directory_ptr + 1; 
+									}
+
+									++directory_ptr;
+								}
+
+								if ( *current_directory == NULL )
+								{
+									// Adjust for '/'. current_directory will always be at least 1 greater than last_directory.
+									if ( last_directory != NULL && ( current_directory - 1 ) - last_directory > 0 )
+									{
+										w_filename_length = ( unsigned int )( ( current_directory - 1 ) - last_directory );
+										current_directory = last_directory;
+									}
+									else	// No filename could be made from the resource path. Use the host name instead.
+									{
+										w_filename_length = host_length;
+										current_directory = host;
+
+										di->shared_info->download_operations |= DOWNLOAD_OPERATION_GET_EXTENSION;
+									}
+								}
+								else
+								{
+									w_filename_length = ( unsigned int )( directory_ptr - current_directory );
+								}
+
 								wchar_t *directory = NULL;
 
+								// Why do we do this?
+								// If the URL has UTF8 characters that have been URL encoded, then we need to convert them into a readable wide char format.
 								if ( decode_converted_resource )
 								{
-									int val_length = WideCharToMultiByte( CP_UTF8, 0, resource, resource_length + 1, NULL, 0, NULL, NULL );
+									int val_length = WideCharToMultiByte( CP_UTF8, 0, current_directory, w_filename_length + 1, NULL, 0, NULL, NULL );
 									char *utf8_val = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * val_length ); // Size includes the null character.
-									WideCharToMultiByte( CP_UTF8, 0, resource, resource_length + 1, utf8_val, val_length, NULL, NULL );
+									WideCharToMultiByte( CP_UTF8, 0, current_directory, w_filename_length + 1, utf8_val, val_length, NULL, NULL );
 
 									unsigned int directory_length = 0;
 									char *c_directory = url_decode_a( utf8_val, val_length - 1, &directory_length );
@@ -5704,75 +6224,23 @@ DWORD WINAPI AddURL( void *add_info )
 
 									val_length = MultiByteToWideChar( CP_UTF8, 0, c_directory, directory_length + 1, NULL, 0 );	// Include the NULL terminator.
 									directory = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * val_length );
-									MultiByteToWideChar( CP_UTF8, 0, c_directory, directory_length + 1, directory, val_length );
+									w_filename_length = MultiByteToWideChar( CP_UTF8, 0, c_directory, directory_length + 1, directory, val_length ) - 1;
 
 									GlobalFree( c_directory );	
 								}
 								else
 								{
-									directory = url_decode_w( resource, resource_length, NULL );
+									directory = url_decode_w( current_directory, w_filename_length, &w_filename_length );
 								}
 
-								// Try to create a filename from the resource path.
-								if ( directory != NULL )
-								{
-									wchar_t *directory_ptr = directory;
-									wchar_t *current_directory = directory;
-									wchar_t *last_directory = NULL;
+								w_filename_length = min( w_filename_length, ( int )( MAX_PATH - di->shared_info->filename_offset - 1 ) );
 
-									// Iterate forward because '/' can be found after '#'.
-									while ( *directory_ptr != NULL )
-									{
-										if ( *directory_ptr == L'?' || *directory_ptr == L'#' )
-										{
-											*directory_ptr = 0;	// Sanity.
+								_wmemcpy_s( di->shared_info->file_path + di->shared_info->filename_offset, MAX_PATH - di->shared_info->filename_offset, directory, w_filename_length );
+								di->shared_info->file_path[ di->shared_info->filename_offset + w_filename_length ] = 0;	// Sanity.
 
-											break;
-										}
-										else if ( *directory_ptr == L'/' )
-										{
-											last_directory = current_directory;
-											current_directory = directory_ptr + 1; 
-										}
+								EscapeFilename( di->shared_info->file_path + di->shared_info->filename_offset );
 
-										++directory_ptr;
-									}
-
-									if ( *current_directory == NULL )
-									{
-										// Adjust for '/'. current_directory will always be at least 1 greater than last_directory.
-										if ( last_directory != NULL && ( current_directory - 1 ) - last_directory > 0 )
-										{
-											w_filename_length = ( unsigned int )( ( current_directory - 1 ) - last_directory );
-											current_directory = last_directory;
-										}
-										else	// No filename could be made from the resource path. Use the host name instead.
-										{
-											w_filename_length = host_length;
-											current_directory = host;
-
-											di->shared_info->download_operations |= DOWNLOAD_OPERATION_GET_EXTENSION;
-										}
-									}
-									else
-									{
-										w_filename_length = ( unsigned int )( directory_ptr - current_directory );
-									}
-
-									w_filename_length = min( w_filename_length, ( int )( MAX_PATH - di->shared_info->filename_offset - 1 ) );
-
-									_wmemcpy_s( di->shared_info->file_path + di->shared_info->filename_offset, MAX_PATH - di->shared_info->filename_offset, current_directory, w_filename_length );
-									di->shared_info->file_path[ di->shared_info->filename_offset + w_filename_length ] = 0;	// Sanity.
-
-									EscapeFilename( di->shared_info->file_path + di->shared_info->filename_offset );
-
-									GlobalFree( directory );
-								}
-								else	// Shouldn't happen.
-								{
-									w_filename_length = 11;
-									_wmemcpy_s( di->shared_info->file_path + di->shared_info->filename_offset, MAX_PATH - di->shared_info->filename_offset, L"NO_FILENAME\0", 12 );
-								}
+								GlobalFree( directory );
 							}
 
 							di->shared_info->file_extension_offset = di->shared_info->filename_offset + ( ( di->shared_info->download_operations & DOWNLOAD_OPERATION_GET_EXTENSION ) ? w_filename_length : get_file_extension_offset( di->shared_info->file_path + di->shared_info->filename_offset, w_filename_length ) );
@@ -5838,7 +6306,14 @@ DWORD WINAPI AddURL( void *add_info )
 
 						di->parts = parts;
 						di->download_speed_limit = download_speed_limit;
-						di->ssl_version = ssl_version;
+						if ( protocol == PROTOCOL_SFTP )
+						{
+							di->ssl_version = -1;
+						}
+						else
+						{
+							di->ssl_version = ssl_version;
+						}
 
 						di->shared_info->download_operations |= download_operations;
 
@@ -5846,6 +6321,7 @@ DWORD WINAPI AddURL( void *add_info )
 						{
 							di->status = STATUS_STOPPED;
 							//di->shared_info->download_operations &= ~DOWNLOAD_OPERATION_ADD_STOPPED;
+							di->download_operations |= DOWNLOAD_OPERATION_ADD_STOPPED;
 						}
 
 						if ( username != NULL && username_length > 0 )
@@ -6097,20 +6573,6 @@ DWORD WINAPI AddURL( void *add_info )
 			if ( g_ai.proxy_info.username != NULL ) { GlobalFree( g_ai.proxy_info.username ); }
 			if ( g_ai.proxy_info.password != NULL ) { GlobalFree( g_ai.proxy_info.password ); }
 		}
-
-		/*if ( di != NULL )
-		{
-			// If we're a group, then this gets the first host and starts it.
-			// If not, then it's just a self reference.
-			di = ( DOWNLOAD_INFO * )di->shared_info->host_list->data;
-
-			if ( !add_stopped )
-			{
-				StartDownload( di, 0, !( di->shared_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) );
-			}
-
-			g_download_history_changed = true;
-		}*/
 	}
 
 	GlobalFree( sfi );
@@ -6152,9 +6614,26 @@ DWORD WINAPI AddURL( void *add_info )
 			{
 				di->shared_info->download_operations &= ~DOWNLOAD_OPERATION_ADD_STOPPED;
 			}
-			else
+
+			DOWNLOAD_INFO *driver_di = NULL;
+
+			// Find the first host that can act as a driver.
+			DoublyLinkedList *host_node = di->shared_info->host_list;
+			while ( host_node != NULL )
 			{
-				StartDownload( di, 0, !( di->shared_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) );
+				DOWNLOAD_INFO *host_di = ( DOWNLOAD_INFO * )host_node->data;
+				if ( !( host_di->download_operations & DOWNLOAD_OPERATION_ADD_STOPPED ) )
+				{
+					driver_di = ( DOWNLOAD_INFO * )host_node->data;
+
+					break;
+				}
+				host_node = host_node->next;
+			}
+
+			if ( driver_di != NULL )
+			{
+				StartDownload( driver_di, ( IS_GROUP( driver_di ) ? START_TYPE_GROUP : START_TYPE_NONE ), ( driver_di->shared_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ? START_OPERATION_NONE : START_OPERATION_CHECK_FILE ) );
 			}
 
 			g_download_history_changed = true;
@@ -6168,6 +6647,8 @@ DWORD WINAPI AddURL( void *add_info )
 		first_added_tln = first_added_tln->next;
 	}
 
+	_SendMessageW( g_hWnd_tlv_files, TLVM_REFRESH_LIST, 0, 0 );	// If the downloads were set to queued in StartDownload().
+
 	// Release the semaphore if we're killing the thread.
 	if ( worker_semaphore != NULL )
 	{
@@ -6179,7 +6660,7 @@ DWORD WINAPI AddURL( void *add_info )
 	LeaveCriticalSection( &worker_cs );
 
 	_ExitThread( 0 );
-	return 0;
+	//return 0;
 }
 
 void StartQueuedItem()
@@ -6190,7 +6671,7 @@ void StartQueuedItem()
 	{
 		DoublyLinkedList *download_queue_node = download_queue;
 
-		DOWNLOAD_INFO *di = NULL;
+		DOWNLOAD_INFO *di;
 
 		// Run through our download queue and start the first context that hasn't been paused or stopped.
 		// Continue to dequeue if we haven't hit our maximum allowed active downloads.
@@ -6208,7 +6689,57 @@ void StartQueuedItem()
 
 				LeaveCriticalSection( &download_queue_cs );
 
-				StartDownload( di, 0, false );
+				bool is_group = IS_GROUP( ( ( DOWNLOAD_INFO * )di->shared_info->host_list->data ) ) && !di->shared_info->processed_header;
+
+				DoublyLinkedList *host_node;
+				DOWNLOAD_INFO *driver_di = NULL;
+
+				if ( is_group )
+				{
+					// Find the first host that can act as a driver.
+					host_node = di->shared_info->host_list;
+					while ( host_node != NULL )
+					{
+						DOWNLOAD_INFO *host_di = ( DOWNLOAD_INFO * )host_node->data;
+						if ( host_di->status != STATUS_COMPLETED &&
+						  !( host_di->download_operations & DOWNLOAD_OPERATION_ADD_STOPPED ) )
+						{
+							driver_di = ( DOWNLOAD_INFO * )host_node->data;
+
+							break;
+						}
+						host_node = host_node->next;
+					}
+				}
+				else
+				{
+					driver_di = di;
+				}
+
+				if ( driver_di != NULL )
+				{
+					driver_di->status = STATUS_NONE;
+
+					StartDownload( driver_di, ( is_group ? START_TYPE_GROUP : START_TYPE_NONE ), START_OPERATION_NONE );
+				}
+				else
+				{
+					// Remove the Add Stopped flag.
+					host_node = di->shared_info->host_list;
+					while ( host_node != NULL )
+					{
+						DOWNLOAD_INFO *host_di = ( DOWNLOAD_INFO * )host_node->data;
+						if ( host_di != NULL )
+						{
+							host_di->download_operations &= ~DOWNLOAD_OPERATION_ADD_STOPPED;
+						}
+						host_node = host_node->next;
+					}
+
+					EnterCriticalSection( &di->shared_info->di_cs );
+					di->shared_info->status = STATUS_STOPPED;
+					LeaveCriticalSection( &di->shared_info->di_cs );
+				}
 
 				EnterCriticalSection( &download_queue_cs );
 
@@ -6295,7 +6826,7 @@ bool RetryTimedOut( SOCKET_CONTEXT *context )
 	return false;
 }
 
-DWORD CALLBACK MoveFileProgress( LARGE_INTEGER TotalFileSize, LARGE_INTEGER TotalBytesTransferred, LARGE_INTEGER StreamSize, LARGE_INTEGER StreamBytesTransferred, DWORD dwStreamNumber, DWORD dwCallbackReason, HANDLE hSourceFile, HANDLE hDestinationFile, LPVOID lpData )
+DWORD CALLBACK MoveFileProgress( LARGE_INTEGER TotalFileSize, LARGE_INTEGER TotalBytesTransferred, LARGE_INTEGER /*StreamSize*/, LARGE_INTEGER /*StreamBytesTransferred*/, DWORD /*dwStreamNumber*/, DWORD /*dwCallbackReason*/, HANDLE /*hSourceFile*/, HANDLE /*hDestinationFile*/, LPVOID lpData )
 {
 	DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )lpData;
 
@@ -6325,7 +6856,7 @@ DWORD CALLBACK MoveFileProgress( LARGE_INTEGER TotalFileSize, LARGE_INTEGER Tota
 	}
 }
 
-THREAD_RETURN ProcessMoveQueue( void *pArguments )
+THREAD_RETURN ProcessMoveQueue( void * /*pArguments*/ )
 {
 	DOWNLOAD_INFO *di = NULL;
 
@@ -6361,7 +6892,7 @@ THREAD_RETURN ProcessMoveQueue( void *pArguments )
 
 			DWORD move_type = MOVEFILE_COPY_ALLOWED;
 
-			while ( true )
+			for ( ;; )
 			{
 				if ( MoveFileWithProgressW( file_path, di->shared_info->file_path, MoveFileProgress, di, move_type ) == FALSE )
 				{
@@ -6382,9 +6913,20 @@ THREAD_RETURN ProcessMoveQueue( void *pArguments )
 								 g_rename_file_cmb_ret != CMBIDOVERWRITEALL &&
 								 g_rename_file_cmb_ret != CMBIDSKIPALL )
 							{
-								__snwprintf( prompt_message, MAX_PATH + 512, ST_V_PROMPT___already_exists, di->shared_info->file_path );
+								if ( di->download_operations & DOWNLOAD_OPERATION_RENAME )	// We set this when adding the URL and received a prompt to rename/overwrite/skip.
+								{
+									g_rename_file_cmb_ret = CMBIDRENAME;
+								}
+								else if ( di->download_operations & DOWNLOAD_OPERATION_OVERWRITE )	// We set this when adding the URL and received a prompt to rename/overwrite/skip.
+								{
+									g_rename_file_cmb_ret = CMBIDOVERWRITE;
+								}
+								else
+								{
+									__snwprintf( prompt_message, MAX_PATH + 512, ST_V_PROMPT___already_exists, di->shared_info->file_path );
 
-								g_rename_file_cmb_ret = CMessageBoxW( g_hWnd_main, prompt_message, PROGRAM_CAPTION, CMB_ICONWARNING | CMB_RENAMEOVERWRITESKIPALL );
+									g_rename_file_cmb_ret = CMessageBoxW( g_hWnd_main, prompt_message, PROGRAM_CAPTION, CMB_ICONWARNING | CMB_RENAMEOVERWRITESKIPALL );
+								}
 							}
 
 							// Rename the file and try again.
@@ -6402,7 +6944,9 @@ THREAD_RETURN ProcessMoveQueue( void *pArguments )
 
 								if ( !rename_succeeded )
 								{
-									if ( g_rename_file_cmb_ret2 != CMBIDOKALL && !( di->shared_info->download_operations & DOWNLOAD_OPERATION_OVERRIDE_PROMPTS ) )
+									// DOWNLOAD_OPERATION_RENAME = If we didn't show a prompt to rename when adding the URL, then prompt here.
+									if ( g_rename_file_cmb_ret2 != CMBIDOKALL &&
+									  !( di->shared_info->download_operations & ( DOWNLOAD_OPERATION_OVERRIDE_PROMPTS | DOWNLOAD_OPERATION_RENAME ) ) )
 									{
 										__snwprintf( prompt_message, MAX_PATH + 512, ST_V_PROMPT___could_not_be_renamed, file_path );
 
@@ -6476,7 +7020,7 @@ THREAD_RETURN ProcessMoveQueue( void *pArguments )
 	LeaveCriticalSection( &cleanup_cs );
 
 	_ExitThread( 0 );
-	return 0;
+	//return 0;
 }
 
 void AddToMoveFileQueue( DOWNLOAD_INFO *di )
@@ -6877,7 +7421,6 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 						// There are no more active connections.
 						if ( di->active_parts == 0 )
 						{
-							unsigned int shared_status;
 							bool move_file = false;
 
 							bool incomplete_download = false;
@@ -6925,8 +7468,6 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 							{
 								di->status = STATUS_COMPLETED;
 							}
-
-							shared_status = di->status;
 
 							EnterCriticalSection( &active_download_list_cs );
 
@@ -6999,32 +7540,25 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 							{
 								if ( IS_STATUS( shared_info->status, STATUS_RESTART ) )
 								{
-									ResetDownload( di, 1, false );		// Reset host (free range info).
+									ResetDownload( di, START_TYPE_HOST, false );		// Reset host (free range info).
 
 									if ( is_group )
 									{
 										// We've attempted to restart the group.
 										if ( shared_info->active_hosts == 1 )
 										{
-											ResetDownload( di, 3 );
-											StartDownload( ( DOWNLOAD_INFO * )di->shared_info->host_list->data, 1, false );
+											ResetDownload( di, START_TYPE_GROUP );
+											StartDownload( ( DOWNLOAD_INFO * )di->shared_info->host_list->data, START_TYPE_GROUP, START_OPERATION_NONE );
 										}
 									}
 									else
 									{
-										StartDownload( di, 1, false );
+										StartDownload( di, START_TYPE_HOST, START_OPERATION_NONE );
 									}
 								}
 								else
 								{
-									if ( is_group )
-									{
-										RestartDownload( di, 2, false );	// Reset/Start host (set range info values to 0).
-									}
-									else
-									{
-										RestartDownload( di, 1, false );	// Reset/Start host (free range info).
-									}
+									RestartDownload( di, ( is_group ? START_TYPE_HOST_IN_GROUP : START_TYPE_HOST ), START_OPERATION_NONE );
 								}
 
 								LeaveCriticalSection( &di->di_cs );
@@ -7037,7 +7571,9 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 									{
 										++di->retries;
 
-										StartDownload( di, 0, false );
+										di->status = STATUS_NONE;
+
+										StartDownload( di, START_TYPE_NONE, START_OPERATION_NONE );
 									}
 									else
 									{
@@ -7046,7 +7582,9 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 								}
 								else if ( di->status == STATUS_UPDATING )
 								{
-									StartDownload( di, 0, false );
+									di->status = STATUS_NONE;
+
+									StartDownload( di, START_TYPE_NONE, START_OPERATION_NONE );
 								}
 								else if ( di->status == STATUS_COMPLETED )
 								{
@@ -7071,8 +7609,6 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 							bool free_shared_info = false;
 							EnterCriticalSection( &shared_info->di_cs );
 
-							shared_info->shared_status |= shared_status;
-
 							// For groups.
 							if ( is_group )
 							{
@@ -7096,7 +7632,7 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 
 								if ( is_group )
 								{
-									SetSharedInfoStatus( shared_info, shared_info->shared_status );
+									SetSharedInfoStatus( shared_info );
 
 									EnterCriticalSection( &active_download_list_cs );
 
@@ -7223,6 +7759,8 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 			}
 
 			if ( context->ssl != NULL ) { SSL_free( context->ssl ); }
+
+			if ( context->ssh != NULL && psftp_state == PSFTP_STATE_RUNNING ) { _SFTP_FreeSSHHandle( context->ssh ); }
 
 			if ( context->address_info != NULL ) { _FreeAddrInfoW( context->address_info ); }
 			if ( context->proxy_address_info != NULL ) { _FreeAddrInfoW( context->proxy_address_info ); }
@@ -7415,7 +7953,7 @@ void FreeListenContext()
 	}
 }
 
-THREAD_RETURN CheckForUpdates( void *pArguments )
+THREAD_RETURN CheckForUpdates( void * /*pArguments*/ )
 {
 	// Only need one check going on at a time.
 	if ( TryEnterCriticalSection( &worker_cs ) == TRUE )
@@ -7531,5 +8069,5 @@ THREAD_RETURN CheckForUpdates( void *pArguments )
 	}
 
 	_ExitThread( 0 );
-	return 0;
+	//return 0;
 }

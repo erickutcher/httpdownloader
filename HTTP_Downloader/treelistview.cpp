@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S) and FTP(S) connections.
-	Copyright (C) 2015-2020 Eric Kutcher
+	Copyright (C) 2015-2021 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -1687,7 +1687,7 @@ void TLV_Scroll( HWND hWnd, char scroll_type, WORD direction )	// scroll_type: 0
 	}
 }
 
-VOID CALLBACK ScrollTimerProc( HWND hWnd, UINT msg, UINT idTimer, DWORD dwTime )
+VOID CALLBACK ScrollTimerProc( HWND hWnd, UINT /*msg*/, UINT /*idTimer*/, DWORD /*dwTime*/ )
 {
 	// Vertical
 
@@ -1929,7 +1929,7 @@ void HandleMouseMovement( HWND hWnd )
 				// If we've set a focus index (the node may not be valid), then we need to process all items within the range of the base selected index and focused index.
 				if ( g_focused_index != -1 )
 				{
-					int index;
+					int index = -1;
 
 					// We've started our drag from an area where the row has no valid item and there's no column (bottom right).
 					if ( g_base_selected_node == NULL )
@@ -2857,6 +2857,9 @@ void CreateEditBox( HWND hWnd )
 	g_hWnd_edit_box = _CreateWindowW( WC_EDIT, L"", ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_BORDER | WS_VISIBLE, g_edit_column_rc.left, g_client_rc.top + ( ( g_base_selected_index - g_first_visible_index ) * g_row_height ) + 1, g_edit_column_rc.right - g_edit_column_rc.left, g_row_height - 1, hWnd, ( HMENU )EDIT_BOX, NULL, NULL );
 	_SendMessageW( g_hWnd_edit_box, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 
+	EditBoxProc = ( WNDPROC )_GetWindowLongPtrW( g_hWnd_edit_box, GWLP_WNDPROC );
+	_SetWindowLongPtrW( g_hWnd_edit_box, GWLP_WNDPROC, ( LONG_PTR )EditBoxSubProc );
+
 	if ( g_base_selected_node != NULL && g_base_selected_node->data != NULL )
 	{
 		DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )g_base_selected_node->data;
@@ -2869,6 +2872,7 @@ void CreateEditBox( HWND hWnd )
 		while ( ext_len != 0 && ( di->shared_info->file_path + di->shared_info->filename_offset )[ --ext_len ] != L'.' );
 
 		// Select all the text except the file extension (if ext_len = 0, then everything is selected)
+		if ( ext_len == 0 ) { --ext_len; }
 		_SendMessageW( g_hWnd_edit_box, EM_SETSEL, 0, ext_len );
 
 		// Limit the length of the filename so that the file directory + filename + NULL isn't greater than MAX_PATH.
@@ -2876,12 +2880,9 @@ void CreateEditBox( HWND hWnd )
 	}
 
 	_SetFocus( g_hWnd_edit_box );
-
-	EditBoxProc = ( WNDPROC )_GetWindowLongPtrW( g_hWnd_edit_box, GWLP_WNDPROC );
-	_SetWindowLongPtrW( g_hWnd_edit_box, GWLP_WNDPROC, ( LONG_PTR )EditBoxSubProc );
 }
 
-VOID CALLBACK EditTimerProc( HWND hWnd, UINT msg, UINT idTimer, DWORD dwTime )
+VOID CALLBACK EditTimerProc( HWND hWnd, UINT /*msg*/, UINT /*idTimer*/, DWORD /*dwTime*/ )
 {
 	CreateEditBox( hWnd );
 
@@ -3079,13 +3080,13 @@ void DrawTreeListView( HWND hWnd )
 	int row_count = 0;
 
 	RECT rc_array[ NUM_COLUMNS ];
-	unsigned char column_start = 0;
-	unsigned char column_end = NUM_COLUMNS - 1;
 
 	char start_index = -1;
 	char end_index = -1;
 
 	RECT row_rc;
+	row_rc.left = 0;
+	row_rc.right = 0;
 	row_rc.top = 0;
 	row_rc.bottom = g_client_rc.top;
 
@@ -3105,7 +3106,7 @@ void DrawTreeListView( HWND hWnd )
 	// Offset the virtual indices to match the actual index.
 	OffsetVirtualIndices( arr2, download_columns, NUM_COLUMNS, g_total_columns );
 
-	for ( int i = 0; i < g_total_columns; ++i )
+	for ( unsigned char i = 0; i < g_total_columns; ++i )
 	{
 		// Get the width of the column header.
 		_SendMessageW( g_hWnd_tlv_header, HDM_GETITEMRECT, arr[ i ], ( LPARAM )&rc_array[ i ] );
@@ -3420,10 +3421,12 @@ void DrawTreeListView( HWND hWnd )
 				_SetBkMode( hdcMem2, TRANSPARENT );
 
 				if ( cfg_show_part_progress &&
-					 IS_STATUS( di->status,
+				   ( IS_STATUS( di->status,
 						STATUS_CONNECTING |
 						STATUS_DOWNLOADING |
-						STATUS_STOPPED ) &&
+						STATUS_STOPPED |
+						STATUS_QUEUED ) ||
+						di->status == STATUS_NONE ) &&
 					di->print_range_list != NULL && di->parts > 1 )
 				{
 					RECT progress_parts_rc;
@@ -3446,8 +3449,8 @@ void DrawTreeListView( HWND hWnd )
 					_SetTextColor( hdcMem2, color_ref_body_text );
 					__DrawTextW( hdcMem2, 0, 0, align | _DT_VCENTER, &parts_text_rc, buf, buf_length );
 
-					unsigned char range_info_count = 0;
-					unsigned char total_range_info_count = ( di->hosts > 0 ? di->hosts : di->parts );
+					unsigned short range_info_count = 0;
+					unsigned short total_range_info_count = ( di->hosts > 0 ? di->hosts : di->parts );
 
 					unsigned long long last_range_end = 0;
 					unsigned long long last_host_end = di->file_size;
@@ -3516,10 +3519,12 @@ void DrawTreeListView( HWND hWnd )
 						}
 
 						int range_offset = 0;
+						int range_width = 0;
 						if ( di->file_size > 0 )
 						{
 #ifdef _WIN64
 							range_offset = ( int )_ceil( ( double )progress_width * ( ( double )last_range_end / ( double )di->file_size ) );
+							range_width = ( int )_ceil( ( double )progress_width * ( ( double )range_size / ( double )di->file_size ) );
 #else
 							double f_range_offset = _ceil( ( double )progress_width * ( ( double )last_range_end / ( double )di->file_size ) );
 							__asm
@@ -3527,20 +3532,15 @@ void DrawTreeListView( HWND hWnd )
 								fld f_range_offset;	//; Load the floating point value onto the FPU stack.
 								fistp range_offset;	//; Convert the floating point value into an integer, store it in an integer, and then pop it off the stack.
 							}
-#endif
-						}
 
-						int range_width;
-#ifdef _WIN64
-						range_width = ( int )_ceil( ( double )progress_width * ( ( double )range_size / ( double )di->file_size ) );
-#else
-						double f_range_width = _ceil( ( double )progress_width * ( ( double )range_size / ( double )di->file_size ) );
-						__asm
-						{
-							fld f_range_width;	//; Load the floating point value onto the FPU stack.
-							fistp range_width;	//; Convert the floating point value into an integer, store it in an integer, and then pop it off the stack.
-						}
+							double f_range_width = _ceil( ( double )progress_width * ( ( double )range_size / ( double )di->file_size ) );
+							__asm
+							{
+								fld f_range_width;	//; Load the floating point value onto the FPU stack.
+								fistp range_width;	//; Convert the floating point value into an integer, store it in an integer, and then pop it off the stack.
+							}
 #endif
+						}
 
 						int range_progress_offset = 0;
 						if ( range_size > 0 )
@@ -3565,7 +3565,7 @@ void DrawTreeListView( HWND hWnd )
 					}
 
 					// Fill out the remaining progress bar if later parts have completed.
-					if ( ( IS_STATUS_NOT( di->status, STATUS_CONNECTING ) || range_info_count == total_range_info_count ) && last_range_end < di->file_size )
+					if ( ( IS_STATUS_NOT( di->status, STATUS_CONNECTING ) || range_info_count == total_range_info_count ) && /*last_host_end*/ last_range_end < di->file_size )
 					{
 						int range_offset = 0;
 						if ( di->file_size > 0 )
@@ -3593,7 +3593,9 @@ void DrawTreeListView( HWND hWnd )
 					if ( IS_STATUS( di->status,
 							STATUS_CONNECTING |
 							STATUS_DOWNLOADING |
-							STATUS_STOPPED ) )
+							STATUS_STOPPED |
+							STATUS_QUEUED ) ||
+							di->status == STATUS_NONE )
 					{
 						if ( di->file_size > 0 )
 						{
@@ -4030,6 +4032,8 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 
 		case TLVM_EDIT_LABEL:
 		{
+			_KillTimer( hWnd, IDT_EDIT_TIMER );
+
 			g_show_edit_state = 1;
 
 			if ( g_hWnd_edit_box == NULL )

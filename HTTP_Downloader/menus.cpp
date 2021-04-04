@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S) and FTP(S) connections.
-	Copyright (C) 2015-2020 Eric Kutcher
+	Copyright (C) 2015-2021 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -29,6 +29,7 @@
 #include "list_operations.h"
 
 #include "string_tables.h"
+#include "cmessagebox.h"
 
 HMENU g_hMenu = NULL;
 
@@ -52,6 +53,12 @@ void DestroyMenus()
 
 void UpdateMenus( bool enable )
 {
+	MENUITEMINFO mii;
+	_memzero( &mii, sizeof( MENUITEMINFO ) );
+	mii.cbSize = sizeof( MENUITEMINFO );
+	mii.fMask = MIIM_TYPE;
+	mii.fType = MFT_STRING;
+
 	TBBUTTONINFO tbb;
 	_memzero( &tbb, sizeof( TBBUTTONINFO ) );
 	tbb.cbSize = sizeof( TBBUTTONINFO );
@@ -391,6 +398,39 @@ void UpdateMenus( bool enable )
 		_EnableMenuItem( g_hMenuSub_download, MENU_SELECT_ALL, ( sel_count != item_count ? MF_ENABLED : MF_GRAYED ) );
 
 		_EnableMenuItem( g_hMenuSub_edit, MENU_SELECT_ALL, ( sel_count != item_count ? MF_ENABLED : MF_GRAYED ) );
+
+		wchar_t *item_text, *item_text2;
+		UINT item_text_length, item_text_length2;
+		if ( di != NULL && IS_STATUS( di->status, STATUS_PAUSED ) && sel_count > 0 )
+		{
+			item_text = ST_V_Resume;
+			item_text_length = ST_L_Resume;
+
+			item_text2 = ST_V_Resu_me;
+			item_text_length2 = ST_L_Resu_me;
+		}
+		else
+		{
+			item_text = ST_V_Start;
+			item_text_length = ST_L_Start;
+
+			item_text2 = ST_V_St_art;
+			item_text_length2 = ST_L_St_art;
+		}
+
+		mii.dwTypeData = item_text;
+		mii.cch = item_text_length;
+
+		_SetMenuItemInfoW( g_hMenuSub_edit, MENU_START, FALSE, &mii );
+
+		mii.dwTypeData = item_text2;
+		mii.cch = item_text_length2;
+
+		_SetMenuItemInfoW( g_hMenuSub_download, MENU_START, FALSE, &mii );
+
+		tbb.dwMask = TBIF_TEXT;
+		tbb.pszText = item_text;
+		_SendMessageW( g_hWnd_toolbar, TB_SETBUTTONINFO, MENU_START, ( LPARAM )&tbb );
 	}
 	else
 	{
@@ -437,6 +477,20 @@ void UpdateMenus( bool enable )
 		_SendMessageW( g_hWnd_toolbar, TB_SETBUTTONINFO, MENU_RESTART, ( LPARAM )&tbb );
 		_SendMessageW( g_hWnd_toolbar, TB_SETBUTTONINFO, MENU_PAUSE_ACTIVE, ( LPARAM )&tbb );
 		_SendMessageW( g_hWnd_toolbar, TB_SETBUTTONINFO, MENU_STOP_ALL, ( LPARAM )&tbb );
+
+		mii.dwTypeData = ST_V_Start;
+		mii.cch = ST_L_Start;
+
+		_SetMenuItemInfoW( g_hMenuSub_edit, MENU_START, FALSE, &mii );
+
+		mii.dwTypeData = ST_V_St_art;
+		mii.cch = ST_L_St_art;
+
+		_SetMenuItemInfoW( g_hMenuSub_download, MENU_START, FALSE, &mii );
+
+		tbb.dwMask = TBIF_TEXT;
+		tbb.pszText = ST_V_Start;
+		_SendMessageW( g_hWnd_toolbar, TB_SETBUTTONINFO, MENU_START, ( LPARAM )&tbb );
 	}
 }
 
@@ -1037,7 +1091,7 @@ void CreateMenus()
 void UpdateColumns( WORD menu_id )
 {
 	int arr[ NUM_COLUMNS ];
-	unsigned char menu_index = menu_id - COLUMN_MENU_OFFSET;
+	unsigned char menu_index = ( unsigned char )( menu_id - COLUMN_MENU_OFFSET );
 
 	if ( menu_index >= 0 && menu_index <= NUM_COLUMNS )
 	{
@@ -1270,7 +1324,7 @@ void HandleCommand( HWND hWnd, WORD command )
 					HINSTANCE hInst = _ShellExecuteW( NULL, NULL, file_path, NULL, NULL, SW_SHOWNORMAL );
 					if ( hInst == ( HINSTANCE )ERROR_FILE_NOT_FOUND )
 					{
-						if ( _MessageBoxW( hWnd, ST_V_PROMPT_The_specified_file_was_not_found, PROGRAM_CAPTION, MB_APPLMODAL | MB_ICONWARNING | MB_YESNO ) == IDYES )
+						if ( CMessageBoxW( hWnd, ST_V_PROMPT_The_specified_file_was_not_found, PROGRAM_CAPTION, /*CMB_APPLMODAL |*/ CMB_ICONWARNING | CMB_YESNO ) == CMBIDYES )
 						{
 							CloseHandle( ( HANDLE )_CreateThread( NULL, 0, handle_download_list, ( void * )3, 0, NULL ) );	// Restart download (from the beginning).
 						}
@@ -1300,7 +1354,7 @@ void HandleCommand( HWND hWnd, WORD command )
 
 					if ( hInst == ( HINSTANCE )ERROR_FILE_NOT_FOUND )	// We're opening a folder, but it uses the same error code as a file if it's not found.
 					{
-						_MessageBoxW( hWnd, ST_V_The_specified_path_was_not_found, PROGRAM_CAPTION, MB_APPLMODAL | MB_ICONWARNING );
+						CMessageBoxW( hWnd, ST_V_The_specified_path_was_not_found, PROGRAM_CAPTION, /*CMB_APPLMODAL |*/ CMB_ICONWARNING );
 					}
 				}
 
@@ -1447,7 +1501,7 @@ void HandleCommand( HWND hWnd, WORD command )
 
 		case MENU_RESTART:
 		{
-			if ( _MessageBoxW( hWnd, ST_V_PROMPT_restart_selected_entries, PROGRAM_CAPTION, MB_APPLMODAL | MB_ICONWARNING | MB_YESNO ) == IDYES )
+			if ( CMessageBoxW( hWnd, ST_V_PROMPT_restart_selected_entries, PROGRAM_CAPTION, /*CMB_APPLMODAL |*/ CMB_ICONWARNING | CMB_YESNO ) == CMBIDYES )
 			{
 				CloseHandle( ( HANDLE )_CreateThread( NULL, 0, handle_connection, ( void * )STATUS_RESTART, 0, NULL ) );
 			}
@@ -1517,7 +1571,7 @@ void HandleCommand( HWND hWnd, WORD command )
 
 		case MENU_REMOVE:
 		{
-			if ( _MessageBoxW( hWnd, ST_V_PROMPT_remove_selected_entries, PROGRAM_CAPTION, MB_APPLMODAL | MB_ICONWARNING | MB_YESNO ) == IDYES )
+			if ( CMessageBoxW( hWnd, ST_V_PROMPT_remove_selected_entries, PROGRAM_CAPTION, /*CMB_APPLMODAL |*/ CMB_ICONWARNING | CMB_YESNO ) == CMBIDYES )
 			{
 				CloseHandle( ( HANDLE )_CreateThread( NULL, 0, remove_items, ( void * )0, 0, NULL ) );
 			}
@@ -1526,7 +1580,7 @@ void HandleCommand( HWND hWnd, WORD command )
 
 		case MENU_REMOVE_COMPLETED:
 		{
-			if ( _MessageBoxW( hWnd, ST_V_PROMPT_remove_completed_entries, PROGRAM_CAPTION, MB_APPLMODAL | MB_ICONWARNING | MB_YESNO ) == IDYES )
+			if ( CMessageBoxW( hWnd, ST_V_PROMPT_remove_completed_entries, PROGRAM_CAPTION, /*CMB_APPLMODAL |*/ CMB_ICONWARNING | CMB_YESNO ) == CMBIDYES )
 			{
 				CloseHandle( ( HANDLE )_CreateThread( NULL, 0, handle_download_list, ( void * )2, 0, NULL ) );
 			}
@@ -1535,7 +1589,7 @@ void HandleCommand( HWND hWnd, WORD command )
 
 		case MENU_REMOVE_AND_DELETE:
 		{
-			if ( _MessageBoxW( hWnd, ST_V_PROMPT_remove_and_delete_selected_entries, PROGRAM_CAPTION, MB_APPLMODAL | MB_ICONWARNING | MB_YESNO ) == IDYES )
+			if ( CMessageBoxW( hWnd, ST_V_PROMPT_remove_and_delete_selected_entries, PROGRAM_CAPTION, /*CMB_APPLMODAL |*/ CMB_ICONWARNING | CMB_YESNO ) == CMBIDYES )
 			{
 				CloseHandle( ( HANDLE )_CreateThread( NULL, 0, remove_items, ( void * )1, 0, NULL ) );
 			}
@@ -1550,7 +1604,7 @@ void HandleCommand( HWND hWnd, WORD command )
 
 		case MENU_DELETE:
 		{
-			if ( _MessageBoxW( hWnd, ST_V_PROMPT_delete_selected_files, PROGRAM_CAPTION, MB_APPLMODAL | MB_ICONWARNING | MB_YESNO ) == IDYES )
+			if ( CMessageBoxW( hWnd, ST_V_PROMPT_delete_selected_files, PROGRAM_CAPTION, /*CMB_APPLMODAL |*/ CMB_ICONWARNING | CMB_YESNO ) == CMBIDYES )
 			{
 				CloseHandle( ( HANDLE )_CreateThread( NULL, 0, delete_files, ( void * )NULL, 0, NULL ) );
 			}
@@ -1750,7 +1804,7 @@ void HandleCommand( HWND hWnd, WORD command )
 			int msg_length = __snwprintf( msg, 512, L"%s\r\n\r\n" \
 												    L"%s %lu.%lu.%lu.%lu (%u-bit)\r\n\r\n" \
 												    L"%s %s, %s %d, %04d %d:%02d:%02d %s (UTC)\r\n\r\n" \
-												    L"%s \xA9 2015-2020 Eric Kutcher\r\n\r\n" \
+												    L"%s \xA9 2015-2021 Eric Kutcher\r\n\r\n" \
 												    L"%s ",
 												    ST_V_LICENSE,
 												    ST_V_VERSION,
@@ -1774,7 +1828,7 @@ void HandleCommand( HWND hWnd, WORD command )
 
 			FormatSizes( msg + msg_length, 512 - msg_length, SIZE_FORMAT_AUTO, cfg_total_downloaded );
 
-			_MessageBoxW( hWnd, msg, PROGRAM_CAPTION, MB_APPLMODAL | MB_ICONINFORMATION );
+			CMessageBoxW( hWnd, msg, PROGRAM_CAPTION, /*CMB_APPLMODAL |*/ CMB_ICONINFORMATION );
 		}
 		break;
 

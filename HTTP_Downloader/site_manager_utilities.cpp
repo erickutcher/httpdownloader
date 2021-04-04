@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S) and FTP(S) connections.
-	Copyright (C) 2015-2020 Eric Kutcher
+	Copyright (C) 2015-2021 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -27,38 +27,6 @@
 #include "connection.h"
 
 bool site_list_changed = false;
-
-int GetDomainParts( wchar_t *site, wchar_t *offsets[ 128 ] )
-{
-	int count = 0;
-	wchar_t *ptr = site;
-	wchar_t *ptr_s = ptr;
-
-	while ( ptr != NULL && count < 127 )
-	{
-		if ( *ptr == L'.' )
-		{
-			offsets[ count++ ] = ptr_s;
-
-			ptr_s = ptr + 1;
-		}
-		else if ( *ptr == NULL )
-		{
-			offsets[ count++ ] = ptr_s;
-
-			break;
-		}
-
-		++ptr;
-	}
-
-	if ( ptr != NULL )
-	{
-		offsets[ count ] = ptr;	// End of string.
-	}
-
-	return count;
-}
 
 void FreeSiteInfo( SITE_INFO **site_info )
 {
@@ -173,10 +141,10 @@ char read_site_info()
 {
 	char ret_status = 0;
 
-	_wmemcpy_s( base_directory + base_directory_length, MAX_PATH - base_directory_length, L"\\site_settings\0", 15 );
-	base_directory[ base_directory_length + 14 ] = 0;	// Sanity.
+	_wmemcpy_s( g_base_directory + g_base_directory_length, MAX_PATH - g_base_directory_length, L"\\site_settings\0", 15 );
+	g_base_directory[ g_base_directory_length + 14 ] = 0;	// Sanity.
 
-	HANDLE hFile_read = CreateFile( base_directory, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL );
+	HANDLE hFile_read = CreateFile( g_base_directory, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL );
 	if ( hFile_read != INVALID_HANDLE_VALUE )
 	{
 		DWORD read = 0, total_read = 0, offset = 0, last_entry = 0, last_total = 0;
@@ -281,11 +249,21 @@ char read_site_info()
 
 					download_directory = NULL;
 
+					parts = 0;
+					download_speed_limit = 0;
+
 					cookies = NULL;
 					headers = NULL;
 					data = NULL;
 
+					hostname_length = 0;
+					proxy_address_type = 0;
 					proxy_hostname = NULL;
+					proxy_ip_address = 0;
+					proxy_port = 0;
+
+					proxy_use_authentication = false;
+					proxy_resolve_domain_names = false;
 
 					proxy_auth_username = NULL;
 					proxy_auth_password = NULL;
@@ -294,7 +272,7 @@ char read_site_info()
 
 					//
 
-					// Use Download Directory
+					// Enable/Disable entry
 					offset += sizeof( bool );
 					if ( offset >= read ) { goto CLEANUP; }
 					_memcpy_s( &enable, sizeof( bool ), p, sizeof( bool ) );
@@ -818,10 +796,10 @@ char save_site_info()
 {
 	char ret_status = 0;
 
-	_wmemcpy_s( base_directory + base_directory_length, MAX_PATH - base_directory_length, L"\\site_settings\0", 15 );
-	base_directory[ base_directory_length + 14 ] = 0;	// Sanity.
+	_wmemcpy_s( g_base_directory + g_base_directory_length, MAX_PATH - g_base_directory_length, L"\\site_settings\0", 15 );
+	g_base_directory[ g_base_directory_length + 14 ] = 0;	// Sanity.
 
-	HANDLE hFile = CreateFile( base_directory, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL );
+	HANDLE hFile = CreateFile( g_base_directory, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL );
 	if ( hFile != INVALID_HANDLE_VALUE )
 	{
 		//int size = ( 32768 + 1 );
@@ -1150,7 +1128,7 @@ char save_site_info()
 	return ret_status;
 }
 
-THREAD_RETURN load_site_list( void *pArguments )
+THREAD_RETURN load_site_list( void * /*pArguments*/ )
 {
 	// This will block every other thread from entering until the first thread is complete.
 	EnterCriticalSection( &worker_cs );
@@ -1189,7 +1167,7 @@ THREAD_RETURN load_site_list( void *pArguments )
 	LeaveCriticalSection( &worker_cs );
 
 	_ExitThread( 0 );
-	return 0;
+	//return 0;
 }
 
 THREAD_RETURN handle_site_list( void *pArguments )
@@ -1221,7 +1199,8 @@ THREAD_RETURN handle_site_list( void *pArguments )
 				 si->protocol == PROTOCOL_HTTPS ||
 				 si->protocol == PROTOCOL_FTP ||
 				 si->protocol == PROTOCOL_FTPS ||
-				 si->protocol == PROTOCOL_FTPES )
+				 si->protocol == PROTOCOL_FTPES ||
+				 si->protocol == PROTOCOL_SFTP )
 			{
 				if ( si->protocol == PROTOCOL_HTTP )
 				{
@@ -1242,6 +1221,10 @@ THREAD_RETURN handle_site_list( void *pArguments )
 				else if ( si->protocol == PROTOCOL_FTPES )
 				{
 					host_length += 8;	// ftpes://
+				}
+				else if ( si->protocol == PROTOCOL_SFTP )
+				{
+					host_length += 7;	// sftp://
 				}
 
 				// See if there's a resource at the end of our host. We don't want it.
@@ -1311,6 +1294,8 @@ THREAD_RETURN handle_site_list( void *pArguments )
 						lvi.lParam = ( LPARAM )si;
 						lvi.pszText = si->w_host;
 						_SendMessageW( g_hWnd_site_list, LVM_INSERTITEM, 0, ( LPARAM )&lvi );
+
+						_SendMessageW( g_hWnd_site_manager, WM_PROPAGATE, 4, ( LPARAM )sui );	// Update selected host.
 					}
 
 					site_list_changed = true;
@@ -1491,5 +1476,5 @@ THREAD_RETURN handle_site_list( void *pArguments )
 	LeaveCriticalSection( &worker_cs );
 
 	_ExitThread( 0 );
-	return 0;
+	//return 0;
 }

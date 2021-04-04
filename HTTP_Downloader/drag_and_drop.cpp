@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S) and FTP(S) connections.
-	Copyright (C) 2015-2020 Eric Kutcher
+	Copyright (C) 2015-2021 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -26,7 +26,7 @@
 
 void HandleFileList( HDROP hdrop )
 {
-	int count = _DragQueryFileW( hdrop, -1, NULL, 0 );
+	UINT count = _DragQueryFileW( hdrop, 0xFFFFFFFF, NULL, 0 );
 
 	importexportinfo *iei = ( importexportinfo * )GlobalAlloc( GMEM_FIXED, sizeof( importexportinfo ) );
 	iei->file_paths = NULL;
@@ -39,7 +39,7 @@ void HandleFileList( HDROP hdrop )
 	int file_paths_length = ( MAX_PATH * count ) + 1;
 
 	// Go through the list of paths.
-	for ( int i = 0; i < count; ++i )
+	for ( UINT i = 0; i < count; ++i )
 	{
 		// Get the file path and its length.
 		int file_path_length = _DragQueryFileW( hdrop, i, file_path, MAX_PATH ) + 1;	// Include the NULL terminator.
@@ -208,17 +208,18 @@ wchar_t *ParseHTMLClipboard( char *data )
 					{
 						if ( found_domain == 0 )
 						{
-							// Compare the previous characters in the string to see if it's an HTTP/S / FTP/S/ES URL.
+							// Compare the previous characters in the string to see if it's an HTTP/S / FTP/S/ES / SFTP URL.
 							// We already know that the last two characters are "//".
 							if ( ( ( source_url_end - source_url_start ) == 6 && _StrCmpNIA( source_url_start, "http:", 5 ) == 0 ) ||
 								 ( ( source_url_end - source_url_start ) == 7 && _StrCmpNIA( source_url_start, "https:", 6 ) == 0 ) ||
 								 ( ( source_url_end - source_url_start ) == 5 && _StrCmpNIA( source_url_start, "ftp:", 4 ) == 0 ) ||
 								 ( ( source_url_end - source_url_start ) == 6 && _StrCmpNIA( source_url_start, "ftps:", 5 ) == 0 ) ||
-								 ( ( source_url_end - source_url_start ) == 7 && _StrCmpNIA( source_url_start, "ftpes:", 6 ) == 0 ) )
+								 ( ( source_url_end - source_url_start ) == 7 && _StrCmpNIA( source_url_start, "ftpes:", 6 ) == 0 ) ||
+								 ( ( source_url_end - source_url_start ) == 6 && _StrCmpNIA( source_url_start, "sftp:", 5 ) == 0 ) )
 							{
 								found_domain = 1;
 							}
-							else	// Not an HTTP/S / FTP/S/ES URL.
+							else	// Not an HTTP/S / FTP/S/ES / SFTP URL.
 							{
 								source_url_start = source_url_end = source_url_root_end = NULL;
 
@@ -256,7 +257,7 @@ wchar_t *ParseHTMLClipboard( char *data )
 		}
 	}
 
-	while ( true )
+	for ( ;; )
 	{
 		// Look for the opening of an HTML element.
 		element_start = _StrChrA( element_end, '<' );
@@ -398,7 +399,8 @@ wchar_t *ParseHTMLClipboard( char *data )
 							 ( ( href_end - href ) > 8 && _StrCmpNIA( href, "https://", 8 ) == 0 ) ||
 							 ( ( href_end - href ) > 6 && _StrCmpNIA( href, "ftp://", 6 ) == 0 ) ||
 							 ( ( href_end - href ) > 7 && _StrCmpNIA( href, "ftps://", 7 ) == 0 ) ||
-							 ( ( href_end - href ) > 8 && _StrCmpNIA( href, "ftpes://", 8 ) == 0 ) )
+							 ( ( href_end - href ) > 8 && _StrCmpNIA( href, "ftpes://", 8 ) == 0 ) ||
+							 ( ( href_end - href ) > 7 && _StrCmpNIA( href, "sftp://", 7 ) == 0 ) )
 						{
 							url_length = ( int )( href_end - href );
 						}
@@ -603,14 +605,14 @@ ULONG STDMETHODCALLTYPE Release( IDropTarget *This )
 	return count;
 }
 
-HRESULT STDMETHODCALLTYPE DragEnter( IDropTarget *This, IDataObject *pDataObj, DWORD grfKeyState, POINTL pt, DWORD *pdwEffect )
+HRESULT STDMETHODCALLTYPE DragEnter( IDropTarget *This, IDataObject *pDataObj, DWORD /*grfKeyState*/, POINTL pt, DWORD *pdwEffect )
 {
 	_IDropTarget *_This = ( _IDropTarget * )This;
 
 	_This->m_ClipFormat = 0;
 
 	FORMATETC fetc;
-	fetc.cfFormat = CF_HTML;
+	fetc.cfFormat = ( CLIPFORMAT )CF_HTML;
 	fetc.ptd = NULL;
 	fetc.dwAspect = DVASPECT_CONTENT;
 	fetc.lindex = -1;
@@ -673,7 +675,7 @@ HRESULT STDMETHODCALLTYPE DragEnter( IDropTarget *This, IDataObject *pDataObj, D
 	return S_OK;
 }
 
-HRESULT STDMETHODCALLTYPE DragOver( IDropTarget *This, DWORD grfKeyState, POINTL pt, DWORD *pdwEffect )
+HRESULT STDMETHODCALLTYPE DragOver( IDropTarget *This, DWORD /*grfKeyState*/, POINTL pt, DWORD *pdwEffect )
 {
 	_IDropTarget *_This = ( _IDropTarget * )This;
 
@@ -703,11 +705,11 @@ HRESULT STDMETHODCALLTYPE DragLeave( IDropTarget *This )
 	return S_OK;
 }
 
-HRESULT STDMETHODCALLTYPE Drop( IDropTarget *This, IDataObject *pDataObj, DWORD grfKeyState, POINTL pt, DWORD *pdwEffect )
+HRESULT STDMETHODCALLTYPE Drop( IDropTarget *This, IDataObject *pDataObj, DWORD /*grfKeyState*/, POINTL pt, DWORD *pdwEffect )
 {
 	_IDropTarget *_This = ( _IDropTarget * )This;
 
-	UINT cfFormat = _This->m_ClipFormat;
+	CLIPFORMAT cfFormat = ( CLIPFORMAT )_This->m_ClipFormat;
 
 	if ( cfFormat != 0 )
 	{
@@ -778,7 +780,8 @@ HRESULT STDMETHODCALLTYPE Drop( IDropTarget *This, IDataObject *pDataObj, DWORD 
 				}
 				else
 				{
-					if ( cfg_drag_and_drop_action != DRAG_AND_DROP_ACTION_NONE && _GetParent( _This->m_hWnd ) != g_hWnd_add_urls )
+					// g_hWnd_add_urls might be NULL. We just want to make sure we're not dropping something into its URL edit control (g_hWnd_edit_add).
+					if ( cfg_drag_and_drop_action != DRAG_AND_DROP_ACTION_NONE && ( g_hWnd_add_urls == NULL || _GetParent( _This->m_hWnd ) != g_hWnd_add_urls ) )
 					{
 						HandleAddInfo( cfFormat, data );
 					}

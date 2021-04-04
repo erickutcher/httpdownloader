@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S) and FTP(S) connections.
-	Copyright (C) 2015-2020 Eric Kutcher
+	Copyright (C) 2015-2021 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -57,12 +57,13 @@ char GetHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int h
 char GetHTTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, unsigned int response_buffer_length );
 char GetHTTPRequestContent( SOCKET_CONTEXT *context, char *request_buffer, unsigned int request_buffer_length );
 
+void MakeHostRanges( SOCKET_CONTEXT *context );
 char MakeResponse( SOCKET_CONTEXT *context );
 char MakeRequest( SOCKET_CONTEXT *context, IO_OPERATION next_operation, bool use_connect );
 char MakeRangeRequest( SOCKET_CONTEXT *context );
 char HandleRedirect( SOCKET_CONTEXT *context );
 
-char AllocateFile( SOCKET_CONTEXT *context );
+char AllocateFile( SOCKET_CONTEXT *context, IO_OPERATION current_operation );
 char HandleRenamePrompt( SOCKET_CONTEXT *context );
 char HandleFileSizePrompt( SOCKET_CONTEXT *context );
 char HandleLastModifiedPrompt( SOCKET_CONTEXT *context );

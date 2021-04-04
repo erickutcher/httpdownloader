@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S) and FTP(S) connections.
-	Copyright (C) 2015-2020 Eric Kutcher
+	Copyright (C) 2015-2021 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -93,7 +93,7 @@
 	pLockWorkStation		_LockWorkStation;
 	pMapWindowPoints		_MapWindowPoints;
 	//pMessageBoxA			_MessageBoxA;
-	pMessageBoxW			_MessageBoxW;
+	//pMessageBoxW			_MessageBoxW;
 	pOffsetRect				_OffsetRect;
 	pOpenClipboard			_OpenClipboard;
 	pPostMessageW			_PostMessageW;
@@ -117,7 +117,7 @@
 	pSetForegroundWindow	_SetForegroundWindow;
 	pSetLayeredWindowAttributes		_SetLayeredWindowAttributes;
 	pSetMenu					_SetMenu;
-	//pSetMenuItemInfoW		_SetMenuItemInfoW;
+	pSetMenuItemInfoW		_SetMenuItemInfoW;
 	//pSetRect					_SetRect;
 	pSetScrollInfo			_SetScrollInfo;
 	pSetScrollPos			_SetScrollPos;
@@ -222,7 +222,7 @@
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_LockWorkStation, "LockWorkStation" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_MapWindowPoints, "MapWindowPoints" ) )
 		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_MessageBoxA, "MessageBoxA" ) )
-		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_MessageBoxW, "MessageBoxW" ) )
+		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_MessageBoxW, "MessageBoxW" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_OffsetRect, "OffsetRect" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_OpenClipboard, "OpenClipboard" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_PostMessageW, "PostMessageW" ) )
@@ -246,7 +246,7 @@
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_SetForegroundWindow, "SetForegroundWindow" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_SetLayeredWindowAttributes, "SetLayeredWindowAttributes" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_SetMenu, "SetMenu" ) )
-		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_SetMenuItemInfoW, "SetMenuItemInfoW" ) )
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_SetMenuItemInfoW, "SetMenuItemInfoW" ) )
 		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_SetRect, "SetRect" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_SetScrollInfo, "SetScrollInfo" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_SetScrollPos, "SetScrollPos" ) )
