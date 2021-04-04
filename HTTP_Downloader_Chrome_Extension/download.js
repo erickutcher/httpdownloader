@@ -248,15 +248,15 @@ function SetFliterPreset()
 
 	if ( filter_preset == "Images" )
 	{
-		document.getElementById( "filter" ).value = "^(http|ftpe?)s?:\\/\\/[^\\/\\s]+\\/[^\\?#\\s]+\\.(jp(e?g|e)|gif|png|bmp|tiff?|dib|ico)(\\?|#|$)";
+		document.getElementById( "filter" ).value = "^((http|ftpe?)s?|sftp):\\/\\/[^\\/\\s]+\\/[^\\?#\\s]+\\.(jp(e?g|e)|gif|png|bmp|tiff?|dib|ico)(\\?|#|$)";
 	}
 	else if ( filter_preset == "Music" )
 	{
-		document.getElementById( "filter" ).value = "^(http|ftpe?)s?:\\/\\/[^\\/\\s]+\\/[^\\?#\\s]+\\.(mp3|wave?|flac?|ogg|m4a|wma|aac|midi?|ape|shn|wv|aiff?|oga)(\\?|#|$)";
+		document.getElementById( "filter" ).value = "^((http|ftpe?)s?|sftp):\\/\\/[^\\/\\s]+\\/[^\\?#\\s]+\\.(mp3|wave?|flac?|ogg|m4a|wma|aac|midi?|ape|shn|wv|aiff?|oga)(\\?|#|$)";
 	}
 	else if ( filter_preset == "Videos" )
 	{
-		document.getElementById( "filter" ).value = "^(http|ftpe?)s?:\\/\\/[^\\/\\s]+\\/[^\\?#\\s]+\\.(avi|mp[124]|m4v|mp(e?g|e)|mkv|webm|wmv|3gp|ogm|ogv|flv|vob)(\\?|#|$)";
+		document.getElementById( "filter" ).value = "^((http|ftpe?)s?|sftp):\\/\\/[^\\/\\s]+\\/[^\\?#\\s]+\\.(avi|mp[124]|m4v|mp(e?g|e)|mkv|webm|wmv|3gp|ogm|ogv|flv|vob)(\\?|#|$)";
 	}
 	else
 	{

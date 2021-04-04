@@ -421,7 +421,10 @@ function OnDownloadItemCreated( item )
 		var url = ( item.hasOwnProperty( "finalUrl" ) ? item.finalUrl : item.url );
 		var protocol = url.substring( 0, 8 ).toLowerCase();
 
-		if ( protocol.startsWith( "http:" ) || protocol.startsWith( "https:" ) || protocol.startsWith( "ftp:" ) )
+		if ( protocol.startsWith( "https:" ) ||
+			 protocol.startsWith( "http:" ) ||
+			 protocol.startsWith( "ftp:" ) ||
+			 protocol.startsWith( "sftp:" ) )
 		{
 			var method = 1; // GET
 			var post_data = "";
