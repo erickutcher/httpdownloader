@@ -1,3 +1,8 @@
+Version:	1.0.3.8
+Released:	2021-04-09
+
+Prevented download from resuming if server file's size doesn't match.
+
 Version:	1.0.3.7
 Released:	2021-04-04
 

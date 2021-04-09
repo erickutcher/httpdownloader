@@ -1,5 +1,5 @@
 /*
-	HTTP Downloader can download files through HTTP(S) and FTP(S) connections.
+	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
 	Copyright (C) 2015-2021 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
@@ -3341,7 +3341,8 @@ char GetHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int h
 			{
 				// If we indended to make a range request and the status is not 206.
 				if ( ( context->parts > 1 ||
-					 ( context->download_info != NULL && IS_GROUP( context->download_info ) ) ) &&
+					 ( context->download_info != NULL && IS_GROUP( context->download_info ) ) ||
+					   context->header_info.range_info->content_length != context->download_info->shared_info->file_size ) &&
 					   context->processed_header )
 				{
 					return CONTENT_STATUS_FAILED;

@@ -1,5 +1,5 @@
 /*
-	HTTP Downloader can download files through HTTP(S) and FTP(S) connections.
+	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
 	Copyright (C) 2015-2021 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
@@ -106,7 +106,7 @@
 #define CURRENT_VERSION_A	1
 #define CURRENT_VERSION_B	0
 #define CURRENT_VERSION_C	3
-#define CURRENT_VERSION_D	7
+#define CURRENT_VERSION_D	8
 
 #define CURRENT_VERSION		( ( CURRENT_VERSION_A << 24 ) | \
 							  ( CURRENT_VERSION_B << 16 ) | \
