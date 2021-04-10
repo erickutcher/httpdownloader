@@ -1205,9 +1205,7 @@ THREAD_RETURN handle_connection( void *pArguments )
 									if ( is_group )
 									{
 										EnterCriticalSection( &di->shared_info->di_cs );
-
 										di->shared_info->status = di->status;
-
 										LeaveCriticalSection( &di->shared_info->di_cs );
 									}
 								}
@@ -1422,6 +1420,30 @@ THREAD_RETURN handle_connection( void *pArguments )
 
 															// Find the first host that can act as a driver.
 															DoublyLinkedList *host_node = di->shared_info->host_list;
+
+															// Remove the Add Stopped flag if the entire group was added in the stopped state.
+															if ( di->shared_info->download_operations & DOWNLOAD_OPERATION_ADD_STOPPED )
+															{
+																/*while ( host_node != NULL )
+																{
+																	DOWNLOAD_INFO *host_di = ( DOWNLOAD_INFO * )host_node->data;
+																	if ( host_di != NULL )
+																	{
+																		host_di->download_operations &= ~DOWNLOAD_OPERATION_ADD_STOPPED;
+																	}
+																	host_node = host_node->next;
+																}
+
+																LeaveCriticalSection( &di->di_cs );*/
+
+																EnterCriticalSection( &di->shared_info->di_cs );
+																di->shared_info->download_operations &= ~DOWNLOAD_OPERATION_ADD_STOPPED;
+																LeaveCriticalSection( &di->shared_info->di_cs );
+
+																//EnterCriticalSection( &di->di_cs );
+															}
+
+															host_node = di->shared_info->host_list;
 															while ( host_node != NULL )
 															{
 																DOWNLOAD_INFO *host_di = ( DOWNLOAD_INFO * )host_node->data;
@@ -1441,7 +1463,7 @@ THREAD_RETURN handle_connection( void *pArguments )
 															}
 															else
 															{
-																// Remove the Add Stopped flag.
+																/*// Remove the Add Stopped flag.
 																host_node = di->shared_info->host_list;
 																while ( host_node != NULL )
 																{
@@ -1453,15 +1475,27 @@ THREAD_RETURN handle_connection( void *pArguments )
 																	host_node = host_node->next;
 																}
 
+																LeaveCriticalSection( &di->di_cs );*/
+
 																EnterCriticalSection( &di->shared_info->di_cs );
 																di->shared_info->status = STATUS_STOPPED;
 																LeaveCriticalSection( &di->shared_info->di_cs );
+
+																//EnterCriticalSection( &di->di_cs );
 															}
 														}
 													}
 												}
 												else
 												{
+													//LeaveCriticalSection( &di->di_cs );
+
+													EnterCriticalSection( &di->shared_info->di_cs );
+													di->shared_info->download_operations &= ~DOWNLOAD_OPERATION_ADD_STOPPED;
+													LeaveCriticalSection( &di->shared_info->di_cs );
+
+													//EnterCriticalSection( &di->di_cs );
+
 													di->status = STATUS_NONE;
 
 													RestartDownload( di, ( status == STATUS_RESTART ? ( is_host_in_group ? START_TYPE_HOST_IN_GROUP : START_TYPE_HOST ) : START_TYPE_NONE ), START_OPERATION_NONE );
@@ -1515,9 +1549,13 @@ THREAD_RETURN handle_connection( void *pArguments )
 									di->status = STATUS_STOPPED;
 									if ( is_group && tln == tln_last_host )
 									{
+										//LeaveCriticalSection( &di->di_cs );
+
 										EnterCriticalSection( &di->shared_info->di_cs );
 										di->shared_info->status = STATUS_STOPPED;
 										LeaveCriticalSection( &di->shared_info->di_cs );
+
+										//EnterCriticalSection( &di->di_cs );
 									}
 
 									if ( di->queue_node.data != NULL )	// Download is queued.
@@ -1637,9 +1675,17 @@ THREAD_RETURN handle_connection( void *pArguments )
 										}
 										else
 										{
-											ResetDownload( di, START_TYPE_NONE );
+											// This is the case where we start a group download and skip it before we call MakeRangeRequest().
+											if ( !di->shared_info->processed_header && di->processed_header )
+											{
+												ResetDownload( di, START_TYPE_HOST );
+											}
+											else
+											{
+												ResetDownload( di, START_TYPE_NONE );
+											}
 
-											// Host has already be processed (assigned range info). Resume it.
+											// Host has already been processed (assigned range info). Resume it.
 											if ( di->shared_info->processed_header )
 											{
 												tmp_status = di->status;
@@ -1656,6 +1702,30 @@ THREAD_RETURN handle_connection( void *pArguments )
 
 													// Find the first host that can act as a driver.
 													DoublyLinkedList *host_node = di->shared_info->host_list;
+
+													// Remove the Add Stopped flag if the entire group was added in the stopped state.
+													if ( di->shared_info->download_operations & DOWNLOAD_OPERATION_ADD_STOPPED )
+													{
+														/*while ( host_node != NULL )
+														{
+															DOWNLOAD_INFO *host_di = ( DOWNLOAD_INFO * )host_node->data;
+															if ( host_di != NULL )
+															{
+																host_di->download_operations &= ~DOWNLOAD_OPERATION_ADD_STOPPED;
+															}
+															host_node = host_node->next;
+														}
+
+														LeaveCriticalSection( &di->di_cs );*/
+
+														EnterCriticalSection( &di->shared_info->di_cs );
+														di->shared_info->download_operations &= ~DOWNLOAD_OPERATION_ADD_STOPPED;
+														LeaveCriticalSection( &di->shared_info->di_cs );
+
+														//EnterCriticalSection( &di->di_cs );
+													}
+
+													host_node = di->shared_info->host_list;
 													while ( host_node != NULL )
 													{
 														DOWNLOAD_INFO *host_di = ( DOWNLOAD_INFO * )host_node->data;
@@ -1674,11 +1744,15 @@ THREAD_RETURN handle_connection( void *pArguments )
 														tmp_status = driver_di->status;
 														driver_di->status = STATUS_NONE;
 
+														di->status = STATUS_NONE;
+
 														StartDownload( driver_di, START_TYPE_GROUP, ( tmp_status == STATUS_SKIPPED || IS_STATUS( parent_status, STATUS_QUEUED ) ? START_OPERATION_CHECK_FILE : START_OPERATION_NONE ) );
 													}
 													else
 													{
-														// Remove the Add Stopped flag.
+														di->status = STATUS_NONE;
+
+														/*// Remove the Add Stopped flag.
 														host_node = di->shared_info->host_list;
 														while ( host_node != NULL )
 														{
@@ -1690,9 +1764,13 @@ THREAD_RETURN handle_connection( void *pArguments )
 															host_node = host_node->next;
 														}
 
+														LeaveCriticalSection( &di->di_cs );*/
+
 														EnterCriticalSection( &di->shared_info->di_cs );
 														di->shared_info->status = STATUS_STOPPED;
 														LeaveCriticalSection( &di->shared_info->di_cs );
+
+														//EnterCriticalSection( &di->di_cs );
 													}
 												}
 												else
@@ -1704,6 +1782,14 @@ THREAD_RETURN handle_connection( void *pArguments )
 									}
 									else
 									{
+										//LeaveCriticalSection( &di->di_cs );
+
+										EnterCriticalSection( &di->shared_info->di_cs );
+										di->shared_info->download_operations &= ~DOWNLOAD_OPERATION_ADD_STOPPED;
+										LeaveCriticalSection( &di->shared_info->di_cs );
+
+										//EnterCriticalSection( &di->di_cs );
+
 										// Revert the status back to queued if the group is queued.
 										if ( IS_STATUS( di->shared_info->status, STATUS_QUEUED ) )
 										{
@@ -1732,7 +1818,9 @@ THREAD_RETURN handle_connection( void *pArguments )
 						{
 							if ( status == STATUS_STOPPED )
 							{
+								EnterCriticalSection( &di->shared_info->di_cs );
 								di->shared_info->moving_state = 2;	// Cancel.
+								LeaveCriticalSection( &di->shared_info->di_cs );
 							}
 
 							LeaveCriticalSection( &di->di_cs );
@@ -1808,9 +1896,14 @@ THREAD_RETURN handle_connection( void *pArguments )
 							// Remove the Add Stopped flag.
 							di->download_operations &= ~DOWNLOAD_OPERATION_ADD_STOPPED;
 
+							//LeaveCriticalSection( &di->di_cs );
+
 							EnterCriticalSection( &di->shared_info->di_cs );
+							di->shared_info->download_operations &= ~DOWNLOAD_OPERATION_ADD_STOPPED;
 							di->shared_info->status = STATUS_STOPPED;
 							LeaveCriticalSection( &di->shared_info->di_cs );
+
+							//EnterCriticalSection( &di->di_cs );
 						}
 					}
 

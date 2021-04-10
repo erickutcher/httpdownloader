@@ -4009,6 +4009,8 @@ void ResetDownload( DOWNLOAD_INFO *di, unsigned char reset_type, bool reset_prog
 
 		di->start_time.QuadPart = 0;
 
+		di->download_operations &= ~DOWNLOAD_OPERATION_ADD_STOPPED;
+
 		EnterCriticalSection( &di->shared_info->di_cs );
 
 		di->shared_info->start_time.QuadPart = 0;
@@ -5553,7 +5555,6 @@ DWORD WINAPI AddURL( void *add_info )
 		TREELISTNODE *tln_parent = NULL;
 		DOWNLOAD_INFO *shared_info = NULL;
 		DOWNLOAD_INFO *di = NULL;
-		bool add_stopped = false;
 
 		if ( is_group )
 		{
@@ -6468,7 +6469,6 @@ DWORD WINAPI AddURL( void *add_info )
 							if ( download_operations & DOWNLOAD_OPERATION_ADD_STOPPED )
 							{
 								shared_info->status = STATUS_STOPPED;
-								add_stopped = true;
 							}
 
 							tln_parent = ( TREELISTNODE * )GlobalAlloc( GPTR, sizeof( TREELISTNODE ) );
@@ -6610,10 +6610,10 @@ DWORD WINAPI AddURL( void *add_info )
 			// If not, then it's just a self reference.
 			di = ( DOWNLOAD_INFO * )di->shared_info->host_list->data;
 
-			if ( di->shared_info->download_operations & DOWNLOAD_OPERATION_ADD_STOPPED )
+			/*if ( di->shared_info->download_operations & DOWNLOAD_OPERATION_ADD_STOPPED )
 			{
 				di->shared_info->download_operations &= ~DOWNLOAD_OPERATION_ADD_STOPPED;
-			}
+			}*/
 
 			DOWNLOAD_INFO *driver_di = NULL;
 

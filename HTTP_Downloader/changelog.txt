@@ -2,6 +2,8 @@ Version:	1.0.3.8
 Released:	2021-04-09
 
 Prevented download from resuming if server file's size doesn't match.
+Fixed drag and drop action when set to add in stopped state.
+Fixed processing list items that were added in stopped state and group items that are skipped.
 
 Version:	1.0.3.7
 Released:	2021-04-04

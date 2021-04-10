@@ -3671,7 +3671,7 @@ void MakeHostRanges( SOCKET_CONTEXT *context )
 {
 	if ( context != NULL && context->download_info != NULL )
 	{
-		EnterCriticalSection( &context->download_info->shared_info->di_cs );
+		//EnterCriticalSection( &context->download_info->shared_info->di_cs );
 
 		unsigned long long content_length = context->header_info.range_info->content_length;
 
@@ -3775,7 +3775,7 @@ void MakeHostRanges( SOCKET_CONTEXT *context )
 			host_node = host_node->next;
 		}
 
-		LeaveCriticalSection( &context->download_info->shared_info->di_cs );
+		//LeaveCriticalSection( &context->download_info->shared_info->di_cs );
 	}
 }
 
@@ -3793,6 +3793,8 @@ char MakeRangeRequest( SOCKET_CONTEXT *context )
 			if ( IS_GROUP( context->download_info ) && !context->download_info->shared_info->processed_header )
 			{
 				context->download_info->shared_info->processed_header = true;
+
+				LeaveCriticalSection( &context->download_info->shared_info->di_cs );
 
 				unsigned long long content_length = context->download_info->shared_info->file_size;
 
@@ -3820,13 +3822,20 @@ char MakeRangeRequest( SOCKET_CONTEXT *context )
 							if ( di->download_operations & DOWNLOAD_OPERATION_ADD_STOPPED )
 							{
 								di->download_operations &= ~DOWNLOAD_OPERATION_ADD_STOPPED;
-
 								di->status = STATUS_STOPPED;
+
+								LeaveCriticalSection( &di->di_cs );
+
+								EnterCriticalSection( &context->download_info->shared_info->di_cs );
+								context->download_info->shared_info->download_operations &= ~DOWNLOAD_OPERATION_ADD_STOPPED;
+								LeaveCriticalSection( &context->download_info->shared_info->di_cs );
 
 								skip_start = true;
 							}
-
-							LeaveCriticalSection( &di->di_cs );
+							else
+							{
+								LeaveCriticalSection( &di->di_cs );
+							}
 
 							if ( !skip_start )
 							{
@@ -3840,8 +3849,10 @@ char MakeRangeRequest( SOCKET_CONTEXT *context )
 					host_node = host_node->next;
 				}
 			}
-
-			LeaveCriticalSection( &context->download_info->shared_info->di_cs );
+			else
+			{
+				LeaveCriticalSection( &context->download_info->shared_info->di_cs );
+			}
 		}
 
 		// Create a new connection for the remaining parts.
@@ -5275,8 +5286,6 @@ char GetHTTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, uns
 					LARGE_INTEGER li;
 					li.QuadPart = context->header_info.range_info->file_write_offset;//context->header_info.range_info->range_start + context->header_info.range_info->content_offset;
 
-					EnterCriticalSection( &context->download_info->shared_info->di_cs );
-
 					InterlockedIncrement( &context->pending_operations );
 
 					context->overlapped.current_operation = IO_WriteFile;
@@ -5301,6 +5310,7 @@ char GetHTTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, uns
 					//context->header_info.range_info->content_offset += response_buffer_length;	// The true amount that was downloaded. Allows us to resume if we stop the download.
 					//context->header_info.range_info->file_write_offset += output_buffer_length;	// The size of the non-encoded/decoded data that we're writing to the file.
 
+					EnterCriticalSection( &context->download_info->shared_info->di_cs );
 					BOOL bRet = WriteFile( context->download_info->shared_info->hFile, context->write_wsabuf.buf, context->write_wsabuf.len, NULL, ( OVERLAPPED * )&context->overlapped );
 					if ( bRet == FALSE && ( GetLastError() != ERROR_IO_PENDING ) )
 					{
@@ -5320,7 +5330,6 @@ char GetHTTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, uns
 						CloseHandle( context->download_info->shared_info->hFile );
 						context->download_info->shared_info->hFile = INVALID_HANDLE_VALUE;
 					}
-
 					LeaveCriticalSection( &context->download_info->shared_info->di_cs );
 
 					return content_status;

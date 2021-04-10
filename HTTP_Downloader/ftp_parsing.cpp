@@ -1054,6 +1054,8 @@ char HandleModeRequest( SOCKET_CONTEXT *context )
 			{
 				context->download_info->shared_info->processed_header = true;
 
+				LeaveCriticalSection( &context->download_info->shared_info->di_cs );
+
 				unsigned long long content_length = context->download_info->shared_info->file_size;
 
 				unsigned char host_count = context->download_info->shared_info->hosts;
@@ -1080,13 +1082,20 @@ char HandleModeRequest( SOCKET_CONTEXT *context )
 							if ( di->download_operations & DOWNLOAD_OPERATION_ADD_STOPPED )
 							{
 								di->download_operations &= ~DOWNLOAD_OPERATION_ADD_STOPPED;
-
 								di->status = STATUS_STOPPED;
+
+								LeaveCriticalSection( &di->di_cs );
+
+								EnterCriticalSection( &context->download_info->shared_info->di_cs );
+								context->download_info->shared_info->download_operations &= ~DOWNLOAD_OPERATION_ADD_STOPPED;
+								LeaveCriticalSection( &context->download_info->shared_info->di_cs );
 
 								skip_start = true;
 							}
-
-							LeaveCriticalSection( &di->di_cs );
+							else
+							{
+								LeaveCriticalSection( &di->di_cs );
+							}
 
 							if ( !skip_start )
 							{
@@ -1100,8 +1109,10 @@ char HandleModeRequest( SOCKET_CONTEXT *context )
 					host_node = host_node->next;
 				}
 			}
-
-			LeaveCriticalSection( &context->download_info->shared_info->di_cs );
+			else
+			{
+				LeaveCriticalSection( &context->download_info->shared_info->di_cs );
+			}
 
 			if ( context->parts > 1 )
 			{
