@@ -1,6 +1,6 @@
 /*
-	HTTP Downloader can download files through HTTP(S) and FTP(S) connections.
-	Copyright (C) 2015-2020 Eric Kutcher
+	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
+	Copyright (C) 2015-2021 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -23,6 +23,7 @@
 #include "lite_ole32.h"
 
 #include "utilities.h"
+#include "cmessagebox.h"
 
 bool use_file_open_dialog = true;	// Assume OLE32 was initialized.
 bool use_fallback_file_open_dialog = false;
@@ -130,7 +131,7 @@ void _BrowseForFolder( HWND hWnd, wchar_t *title, wchar_t **folder )
 			}
 			else	// Warn of leak if we can't free.
 			{
-				_MessageBoxW( NULL, L"Item ID List was not freed.", PROGRAM_CAPTION, 0 );
+				CMessageBoxW( NULL, L"Item ID List was not freed.", PROGRAM_CAPTION, CMB_OK );
 			}
 		}
 

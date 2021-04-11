@@ -1,6 +1,6 @@
 /*
-	HTTP Downloader can download files through HTTP(S) and FTP(S) connections.
-	Copyright (C) 2015-2020 Eric Kutcher
+	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
+	Copyright (C) 2015-2021 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -24,6 +24,7 @@
 
 #include "file_operations.h"
 #include "site_manager_utilities.h"
+#include "sftp.h"
 
 #include "ftp_parsing.h"
 #include "utilities.h"
@@ -35,6 +36,7 @@
 #include "drop_window.h"
 
 #include "options.h"
+#include "cmessagebox.h"
 
 #define BTN_OK					1000
 #define BTN_CANCEL				1001
@@ -51,6 +53,9 @@ HWND g_hWnd_appearance_tab = NULL;
 HWND g_hWnd_connection_tab = NULL;
 HWND g_hWnd_web_server_tab = NULL;
 HWND g_hWnd_ftp_tab = NULL;
+HWND g_hWnd_sftp_tab = NULL;
+HWND g_hWnd_sftp_fps_tab = NULL;
+HWND g_hWnd_sftp_keys_tab = NULL;
 HWND g_hWnd_proxy_tab = NULL;
 HWND g_hWnd_advanced_tab = NULL;
 
@@ -503,21 +508,17 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			_memzero( &tvis, sizeof( TVINSERTSTRUCT ) );
 
 			tvis.item.mask = TVIF_TEXT | TVIF_PARAM | TVIF_STATE;
-			tvis.item.state = TVIS_SELECTED;
+			tvis.item.state = TVIS_SELECTED | TVIS_EXPANDED;
 			tvis.item.stateMask = TVIS_SELECTED | TVIS_EXPANDED;
-			tvis.item.cchTextMax = ST_L_General;
 			tvis.item.pszText = ST_V_General;
 			tvis.item.lParam = ( LPARAM )&g_hWnd_general_tab;
 
-			tvis.hInsertAfter = TVI_FIRST;
 			tvis.hParent = TVI_ROOT;
+			tvis.hInsertAfter = TVI_FIRST;
 
 			HTREEITEM hti = ( HTREEITEM )_SendMessageW( g_hWnd_options_tree, TVM_INSERTITEM, 0, ( LPARAM )&tvis );
 
-			//tvis.item.mask = TVIF_TEXT | TVIF_PARAM | TVIF_STATE;
-			tvis.item.state = 0;
-			//tvis.item.stateMask = TVIS_SELECTED | TVIS_EXPANDED;
-			tvis.item.cchTextMax = ST_L_Appearance;
+			tvis.item.state = TVIS_EXPANDED;
 			tvis.item.pszText = ST_V_Appearance;
 			tvis.item.lParam = ( LPARAM )&g_hWnd_appearance_tab;
 
@@ -526,10 +527,6 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 			hti = ( HTREEITEM )_SendMessageW( g_hWnd_options_tree, TVM_INSERTITEM, 0, ( LPARAM )&tvis );
 
-			//tvis.item.mask = TVIF_TEXT | TVIF_PARAM | TVIF_STATE;
-			tvis.item.state = TVIS_EXPANDED;
-			//tvis.item.stateMask = TVIS_SELECTED | TVIS_EXPANDED;
-			tvis.item.cchTextMax = ST_L_Connection;
 			tvis.item.pszText = ST_V_Connection;
 			tvis.item.lParam = ( LPARAM )&g_hWnd_connection_tab;
 
@@ -538,10 +535,6 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 			HTREEITEM hti_connection = ( HTREEITEM )_SendMessageW( g_hWnd_options_tree, TVM_INSERTITEM, 0, ( LPARAM )&tvis );
 
-			//tvis.item.mask = TVIF_TEXT | TVIF_PARAM | TVIF_STATE;
-			//tvis.item.state = TVIS_EXPANDED;
-			//tvis.item.stateMask = TVIS_SELECTED | TVIS_EXPANDED;
-			tvis.item.cchTextMax = ST_L_FTP;
 			tvis.item.pszText = ST_V_FTP;
 			tvis.item.lParam = ( LPARAM )&g_hWnd_ftp_tab;
 
@@ -550,10 +543,30 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 			hti = ( HTREEITEM )_SendMessageW( g_hWnd_options_tree, TVM_INSERTITEM, 0, ( LPARAM )&tvis );
 
-			//tvis.item.mask = TVIF_TEXT | TVIF_PARAM | TVIF_STATE;
-			//tvis.item.state = TVIS_EXPANDED;
-			//tvis.item.stateMask = TVIS_SELECTED | TVIS_EXPANDED;
-			tvis.item.cchTextMax = ST_L_Proxy;
+			tvis.item.pszText = ST_V_SFTP;
+			tvis.item.lParam = ( LPARAM )&g_hWnd_sftp_tab;
+
+			tvis.hParent = hti_connection;
+			tvis.hInsertAfter = hti;
+
+			HTREEITEM hti_sftp = ( HTREEITEM )_SendMessageW( g_hWnd_options_tree, TVM_INSERTITEM, 0, ( LPARAM )&tvis );
+
+			tvis.item.pszText = ST_V_Fingerprints;
+			tvis.item.lParam = ( LPARAM )&g_hWnd_sftp_fps_tab;
+
+			tvis.hParent = hti_sftp;
+			tvis.hInsertAfter = hti_sftp;
+
+			hti = ( HTREEITEM )_SendMessageW( g_hWnd_options_tree, TVM_INSERTITEM, 0, ( LPARAM )&tvis );
+
+			tvis.item.pszText = ST_V_Private_Keys;
+			tvis.item.lParam = ( LPARAM )&g_hWnd_sftp_keys_tab;
+
+			tvis.hParent = hti_sftp;
+			tvis.hInsertAfter = hti;
+
+			hti = ( HTREEITEM )_SendMessageW( g_hWnd_options_tree, TVM_INSERTITEM, 0, ( LPARAM )&tvis );
+
 			tvis.item.pszText = ST_V_Proxy;
 			tvis.item.lParam = ( LPARAM )&g_hWnd_proxy_tab;
 
@@ -562,10 +575,6 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 			hti = ( HTREEITEM )_SendMessageW( g_hWnd_options_tree, TVM_INSERTITEM, 0, ( LPARAM )&tvis );
 
-			//tvis.item.mask = TVIF_TEXT | TVIF_PARAM | TVIF_STATE;
-			//tvis.item.state = TVIS_EXPANDED;
-			//tvis.item.stateMask = TVIS_SELECTED | TVIS_EXPANDED;
-			tvis.item.cchTextMax = ST_L_Server;
 			tvis.item.pszText = ST_V_Server;
 			tvis.item.lParam = ( LPARAM )&g_hWnd_web_server_tab;
 
@@ -574,10 +583,6 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 			hti = ( HTREEITEM )_SendMessageW( g_hWnd_options_tree, TVM_INSERTITEM, 0, ( LPARAM )&tvis );
 
-			//tvis.item.mask = TVIF_TEXT | TVIF_PARAM | TVIF_STATE;
-			tvis.item.state = 0;
-			//tvis.item.stateMask = TVIS_SELECTED | TVIS_EXPANDED;
-			tvis.item.cchTextMax = ST_L_Advanced;
 			tvis.item.pszText = ST_V_Advanced;
 			tvis.item.lParam = ( LPARAM )&g_hWnd_advanced_tab;
 
@@ -592,6 +597,9 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			g_hWnd_connection_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"connection_tab", NULL, WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, rc.bottom - 50, hWnd, NULL, NULL, NULL );
 			g_hWnd_web_server_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"web_server_tab", NULL, WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, rc.bottom - 50, hWnd, NULL, NULL, NULL );
 			g_hWnd_ftp_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"ftp_tab", NULL, WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, rc.bottom - 50, hWnd, NULL, NULL, NULL );
+			g_hWnd_sftp_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"sftp_tab", NULL, WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, rc.bottom - 50, hWnd, NULL, NULL, NULL );
+			g_hWnd_sftp_fps_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"sftp_fps_tab", NULL, WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, rc.bottom - 50, hWnd, NULL, NULL, NULL );
+			g_hWnd_sftp_keys_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"sftp_keys_tab", NULL, WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, rc.bottom - 50, hWnd, NULL, NULL, NULL );
 			g_hWnd_proxy_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"proxy_tab", NULL, WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, rc.bottom - 50, hWnd, NULL, NULL, NULL );
 			g_hWnd_advanced_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"advanced_tab", NULL, WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, rc.bottom - 50, hWnd, NULL, NULL, NULL );
 
@@ -609,6 +617,12 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			options_state_changed = false;
 			_EnableWindow( g_hWnd_options_apply, FALSE );
 
+			HMONITOR hMon = _MonitorFromWindow( g_hWnd_main, MONITOR_DEFAULTTONEAREST );
+			MONITORINFO mi;
+			mi.cbSize = sizeof( MONITORINFO );
+			_GetMonitorInfoW( hMon, &mi );
+			_SetWindowPos( hWnd, NULL, mi.rcMonitor.left + ( ( ( mi.rcMonitor.right - mi.rcMonitor.left ) - 720 ) / 2 ), mi.rcMonitor.top + ( ( ( mi.rcMonitor.bottom - mi.rcMonitor.top ) - 500 ) / 2 ), 720, 500, 0 );
+
 			return 0;
 		}
 		break;
@@ -619,7 +633,7 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			_GetClientRect( hWnd, &rc );
 
 			// Allow our listview to resize in proportion to the main window.
-			HDWP hdwp = _BeginDeferWindowPos( 10 );
+			HDWP hdwp = _BeginDeferWindowPos( 14 );
 			_DeferWindowPos( hdwp, g_hWnd_options_tree, HWND_TOP, 0, 0, 120, rc.bottom - 50, SWP_NOZORDER | SWP_NOMOVE );
 
 			_DeferWindowPos( hdwp, g_hWnd_general_tab, HWND_TOP, 0, 0, rc.right - 150, rc.bottom - 50, SWP_NOZORDER | SWP_NOMOVE );
@@ -627,6 +641,9 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			_DeferWindowPos( hdwp, g_hWnd_connection_tab, HWND_TOP, 0, 0, rc.right - 150, rc.bottom - 50, SWP_NOZORDER | SWP_NOMOVE );
 			_DeferWindowPos( hdwp, g_hWnd_web_server_tab, HWND_TOP, 0, 0, rc.right - 150, rc.bottom - 50, SWP_NOZORDER | SWP_NOMOVE );
 			_DeferWindowPos( hdwp, g_hWnd_ftp_tab, HWND_TOP, 0, 0, rc.right - 150, rc.bottom - 50, SWP_NOZORDER | SWP_NOMOVE );
+			_DeferWindowPos( hdwp, g_hWnd_sftp_tab, HWND_TOP, 0, 0, rc.right - 150, rc.bottom - 50, SWP_NOZORDER | SWP_NOMOVE );
+			_DeferWindowPos( hdwp, g_hWnd_sftp_fps_tab, HWND_TOP, 0, 0, rc.right - 150, rc.bottom - 50, SWP_NOZORDER | SWP_NOMOVE );
+			_DeferWindowPos( hdwp, g_hWnd_sftp_keys_tab, HWND_TOP, 0, 0, rc.right - 150, rc.bottom - 50, SWP_NOZORDER | SWP_NOMOVE );
 			_DeferWindowPos( hdwp, g_hWnd_proxy_tab, HWND_TOP, 0, 0, rc.right - 150, rc.bottom - 50, SWP_NOZORDER | SWP_NOMOVE );
 			_DeferWindowPos( hdwp, g_hWnd_advanced_tab, HWND_TOP, 0, 0, rc.right - 150, rc.bottom - 50, SWP_NOZORDER | SWP_NOMOVE );
 
@@ -789,7 +806,7 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 					{
 						cfg_enable_quick_allocation = enable_quick_allocation;
 
-						display_notice = 0x01;
+						display_notice = ( enable_quick_allocation ? 0x01 : 0x02 );
 					}
 
 					cfg_set_filetime = ( _SendMessageW( g_hWnd_chk_set_filetime, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
@@ -808,12 +825,12 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 					{
 						if ( g_hWnd_url_drop_window == NULL )
 						{
-							g_hWnd_url_drop_window = _CreateWindowExW( WS_EX_NOPARENTNOTIFY | WS_EX_NOACTIVATE | WS_EX_TOPMOST, L"url_drop_window", NULL, WS_CLIPCHILDREN | WS_POPUP, 0, 0, 0, 0, NULL, NULL, NULL, NULL );
+							g_hWnd_url_drop_window = _CreateWindowExW( WS_EX_NOPARENTNOTIFY | WS_EX_NOACTIVATE | WS_EX_TOPMOST, L"url_drop_window", NULL, WS_CLIPCHILDREN | WS_POPUP, 0, 0, DW_WIDTH, DW_HEIGHT, NULL, NULL, NULL, NULL );
 							_SetWindowLongPtrW( g_hWnd_url_drop_window, GWL_EXSTYLE, _GetWindowLongPtrW( g_hWnd_url_drop_window, GWL_EXSTYLE ) | WS_EX_LAYERED );
 							_SetLayeredWindowAttributes( g_hWnd_url_drop_window, 0, cfg_drop_window_transparency, LWA_ALPHA );
 
 							// Prevents it from stealing focus.
-							_SetWindowPos( g_hWnd_url_drop_window, HWND_TOPMOST, cfg_drop_pos_x, cfg_drop_pos_y, 48, 48, SWP_SHOWWINDOW | SWP_NOACTIVATE | SWP_NOOWNERZORDER );
+							_SetWindowPos( g_hWnd_url_drop_window, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_SHOWWINDOW | SWP_NOACTIVATE | SWP_NOOWNERZORDER );
 						}
 						else
 						{
@@ -907,7 +924,7 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 					{
 						cfg_thread_count = thread_count;
 
-						display_notice |= 0x02;
+						display_notice |= 0x04;
 					}
 
 					//
@@ -932,7 +949,7 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 							 cfg_shutdown_action == SHUTDOWN_ACTION_SHUT_DOWN ||
 							 cfg_shutdown_action == SHUTDOWN_ACTION_HYBRID_SHUT_DOWN )
 						{
-							display_notice |= 0x04;
+							display_notice |= 0x08;
 						}
 					}
 
@@ -974,6 +991,75 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 					cfg_ftp_port_end = ( unsigned short )_strtoul( value, NULL, 10 );
 
 					cfg_ftp_send_keep_alive = ( _SendMessageW( g_hWnd_chk_send_keep_alive, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
+
+
+					// SFTP
+					unsigned short sftp_update = 0x0000;
+
+					bool sftp_enable_compression = ( _SendMessageW( g_hWnd_chk_enable_compression, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
+					if ( sftp_enable_compression != cfg_sftp_enable_compression ) { sftp_update |= 0x0001; }
+					cfg_sftp_enable_compression = sftp_enable_compression;
+
+					bool sftp_attempt_gssapi_authentication = ( _SendMessageW( g_hWnd_chk_attempt_gssapi_authentication, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
+					if ( sftp_attempt_gssapi_authentication != cfg_sftp_attempt_gssapi_authentication ) { sftp_update |= 0x0002; }
+					cfg_sftp_attempt_gssapi_authentication = sftp_attempt_gssapi_authentication;
+
+					bool sftp_attempt_gssapi_key_exchange = ( _SendMessageW( g_hWnd_chk_attempt_gssapi_key_exchange, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
+					if ( sftp_attempt_gssapi_key_exchange != cfg_sftp_attempt_gssapi_key_exchange ) { sftp_update |= 0x0004; }
+					cfg_sftp_attempt_gssapi_key_exchange = sftp_attempt_gssapi_key_exchange;
+
+					_SendMessageA( g_hWnd_sftp_keep_alive_time, WM_GETTEXT, 11, ( LPARAM )value );
+					int sftp_keep_alive_time = ( int )_strtoul( value, NULL, 10 );
+					if ( sftp_keep_alive_time != cfg_sftp_keep_alive_time ) { sftp_update |= 0x0008; }
+					cfg_sftp_keep_alive_time = sftp_keep_alive_time;
+
+					_SendMessageA( g_hWnd_sftp_rekey_time, WM_GETTEXT, 11, ( LPARAM )value );
+					int sftp_rekey_time = ( int )_strtoul( value, NULL, 10 );
+					if ( sftp_rekey_time != cfg_sftp_rekey_time ) { sftp_update |= 0x0010; }
+					cfg_sftp_rekey_time = sftp_rekey_time;
+
+					_SendMessageA( g_hWnd_sftp_gss_rekey_time, WM_GETTEXT, 11, ( LPARAM )value );
+					int sftp_gss_rekey_time = ( int )_strtoul( value, NULL, 10 );
+					if ( sftp_gss_rekey_time != cfg_sftp_gss_rekey_time ) { sftp_update |= 0x0020; }
+					cfg_sftp_gss_rekey_time = sftp_gss_rekey_time;
+
+					_SendMessageA( g_hWnd_sftp_rekey_data_limit, WM_GETTEXT, 11, ( LPARAM )value );
+					unsigned long sftp_rekey_data_limit = ( unsigned long )_strtoul( value, NULL, 10 );
+					if ( sftp_rekey_data_limit != cfg_sftp_rekey_data_limit ) { sftp_update |= 0x0040; }
+					cfg_sftp_rekey_data_limit = sftp_rekey_data_limit;
+
+					char i;
+					for ( i = 0; i < KEX_ALGORITHM_COUNT; ++i )
+					{
+						if ( cfg_priority_kex_algorithm[ i ] != g_priority_kex_algorithm[ i ] )
+						{ cfg_priority_kex_algorithm[ i ] = g_priority_kex_algorithm[ i ]; sftp_update |= 0x0080; }
+					}
+					for ( i = 0; i < HOST_KEY_COUNT; ++i )
+					{
+						if ( cfg_priority_host_key[ i ] != g_priority_host_key[ i ] )
+						{ cfg_priority_host_key[ i ] = g_priority_host_key[ i ]; sftp_update |= 0x0100; }
+					}
+					for ( i = 0; i < ENCRYPTION_CIPHER_COUNT; ++i )
+					{
+						if ( cfg_priority_encryption_cipher[ i ] != g_priority_encryption_cipher[ i ] )
+						{ cfg_priority_encryption_cipher[ i ] = g_priority_encryption_cipher[ i ]; sftp_update |= 0x0200; }
+					}
+
+					if ( psftp_state == PSFTP_STATE_RUNNING )
+					{
+						if ( sftp_update & 0x0001 ) { _SFTP_SetConfigInfo( 0, ( cfg_sftp_enable_compression ? 1 : 0 ) ); }
+						if ( sftp_update & 0x0002 ) { _SFTP_SetConfigInfo( 1, ( cfg_sftp_attempt_gssapi_authentication ? 1 : 0 ) ); }
+						if ( sftp_update & 0x0004 ) { _SFTP_SetConfigInfo( 2, ( cfg_sftp_attempt_gssapi_key_exchange ? 1 : 0 ) ); }
+
+						if ( sftp_update & 0x0008 ) { _SFTP_SetConfigInfo( 3, cfg_sftp_keep_alive_time ); }
+						if ( sftp_update & 0x0010 ) { _SFTP_SetConfigInfo( 4, cfg_sftp_rekey_time ); }
+						if ( sftp_update & 0x0020 ) { _SFTP_SetConfigInfo( 5, cfg_sftp_gss_rekey_time ); }
+						if ( sftp_update & 0x0040 ) { _SFTP_SetConfigInfo( 6, cfg_sftp_rekey_data_limit ); }
+
+						if ( sftp_update & 0x0080 ) { _SFTP_SetAlgorithmPriorities( 0, cfg_priority_kex_algorithm, KEX_ALGORITHM_COUNT ); }
+						if ( sftp_update & 0x0100 ) { _SFTP_SetAlgorithmPriorities( 1, cfg_priority_host_key, HOST_KEY_COUNT ); }
+						if ( sftp_update & 0x0200 ) { _SFTP_SetAlgorithmPriorities( 2, cfg_priority_encryption_cipher, ENCRYPTION_CIPHER_COUNT ); }
+					}
 
 					//
 					// HTTP proxy.
@@ -1171,6 +1257,20 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 						site_list_changed = false;
 					}
 
+					if ( sftp_fps_host_list_changed )
+					{
+						save_sftp_fps_host_info();
+
+						sftp_fps_host_list_changed = false;
+					}
+
+					if ( sftp_keys_host_list_changed )
+					{
+						save_sftp_keys_host_info();
+
+						sftp_keys_host_list_changed = false;
+					}
+
 					int auth_username_length = 0, auth_password_length = 0;
 
 					g_proxy_auth_key_length = 0;
@@ -1262,21 +1362,21 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 						auth_username_length = WideCharToMultiByte( CP_UTF8, 0, cfg_proxy_auth_ident_username_socks, -1, g_proxy_auth_ident_username_socks, auth_username_length, NULL, NULL ) - 1;
 					}
 
-					if ( display_notice == 0x01 )
+					if ( display_notice == 0x01 || display_notice == 0x02 )
 					{
-						_MessageBoxW( hWnd, ST_V_A_restart_is_required_allocation, PROGRAM_CAPTION, MB_APPLMODAL | MB_ICONINFORMATION );
+						CMessageBoxW( hWnd, ( display_notice == 0x01 ? ST_V_A_restart_is_required_enable_allocation : ST_V_A_restart_is_required_disable_allocation ), PROGRAM_CAPTION, /*CMB_APPLMODAL |*/ CMB_ICONINFORMATION );
 					}
-					else if ( display_notice == 0x02 )
+					else if ( display_notice == 0x04 )
 					{
-						_MessageBoxW( hWnd, ST_V_A_restart_is_required_threads, PROGRAM_CAPTION, MB_APPLMODAL | MB_ICONINFORMATION );
+						CMessageBoxW( hWnd, ST_V_A_restart_is_required_threads, PROGRAM_CAPTION, /*CMB_APPLMODAL |*/ CMB_ICONINFORMATION );
 					}
-					else if ( display_notice == 0x04 )	
+					else if ( display_notice == 0x08 )	
 					{
-						_MessageBoxW( hWnd, ST_V_A_restart_is_required_shutdown, PROGRAM_CAPTION, MB_APPLMODAL | MB_ICONINFORMATION );
+						CMessageBoxW( hWnd, ST_V_A_restart_is_required_shutdown, PROGRAM_CAPTION, /*CMB_APPLMODAL |*/ CMB_ICONINFORMATION );
 					}
-					else if ( display_notice & ( 0x01 | 0x02 | 0x04 ) )	// Multiple settings changed.
+					else if ( display_notice & ( 0x01 | 0x02 | 0x04 | 0x08 ) )	// Multiple settings changed.
 					{
-						_MessageBoxW( hWnd, ST_V_A_restart_is_required, PROGRAM_CAPTION, MB_APPLMODAL | MB_ICONINFORMATION );
+						CMessageBoxW( hWnd, ST_V_A_restart_is_required, PROGRAM_CAPTION, /*CMB_APPLMODAL |*/ CMB_ICONINFORMATION );
 					}
 
 					options_state_changed = false;
@@ -1335,6 +1435,5 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 		}
 		break;
 	}
-
-	return TRUE;
+	//return TRUE;
 }

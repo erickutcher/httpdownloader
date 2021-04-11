@@ -57,7 +57,7 @@
 				RuntimeLibrary="3"
 				BufferSecurityCheck="false"
 				UsePrecompiledHeader="0"
-				WarningLevel="3"
+				WarningLevel="4"
 				DebugInformationFormat="4"
 			/>
 			<Tool
@@ -138,7 +138,7 @@
 				RuntimeLibrary="3"
 				BufferSecurityCheck="false"
 				UsePrecompiledHeader="0"
-				WarningLevel="3"
+				WarningLevel="4"
 				DebugInformationFormat="3"
 			/>
 			<Tool
@@ -226,6 +226,7 @@
 				UsePrecompiledHeader="0"
 				WarningLevel="3"
 				DebugInformationFormat="0"
+				CallingConvention="0"
 				OmitDefaultLibName="true"
 			/>
 			<Tool
@@ -317,6 +318,7 @@
 				UsePrecompiledHeader="0"
 				WarningLevel="3"
 				DebugInformationFormat="0"
+				CallingConvention="0"
 				OmitDefaultLibName="true"
 			/>
 			<Tool
@@ -458,6 +460,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\lite_psftp.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\lite_rpcrt4.cpp"
 				>
 			</File>
@@ -491,6 +497,10 @@
 			</File>
 			<File
 				RelativePath=".\menus.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\sftp.cpp"
 				>
 			</File>
 			<File
@@ -534,6 +544,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\wnd_proc_fingerprint_prompt.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\wnd_proc_main.cpp"
 				>
 			</File>
@@ -563,6 +577,18 @@
 			</File>
 			<File
 				RelativePath=".\wnd_proc_options_proxy.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\wnd_proc_options_sftp.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\wnd_proc_options_sftp_fps.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\wnd_proc_options_sftp_keys.cpp"
 				>
 			</File>
 			<File
@@ -792,6 +818,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\lite_psftp.h"
+				>
+			</File>
+			<File
 				RelativePath=".\lite_rpcrt4.h"
 				>
 			</File>
@@ -833,6 +863,10 @@
 			</File>
 			<File
 				RelativePath=".\resource.h"
+				>
+			</File>
+			<File
+				RelativePath=".\sftp.h"
 				>
 			</File>
 			<File

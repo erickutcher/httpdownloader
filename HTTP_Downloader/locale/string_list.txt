@@ -83,6 +83,8 @@ Remove Completed
 Rename\tF2
 Rename
 Restart
+Resu&me
+Resume
 &Save Download History...
 &Search...\tCtrl+S
 &Select All\tCtrl+A
@@ -106,10 +108,13 @@ Advanced
 Appearance
 Apply
 Connection
+Fingerprints
 FTP
 General
 OK
+Private Keys
 Proxy
+SFTP
 Add in Stopped state
 Allow only one instance of the program to run
 Continue Download
@@ -231,6 +236,28 @@ Public / Private key pair:
 Require authentication:
 Server
 Server SSL / TLS version:
+Algorithm Selection Policies
+Attempt GSSAPI authentication
+Attempt GSSAPI key exchange
+Drag items to reorder priority.
+Enable compression
+Encryption cipher:
+Fingerprint
+Fingerprint:
+Fingerprints:
+GSS rekey time (minutes):
+Host
+Host:
+Host key:
+Host Key Algorithm
+Host key algorithm:
+Key/Group exchange:
+Load Private Key
+Private Key File
+Private key file:
+Rekey data limit (bytes):
+Rekey time (minutes):
+Send keep-alive requests (seconds):
 Continue
 No
 Overwrite
@@ -292,6 +319,8 @@ Simulate
 Site
 Site:
 Username
+Add host and key information to cache
+Key size:
 A new version is available.
 Checking for updates...
 Current version:
@@ -348,8 +377,11 @@ Unlimited
 Update
 Update Download
 URL:
+A key algorithm must be supplied.
+A private key file is required.
 A protocol (HTTP(S) or FTP(S)) must be supplied.
 A restart is required for these changes to take effect.
+A restart is required to disable quick file allocation.
 A restart is required to enable quick file allocation.
 A restart is required to perform the system shutdown action.
 A restart is required to update the thread pool count.
@@ -358,6 +390,7 @@ Are you sure you want to remove the completed entries?
 Are you sure you want to remove and delete the selected entries?
 Are you sure you want to remove the selected entries?
 Are you sure you want to restart the selected entries?
+Do you want to accept the server's host key?
 One or more files are in use and cannot be deleted.
 One or more files were not found.
 Select the default download directory.
@@ -367,10 +400,14 @@ The download will be resumed after it's updated.
 The file is currently in use and cannot be deleted.
 The file is currently in use and cannot be renamed.
 The file(s) could not be imported because the format is incorrect.
+The key fingerprint does not match the cached entry.\r\nDo you want to accept the server's host key?
 The specified file was not found.\r\n\r\nDo you want to download the file again?
+The specified host already exists.
+The specified host is invalid.
 The specified path was not found.
 The specified site already exists.
 The specified site is invalid.
+The specified username and host already exists.
 There is already a file with the same name in this location.
 You must supply a download directory.
 Built on
@@ -381,3 +418,24 @@ Version
 %s could not be renamed.\r\n\r\nYou will need to choose a different save directory.
 %s has been modified.\r\n\r\nWhat operation would you like to perform?
 %s will be %I64u bytes in size.\r\n\r\nDo you want to continue downloading this file?
+DH-Group1-SHA1
+DH-Group14-SHA1
+DH-GEX-SHA1
+RSA
+ECDH
+RSA
+DSA
+ECDSA
+Ed25519
+3DES
+Blowfish
+AES
+DES
+Arcfour
+ChaCha20
+ecdsa-sha2-nistp256
+ecdsa-sha2-nistp384
+ecdsa-sha2-nistp521
+ssh-dss
+ssh-ed25519
+ssh-rsa

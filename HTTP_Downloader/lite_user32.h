@@ -1,6 +1,6 @@
 /*
-	HTTP Downloader can download files through HTTP(S) and FTP(S) connections.
-	Copyright (C) 2015-2020 Eric Kutcher
+	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
+	Copyright (C) 2015-2021 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -75,6 +75,7 @@
 	//#define _GetMenuItemInfoW		GetMenuItemInfoW
 	//#define _GetMessagePos			GetMessagePos
 	#define _GetMessageW			GetMessageW
+	#define _GetMonitorInfoW		GetMonitorInfoW
 	#define _GetParent				GetParent
 	#define _GetScrollInfo			GetScrollInfo
 	//#define _GetSubMenu				GetSubMenu
@@ -101,7 +102,9 @@
 	#define _LockWorkStation		LockWorkStation
 	#define _MapWindowPoints		MapWindowPoints
 	//#define _MessageBoxA			MessageBoxA
-	#define _MessageBoxW			MessageBoxW
+	//#define _MessageBoxW			MessageBoxW
+	//#define _MonitorFromRect		MonitorFromRect
+	#define _MonitorFromWindow		MonitorFromWindow
 	#define _OffsetRect				OffsetRect
 	#define _OpenClipboard			OpenClipboard
 	#define _PostMessageW			PostMessageW
@@ -125,7 +128,7 @@
 	#define _SetForegroundWindow	SetForegroundWindow
 	#define _SetLayeredWindowAttributes		SetLayeredWindowAttributes
 	#define _SetMenu				SetMenu
-	//#define _SetMenuItemInfoW		SetMenuItemInfoW
+	#define _SetMenuItemInfoW		SetMenuItemInfoW
 	//#define _SetRect				SetRect
 	#define _SetScrollInfo			SetScrollInfo
 	#define _SetScrollPos			SetScrollPos
@@ -193,6 +196,7 @@
 	//typedef BOOL ( WINAPI *pGetMenuItemInfoW )( HMENU hMenu, UINT uItem, BOOL fByPosition, LPMENUITEMINFO lpmii );
 	//typedef DWORD ( WINAPI *pGetMessagePos )( void );
 	typedef BOOL ( WINAPI *pGetMessageW )( LPMSG lpMsg, HWND hWnd, UINT wMsgFilterMin, UINT wMsgFilterMax );
+	typedef BOOL ( WINAPI *pGetMonitorInfoW )( HMONITOR hMonitor, LPMONITORINFO lpmi );
 	typedef HWND ( WINAPI *pGetParent )( HWND hWnd );
 	typedef BOOL ( WINAPI *pGetScrollInfo )( HWND hwnd, int nBar, LPSCROLLINFO lpsi );
 	//typedef HMENU ( WINAPI *pGetSubMenu )( HMENU hMenu, int nPos );
@@ -219,7 +223,9 @@
 	typedef BOOL ( WINAPI *pLockWorkStation )();
 	typedef int ( WINAPI *pMapWindowPoints )( HWND hWndFrom, HWND hWndTo, LPPOINT lpPoints, UINT cPoints );
 	//typedef int ( WINAPI *pMessageBoxA )( HWND hWnd, LPCSTR lpText, LPCSTR lpCaption, UINT uType );
-	typedef int ( WINAPI *pMessageBoxW )( HWND hWnd, LPCTSTR lpText, LPCTSTR lpCaption, UINT uType );
+	//typedef int ( WINAPI *pMessageBoxW )( HWND hWnd, LPCTSTR lpText, LPCTSTR lpCaption, UINT uType );
+	//typedef HMONITOR ( WINAPI *pMonitorFromRect )( LPCRECT lprc, DWORD dwFlags );
+	typedef HMONITOR ( WINAPI *pMonitorFromWindow )( HWND hwnd, DWORD dwFlags );
 	typedef BOOL ( WINAPI *pOffsetRect )( LPRECT lprc, int dx, int dy );
 	typedef BOOL ( WINAPI *pOpenClipboard )( HWND hWndNewOwner );
 	typedef BOOL ( WINAPI *pPostMessageW )( HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lParam );
@@ -243,7 +249,7 @@
 	typedef BOOL ( WINAPI *pSetForegroundWindow )( HWND hWnd );
 	typedef BOOL ( WINAPI *pSetLayeredWindowAttributes )( HWND hwnd, COLORREF crKey, BYTE bAlpha, DWORD dwFlags );
 	typedef BOOL ( WINAPI *pSetMenu )( HWND hWnd, HMENU hMenu );
-	//typedef BOOL ( WINAPI *pSetMenuItemInfoW )( HMENU hMenu, UINT uItem, BOOL fByPosition, LPMENUITEMINFO lpmii );
+	typedef BOOL ( WINAPI *pSetMenuItemInfoW )( HMENU hMenu, UINT uItem, BOOL fByPosition, LPMENUITEMINFO lpmii );
 	//typedef BOOL ( WINAPI *pSetRect )( LPRECT lprc, int xLeft, int yTop, int xRight, int yBottom );
 	typedef int ( WINAPI *pSetScrollInfo )( HWND hwnd, int fnBar, LPCSCROLLINFO lpsi, BOOL fRedraw );
 	typedef int ( WINAPI *pSetScrollPos )( HWND hWnd, int nBar, int nPos, BOOL bRedraw );
@@ -304,6 +310,7 @@
 	//extern pGetMenuItemInfoW		_GetMenuItemInfoW;
 	//extern pGetMessagePos			_GetMessagePos;
 	extern pGetMessageW				_GetMessageW;
+	extern pGetMonitorInfoW			_GetMonitorInfoW;
 	extern pGetParent				_GetParent;
 	extern pGetScrollInfo			_GetScrollInfo;
 	//extern pGetSubMenu				_GetSubMenu;
@@ -330,7 +337,9 @@
 	extern pLockWorkStation			_LockWorkStation;
 	extern pMapWindowPoints			_MapWindowPoints;
 	//extern pMessageBoxA				_MessageBoxA;
-	extern pMessageBoxW				_MessageBoxW;
+	//extern pMessageBoxW				_MessageBoxW;
+	//extern pMonitorFromRect			_MonitorFromRect;
+	extern pMonitorFromWindow		_MonitorFromWindow;
 	extern pOffsetRect				_OffsetRect;
 	extern pOpenClipboard			_OpenClipboard;
 	extern pPostMessageW			_PostMessageW;
@@ -354,7 +363,7 @@
 	extern pSetForegroundWindow		_SetForegroundWindow;
 	extern pSetLayeredWindowAttributes		_SetLayeredWindowAttributes;
 	extern pSetMenu					_SetMenu;
-	//extern pSetMenuItemInfoW		_SetMenuItemInfoW;
+	extern pSetMenuItemInfoW		_SetMenuItemInfoW;
 	//extern pSetRect					_SetRect;
 	extern pSetScrollInfo			_SetScrollInfo;
 	extern pSetScrollPos			_SetScrollPos;

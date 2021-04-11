@@ -1,6 +1,6 @@
 /*
-	HTTP Downloader can download files through HTTP(S) and FTP(S) connections.
-	Copyright (C) 2015-2020 Eric Kutcher
+	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
+	Copyright (C) 2015-2021 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -125,6 +125,8 @@ STRING_TABLE_DATA menu_string_table[] =
 	{ L"Rename\tF2", 9 },
 	{ L"Rename", 6 },
 	{ L"Restart", 7 },
+	{ L"Resu&me", 7 },
+	{ L"Resume", 6 },
 	{ L"&Save Download History...", 25 },
 	{ L"&Search...\tCtrl+S", 17 },
 	{ L"&Select All\tCtrl+A", 18 },
@@ -152,10 +154,13 @@ STRING_TABLE_DATA options_string_table[] =
 	{ L"Appearance", 10 },
 	{ L"Apply", 5 },
 	{ L"Connection", 10 },
+	{ L"Fingerprints", 12 },
 	{ L"FTP", 3 },
 	{ L"General", 7 },
 	{ L"OK", 2 },
-	{ L"Proxy", 5 }
+	{ L"Private Keys", 12 },
+	{ L"Proxy", 5 },
+	{ L"SFTP", 4 }
 };
 
 STRING_TABLE_DATA options_advanced_string_table[] =
@@ -307,6 +312,32 @@ STRING_TABLE_DATA options_server_string_table[] =
 	{ L"Server SSL / TLS version:", 25 }
 };
 
+STRING_TABLE_DATA options_sftp_string_table[] =
+{
+	{ L"Algorithm Selection Policies", 28 },
+	{ L"Attempt GSSAPI authentication", 29 },
+	{ L"Attempt GSSAPI key exchange", 27 },
+	{ L"Drag items to reorder priority.", 31 },
+	{ L"Enable compression", 18 },
+	{ L"Encryption cipher:", 18 },
+	{ L"Fingerprint", 11 },
+	{ L"Fingerprint:", 12 },
+	{ L"Fingerprints:", 13 },
+	{ L"GSS rekey time (minutes):", 25 },
+	{ L"Host", 4 },
+	{ L"Host:", 5 },
+	{ L"Host key:", 9 },
+	{ L"Host Key Algorithm", 18 },
+	{ L"Host key algorithm:", 19 },
+	{ L"Key/Group exchange:", 19 },
+	{ L"Load Private Key", 16 },
+	{ L"Private Key File", 16 },
+	{ L"Private key file:", 17 },
+	{ L"Rekey data limit (bytes):", 25 },
+	{ L"Rekey time (minutes):", 21 },
+	{ L"Send keep-alive requests (seconds):", 35 }
+};
+
 STRING_TABLE_DATA cmessagebox_string_table[] =
 {
 	{ L"Continue", 8 },
@@ -384,6 +415,12 @@ STRING_TABLE_DATA site_manager_string_table[] =
 	{ L"Username", 8 }
 };
 
+STRING_TABLE_DATA fingerprint_prompt_string_table[] =
+{
+	{ L"Add host and key information to cache", 37 },
+	{ L"Key size:", 9 }
+};
+
 STRING_TABLE_DATA update_check_string_table[] =
 {
 	{ L"A new version is available.", 27 },
@@ -450,8 +487,11 @@ STRING_TABLE_DATA common_string_table[] =
 
 STRING_TABLE_DATA common_message_string_table[] =
 {
+	{ L"A key algorithm must be supplied.", 33 },
+	{ L"A private key file is required.", 31 },
 	{ L"A protocol (HTTP(S) or FTP(S)) must be supplied.", 48 },
 	{ L"A restart is required for these changes to take effect.", 55 },
+	{ L"A restart is required to disable quick file allocation.", 55 },
 	{ L"A restart is required to enable quick file allocation.", 54 },
 	{ L"A restart is required to perform the system shutdown action.", 60 },
 	{ L"A restart is required to update the thread pool count.", 54 },
@@ -460,6 +500,7 @@ STRING_TABLE_DATA common_message_string_table[] =
 	{ L"Are you sure you want to remove and delete the selected entries?", 64 },
 	{ L"Are you sure you want to remove the selected entries?", 53 },
 	{ L"Are you sure you want to restart the selected entries?", 54 },
+	{ L"Do you want to accept the server's host key?", 44 },
 	{ L"One or more files are in use and cannot be deleted.", 51 },
 	{ L"One or more files were not found.", 33 },
 	{ L"Select the default download directory.", 38 },
@@ -469,10 +510,14 @@ STRING_TABLE_DATA common_message_string_table[] =
 	{ L"The file is currently in use and cannot be deleted.", 51 },
 	{ L"The file is currently in use and cannot be renamed.", 51 },
 	{ L"The file(s) could not be imported because the format is incorrect.", 66 },
+	{ L"The key fingerprint does not match the cached entry.\r\nDo you want to accept the server's host key?", 98 },
 	{ L"The specified file was not found.\r\n\r\nDo you want to download the file again?", 76 },
+	{ L"The specified host already exists.", 34 },
+	{ L"The specified host is invalid.", 30 },
 	{ L"The specified path was not found.", 33 },
 	{ L"The specified site already exists.", 34 },
 	{ L"The specified site is invalid.", 30 },
+	{ L"The specified username and host already exists.", 47 },
 	{ L"There is already a file with the same name in this location.", 60 },
 	{ L"You must supply a download directory.", 37 }
 };
@@ -491,6 +536,47 @@ STRING_TABLE_DATA dynamic_message_string_table[] =
 	{ L"%s could not be renamed.\r\n\r\nYou will need to choose a different save directory.", 79 },
 	{ L"%s has been modified.\r\n\r\nWhat operation would you like to perform?", 66 },
 	{ L"%s will be %I64u bytes in size.\r\n\r\nDo you want to continue downloading this file?", 81 }
+};
+
+// Ordered by the enum values in putty.h
+STRING_TABLE_DATA sftp_kex_string_table[] =
+{
+	{ L"DH-Group1-SHA1", 14 },
+	{ L"DH-Group14-SHA1", 15 },
+	{ L"DH-GEX-SHA1", 11 },
+	{ L"RSA", 3 },
+	{ L"ECDH", 4 }
+};
+
+// Ordered by the enum values in putty.h
+STRING_TABLE_DATA sftp_hk_string_table[] =
+{
+	{ L"RSA", 3 },
+	{ L"DSA", 3 },
+	{ L"ECDSA", 5 },
+	{ L"Ed25519", 7 }
+};
+
+// Ordered by the enum values in putty.h
+STRING_TABLE_DATA sftp_ec_string_table[] =
+{
+	{ L"3DES", 4 },
+	{ L"Blowfish", 8 },
+	{ L"AES", 3 },
+	{ L"DES", 3 },
+	{ L"Arcfour", 7 },
+	{ L"ChaCha20", 8 }
+};
+
+// Host key algorithms.
+STRING_TABLE_DATA sftp_hka_string_table[] =
+{
+	{ L"ecdsa-sha2-nistp256", 19 },
+	{ L"ecdsa-sha2-nistp384", 19 },
+	{ L"ecdsa-sha2-nistp521", 19 },
+	{ L"ssh-dss", 7 },
+	{ L"ssh-ed25519", 11 },
+	{ L"ssh-rsa", 7 }
 };
 
 void InitializeLocaleValues()
@@ -615,15 +701,21 @@ void InitializeLocaleValues()
 		for ( i = 0; i < OPTIONS_GENERAL_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = options_general_string_table[ i ]; }
 		for ( i = 0; i < OPTIONS_PROXY_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = options_proxy_string_table[ i ]; }
 		for ( i = 0; i < OPTIONS_SERVER_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = options_server_string_table[ i ]; }
+		for ( i = 0; i < OPTIONS_SFTP_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = options_sftp_string_table[ i ]; }
 		for ( i = 0; i < CMESSAGEBOX_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = cmessagebox_string_table[ i ]; }
 		for ( i = 0; i < ADD_URLS_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = add_urls_string_table[ i ]; }
 		for ( i = 0; i < SEARCH_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = search_string_table[ i ]; }
 		for ( i = 0; i < SITE_MANAGER_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = site_manager_string_table[ i ]; }
+		for ( i = 0; i < FINGERPRINT_PROMPT_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = fingerprint_prompt_string_table[ i ]; }
 		for ( i = 0; i < UPDATE_CHECK_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = update_check_string_table[ i ]; }
 		for ( i = 0; i < COMMON_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = common_string_table[ i ]; }
 		for ( i = 0; i < COMMON_MESSAGE_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = common_message_string_table[ i ]; }
 		for ( i = 0; i < ABOUT_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = about_string_table[ i ]; }
 		for ( i = 0; i < DYNAMIC_MESSAGE_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = dynamic_message_string_table[ i ]; }
+		for ( i = 0; i < SFTP_KEX_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = sftp_kex_string_table[ i ]; }
+		for ( i = 0; i < SFTP_HK_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = sftp_hk_string_table[ i ]; }
+		for ( i = 0; i < SFTP_EC_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = sftp_ec_string_table[ i ]; }
+		for ( i = 0; i < SFTP_HKA_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = sftp_hka_string_table[ i ]; }
 
 		/*
 		// Quick locale generation.

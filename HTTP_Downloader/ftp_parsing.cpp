@@ -1,6 +1,6 @@
 /*
-	HTTP Downloader can download files through HTTP(S) and FTP(S) connections.
-	Copyright (C) 2015-2020 Eric Kutcher
+	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
+	Copyright (C) 2015-2021 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -32,6 +32,7 @@ SOCKET CreateFTPListenSocket( SOCKET_CONTEXT *context )
 		return INVALID_SOCKET;
 	}
 
+	SOCKET socket = INVALID_SOCKET;
 	bool try_local_address = false;
 
 	unsigned char retry_bind_count = 0;
@@ -164,7 +165,7 @@ TRY_NEW_ADDRESS:
 		ai_addrlen = local_addr->ai_addrlen;
 	}
 
-	SOCKET socket = CreateSocket( use_ipv6 );
+	socket = CreateSocket( use_ipv6 );
 	if ( socket == INVALID_SOCKET )
 	{
 		goto CLEANUP;
@@ -989,7 +990,7 @@ char ProcessFTPFileInfo( SOCKET_CONTEXT *context )
 		if ( !context->is_allocated )
 		{
 			// Returns either FTP_CONTENT_STATUS_FAILED, FTP_CONTENT_STATUS_ALLOCATE_FILE, or FTP_CONTENT_STATUS_NONE.
-			content_status = context->content_status = AllocateFile( context );
+			content_status = context->content_status = AllocateFile( context, IO_ResumeGetContent );
 
 			if ( content_status != FTP_CONTENT_STATUS_NONE )
 			{
@@ -1015,6 +1016,14 @@ char ProcessFTPFileInfo( SOCKET_CONTEXT *context )
 				LeaveCriticalSection( &context->download_info->shared_info->di_cs );
 			}
 		}
+	}
+
+	// Handle zero byte files.
+	if ( context->header_info.range_info->content_length == 0 )
+	{
+		context->header_info.range_info->content_offset = 1;	// Prevents us from retrying the connection in CleanupConnection().
+
+		content_status = FTP_CONTENT_STATUS_FAILED;	// Close the connection.
 	}
 
 	return content_status;
@@ -1045,7 +1054,9 @@ char HandleModeRequest( SOCKET_CONTEXT *context )
 			{
 				context->download_info->shared_info->processed_header = true;
 
-				unsigned long long content_length = context->header_info.range_info->content_length;
+				LeaveCriticalSection( &context->download_info->shared_info->di_cs );
+
+				unsigned long long content_length = context->download_info->shared_info->file_size;
 
 				unsigned char host_count = context->download_info->shared_info->hosts;
 
@@ -1055,84 +1066,53 @@ char HandleModeRequest( SOCKET_CONTEXT *context )
 					host_count = ( content_length > 0 ? ( unsigned char )content_length : 1 );
 				}
 
-				unsigned long long host_size = content_length / host_count;
-				unsigned long long host_offset = host_size;
-
-				context->header_info.range_info->range_start = context->header_info.range_info->content_offset;
-				context->header_info.range_info->range_end = host_offset - 1;
-				context->header_info.range_info->content_offset = 0;
-				context->header_info.range_info->content_length = host_size;	// Set this here so that the range parts in MakeRangeDataRequest() can split properly.
-
-				EnterCriticalSection( &context->download_info->di_cs );
-
-				context->download_info->file_size = host_size;
-
-				LeaveCriticalSection( &context->download_info->di_cs );
-
-				DoublyLinkedList *host_node = context->download_info->shared_info_node.next;
-
-				for ( unsigned char host = 2; host <= context->download_info->shared_info->hosts && host_node != NULL; ++host )
+				DoublyLinkedList *host_node = context->download_info->shared_info->host_list;
+				unsigned char host = 0;
+				while ( host_node != NULL )
 				{
 					DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )host_node->data;
-					if ( di != NULL )
+					if ( di != NULL && di != context->download_info )
 					{
-						EnterCriticalSection( &di->di_cs );
-
-						if ( host <= host_count )
+						if ( host < host_count )
 						{
-							di->processed_header = true;
+							bool skip_start = false;
 
-							RANGE_INFO *ri;
+							EnterCriticalSection( &di->di_cs );
 
-							if ( di->range_list != NULL )
+							if ( di->download_operations & DOWNLOAD_OPERATION_ADD_STOPPED )
 							{
-								ri = ( RANGE_INFO * )di->range_list->data;
-								ri->content_offset = 0;
+								di->download_operations &= ~DOWNLOAD_OPERATION_ADD_STOPPED;
+								di->status = STATUS_STOPPED;
+
+								LeaveCriticalSection( &di->di_cs );
+
+								EnterCriticalSection( &context->download_info->shared_info->di_cs );
+								context->download_info->shared_info->download_operations &= ~DOWNLOAD_OPERATION_ADD_STOPPED;
+								LeaveCriticalSection( &context->download_info->shared_info->di_cs );
+
+								skip_start = true;
 							}
 							else
 							{
-								ri = ( RANGE_INFO * )GlobalAlloc( GPTR, sizeof( RANGE_INFO ) );
-								DoublyLinkedList *range_node = DLL_CreateNode( ( void * )ri );
-								DLL_AddNode( &di->range_list, range_node, -1 );
+								LeaveCriticalSection( &di->di_cs );
 							}
 
-							ri->range_start = host_offset;
-
-							if ( host < host_count )
+							if ( !skip_start )
 							{
-								host_offset += host_size;
-
-								ri->range_end = host_offset - 1;
-								//ri->content_length = host_size;
-								di->file_size = host_size;
+								StartDownload( di, START_TYPE_HOST_IN_GROUP, START_OPERATION_NONE );
 							}
-							else	// Make sure we have an accurate range end for the last host.
-							{
-								ri->range_end = content_length - 1;
-								//ri->content_length = content_length - host_offset;
-								di->file_size = content_length - host_offset;
-							}
-
-							ri->file_write_offset = ri->range_start;
-						}
-						else
-						{
-							di->status = STATUS_SKIPPED;
-						}
-
-						LeaveCriticalSection( &di->di_cs );
-
-						if ( host <= host_count )
-						{
-							StartDownload( di, 2, false );
 						}
 					}
+
+					++host;
 
 					host_node = host_node->next;
 				}
 			}
-
-			LeaveCriticalSection( &context->download_info->shared_info->di_cs );
+			else
+			{
+				LeaveCriticalSection( &context->download_info->shared_info->di_cs );
+			}
 
 			if ( context->parts > 1 )
 			{
@@ -1216,6 +1196,7 @@ char GetFTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, unsi
 
 	if ( context->content_status != FTP_CONTENT_STATUS_GET_CONTENT )
 	{
+		// The status values are set in ProcessFTPFileInfo().
 		if ( context->content_status == FTP_CONTENT_STATUS_LAST_MODIFIED_PROMPT ||
 			 context->content_status == FTP_CONTENT_STATUS_FILE_SIZE_PROMPT ||
 			 context->content_status == FTP_CONTENT_STATUS_ALLOCATE_FILE )
@@ -1508,7 +1489,19 @@ char GetFTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, unsi
 						// Check the file size threshold (4GB).
 						if ( context->header_info.range_info->content_length > cfg_max_file_size )
 						{
-							context->show_file_size_prompt = true;
+							if ( !context->processed_header )
+							{
+								if ( context->download_info != NULL )
+								{
+									EnterCriticalSection( &context->download_info->shared_info->di_cs );
+
+									// If we've processed the header for a group of hosts, then there's no need to prompt for every other host.
+									// A single host will not have had its header processed so we can set this to true to prompt.
+									context->show_file_size_prompt = !context->download_info->shared_info->processed_header;
+
+									LeaveCriticalSection( &context->download_info->shared_info->di_cs );
+								}
+							}
 						}
 
 						// Make sure we can split the download into enough parts.
@@ -1661,6 +1654,33 @@ char GetFTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, unsi
 
 						if ( !context->processed_header || context->header_info.connection == 0 )
 						{
+							if ( !context->processed_header )
+							{
+								MakeHostRanges( context );
+
+								if ( IS_GROUP( context->download_info ) )
+								{
+									DoublyLinkedList *host_node = context->download_info->shared_info->host_list;
+									while ( host_node != NULL )
+									{
+										DOWNLOAD_INFO *host_di = ( DOWNLOAD_INFO * )host_node->data;
+										if ( host_di != NULL && host_di != context->download_info )
+										{
+											EnterCriticalSection( &host_di->di_cs );
+
+											if ( host_di->status == STATUS_NONE )	// status might have been set to stopped when added.
+											{
+												host_di->status = STATUS_SKIPPED;
+											}
+
+											LeaveCriticalSection( &host_di->di_cs );
+										}
+
+										host_node = host_node->next;
+									}
+								}
+							}
+
 							// We will use the extended mode by default since it supports IPV6.
 							context->header_info.connection = ( cfg_ftp_mode_type == 1 ? FTP_MODE_ACTIVE : FTP_MODE_PASSIVE ) | FTP_MODE_EXTENDED;	// cfg_ftp_mode_type: 0 = Passive, 1 = Active
 						}
@@ -1957,8 +1977,6 @@ char GetFTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, unsi
 					LARGE_INTEGER li;
 					li.QuadPart = context->header_info.range_info->file_write_offset;//context->header_info.range_info->range_start + context->header_info.range_info->content_offset;
 
-					EnterCriticalSection( &context->download_info->shared_info->di_cs );
-
 					InterlockedIncrement( &context->pending_operations );
 
 					context->overlapped.current_operation = IO_WriteFile;
@@ -1983,6 +2001,7 @@ char GetFTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, unsi
 					//context->header_info.range_info->content_offset += response_buffer_length;	// The true amount that was downloaded. Allows us to resume if we stop the download.
 					//context->header_info.range_info->file_write_offset += output_buffer_length;	// The size of the non-encoded/decoded data that we're writing to the file.
 
+					EnterCriticalSection( &context->download_info->shared_info->di_cs );
 					BOOL bRet = WriteFile( context->download_info->shared_info->hFile, context->write_wsabuf.buf, context->write_wsabuf.len, NULL, ( OVERLAPPED * )&context->overlapped );
 					if ( bRet == FALSE && ( GetLastError() != ERROR_IO_PENDING ) )
 					{
@@ -2002,7 +2021,6 @@ char GetFTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, unsi
 						CloseHandle( context->download_info->shared_info->hFile );
 						context->download_info->shared_info->hFile = INVALID_HANDLE_VALUE;
 					}
-
 					LeaveCriticalSection( &context->download_info->shared_info->di_cs );
 
 					return content_status;
@@ -2017,9 +2035,7 @@ char GetFTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, unsi
 				if ( IS_GROUP( context->download_info ) )
 				{
 					EnterCriticalSection( &context->download_info->shared_info->di_cs );
-
 					context->download_info->shared_info->downloaded += output_buffer_length;					// The total amount of data (decoded) that was saved/simulated.
-
 					LeaveCriticalSection( &context->download_info->shared_info->di_cs );
 				}
 

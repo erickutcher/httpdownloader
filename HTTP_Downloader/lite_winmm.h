@@ -1,6 +1,6 @@
 /*
-	HTTP Downloader can download files through HTTP(S) and FTP(S) connections.
-	Copyright (C) 2015-2020 Eric Kutcher
+	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
+	Copyright (C) 2015-2021 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -23,7 +23,10 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 
+#pragma warning( push )
+#pragma warning( disable : 4201 )	// nonstandard extension used: nameless struct/union
 #include <mmsystem.h>
+#pragma warning( pop )
 
 //#define WINMM_USE_STATIC_LIB
 

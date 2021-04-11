@@ -1,3 +1,58 @@
+Version:	1.0.3.9
+Released:	2021-04-11
+
+Fixed crash when checking for updates.
+Added multi-monitor support.
+
+Version:	1.0.3.8
+Released:	2021-04-09
+
+Prevented download from resuming if server file's size doesn't match.
+Fixed drag and drop action when set to add in stopped state.
+Fixed processing list items that were added in stopped state and group items that are skipped.
+
+Version:	1.0.3.7
+Released:	2021-04-04
+
+Added SFTP support based on PuTTY's SFTP client.
+Fixed drag and drop action when set to add in stopped state.
+Fixed parsing URLs with encoded '#' and '?' characters.
+Fixed username and password not being set from Add URL(s) window.
+Prevented timeout for downloads that display a prompt.
+Checked for existing file in download directory when temporary directory is used.
+Reworked how downloads are restarted and resumed.
+Improved custom message box layout.
+Replaced Windows message box with custom message box.
+Various optimizations and bug fixes.
+
+Version:	1.0.3.6
+Released:	2020-09-12
+
+Strange fix for HTTPS connections not working in Wine.
+
+Version:	1.0.3.5
+Released:	2020-08-30
+
+Fixed command-line arguments not being set when --immediate is used.
+
+Version:	1.0.3.4
+Released:	2020-08-29
+
+Added command-line argument support to Add URL(s) window for per-URL settings.
+Fixed broken command-line arguments.
+Fixed TreeListView selection when holding Ctrl and Shift.
+Fixed proxy authentication not being set.
+
+Version:	1.0.3.3
+Released:	2020-08-22
+
+Fixed crash when removing active downloads.
+Fixed parsing empty groups.
+Fixed saving 0 byte files.
+Fixed relative path URLs not updating.
+Fixed drag and drop for Add URL(s) window when Advanced option is set to override.
+Fixed selection when removing items.
+
 Version:	1.0.3.2
 Released:	2020-08-15
 

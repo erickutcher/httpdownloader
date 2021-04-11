@@ -1,6 +1,6 @@
 /*
-	HTTP Downloader can download files through HTTP(S) and FTP(S) connections.
-	Copyright (C) 2015-2020 Eric Kutcher
+	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
+	Copyright (C) 2015-2021 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -71,7 +71,7 @@ void SetContextStatus( SOCKET_CONTEXT *context, unsigned int status )
 				context->cleanup = 1;	// Auto cleanup.
 			}
 
-			// The operation is probably stuck (server isn't responding). Force close the socket it to release the operation.
+			// The operation is probably stuck (server isn't responding). Force close the socket to release the operation.
 			if ( context->pending_operations > 0 )
 			{
 				if ( context->socket != INVALID_SOCKET )
@@ -93,13 +93,33 @@ void SetContextStatus( SOCKET_CONTEXT *context, unsigned int status )
 
 			if ( context->cleanup == 0 )
 			{
-				context->cleanup = cleanup_type;
+				if ( context->ssh != NULL )
+				{
+					// We've initiated a clean shutdown of the SSH connection, but it's stuck.
+					if ( context->overlapped_close.current_operation == IO_SFTPCleanup )
+					{
+						// Force close the socket to release the operation.
+						if ( context->socket != INVALID_SOCKET )
+						{
+							SOCKET s = context->socket;
+							context->socket = INVALID_SOCKET;
+							_shutdown( s, SD_BOTH );
+							_closesocket( s );	// Saves us from having to post if there's already a pending IO operation. Should force the operation to complete.
+						}
+					}
+					else
+					{
+						context->overlapped_close.current_operation = IO_SFTPCleanup;
+					}
+				}
+				else
+				{
+					context->cleanup = cleanup_type;
 
-				InterlockedIncrement( &context->pending_operations );
-
-				context->overlapped_close.current_operation = ( context->ssl != NULL ? IO_Shutdown : IO_Close );
-
-				PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped_close );
+					InterlockedIncrement( &context->pending_operations );
+					context->overlapped_close.current_operation = ( context->ssl != NULL ? IO_Shutdown : IO_Close );
+					PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped_close );
+				}
 			}
 		}
 
@@ -146,6 +166,15 @@ THREAD_RETURN remove_items( void *pArguments )
 	{
 		sel_index = TLV_GetParentIndex( tln->parent, sel_index );
 		sel_index += ( tln->child_count + 1 );
+
+		// Remove any selection flag from the children.
+		TREELISTNODE *child_tln = tln;
+		while ( child_tln != NULL )
+		{
+			child_tln->flag = TLVS_NONE;
+
+			child_tln = child_tln->next;
+		}
 
 		tln = tln->parent->next;
 	}
@@ -541,7 +570,7 @@ THREAD_RETURN remove_items( void *pArguments )
 	LeaveCriticalSection( &worker_cs );
 
 	_ExitThread( 0 );
-	return 0;
+	//return 0;
 }
 
 THREAD_RETURN handle_download_list( void *pArguments )
@@ -1034,7 +1063,7 @@ THREAD_RETURN handle_download_list( void *pArguments )
 				{
 					g_download_history_changed = true;
 
-					RestartDownload( di, 1, false );
+					RestartDownload( di, START_TYPE_HOST, START_OPERATION_NONE );
 				}
 
 				LeaveCriticalSection( &di->di_cs );
@@ -1058,7 +1087,7 @@ THREAD_RETURN handle_download_list( void *pArguments )
 	LeaveCriticalSection( &worker_cs );
 
 	_ExitThread( 0 );
-	return 0;
+	//return 0;
 }
 
 THREAD_RETURN handle_connection( void *pArguments )
@@ -1084,18 +1113,42 @@ THREAD_RETURN handle_connection( void *pArguments )
 		}
 
 		TREELISTNODE *tln_parent = tln;
+		// The last host whose status is not completed.
+		// We need this to know when to start group downloads.
+		// Not used for restarting downloads.
+		TREELISTNODE *tln_last_host = NULL;
 		bool is_group = false;
-		bool is_host = false;
+		bool is_host_in_group = false;
+		unsigned int parent_status = STATUS_NONE;
 
 		// We'll go through each child regardless of whether it's selected if a group is selected.
 		if ( tln->data_type == TLVDT_GROUP && tln->child != NULL )
 		{
 			if ( tln->data != NULL )
 			{
-				( ( DOWNLOAD_INFO * )tln->data )->shared_status = 0;	// Reset.
+				DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )tln->data;
+
+				parent_status = di->status;
 			}
 
 			tln = tln->child;
+
+			tln_last_host = tln;
+
+			do
+			{
+				if ( tln_last_host->prev != NULL )
+				{
+					tln_last_host = tln_last_host->prev;
+				}
+
+				DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )tln_last_host->data;
+				if ( di->status != STATUS_COMPLETED )
+				{
+					break;
+				}
+			}
+			while ( tln_last_host != tln );
 
 			is_group = true;
 		}
@@ -1105,29 +1158,9 @@ THREAD_RETURN handle_connection( void *pArguments )
 			if ( tln_last_parent != tln->parent && tln->parent != NULL && tln->parent->data != NULL )
 			{
 				tln_last_parent = tln->parent;
-
-				unsigned int shared_status = 0;
-
-				TREELISTNODE *tln_children = tln->parent->child;
-				while ( tln_children != NULL )
-				{
-					// Skip the selected children 
-					if ( !( tln_children->flag & TLVS_SELECTED ) )
-					{
-						DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )tln_children->data;
-						if ( di != NULL )
-						{
-							shared_status |= di->status;
-						}
-					}
-
-					tln_children = tln_children->next;
-				}
-
-				( ( DOWNLOAD_INFO * )tln->parent->data )->shared_status = shared_status;
 			}
 
-			is_host = true;
+			is_host_in_group = true;
 		}
 
 		do
@@ -1172,9 +1205,7 @@ THREAD_RETURN handle_connection( void *pArguments )
 									if ( is_group )
 									{
 										EnterCriticalSection( &di->shared_info->di_cs );
-
 										di->shared_info->status = di->status;
-
 										LeaveCriticalSection( &di->shared_info->di_cs );
 									}
 								}
@@ -1200,13 +1231,33 @@ THREAD_RETURN handle_connection( void *pArguments )
 
 										if ( context->cleanup == 0 )
 										{
-											context->cleanup = 2;	// Force the cleanup.
+											if ( context->ssh != NULL )
+											{
+												// We've initiated a clean shutdown of the SSH connection, but it's stuck.
+												if ( context->overlapped_close.current_operation == IO_SFTPCleanup )
+												{
+													// Force close the socket to release the operation.
+													if ( context->socket != INVALID_SOCKET )
+													{
+														SOCKET s = context->socket;
+														context->socket = INVALID_SOCKET;
+														_shutdown( s, SD_BOTH );
+														_closesocket( s );	// Saves us from having to post if there's already a pending IO operation. Should force the operation to complete.
+													}
+												}
+												else
+												{
+													context->overlapped_close.current_operation = IO_SFTPCleanup;
+												}
+											}
+											else
+											{
+												context->cleanup = 2;	// Force the cleanup.
 
-											InterlockedIncrement( &context->pending_operations );
-
-											context->overlapped_close.current_operation = ( context->ssl != NULL ? IO_Shutdown : IO_Close );
-
-											PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped_close );
+												InterlockedIncrement( &context->pending_operations );
+												context->overlapped_close.current_operation = ( context->ssl != NULL ? IO_Shutdown : IO_Close );
+												PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped_close );
+											}
 										}
 
 										LeaveCriticalSection( &context->context_cs );
@@ -1284,9 +1335,7 @@ THREAD_RETURN handle_connection( void *pArguments )
 										if ( is_group )
 										{
 											EnterCriticalSection( &di->shared_info->di_cs );
-
 											di->shared_info->status = di->status;
-
 											LeaveCriticalSection( &di->shared_info->di_cs );
 										}
 									}
@@ -1320,7 +1369,6 @@ THREAD_RETURN handle_connection( void *pArguments )
 												context->is_paused = false;	// Reset.
 
 												InterlockedIncrement( &context->pending_operations );
-
 												// Post a completion status to the completion port that we're going to continue with whatever it left off at.
 												PostQueuedCompletionStatus( g_hIOCP, context->current_bytes_read, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped );
 											}
@@ -1331,13 +1379,13 @@ THREAD_RETURN handle_connection( void *pArguments )
 								}
 								else
 								{
-									if ( di->queue_node.data != NULL )	// Download is not active, attempt to resume or queue.
+									if ( IS_STATUS( parent_status, STATUS_QUEUED ) || di->queue_node.data != NULL )	// Download is not active, attempt to resume or queue.
 									{
 										if ( g_total_downloading < cfg_max_downloads )
 										{
 											EnterCriticalSection( &download_queue_cs );
 
-											if ( download_queue != NULL )
+											if ( IS_STATUS( parent_status, STATUS_QUEUED ) || download_queue != NULL )
 											{
 												DLL_RemoveNode( &download_queue, &di->queue_node );
 												di->queue_node.data = NULL;
@@ -1346,28 +1394,111 @@ THREAD_RETURN handle_connection( void *pArguments )
 												{
 													if ( status == STATUS_RESTART )
 													{
-														ResetDownload( di, ( status == STATUS_RESTART ? 1 : 0 ) );
+														ResetDownload( di, START_TYPE_HOST );
 
-														// Last child, restart group using the first host in the list.
+														// Restart group using the first host in the list.
 														if ( tln->next == NULL )
 														{
-															ResetDownload( di, ( status == STATUS_RESTART ? 3 : 0 ) );
+															ResetDownload( di, START_TYPE_GROUP );
 
 															// If we've restarted an active download, then we'll restart the group in the ConnectionCleanup().
 															if ( IS_STATUS_NOT( di->shared_info->status, STATUS_STOPPED | STATUS_RESTART ) )
 															{
-																StartDownload( ( DOWNLOAD_INFO * )di->shared_info->host_list->data, 1, false );
+																StartDownload( ( DOWNLOAD_INFO * )di->shared_info->host_list->data, START_TYPE_GROUP, START_OPERATION_NONE );
 															}
 														}
 													}
 													else
 													{
-														RestartDownload( di, 0, false );
+														ResetDownload( di, START_TYPE_NONE );
+
+														di->status = STATUS_NONE;	// It's not queued anymore.
+
+														if ( tln == tln_last_host )
+														{
+															DOWNLOAD_INFO *driver_di = NULL;
+
+															// Find the first host that can act as a driver.
+															DoublyLinkedList *host_node = di->shared_info->host_list;
+
+															// Remove the Add Stopped flag if the entire group was added in the stopped state.
+															if ( di->shared_info->download_operations & DOWNLOAD_OPERATION_ADD_STOPPED )
+															{
+																/*while ( host_node != NULL )
+																{
+																	DOWNLOAD_INFO *host_di = ( DOWNLOAD_INFO * )host_node->data;
+																	if ( host_di != NULL )
+																	{
+																		host_di->download_operations &= ~DOWNLOAD_OPERATION_ADD_STOPPED;
+																	}
+																	host_node = host_node->next;
+																}
+
+																LeaveCriticalSection( &di->di_cs );*/
+
+																EnterCriticalSection( &di->shared_info->di_cs );
+																di->shared_info->download_operations &= ~DOWNLOAD_OPERATION_ADD_STOPPED;
+																LeaveCriticalSection( &di->shared_info->di_cs );
+
+																//EnterCriticalSection( &di->di_cs );
+															}
+
+															host_node = di->shared_info->host_list;
+															while ( host_node != NULL )
+															{
+																DOWNLOAD_INFO *host_di = ( DOWNLOAD_INFO * )host_node->data;
+																if ( host_di->status != STATUS_COMPLETED &&
+																  !( host_di->download_operations & DOWNLOAD_OPERATION_ADD_STOPPED ) )
+																{
+																	driver_di = ( DOWNLOAD_INFO * )host_node->data;
+
+																	break;
+																}
+																host_node = host_node->next;
+															}
+
+															if ( driver_di != NULL )
+															{
+																StartDownload( driver_di, START_TYPE_GROUP, START_OPERATION_NONE );
+															}
+															else
+															{
+																/*// Remove the Add Stopped flag.
+																host_node = di->shared_info->host_list;
+																while ( host_node != NULL )
+																{
+																	DOWNLOAD_INFO *host_di = ( DOWNLOAD_INFO * )host_node->data;
+																	if ( host_di != NULL )
+																	{
+																		host_di->download_operations &= ~DOWNLOAD_OPERATION_ADD_STOPPED;
+																	}
+																	host_node = host_node->next;
+																}
+
+																LeaveCriticalSection( &di->di_cs );*/
+
+																EnterCriticalSection( &di->shared_info->di_cs );
+																di->shared_info->status = STATUS_STOPPED;
+																LeaveCriticalSection( &di->shared_info->di_cs );
+
+																//EnterCriticalSection( &di->di_cs );
+															}
+														}
 													}
 												}
 												else
 												{
-													RestartDownload( di, ( status == STATUS_RESTART ? ( is_host ? 2 : 0 ) : 0 ), false );
+													//LeaveCriticalSection( &di->di_cs );
+
+													EnterCriticalSection( &di->shared_info->di_cs );
+													di->shared_info->download_operations &= ~DOWNLOAD_OPERATION_ADD_STOPPED;
+													LeaveCriticalSection( &di->shared_info->di_cs );
+
+													//EnterCriticalSection( &di->di_cs );
+
+													di->status = STATUS_NONE;
+
+													RestartDownload( di, ( status == STATUS_RESTART ? ( is_host_in_group ? START_TYPE_HOST_IN_GROUP : START_TYPE_HOST ) : START_TYPE_NONE ), START_OPERATION_NONE );
 												}
 											}
 
@@ -1401,10 +1532,34 @@ THREAD_RETURN handle_connection( void *pArguments )
 								}
 								else
 								{
+									// Only allow it to be stopped (when resuming) if the header has not been processed.
+									// This would be like adding a new download.
+									if ( !di->processed_header )
+									{
+										// If it's a group, then remove the Add Stopped flag.
+										if ( is_group )
+										{
+											di->download_operations &= ~DOWNLOAD_OPERATION_ADD_STOPPED;
+										}
+										else
+										{
+											di->download_operations |= DOWNLOAD_OPERATION_ADD_STOPPED;
+										}
+									}
+									di->status = STATUS_STOPPED;
+									if ( is_group && tln == tln_last_host )
+									{
+										//LeaveCriticalSection( &di->di_cs );
+
+										EnterCriticalSection( &di->shared_info->di_cs );
+										di->shared_info->status = STATUS_STOPPED;
+										LeaveCriticalSection( &di->shared_info->di_cs );
+
+										//EnterCriticalSection( &di->di_cs );
+									}
+
 									if ( di->queue_node.data != NULL )	// Download is queued.
 									{
-										di->status = STATUS_STOPPED;
-
 										EnterCriticalSection( &download_queue_cs );
 
 										// Remove the item from the download queue.
@@ -1477,7 +1632,7 @@ THREAD_RETURN handle_connection( void *pArguments )
 											context->cleanup = 1;	// Auto cleanup.
 										}
 
-										// The operation is probably stuck (server isn't responding). Force close the socket it to release the operation.
+										// The operation is probably stuck (server isn't responding). Force close the socket to release the operation.
 										if ( context->pending_operations > 0 )
 										{
 											if ( context->socket != INVALID_SOCKET )
@@ -1504,28 +1659,151 @@ THREAD_RETURN handle_connection( void *pArguments )
 									{
 										if ( status == STATUS_RESTART )
 										{
-											ResetDownload( di, ( status == STATUS_RESTART ? 1 : 0 ) );
+											ResetDownload( di, START_TYPE_HOST );
 
-											// Last child, restart group using the first host in the list.
+											// Restart group using the first host in the list.
 											if ( tln->next == NULL )
 											{
-												ResetDownload( di, ( status == STATUS_RESTART ? 3 : 0 ) );
+												ResetDownload( di, START_TYPE_GROUP );
 
 												// If we've restarted an active download, then we'll restart the group in the ConnectionCleanup().
 												if ( IS_STATUS_NOT( di->shared_info->status, STATUS_STOPPED | STATUS_RESTART ) )
 												{
-													StartDownload( ( DOWNLOAD_INFO * )di->shared_info->host_list->data, 1, ( di->status == STATUS_SKIPPED ? true : false ) );
+													StartDownload( ( DOWNLOAD_INFO * )di->shared_info->host_list->data, START_TYPE_GROUP, ( parent_status == STATUS_SKIPPED ? ( START_OPERATION_CHECK_FILE | START_OPERATION_FORCE_PROMPT ) : START_OPERATION_NONE ) );
 												}
 											}
 										}
 										else
 										{
-											RestartDownload( di, 0, ( di->status == STATUS_SKIPPED ? true : false ) );
+											// This is the case where we start a group download and skip it before we call MakeRangeRequest().
+											if ( !di->shared_info->processed_header && di->processed_header )
+											{
+												ResetDownload( di, START_TYPE_HOST );
+											}
+											else
+											{
+												ResetDownload( di, START_TYPE_NONE );
+											}
+
+											// Host has already been processed (assigned range info). Resume it.
+											if ( di->shared_info->processed_header )
+											{
+												tmp_status = di->status;
+												di->status = STATUS_NONE;
+
+												StartDownload( di, START_TYPE_HOST_IN_GROUP, ( tmp_status == STATUS_SKIPPED ? START_OPERATION_CHECK_FILE : START_OPERATION_NONE ) );
+											}
+											else	// We're starting an unprocessed group, or host in group.
+											{
+												// Start the group.
+												if ( tln == tln_last_host )
+												{
+													DOWNLOAD_INFO *driver_di = NULL;
+
+													// Find the first host that can act as a driver.
+													DoublyLinkedList *host_node = di->shared_info->host_list;
+
+													// Remove the Add Stopped flag if the entire group was added in the stopped state.
+													if ( di->shared_info->download_operations & DOWNLOAD_OPERATION_ADD_STOPPED )
+													{
+														/*while ( host_node != NULL )
+														{
+															DOWNLOAD_INFO *host_di = ( DOWNLOAD_INFO * )host_node->data;
+															if ( host_di != NULL )
+															{
+																host_di->download_operations &= ~DOWNLOAD_OPERATION_ADD_STOPPED;
+															}
+															host_node = host_node->next;
+														}
+
+														LeaveCriticalSection( &di->di_cs );*/
+
+														EnterCriticalSection( &di->shared_info->di_cs );
+														di->shared_info->download_operations &= ~DOWNLOAD_OPERATION_ADD_STOPPED;
+														LeaveCriticalSection( &di->shared_info->di_cs );
+
+														//EnterCriticalSection( &di->di_cs );
+													}
+
+													host_node = di->shared_info->host_list;
+													while ( host_node != NULL )
+													{
+														DOWNLOAD_INFO *host_di = ( DOWNLOAD_INFO * )host_node->data;
+														if ( host_di->status != STATUS_COMPLETED &&
+														  !( host_di->download_operations & DOWNLOAD_OPERATION_ADD_STOPPED ) )
+														{
+															driver_di = ( DOWNLOAD_INFO * )host_node->data;
+
+															break;
+														}
+														host_node = host_node->next;
+													}
+
+													if ( driver_di != NULL )
+													{
+														tmp_status = driver_di->status;
+														driver_di->status = STATUS_NONE;
+
+														di->status = STATUS_NONE;
+
+														StartDownload( driver_di, START_TYPE_GROUP, ( tmp_status == STATUS_SKIPPED || IS_STATUS( parent_status, STATUS_QUEUED ) ? START_OPERATION_CHECK_FILE : START_OPERATION_NONE ) );
+													}
+													else
+													{
+														di->status = STATUS_NONE;
+
+														/*// Remove the Add Stopped flag.
+														host_node = di->shared_info->host_list;
+														while ( host_node != NULL )
+														{
+															DOWNLOAD_INFO *host_di = ( DOWNLOAD_INFO * )host_node->data;
+															if ( host_di != NULL )
+															{
+																host_di->download_operations &= ~DOWNLOAD_OPERATION_ADD_STOPPED;
+															}
+															host_node = host_node->next;
+														}
+
+														LeaveCriticalSection( &di->di_cs );*/
+
+														EnterCriticalSection( &di->shared_info->di_cs );
+														di->shared_info->status = STATUS_STOPPED;
+														LeaveCriticalSection( &di->shared_info->di_cs );
+
+														//EnterCriticalSection( &di->di_cs );
+													}
+												}
+												else
+												{
+													di->status = STATUS_NONE;
+												}
+											}
 										}
 									}
 									else
 									{
-										RestartDownload( di, ( status == STATUS_RESTART ? ( is_host ? 2 : 0 ) : 0 ), ( di->status == STATUS_SKIPPED ? true : false ) );
+										//LeaveCriticalSection( &di->di_cs );
+
+										EnterCriticalSection( &di->shared_info->di_cs );
+										di->shared_info->download_operations &= ~DOWNLOAD_OPERATION_ADD_STOPPED;
+										LeaveCriticalSection( &di->shared_info->di_cs );
+
+										//EnterCriticalSection( &di->di_cs );
+
+										// Revert the status back to queued if the group is queued.
+										if ( IS_STATUS( di->shared_info->status, STATUS_QUEUED ) )
+										{
+											di->download_operations &= ~DOWNLOAD_OPERATION_ADD_STOPPED;
+											di->status = STATUS_CONNECTING | STATUS_QUEUED;
+										}
+										else
+										{
+											tmp_status = di->status;
+											di->status = STATUS_NONE;
+
+											RestartDownload( di, ( status == STATUS_RESTART ? ( is_host_in_group ? START_TYPE_HOST_IN_GROUP : START_TYPE_HOST ) : START_TYPE_NONE ),
+																 ( tmp_status == STATUS_SKIPPED ? ( status == STATUS_RESTART ? ( START_OPERATION_CHECK_FILE | START_OPERATION_FORCE_PROMPT ) : START_OPERATION_CHECK_FILE ) : START_OPERATION_NONE ) );
+										}
 									}
 								}
 
@@ -1540,7 +1818,9 @@ THREAD_RETURN handle_connection( void *pArguments )
 						{
 							if ( status == STATUS_STOPPED )
 							{
+								EnterCriticalSection( &di->shared_info->di_cs );
 								di->shared_info->moving_state = 2;	// Cancel.
+								LeaveCriticalSection( &di->shared_info->di_cs );
 							}
 
 							LeaveCriticalSection( &di->di_cs );
@@ -1583,23 +1863,23 @@ THREAD_RETURN handle_connection( void *pArguments )
 
 								if ( is_group )
 								{
-									ResetDownload( di, 1 );
+									ResetDownload( di, START_TYPE_HOST );
 
-									// Last child, restart group using the first host in the list.
+									// Restart group using the first host in the list.
 									if ( tln->next == NULL )
 									{
-										ResetDownload( di, 3 );
+										ResetDownload( di, START_TYPE_GROUP );
 
 										// If we've restarted an active download, then we'll restart the group in the ConnectionCleanup().
 										if ( IS_STATUS_NOT( di->shared_info->status, STATUS_STOPPED | STATUS_RESTART ) )
 										{
-											StartDownload( ( DOWNLOAD_INFO * )di->shared_info->host_list->data, 1, false );
+											StartDownload( ( DOWNLOAD_INFO * )di->shared_info->host_list->data, START_TYPE_GROUP, START_OPERATION_NONE );
 										}
 									}
 								}
 								else
 								{
-									RestartDownload( di, ( is_host ? 2 : 1 ), false );
+									RestartDownload( di, ( is_host_in_group ? START_TYPE_HOST_IN_GROUP : START_TYPE_HOST ), START_OPERATION_NONE );
 								}
 							}
 						}
@@ -1609,6 +1889,24 @@ THREAD_RETURN handle_connection( void *pArguments )
 				}
 				else
 				{
+					if ( status == STATUS_STOPPED )
+					{
+						if ( is_group )
+						{
+							// Remove the Add Stopped flag.
+							di->download_operations &= ~DOWNLOAD_OPERATION_ADD_STOPPED;
+
+							//LeaveCriticalSection( &di->di_cs );
+
+							EnterCriticalSection( &di->shared_info->di_cs );
+							di->shared_info->download_operations &= ~DOWNLOAD_OPERATION_ADD_STOPPED;
+							di->shared_info->status = STATUS_STOPPED;
+							LeaveCriticalSection( &di->shared_info->di_cs );
+
+							//EnterCriticalSection( &di->di_cs );
+						}
+					}
+
 					LeaveCriticalSection( &di->di_cs );
 				}
 			}
@@ -1638,7 +1936,7 @@ THREAD_RETURN handle_connection( void *pArguments )
 	LeaveCriticalSection( &worker_cs );
 
 	_ExitThread( 0 );
-	return 0;
+	//return 0;
 }
 
 THREAD_RETURN handle_download_queue( void *pArguments )
@@ -1770,7 +2068,7 @@ THREAD_RETURN handle_download_queue( void *pArguments )
 	LeaveCriticalSection( &worker_cs );
 
 	_ExitThread( 0 );
-	return 0;
+	//return 0;
 }
 
 THREAD_RETURN handle_download_update( void *pArguments )
@@ -2009,10 +2307,10 @@ THREAD_RETURN handle_download_update( void *pArguments )
 	LeaveCriticalSection( &worker_cs );
 
 	_ExitThread( 0 );
-	return 0;
+	//return 0;
 }
 
-THREAD_RETURN copy_urls( void *pArguments )
+THREAD_RETURN copy_urls( void * /*pArguments*/ )
 {
 	// This will block every other thread from entering until the first thread is complete.
 	EnterCriticalSection( &worker_cs );
@@ -2025,8 +2323,6 @@ THREAD_RETURN copy_urls( void *pArguments )
 	unsigned int buffer_offset = 0;
 	wchar_t *copy_buffer = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * buffer_size );	// Allocate 8 kilobytes.
 
-	TREELISTNODE *tln_last_parent = NULL;
-
 	TREELISTNODE *tln;
 	TLV_GetNextSelectedItem( NULL, 0, &tln );
 	while ( tln != NULL )
@@ -2038,8 +2334,6 @@ THREAD_RETURN copy_urls( void *pArguments )
 		}
 
 		TREELISTNODE *tln_parent = tln;
-		bool is_group = false;
-		bool is_host = false;
 
 		// We'll go through each child regardless of whether it's selected if a group is selected.
 		if ( tln->data_type == TLVDT_GROUP && tln->child != NULL )
@@ -2177,7 +2471,7 @@ CLEANUP:
 	LeaveCriticalSection( &worker_cs );
 
 	_ExitThread( 0 );
-	return 0;
+	//return 0;
 }
 
 THREAD_RETURN rename_file( void *pArguments )
@@ -2378,7 +2672,7 @@ THREAD_RETURN rename_file( void *pArguments )
 	LeaveCriticalSection( &worker_cs );
 
 	_ExitThread( 0 );
-	return 0;
+	//return 0;
 }
 
 THREAD_RETURN create_download_history_csv_file( void *file_path )
@@ -2411,7 +2705,7 @@ THREAD_RETURN create_download_history_csv_file( void *file_path )
 	LeaveCriticalSection( &worker_cs );
 
 	_ExitThread( 0 );
-	return 0;
+	//return 0;
 }
 
 THREAD_RETURN export_list( void *pArguments )
@@ -2451,7 +2745,7 @@ THREAD_RETURN export_list( void *pArguments )
 	LeaveCriticalSection( &worker_cs );
 
 	_ExitThread( 0 );
-	return 0;
+	//return 0;
 }
 
 THREAD_RETURN import_list( void *pArguments )
@@ -2530,10 +2824,10 @@ THREAD_RETURN import_list( void *pArguments )
 	LeaveCriticalSection( &worker_cs );
 
 	_ExitThread( 0 );
-	return 0;
+	//return 0;
 }
 
-THREAD_RETURN delete_files( void *pArguments )
+THREAD_RETURN delete_files( void * /*pArguments*/ )
 {
 	// This will block every other thread from entering until the first thread is complete.
 	EnterCriticalSection( &worker_cs );
@@ -2670,7 +2964,7 @@ THREAD_RETURN delete_files( void *pArguments )
 	LeaveCriticalSection( &worker_cs );
 
 	_ExitThread( 0 );
-	return 0;
+	//return 0;
 }
 
 THREAD_RETURN search_list( void *pArguments )
@@ -2762,7 +3056,7 @@ THREAD_RETURN search_list( void *pArguments )
 
 					if ( si->search_flag == 0x04 )	// Regular expression search.
 					{
-						if ( g_use_regular_expressions )
+						if ( pcre2_state == PCRE2_STATE_RUNNING )
 						{
 							int error_code;
 							size_t error_offset;
@@ -2943,7 +3237,7 @@ THREAD_RETURN search_list( void *pArguments )
 	LeaveCriticalSection( &worker_cs );
 
 	_ExitThread( 0 );
-	return 0;
+	//return 0;
 }
 
 THREAD_RETURN filter_urls( void *pArguments )
@@ -2961,7 +3255,7 @@ THREAD_RETURN filter_urls( void *pArguments )
 		{
 			if ( fi->filter != NULL )
 			{
-				if ( g_use_regular_expressions )
+				if ( pcre2_state == PCRE2_STATE_RUNNING )
 				{
 					int error_code;
 					size_t error_offset;
@@ -3041,8 +3335,6 @@ THREAD_RETURN filter_urls( void *pArguments )
 		GlobalFree( fi );
 	}
 
-	_SendMessageW( g_hWnd_search, WM_PROPAGATE, 1, 0 );
-
 	// Release the semaphore if we're killing the thread.
 	if ( worker_semaphore != NULL )
 	{
@@ -3055,7 +3347,7 @@ THREAD_RETURN filter_urls( void *pArguments )
 	LeaveCriticalSection( &worker_cs );
 
 	_ExitThread( 0 );
-	return 0;
+	//return 0;
 }
 
 THREAD_RETURN process_command_line_args( void *pArguments )
@@ -3152,8 +3444,9 @@ THREAD_RETURN process_command_line_args( void *pArguments )
 
 			ai->download_operations = cla->download_operations;
 
+			ai->use_download_directory = cla->use_download_directory;
 			ai->download_directory = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * MAX_PATH );
-			if ( cla->download_directory != NULL )
+			if ( cla->use_download_directory && cla->download_directory != NULL )
 			{
 				_wmemcpy_s( ai->download_directory, MAX_PATH, cla->download_directory, cla->download_directory_length );
 				ai->download_directory[ cla->download_directory_length ] = 0;	// Sanity.
@@ -3164,8 +3457,10 @@ THREAD_RETURN process_command_line_args( void *pArguments )
 				ai->download_directory[ g_default_download_directory_length ] = 0;	// Sanity.
 			}
 
-			ai->parts = ( cla->parts != 0 ? cla->parts : cfg_default_download_parts );
-			ai->download_speed_limit = cla->download_speed_limit;
+			ai->use_parts = cla->use_parts;
+			ai->parts = ( cla->use_parts ? cla->parts : cfg_default_download_parts );
+			ai->use_download_speed_limit = cla->use_download_speed_limit;
+			ai->download_speed_limit = ( cla->use_download_speed_limit ? cla->download_speed_limit : cfg_download_speed_limit );
 			ai->ssl_version = ( cla->ssl_version != 0 ? cla->ssl_version : cfg_default_ssl_version + 1 );
 
 			if ( cla->urls != NULL )
@@ -3217,7 +3512,7 @@ THREAD_RETURN process_command_line_args( void *pArguments )
 				if ( cla->proxy_hostname != NULL )
 				{
 					ai->proxy_info.hostname = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( cla->proxy_hostname_length + 1 ) );
-					_wmemcpy_s( ai->proxy_info.hostname, cla->proxy_hostname_length + 1, cla->urls, cla->proxy_hostname_length );
+					_wmemcpy_s( ai->proxy_info.hostname, cla->proxy_hostname_length + 1, cla->proxy_hostname, cla->proxy_hostname_length );
 					ai->proxy_info.hostname[ cla->proxy_hostname_length ] = 0;	// Sanity.
 
 					if ( normaliz_state == NORMALIZ_STATE_RUNNING )
@@ -3240,24 +3535,35 @@ THREAD_RETURN process_command_line_args( void *pArguments )
 					ai->proxy_info.address_type = 1;
 				}
 
-				ai->proxy_info.port = cla->proxy_port;
+				if ( cla->proxy_port == 0 )
+				{
+					ai->proxy_info.port = ( cla->proxy_type == 1 ? 80 : ( cla->proxy_type == 2 ? 443 : 1080 ) );
+				}
 
 				if ( cla->proxy_username != NULL )
 				{
+					ai->proxy_info.use_authentication = true;	// For SOCKS v5 connections.
+
 					ai->proxy_info.w_username = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( cla->proxy_username_length + 1 ) );
-					_wmemcpy_s( ai->proxy_info.w_username, cla->proxy_username_length + 1, cla->urls, cla->proxy_username_length );
+					_wmemcpy_s( ai->proxy_info.w_username, cla->proxy_username_length + 1, cla->proxy_username, cla->proxy_username_length );
 					ai->proxy_info.w_username[ cla->proxy_username_length ] = 0;	// Sanity.
 
-					ai->proxy_info.use_authentication = true;
+					utf8_val_length = WideCharToMultiByte( CP_UTF8, 0, ai->proxy_info.w_username, -1, NULL, 0, NULL, NULL );
+					ai->proxy_info.username = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * utf8_val_length ); // Size includes the null character.
+					WideCharToMultiByte( CP_UTF8, 0, ai->proxy_info.w_username, -1, ai->proxy_info.username, utf8_val_length, NULL, NULL );
 				}
 
 				if ( cla->proxy_password != NULL )
 				{
+					ai->proxy_info.use_authentication = true;	// For SOCKS v5 connections.
+
 					ai->proxy_info.w_password = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( cla->proxy_password_length + 1 ) );
-					_wmemcpy_s( ai->proxy_info.w_password, cla->proxy_password_length + 1, cla->urls, cla->proxy_password_length );
+					_wmemcpy_s( ai->proxy_info.w_password, cla->proxy_password_length + 1, cla->proxy_password, cla->proxy_password_length );
 					ai->proxy_info.w_password[ cla->proxy_password_length ] = 0;	// Sanity.
 
-					ai->proxy_info.use_authentication = true;
+					utf8_val_length = WideCharToMultiByte( CP_UTF8, 0, ai->proxy_info.w_password, -1, NULL, 0, NULL, NULL );
+					ai->proxy_info.password = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * utf8_val_length ); // Size includes the null character.
+					WideCharToMultiByte( CP_UTF8, 0, ai->proxy_info.w_password, -1, ai->proxy_info.password, utf8_val_length, NULL, NULL );
 				}
 
 				ai->proxy_info.resolve_domain_names = cla->proxy_resolve_domain_names;
@@ -3276,7 +3582,7 @@ THREAD_RETURN process_command_line_args( void *pArguments )
 		}
 		else if ( cla->urls != NULL )
 		{
-			_SendMessageW( g_hWnd_main, WM_PROPAGATE, -1, ( LPARAM )cla );
+			_SendMessageW( g_hWnd_main, WM_PROPAGATE, ( WPARAM )-1, ( LPARAM )cla );
 		}
 
 		FreeCommandLineArgs( &cla );
@@ -3296,10 +3602,10 @@ THREAD_RETURN process_command_line_args( void *pArguments )
 	LeaveCriticalSection( &worker_cs );
 
 	_ExitThread( 0 );
-	return 0;
+	//return 0;
 }
 
-THREAD_RETURN save_session( void *pArguments )
+THREAD_RETURN save_session( void * /*pArguments*/ )
 {
 	// This will block every other thread from entering until the first thread is complete.
 	EnterCriticalSection( &worker_cs );
@@ -3310,9 +3616,9 @@ THREAD_RETURN save_session( void *pArguments )
 	{
 		wchar_t t_base_directory[ MAX_PATH ];
 
-		_wmemcpy_s( t_base_directory, MAX_PATH, base_directory, base_directory_length );
-		_wmemcpy_s( t_base_directory + base_directory_length, MAX_PATH - base_directory_length, L"\\download_history\0", 18 );
-		t_base_directory[ base_directory_length + 17 ] = 0;	// Sanity.
+		_wmemcpy_s( t_base_directory, MAX_PATH, g_base_directory, g_base_directory_length );
+		_wmemcpy_s( t_base_directory + g_base_directory_length, MAX_PATH - g_base_directory_length, L"\\download_history\0", 18 );
+		t_base_directory[ g_base_directory_length + 17 ] = 0;	// Sanity.
 
 		save_download_history( t_base_directory );
 		g_download_history_changed = false;
@@ -3330,5 +3636,5 @@ THREAD_RETURN save_session( void *pArguments )
 	LeaveCriticalSection( &worker_cs );
 
 	_ExitThread( 0 );
-	return 0;
+	//return 0;
 }

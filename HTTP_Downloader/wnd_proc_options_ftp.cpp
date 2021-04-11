@@ -1,6 +1,6 @@
 /*
-	HTTP Downloader can download files through HTTP(S) and FTP(S) connections.
-	Copyright (C) 2015-2020 Eric Kutcher
+	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
+	Copyright (C) 2015-2021 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -266,7 +266,7 @@ LRESULT CALLBACK FTPTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 						char value[ 11 ];
 						_SendMessageA( g_hWnd_ftp_port_end, WM_GETTEXT, 6, ( LPARAM )value );
 						unsigned long num_end = _strtoul( value, NULL, 10 );
-						unsigned int start_length = ( unsigned int )_SendMessageA( g_hWnd_ftp_port_start, WM_GETTEXT, 6, ( LPARAM )value );
+						//unsigned int start_length = ( unsigned int )_SendMessageA( g_hWnd_ftp_port_start, WM_GETTEXT, 6, ( LPARAM )value );
 						unsigned long num_start = _strtoul( value, NULL, 10 );
 
 						if ( num_start > 65535 )	// If the start port is beyond the port range, set it and the end port to the highest port number.
@@ -408,5 +408,5 @@ LRESULT CALLBACK FTPTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 		}
 		break;
 	}
-	return TRUE;
+	//return TRUE;
 }
