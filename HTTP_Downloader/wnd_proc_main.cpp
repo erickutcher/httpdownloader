@@ -1308,6 +1308,23 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 				}
 			}
 
+			HMONITOR hMon = _MonitorFromWindow( hWnd, MONITOR_DEFAULTTONEAREST );
+			MONITORINFO mi;
+			mi.cbSize = sizeof( MONITORINFO );
+			_GetMonitorInfoW( hMon, &mi );
+			int pos_x = cfg_pos_x;
+			int pos_y = cfg_pos_y;
+			// If the window is offscreen, then move it into the current monitor.
+			if ( pos_x + cfg_width <= mi.rcMonitor.left ||
+				 pos_x >= mi.rcMonitor.right ||
+				 pos_y + cfg_height <= mi.rcMonitor.top ||
+				 pos_y >= mi.rcMonitor.bottom )
+			{
+				pos_x = mi.rcMonitor.left + ( ( ( mi.rcMonitor.right - mi.rcMonitor.left ) - cfg_width ) / 2 );
+				pos_y = mi.rcMonitor.top + ( ( ( mi.rcMonitor.bottom - mi.rcMonitor.top ) - cfg_height ) / 2 );
+			}
+			_SetWindowPos( hWnd, NULL, pos_x, pos_y, cfg_width, cfg_height, 0 );
+
 			return 0;
 		}
 		break;
@@ -1521,41 +1538,44 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 
 		case WM_SIZE:
 		{
-			RECT rc, rc_toolbar, rc_status;
-			_GetClientRect( hWnd, &rc );
-
-			// Allow our listview to resize in proportion to the main window.
-			HDWP hdwp = _BeginDeferWindowPos( 1 );
-
-			if ( cfg_show_toolbar )
+			if ( wParam != SIZE_MINIMIZED )
 			{
-				_SendMessageW( g_hWnd_toolbar, TB_AUTOSIZE, 0, 0 ); 
+				RECT rc, rc_toolbar, rc_status;
+				_GetClientRect( hWnd, &rc );
 
-				_GetWindowRect( g_hWnd_toolbar, &rc_toolbar );
+				// Allow our listview to resize in proportion to the main window.
+				HDWP hdwp = _BeginDeferWindowPos( 1 );
 
-				rc.top = rc_toolbar.bottom - rc_toolbar.top;
-				rc.bottom -= rc.top;
-			}
+				if ( cfg_show_toolbar )
+				{
+					_SendMessageW( g_hWnd_toolbar, TB_AUTOSIZE, 0, 0 ); 
 
-			if ( cfg_show_status_bar )
-			{
-				_GetWindowRect( g_hWnd_status, &rc_status );
+					_GetWindowRect( g_hWnd_toolbar, &rc_toolbar );
 
-				_DeferWindowPos( hdwp, g_hWnd_tlv_files, HWND_TOP, rc.left, rc.top, rc.right, rc.bottom - ( rc_status.bottom - rc_status.top ), SWP_NOZORDER );
+					rc.top = rc_toolbar.bottom - rc_toolbar.top;
+					rc.bottom -= rc.top;
+				}
 
-				// Apparently status bars want WM_SIZE to be called. (See MSDN)
-				_SendMessageW( g_hWnd_status, WM_SIZE, 0, 0 );
-			}
-			else
-			{
-				_DeferWindowPos( hdwp, g_hWnd_tlv_files, HWND_TOP, rc.left, rc.top, rc.right, rc.bottom, SWP_NOZORDER );
-			}
+				if ( cfg_show_status_bar )
+				{
+					_GetWindowRect( g_hWnd_status, &rc_status );
 
-			_EndDeferWindowPos( hdwp );
+					_DeferWindowPos( hdwp, g_hWnd_tlv_files, HWND_TOP, rc.left, rc.top, rc.right, rc.bottom - ( rc_status.bottom - rc_status.top ), SWP_NOZORDER );
 
-			if ( wParam == SIZE_MAXIMIZED || wParam == SIZE_RESTORED )
-			{
-				ClearProgressBars();
+					// Apparently status bars want WM_SIZE to be called. (See MSDN)
+					_SendMessageW( g_hWnd_status, WM_SIZE, 0, 0 );
+				}
+				else
+				{
+					_DeferWindowPos( hdwp, g_hWnd_tlv_files, HWND_TOP, rc.left, rc.top, rc.right, rc.bottom, SWP_NOZORDER );
+				}
+
+				_EndDeferWindowPos( hdwp );
+
+				if ( wParam == SIZE_MAXIMIZED || wParam == SIZE_RESTORED )
+				{
+					ClearProgressBars();
+				}
 			}
 
 			return 0;
@@ -1579,30 +1599,34 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 		case WM_MOVING:
 		{
 			POINT cur_pos;
-			RECT wa;
+			//RECT wa;
 			RECT *rc = ( RECT * )lParam;
 
 			_GetCursorPos( &cur_pos );
 			_OffsetRect( rc, cur_pos.x - ( rc->left + cx ), cur_pos.y - ( rc->top + cy ) );
 
 			// Allow our main window to attach to the desktop edge.
-			_SystemParametersInfoW( SPI_GETWORKAREA, 0, &wa, 0 );			
-			if ( is_close( rc->left + g_border_width, wa.left ) )				// Attach to left side of the desktop.
+			//_SystemParametersInfoW( SPI_GETWORKAREA, 0, &wa, 0 );
+			HMONITOR hMon = _MonitorFromWindow( hWnd, MONITOR_DEFAULTTONEAREST );
+			MONITORINFO mi;
+			mi.cbSize = sizeof( MONITORINFO );
+			_GetMonitorInfoW( hMon, &mi );
+			if ( is_close( rc->left + g_border_width, mi.rcWork.left ) )				// Attach to left side of the desktop.
 			{
-				_OffsetRect( rc, wa.left - rc->left - g_border_width, 0 );
+				_OffsetRect( rc, mi.rcWork.left - rc->left - g_border_width, 0 );
 			}
-			else if ( is_close( wa.right, rc->right + g_border_width ) )		// Attach to right side of the desktop.
+			else if ( is_close( mi.rcWork.right, rc->right + g_border_width ) )			// Attach to right side of the desktop.
 			{
-				_OffsetRect( rc, wa.right - rc->right + g_border_width, 0 );
+				_OffsetRect( rc, mi.rcWork.right - rc->right + g_border_width, 0 );
 			}
 
-			if ( is_close( rc->top, wa.top ) )									// Attach to top of the desktop.
+			if ( is_close( rc->top, mi.rcWork.top ) )									// Attach to top of the desktop.
 			{
-				_OffsetRect( rc, 0, wa.top - rc->top );
+				_OffsetRect( rc, 0, mi.rcWork.top - rc->top );
 			}
-			else if ( is_close( wa.bottom, rc->bottom + g_border_width ) )		// Attach to bottom of the desktop.
+			else if ( is_close( mi.rcWork.bottom, rc->bottom + g_border_width ) )		// Attach to bottom of the desktop.
 			{
-				_OffsetRect( rc, 0, wa.bottom - rc->bottom + g_border_width );
+				_OffsetRect( rc, 0, mi.rcWork.bottom - rc->bottom + g_border_width );
 			}
 
 			// Save our settings for the position/dimensions of the window.

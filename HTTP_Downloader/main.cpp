@@ -715,11 +715,11 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 	}
 
 	// Default position if no settings were saved.
-	cfg_pos_x = ( ( _GetSystemMetrics( SM_CXSCREEN ) - MIN_WIDTH ) / 2 );
-	cfg_pos_y = ( ( _GetSystemMetrics( SM_CYSCREEN ) - MIN_HEIGHT ) / 2 );
+	cfg_pos_x = MAXINT;//( ( _GetSystemMetrics( SM_CXSCREEN ) - MIN_WIDTH ) / 2 );
+	cfg_pos_y = MAXINT;//( ( _GetSystemMetrics( SM_CYSCREEN ) - MIN_HEIGHT ) / 2 );
 
-	cfg_drop_pos_x = ( ( _GetSystemMetrics( SM_CXSCREEN ) - 48 ) / 2 );
-	cfg_drop_pos_y = ( ( _GetSystemMetrics( SM_CYSCREEN ) - 48 ) / 2 );
+	cfg_drop_pos_x = MAXINT;//( ( _GetSystemMetrics( SM_CXSCREEN ) - DW_WIDTH ) / 2 );
+	cfg_drop_pos_y = MAXINT;//( ( _GetSystemMetrics( SM_CYSCREEN ) - DW_HEIGHT ) / 2 );
 
 	SYSTEM_INFO systemInfo;
 	GetSystemInfo( &systemInfo );
@@ -1400,7 +1400,7 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 		goto CLEANUP;
 	}
 
-	g_hWnd_main = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"http_downloader_class", PROGRAM_CAPTION, WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN, cfg_pos_x, cfg_pos_y, cfg_width, cfg_height, NULL, NULL, NULL, NULL );
+	g_hWnd_main = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"http_downloader_class", PROGRAM_CAPTION, WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN, CW_USEDEFAULT, 0, cfg_width, cfg_height, NULL, NULL, NULL, NULL );
 
 	if ( !g_hWnd_main )
 	{
@@ -1431,12 +1431,12 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 
 	if ( cfg_enable_drop_window )
 	{
-		g_hWnd_url_drop_window = _CreateWindowExW( WS_EX_NOPARENTNOTIFY | WS_EX_NOACTIVATE | WS_EX_TOPMOST, L"url_drop_window", NULL, WS_CLIPCHILDREN | WS_POPUP, 0, 0, 0, 0, NULL, NULL, NULL, NULL );
+		g_hWnd_url_drop_window = _CreateWindowExW( WS_EX_NOPARENTNOTIFY | WS_EX_NOACTIVATE | WS_EX_TOPMOST, L"url_drop_window", NULL, WS_CLIPCHILDREN | WS_POPUP, 0, 0, DW_WIDTH, DW_HEIGHT, NULL, NULL, NULL, NULL );
 		_SetWindowLongPtrW( g_hWnd_url_drop_window, GWL_EXSTYLE, _GetWindowLongPtrW( g_hWnd_url_drop_window, GWL_EXSTYLE ) | WS_EX_LAYERED );
 		_SetLayeredWindowAttributes( g_hWnd_url_drop_window, 0, cfg_drop_window_transparency, LWA_ALPHA );
 
 		// Prevents it from stealing focus.
-		_SetWindowPos( g_hWnd_url_drop_window, HWND_TOPMOST, cfg_drop_pos_x, cfg_drop_pos_y, 48, 48, SWP_SHOWWINDOW | SWP_NOACTIVATE | SWP_NOOWNERZORDER );
+		_SetWindowPos( g_hWnd_url_drop_window, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_SHOWWINDOW | SWP_NOACTIVATE | SWP_NOOWNERZORDER );
 	}
 
 	// Main message loop:

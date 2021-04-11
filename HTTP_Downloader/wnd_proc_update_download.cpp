@@ -1022,6 +1022,12 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 				}
 			#endif
 
+			HMONITOR hMon = _MonitorFromWindow( g_hWnd_main, MONITOR_DEFAULTTONEAREST );
+			MONITORINFO mi;
+			mi.cbSize = sizeof( MONITORINFO );
+			_GetMonitorInfoW( hMon, &mi );
+			_SetWindowPos( hWnd, NULL, mi.rcMonitor.left + ( ( ( mi.rcMonitor.right - mi.rcMonitor.left ) - 600 ) / 2 ), mi.rcMonitor.top + ( ( ( mi.rcMonitor.bottom - mi.rcMonitor.top ) - 370 ) / 2 ), 600, 370, 0 );
+
 			return 0;
 		}
 		break;

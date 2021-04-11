@@ -67,6 +67,12 @@ LRESULT CALLBACK CheckForUpdatesWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPA
 			_SendMessageW( g_hWnd_view_changelog, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 			_SendMessageW( g_hWnd_check_updates_cancel, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 
+			HMONITOR hMon = _MonitorFromWindow( g_hWnd_main, MONITOR_DEFAULTTONEAREST );
+			MONITORINFO mi;
+			mi.cbSize = sizeof( MONITORINFO );
+			_GetMonitorInfoW( hMon, &mi );
+			_SetWindowPos( hWnd, NULL, mi.rcMonitor.left + ( ( ( mi.rcMonitor.right - mi.rcMonitor.left ) - 400 ) / 2 ), mi.rcMonitor.top + ( ( ( mi.rcMonitor.bottom - mi.rcMonitor.top ) - 135 ) / 2 ), 400, 135, 0 );
+
 			return 0;
 		}
 		break;

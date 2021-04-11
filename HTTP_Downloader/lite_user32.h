@@ -75,6 +75,7 @@
 	//#define _GetMenuItemInfoW		GetMenuItemInfoW
 	//#define _GetMessagePos			GetMessagePos
 	#define _GetMessageW			GetMessageW
+	#define _GetMonitorInfoW		GetMonitorInfoW
 	#define _GetParent				GetParent
 	#define _GetScrollInfo			GetScrollInfo
 	//#define _GetSubMenu				GetSubMenu
@@ -102,6 +103,8 @@
 	#define _MapWindowPoints		MapWindowPoints
 	//#define _MessageBoxA			MessageBoxA
 	//#define _MessageBoxW			MessageBoxW
+	//#define _MonitorFromRect		MonitorFromRect
+	#define _MonitorFromWindow		MonitorFromWindow
 	#define _OffsetRect				OffsetRect
 	#define _OpenClipboard			OpenClipboard
 	#define _PostMessageW			PostMessageW
@@ -193,6 +196,7 @@
 	//typedef BOOL ( WINAPI *pGetMenuItemInfoW )( HMENU hMenu, UINT uItem, BOOL fByPosition, LPMENUITEMINFO lpmii );
 	//typedef DWORD ( WINAPI *pGetMessagePos )( void );
 	typedef BOOL ( WINAPI *pGetMessageW )( LPMSG lpMsg, HWND hWnd, UINT wMsgFilterMin, UINT wMsgFilterMax );
+	typedef BOOL ( WINAPI *pGetMonitorInfoW )( HMONITOR hMonitor, LPMONITORINFO lpmi );
 	typedef HWND ( WINAPI *pGetParent )( HWND hWnd );
 	typedef BOOL ( WINAPI *pGetScrollInfo )( HWND hwnd, int nBar, LPSCROLLINFO lpsi );
 	//typedef HMENU ( WINAPI *pGetSubMenu )( HMENU hMenu, int nPos );
@@ -220,6 +224,8 @@
 	typedef int ( WINAPI *pMapWindowPoints )( HWND hWndFrom, HWND hWndTo, LPPOINT lpPoints, UINT cPoints );
 	//typedef int ( WINAPI *pMessageBoxA )( HWND hWnd, LPCSTR lpText, LPCSTR lpCaption, UINT uType );
 	//typedef int ( WINAPI *pMessageBoxW )( HWND hWnd, LPCTSTR lpText, LPCTSTR lpCaption, UINT uType );
+	//typedef HMONITOR ( WINAPI *pMonitorFromRect )( LPCRECT lprc, DWORD dwFlags );
+	typedef HMONITOR ( WINAPI *pMonitorFromWindow )( HWND hwnd, DWORD dwFlags );
 	typedef BOOL ( WINAPI *pOffsetRect )( LPRECT lprc, int dx, int dy );
 	typedef BOOL ( WINAPI *pOpenClipboard )( HWND hWndNewOwner );
 	typedef BOOL ( WINAPI *pPostMessageW )( HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lParam );
@@ -304,6 +310,7 @@
 	//extern pGetMenuItemInfoW		_GetMenuItemInfoW;
 	//extern pGetMessagePos			_GetMessagePos;
 	extern pGetMessageW				_GetMessageW;
+	extern pGetMonitorInfoW			_GetMonitorInfoW;
 	extern pGetParent				_GetParent;
 	extern pGetScrollInfo			_GetScrollInfo;
 	//extern pGetSubMenu				_GetSubMenu;
@@ -331,6 +338,8 @@
 	extern pMapWindowPoints			_MapWindowPoints;
 	//extern pMessageBoxA				_MessageBoxA;
 	//extern pMessageBoxW				_MessageBoxW;
+	//extern pMonitorFromRect			_MonitorFromRect;
+	extern pMonitorFromWindow		_MonitorFromWindow;
 	extern pOffsetRect				_OffsetRect;
 	extern pOpenClipboard			_OpenClipboard;
 	extern pPostMessageW			_PostMessageW;

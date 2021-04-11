@@ -2060,6 +2060,12 @@ LRESULT CALLBACK SiteManagerWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 
 			CloseHandle( ( HANDLE )_CreateThread( NULL, 0, load_site_list, ( void * )NULL, 0, NULL ) );
 
+			HMONITOR hMon = _MonitorFromWindow( g_hWnd_main, MONITOR_DEFAULTTONEAREST );
+			MONITORINFO mi;
+			mi.cbSize = sizeof( MONITORINFO );
+			_GetMonitorInfoW( hMon, &mi );
+			_SetWindowPos( hWnd, NULL, mi.rcMonitor.left + ( ( ( mi.rcMonitor.right - mi.rcMonitor.left ) - MIN_WIDTH ) / 2 ), mi.rcMonitor.top + ( ( ( mi.rcMonitor.bottom - mi.rcMonitor.top ) - MIN_HEIGHT ) / 2 ), MIN_WIDTH, MIN_HEIGHT, 0 );
+
 			return 0;
 		}
 		break;

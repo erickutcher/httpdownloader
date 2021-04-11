@@ -40,6 +40,9 @@
 #define MIN_WIDTH			800
 #define MIN_HEIGHT			600
 
+#define DW_WIDTH			48
+#define DW_HEIGHT			48
+
 #define SNAP_WIDTH			10		// The minimum distance at which our windows will attach together.
 
 #define WM_DESTROY_ALT		WM_APP		// Allows non-window threads to call DestroyWindow.
@@ -106,7 +109,7 @@
 #define CURRENT_VERSION_A	1
 #define CURRENT_VERSION_B	0
 #define CURRENT_VERSION_C	3
-#define CURRENT_VERSION_D	8
+#define CURRENT_VERSION_D	9
 
 #define CURRENT_VERSION		( ( CURRENT_VERSION_A << 24 ) | \
 							  ( CURRENT_VERSION_B << 16 ) | \

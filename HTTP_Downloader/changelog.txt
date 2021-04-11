@@ -1,3 +1,9 @@
+Version:	1.0.3.9
+Released:	2021-04-11
+
+Fixed crash when checking for updates.
+Added multi-monitor support.
+
 Version:	1.0.3.8
 Released:	2021-04-09
 

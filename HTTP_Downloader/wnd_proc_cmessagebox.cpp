@@ -128,7 +128,7 @@ int CMessageBoxW( HWND hWnd, LPCWSTR lpText, LPCWSTR lpCaption, UINT uType )
 																   ( uType & 0x0F ) == CMB_YESNOALL ||
 																   ( uType & 0x0F ) == CMB_RENAMEOVERWRITESKIPALL ||
 																   ( uType & 0x0F ) == CMB_CONTINUERESTARTSKIPALL ||
-																   ( uType & 0x0F ) == CMB_OKALL ) ? L"cmessageboxdc" : L"cmessagebox" ), lpCaption, WS_POPUP | WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_CLIPCHILDREN, 0, 0, 0, 0, hWnd, NULL, NULL, ( LPVOID )cmb_info );
+																   ( uType & 0x0F ) == CMB_OKALL ) ? L"cmessageboxdc" : L"cmessagebox" ), lpCaption, WS_POPUP | WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_CLIPCHILDREN, CW_USEDEFAULT, 0, 100, 100, hWnd, NULL, NULL, ( LPVOID )cmb_info );
 	if ( hWnd_cmsgbox != NULL )
 	{
 		EnterCriticalSection( &cmessagebox_prompt_cs );
@@ -206,7 +206,7 @@ int CPromptW( HWND hWnd, LPCWSTR lpText, LPCWSTR lpCaption, UINT uType, void *da
 	cp_info->hWnd_checkbox = NULL;
 	cp_info->data = data;
 
-	HWND hWnd_cmsgbox = _CreateWindowExW( WS_EX_DLGMODALFRAME, L"fingerprint_prompt", lpCaption, WS_POPUP | WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_CLIPCHILDREN, ( ( _GetSystemMetrics( SM_CXSCREEN ) - 600 ) / 2 ), ( ( _GetSystemMetrics( SM_CYSCREEN ) - 253 ) / 2 ), 600, 253, hWnd, NULL, NULL, ( LPVOID )cp_info );
+	HWND hWnd_cmsgbox = _CreateWindowExW( WS_EX_DLGMODALFRAME, L"fingerprint_prompt", lpCaption, WS_POPUP | WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_CLIPCHILDREN, CW_USEDEFAULT, 0, 600, 253, hWnd, NULL, NULL, ( LPVOID )cp_info );
 	if ( hWnd_cmsgbox != NULL )
 	{
 		EnterCriticalSection( &cmessagebox_prompt_cs );
@@ -282,8 +282,12 @@ void AdjustWindowDimensions( HWND hWnd, HWND static_msg, CMSGBOX_INFO *cmb_info,
 	_memzero( &text_rc, sizeof( RECT ) );
 	_memzero( &cb_text_rc, sizeof( RECT ) );
 
-	RECT wa;
-	_SystemParametersInfoW( SPI_GETWORKAREA, 0, &wa, 0 );
+	//RECT wa;
+	//_SystemParametersInfoW( SPI_GETWORKAREA, 0, &wa, 0 );
+	HMONITOR hMon = _MonitorFromWindow( _GetParent( hWnd ), MONITOR_DEFAULTTONEAREST );
+	MONITORINFO mi;
+	mi.cbSize = sizeof( MONITORINFO );
+	_GetMonitorInfoW( hMon, &mi );
 
 	TEXTMETRIC tm;
 
@@ -295,8 +299,8 @@ void AdjustWindowDimensions( HWND hWnd, HWND static_msg, CMSGBOX_INFO *cmb_info,
 	// Calculate the height and width of the message.
 	if ( cmb_info->cmsgbox_message != NULL )
 	{
-		text_rc.right = wa.right;
-		text_rc.bottom = wa.bottom;
+		text_rc.right = mi.rcWork.right - mi.rcWork.left;
+		text_rc.bottom = mi.rcWork.bottom - mi.rcWork.top;
 
 		_DrawTextW( hDC, cmb_info->cmsgbox_message, -1, &text_rc, DT_CALCRECT | DT_NOPREFIX | DT_EDITCONTROL | DT_WORDBREAK );
 	}
@@ -305,8 +309,8 @@ void AdjustWindowDimensions( HWND hWnd, HWND static_msg, CMSGBOX_INFO *cmb_info,
 
 	if ( cb_message != NULL )
 	{
-		cb_text_rc.right = wa.right;
-		cb_text_rc.bottom = wa.bottom;
+		cb_text_rc.right = mi.rcWork.right - mi.rcWork.left;
+		cb_text_rc.bottom = mi.rcWork.bottom - mi.rcWork.top;
 
 		_DrawTextW( hDC, cb_message, -1, &cb_text_rc, DT_CALCRECT | DT_NOPREFIX | DT_SINGLELINE );
 
@@ -373,11 +377,11 @@ void AdjustWindowDimensions( HWND hWnd, HWND static_msg, CMSGBOX_INFO *cmb_info,
 
 	int twidth = MulDiv( 278, tm.tmAveCharWidth, 4 );	// DLU to px.
 	if ( twidth < msgbox_width ) { tmsgbox_width = twidth; }
-	twidth = MulDiv( wa.right, 5, 8 );
+	twidth = MulDiv( mi.rcWork.right - mi.rcWork.left, 5, 8 );
 	if ( twidth < msgbox_width ) { tmsgbox_width = twidth; }
-	twidth = MulDiv( wa.right, 3, 4 );
+	twidth = MulDiv( mi.rcWork.right - mi.rcWork.left, 3, 4 );
 	if ( twidth < msgbox_width ) { tmsgbox_width = twidth; }
-	twidth = MulDiv( wa.right, 7, 8 );
+	twidth = MulDiv( mi.rcWork.right - mi.rcWork.left, 7, 8 );
 	if ( twidth < msgbox_width ) { tmsgbox_width = twidth; }
 
 	msgbox_width = tmsgbox_width;*/
@@ -394,7 +398,7 @@ void AdjustWindowDimensions( HWND hWnd, HWND static_msg, CMSGBOX_INFO *cmb_info,
 	// Recalculate the text message area based on the new message box width.
 	if ( cmb_info->cmsgbox_message != NULL )
 	{
-		text_rc.bottom = wa.bottom;
+		text_rc.bottom = mi.rcWork.bottom - mi.rcWork.top;
 
 		_DrawTextW( hDC, cmb_info->cmsgbox_message, -1, &text_rc, DT_CALCRECT | DT_NOPREFIX | DT_EDITCONTROL | DT_WORDBREAK );
 	}
@@ -413,8 +417,8 @@ void AdjustWindowDimensions( HWND hWnd, HWND static_msg, CMSGBOX_INFO *cmb_info,
 	msgbox_height += ( rc.bottom - rc.top - rc2.bottom );
 
 	// Center the window on screen.
-	_SetWindowPos( hWnd, NULL, ( ( _GetSystemMetrics( SM_CXSCREEN ) - msgbox_width ) / 2 ),
-							   ( ( _GetSystemMetrics( SM_CYSCREEN ) - msgbox_height ) / 2 ),
+	_SetWindowPos( hWnd, NULL, mi.rcMonitor.left + ( ( ( mi.rcMonitor.right - mi.rcMonitor.left ) - msgbox_width ) / 2 ),
+							   mi.rcMonitor.top + ( ( ( mi.rcMonitor.bottom - mi.rcMonitor.top ) - msgbox_height ) / 2 ),
 							   msgbox_width,
 							   msgbox_height,
 							   0 );

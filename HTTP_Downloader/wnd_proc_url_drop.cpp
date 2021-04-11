@@ -108,12 +108,12 @@ LRESULT CALLBACK URLDropWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 				if ( GetFileAttributesW( g_program_directory ) != INVALID_FILE_ATTRIBUTES )
 				{
 					// Need to delete the object when destroying this window.
-					hbm_background = ( HBITMAP )_LoadImageW( GetModuleHandleW( NULL ), g_program_directory, IMAGE_BITMAP, 48, 48, LR_LOADFROMFILE );
+					hbm_background = ( HBITMAP )_LoadImageW( GetModuleHandleW( NULL ), g_program_directory, IMAGE_BITMAP, DW_WIDTH, DW_HEIGHT, LR_LOADFROMFILE );
 				}
 				else
 				{
 					// Need to delete the object when destroying this window.
-					hbm_background = ( HBITMAP )_LoadImageW( GetModuleHandleW( NULL ), MAKEINTRESOURCE( IDB_BITMAP_DROP ), IMAGE_BITMAP, 48, 48, 0 );
+					hbm_background = ( HBITMAP )_LoadImageW( GetModuleHandleW( NULL ), MAKEINTRESOURCE( IDB_BITMAP_DROP ), IMAGE_BITMAP, DW_WIDTH, DW_HEIGHT, 0 );
 				}
 			}
 
@@ -130,6 +130,23 @@ LRESULT CALLBACK URLDropWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 				RegisterDropWindow( hWnd, &URL_DropTarget );
 			}
+
+			HMONITOR hMon = _MonitorFromWindow( g_hWnd_main, MONITOR_DEFAULTTONEAREST );	// This is a popup window and we can't use CW_USEDEFAULT. We'll place this window on the same monitor as the main window.
+			MONITORINFO mi;
+			mi.cbSize = sizeof( MONITORINFO );
+			_GetMonitorInfoW( hMon, &mi );
+			int pos_x = cfg_drop_pos_x;
+			int pos_y = cfg_drop_pos_y;
+			// If the window is offscreen, then move it into the current monitor.
+			if ( pos_x + DW_WIDTH <= mi.rcMonitor.left ||
+				 pos_x >= mi.rcMonitor.right ||
+				 pos_y + DW_HEIGHT <= mi.rcMonitor.top ||
+				 pos_y >= mi.rcMonitor.bottom )
+			{
+				pos_x = mi.rcMonitor.left + ( ( ( mi.rcMonitor.right - mi.rcMonitor.left ) - DW_WIDTH ) / 2 );
+				pos_y = mi.rcMonitor.top + ( ( ( mi.rcMonitor.bottom - mi.rcMonitor.top ) - DW_HEIGHT ) / 2 );
+			}
+			_SetWindowPos( hWnd, NULL, pos_x, pos_y, DW_WIDTH, DW_HEIGHT, SWP_NOACTIVATE | SWP_NOOWNERZORDER );
 
 			return 0;
 		}
@@ -188,7 +205,7 @@ LRESULT CALLBACK URLDropWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			_DeleteObject( ohbm );
 
 			// Draw our memory buffer to the main device context.
-			_BitBlt( hDC, 0, 0, 48, 48, hdcMem, 0, 0, SRCCOPY );
+			_BitBlt( hDC, 0, 0, DW_WIDTH, DW_HEIGHT, hdcMem, 0, 0, SRCCOPY );
 
 			if ( show_drop_progress )
 			{
@@ -215,8 +232,8 @@ LRESULT CALLBACK URLDropWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			RECT frame_rc;
 			frame_rc.top = 0;
 			frame_rc.left = 0;
-			frame_rc.right = 48;
-			frame_rc.bottom = 48;
+			frame_rc.right = DW_WIDTH;
+			frame_rc.bottom = DW_HEIGHT;
 
 			if ( !window_on_top )
 			{
@@ -273,7 +290,7 @@ LRESULT CALLBACK URLDropWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			if ( window_settings.is_dragging )
 			{
 				POINT cur_pos;
-				RECT wa;
+				//RECT wa;
 				RECT rc;
 				_GetWindowRect( hWnd, &rc );
 
@@ -281,23 +298,27 @@ LRESULT CALLBACK URLDropWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 				_OffsetRect( &rc, cur_pos.x - ( rc.left + window_settings.drag_position.x - window_settings.window_position.x ), cur_pos.y - ( rc.top + window_settings.drag_position.y - window_settings.window_position.y ) );
 
 				// Allow our main window to attach to the desktop edge.
-				_SystemParametersInfoW( SPI_GETWORKAREA, 0, &wa, 0 );			
-				if ( is_close( rc.left, wa.left ) )				// Attach to left side of the desktop.
+				//_SystemParametersInfoW( SPI_GETWORKAREA, 0, &wa, 0 );
+				HMONITOR hMon = _MonitorFromWindow( hWnd, MONITOR_DEFAULTTONEAREST );
+				MONITORINFO mi;
+				mi.cbSize = sizeof( MONITORINFO );
+				_GetMonitorInfoW( hMon, &mi );
+				if ( is_close( rc.left, mi.rcWork.left ) )				// Attach to left side of the desktop.
 				{
-					_OffsetRect( &rc, wa.left - rc.left, 0 );
+					_OffsetRect( &rc, mi.rcWork.left - rc.left, 0 );
 				}
-				else if ( is_close( wa.right, rc.right ) )		// Attach to right side of the desktop.
+				else if ( is_close( mi.rcWork.right, rc.right ) )		// Attach to right side of the desktop.
 				{
-					_OffsetRect( &rc, wa.right - rc.right, 0 );
+					_OffsetRect( &rc, mi.rcWork.right - rc.right, 0 );
 				}
 
-				if ( is_close( rc.top, wa.top ) )				// Attach to top of the desktop.
+				if ( is_close( rc.top, mi.rcWork.top ) )				// Attach to top of the desktop.
 				{
-					_OffsetRect( &rc, 0, wa.top - rc.top );
+					_OffsetRect( &rc, 0, mi.rcWork.top - rc.top );
 				}
-				else if ( is_close( wa.bottom, rc.bottom ) )	// Attach to bottom of the desktop.
+				else if ( is_close( mi.rcWork.bottom, rc.bottom ) )		// Attach to bottom of the desktop.
 				{
-					_OffsetRect( &rc, 0, wa.bottom - rc.bottom );
+					_OffsetRect( &rc, 0, mi.rcWork.bottom - rc.bottom );
 				}
 
 				_SetWindowPos( hWnd, NULL, rc.left, rc.top, 0, 0, SWP_NOACTIVATE | SWP_NOOWNERZORDER | SWP_NOZORDER | SWP_NOSIZE );

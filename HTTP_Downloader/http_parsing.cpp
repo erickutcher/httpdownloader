@@ -3341,8 +3341,9 @@ char GetHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int h
 			{
 				// If we indended to make a range request and the status is not 206.
 				if ( ( context->parts > 1 ||
-					 ( context->download_info != NULL && IS_GROUP( context->download_info ) ) ||
-					   context->header_info.range_info->content_length != context->download_info->shared_info->file_size ) &&
+					 ( context->download_info != NULL &&
+					 ( IS_GROUP( context->download_info ) ||
+					   context->header_info.range_info->content_length != context->download_info->shared_info->file_size ) ) ) &&
 					   context->processed_header )
 				{
 					return CONTENT_STATUS_FAILED;
@@ -3375,6 +3376,7 @@ char GetHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int h
 				// zlib1.dll wasn't found so we can't decompress the data stream.
 				// We'll save the file with an appropriate extension so that a decompressor can handle them.
 				if ( zlib1_state != ZLIB1_STATE_RUNNING &&
+					 context->download_info != NULL &&
 				   ( context->header_info.content_encoding == CONTENT_ENCODING_GZIP ||
 					 context->header_info.content_encoding == CONTENT_ENCODING_DEFLATE ) )
 				{

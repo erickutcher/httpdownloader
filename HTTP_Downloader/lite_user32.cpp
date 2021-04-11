@@ -67,6 +67,7 @@
 	//pGetMenuItemInfoW		_GetMenuItemInfoW;
 	//pGetMessagePos			_GetMessagePos;
 	pGetMessageW			_GetMessageW;
+	pGetMonitorInfoW		_GetMonitorInfoW;
 	pGetParent				_GetParent;
 	pGetScrollInfo			_GetScrollInfo;
 	//pGetSubMenu				_GetSubMenu;
@@ -94,6 +95,8 @@
 	pMapWindowPoints		_MapWindowPoints;
 	//pMessageBoxA			_MessageBoxA;
 	//pMessageBoxW			_MessageBoxW;
+	//pMonitorFromRect		_MonitorFromRect;
+	pMonitorFromWindow		_MonitorFromWindow;
 	pOffsetRect				_OffsetRect;
 	pOpenClipboard			_OpenClipboard;
 	pPostMessageW			_PostMessageW;
@@ -196,6 +199,7 @@
 		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_GetMenuItemInfoW, "GetMenuItemInfoW" ) )
 		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_GetMessagePos, "GetMessagePos" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_GetMessageW, "GetMessageW" ) )
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_GetMonitorInfoW, "GetMonitorInfoW" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_GetParent, "GetParent" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_GetScrollInfo, "GetScrollInfo" ) )
 		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_GetSubMenu, "GetSubMenu" ) )
@@ -223,6 +227,8 @@
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_MapWindowPoints, "MapWindowPoints" ) )
 		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_MessageBoxA, "MessageBoxA" ) )
 		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_MessageBoxW, "MessageBoxW" ) )
+		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_MonitorFromRect, "MonitorFromRect" ) )
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_MonitorFromWindow, "MonitorFromWindow" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_OffsetRect, "OffsetRect" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_OpenClipboard, "OpenClipboard" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_PostMessageW, "PostMessageW" ) )
