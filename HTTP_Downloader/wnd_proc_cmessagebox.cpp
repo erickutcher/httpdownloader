@@ -524,6 +524,8 @@ LRESULT CALLBACK CustomMessageBoxWndProc( HWND hWnd, UINT msg, WPARAM wParam, LP
 
 					_SendMessageW( g_hWnd_btn_yes, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 					_SendMessageW( g_hWnd_btn_no, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+
+					_SetFocus( g_hWnd_btn_yes );
 				}
 				else if ( ( cmb_info->type & 0x0F ) == CMB_RENAMEOVERWRITESKIPALL )
 				{
@@ -534,6 +536,8 @@ LRESULT CALLBACK CustomMessageBoxWndProc( HWND hWnd, UINT msg, WPARAM wParam, LP
 					_SendMessageW( g_hWnd_btn_rename, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 					_SendMessageW( g_hWnd_btn_overwrite, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 					_SendMessageW( g_hWnd_btn_skip, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+
+					_SetFocus( g_hWnd_btn_rename );
 				}
 				else if ( ( cmb_info->type & 0x0F ) == CMB_CONTINUERESTARTSKIPALL )
 				{
@@ -544,12 +548,16 @@ LRESULT CALLBACK CustomMessageBoxWndProc( HWND hWnd, UINT msg, WPARAM wParam, LP
 					_SendMessageW( g_hWnd_btn_continue, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 					_SendMessageW( g_hWnd_btn_restart, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 					_SendMessageW( g_hWnd_btn_skip, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+
+					_SetFocus( g_hWnd_btn_continue );
 				}
 				else	// CMB_OK/ALL or anything that's unsupported.
 				{
 					g_hWnd_btn_ok = _CreateWindowW( WC_BUTTON, ST_V_OK, BS_DEFPUSHBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 84, rc.bottom - 32, 75, 23, hWnd, ( HMENU )BTN_OK, NULL, NULL );
 
 					_SendMessageW( g_hWnd_btn_ok, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+
+					_SetFocus( g_hWnd_btn_ok );
 				}
 
 				// Disable the parent window.
