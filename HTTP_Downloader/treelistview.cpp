@@ -4102,7 +4102,7 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 
 		case WM_CHAR:
 		{
-			if ( _GetKeyState( VK_CONTROL ) & 0x8000 )
+			if ( ( _GetKeyState( VK_CONTROL ) & 0x8000 ) || g_tree_list == NULL )
 			{
 				break;
 			}

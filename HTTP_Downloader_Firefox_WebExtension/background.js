@@ -103,7 +103,7 @@ function GetCookies( cookie_info, download_info )
 {
 	var request;
 
-	if ( typeof cookie_info.domain != "undefined" )
+	if ( cookie_info.domain != "" )
 	{
 		request = { domain: cookie_info.domain, storeId: cookie_info.cookie_stores[ cookie_info.index ].id };
 	}
@@ -154,6 +154,10 @@ function GetCookieDomain( cookie_info, download_info )
 		}
 		else	// We've exhausted all cookie stores, or we've found a domain.
 		{
+			if ( cookie_info.index >= cookie_info.cookie_stores.length )
+			{
+				cookie_info.index = 0;
+			}
 			cookie_info.domain = domain;
 			GetCookies( cookie_info, download_info );
 		}
@@ -357,7 +361,7 @@ function InitializeDownload( download_info )
 	browser.cookies.getAllCookieStores()
 	.then( function( cookie_stores )
 	{
-		GetCookies( { url: download_info.url, cookie_stores: cookie_stores, index: 0 }, download_info );
+		GetCookies( { url: download_info.url, cookie_stores: cookie_stores, index: 0, domain: "" }, download_info );
 	} );
 }
 
@@ -629,7 +633,7 @@ function OnMenuClicked( info, tab )
 		browser.cookies.getAllCookieStores()
 		.then( function( cookie_stores )
 		{
-			GetCookies( { url: url, cookie_stores: cookie_stores, index: 0 },
+			GetCookies( { url: url, cookie_stores: cookie_stores, index: 0, domain: "" },
 						{ show_add_window: true, id: null, method: "1", url: url, cookie_string: "", headers: headers, directory: "", filename: "", post_data: "" } );
 		} );
 	}
