@@ -6648,6 +6648,7 @@ DWORD WINAPI AddURL( void *add_info )
 	}
 
 	_SendMessageW( g_hWnd_tlv_files, TLVM_REFRESH_LIST, 0, 0 );	// If the downloads were set to queued in StartDownload().
+	UpdateSBItemCount();
 
 	// Release the semaphore if we're killing the thread.
 	if ( worker_semaphore != NULL )

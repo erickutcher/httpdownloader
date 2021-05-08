@@ -3077,6 +3077,7 @@ char read_download_history( wchar_t *file_path )
 			}
 
 			_SendMessageW( g_hWnd_tlv_files, TLVM_REFRESH_LIST, 0, 0 );
+			UpdateSBItemCount();
 		}
 		else
 		{

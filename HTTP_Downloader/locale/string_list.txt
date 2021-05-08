@@ -355,6 +355,7 @@ Global download speed limit (bytes/s):
 HTTP
 HTTPS
 Import Download History
+Items:
 Moving File
 Options
 Paused

@@ -36,6 +36,7 @@
 	//#define _ImageList_Add			ImageList_Add
 	#define _ImageList_LoadImageW	ImageList_LoadImageW
 	//#define _ImageList_ReplaceIcon	ImageList_ReplaceIcon
+	//#define _ImageList_GetIcon			ImageList_GetIcon
 
 	//#define _InitCommonControlsEx	InitCommonControlsEx
 
@@ -59,6 +60,7 @@
 	//typedef int ( WINAPI *pImageList_Add )( HIMAGELIST himl, HBITMAP hbmImage, HBITMAP hbmMask );
 	typedef HIMAGELIST ( WINAPI *pImageList_LoadImageW )( HINSTANCE hi, LPCWSTR lpbmp, int cx, int cGrow, COLORREF crMask, UINT uType, UINT uFlags );
 	//typedef int ( WINAPI *pImageList_ReplaceIcon )( HIMAGELIST himl, int i, HICON hicon );
+	//typedef HICON ( WINAPI *pImageList_GetIcon )( HIMAGELIST himl, int i, UINT flags );
 
 	//typedef BOOL ( WINAPI *pInitCommonControlsEx )( const INITCOMMONCONTROLSEX *picce );
 
@@ -77,6 +79,7 @@
 	//extern pImageList_Add				_ImageList_Add;
 	extern pImageList_LoadImageW		_ImageList_LoadImageW;
 	//extern pImageList_ReplaceIcon		_ImageList_ReplaceIcon;
+	//extern pImageList_GetIcon			_ImageList_GetIcon;
 
 	//extern pInitCommonControlsEx		_InitCommonControlsEx;
 

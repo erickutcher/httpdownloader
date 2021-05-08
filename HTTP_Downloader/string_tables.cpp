@@ -461,6 +461,7 @@ STRING_TABLE_DATA common_string_table[] =
 	{ L"HTTP", 4 },
 	{ L"HTTPS", 5 },
 	{ L"Import Download History", 23 },
+	{ L"Items:", 6 },
 	{ L"Moving File", 11 },
 	{ L"Options", 7 },
 	{ L"Paused", 6 },

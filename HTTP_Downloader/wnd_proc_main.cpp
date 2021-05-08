@@ -248,6 +248,21 @@ unsigned int FormatSizes( wchar_t *buffer, unsigned int buffer_size, unsigned ch
 	return length;
 }
 
+void UpdateSBItemCount()
+{
+	wchar_t status_bar_buf[ 64 ];
+	unsigned char buf_length;
+
+	buf_length = ( unsigned char )( ST_L_Items_ > 52 ? 52 : ST_L_Items_ ); // Let's not overflow. 64 - ( ' ' + 10 + NULL ) = 52 remaining bytes for our string.
+	_wmemcpy_s( status_bar_buf, 64, ST_V_Items_, buf_length );
+	status_bar_buf[ buf_length++ ] = ' ';
+
+	__snwprintf( status_bar_buf + buf_length, 64 - buf_length, L"%lu", TLV_GetRootItemCount() );
+
+	_SendMessageW( g_hWnd_status, SB_SETTIPTEXT, 0, ( LPARAM )status_bar_buf );
+	_SendMessageW( g_hWnd_status, SB_SETTEXT, MAKEWPARAM( 0, 0 ), ( LPARAM )status_bar_buf );
+}
+
 DWORD WINAPI UpdateWindow( LPVOID /*WorkThreadContext*/ )
 {
 	QFILETIME current_time, last_update;
@@ -419,7 +434,8 @@ DWORD WINAPI UpdateWindow( LPVOID /*WorkThreadContext*/ )
 			sb_download_speed_buf[ sb_download_speed_buf_length++ ] = L's';
 			sb_download_speed_buf[ sb_download_speed_buf_length ] = 0;	// Sanity.
 
-			_SendMessageW( g_hWnd_status, SB_SETTEXT, MAKEWPARAM( 0, 0 ), ( LPARAM )sb_download_speed_buf );
+			_SendMessageW( g_hWnd_status, SB_SETTIPTEXT, 1, ( LPARAM )sb_download_speed_buf );
+			_SendMessageW( g_hWnd_status, SB_SETTEXT, MAKEWPARAM( 1, 0 ), ( LPARAM )sb_download_speed_buf );
 
 			g_session_last_downloaded_speed = g_session_downloaded_speed;
 
@@ -433,7 +449,8 @@ DWORD WINAPI UpdateWindow( LPVOID /*WorkThreadContext*/ )
 			sb_downloaded_buf_length = FormatSizes( sb_downloaded_buf + download_buf_length, 128 - download_buf_length, cfg_t_status_downloaded, g_session_total_downloaded ) + download_buf_length;
 			// NULL terminator is set in FormatSizes.
 
-			_SendMessageW( g_hWnd_status, SB_SETTEXT, MAKEWPARAM( 1, 0 ), ( LPARAM )sb_downloaded_buf );
+			_SendMessageW( g_hWnd_status, SB_SETTIPTEXT, 2, ( LPARAM )sb_downloaded_buf );
+			_SendMessageW( g_hWnd_status, SB_SETTEXT, MAKEWPARAM( 2, 0 ), ( LPARAM )sb_downloaded_buf );
 
 			g_session_last_total_downloaded = g_session_total_downloaded;
 
@@ -1156,7 +1173,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 
 			g_hWnd_tlv_files = _CreateWindowW( L"TreeListView", NULL, WS_VSCROLL | WS_HSCROLL | WS_CHILDWINDOW | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 
-			g_hWnd_status = _CreateWindowW( STATUSCLASSNAME, NULL, SBARS_SIZEGRIP | WS_CHILDWINDOW | ( cfg_show_status_bar ? WS_VISIBLE : 0 ), 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+			g_hWnd_status = _CreateWindowW( STATUSCLASSNAME, NULL, SBARS_SIZEGRIP | SBARS_TOOLTIPS | WS_CHILDWINDOW | ( cfg_show_status_bar ? WS_VISIBLE : 0 ), 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 
 			_SendMessageW( g_hWnd_toolbar, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 			_SendMessageW( g_hWnd_status, WM_SETFONT, ( WPARAM )g_hFont, 0 );
@@ -1175,12 +1192,21 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 				RegisterDropWindow( g_hWnd_tlv_files, &List_DropTarget );
 			}
 
-			int status_bar_widths[] = { 250, 500, -1 };
+			int status_bar_widths[] = { 104, 312, 520, -1 };
 
-			_SendMessageW( g_hWnd_status, SB_SETPARTS, 3, ( LPARAM )status_bar_widths );
+			_SendMessageW( g_hWnd_status, SB_SETPARTS, 4, ( LPARAM )status_bar_widths );
 
 			wchar_t status_bar_buf[ 128 ];
 			unsigned char buf_length;
+
+			buf_length = ( unsigned char )( ST_L_Items_ > 125 ? 125 : ST_L_Items_ ); // Let's not overflow. 128 - ( ' ' + '0' + NULL ) = 125 remaining bytes for our string.
+			_wmemcpy_s( status_bar_buf, 128, ST_V_Items_, buf_length );
+			status_bar_buf[ buf_length++ ] = ' ';
+			status_bar_buf[ buf_length++ ] = '0';
+			status_bar_buf[ buf_length ] = 0;
+
+			_SendMessageW( g_hWnd_status, SB_SETTIPTEXT, 0, ( LPARAM )status_bar_buf );
+			_SendMessageW( g_hWnd_status, SB_SETTEXT, MAKEWPARAM( 0, 0 ), ( LPARAM )status_bar_buf );
 
 			buf_length = ( unsigned char )( ST_L_Download_speed_ > 102 ? 102 : ST_L_Download_speed_ ); // Let's not overflow. 128 - ( ' ' + 22 +  '/' + 's' + NULL ) = 102 remaining bytes for our string.
 			_wmemcpy_s( status_bar_buf, 128, ST_V_Download_speed_, buf_length );
@@ -1191,7 +1217,8 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 			status_bar_buf[ length++ ] = L's';
 			status_bar_buf[ length ] = 0;
 
-			_SendMessageW( g_hWnd_status, SB_SETTEXT, MAKEWPARAM( 0, 0 ), ( LPARAM )status_bar_buf );
+			_SendMessageW( g_hWnd_status, SB_SETTIPTEXT, 1, ( LPARAM )status_bar_buf );
+			_SendMessageW( g_hWnd_status, SB_SETTEXT, MAKEWPARAM( 1, 0 ), ( LPARAM )status_bar_buf );
 
 
 			buf_length = ( unsigned char )( ST_L_Total_downloaded_ > 104 ? 104 : ST_L_Total_downloaded_ ); // Let's not overflow. 128 - ( ' ' + 22 + NULL ) = 104 remaining bytes for our string.
@@ -1200,7 +1227,8 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 			// The maximum length that FormatSizes can return is 22 bytes excluding the NULL terminator.
 			FormatSizes( status_bar_buf + buf_length, 128 - buf_length, cfg_t_status_downloaded, 0 );
 			// NULL terminator is set in FormatSizes.
-			_SendMessageW( g_hWnd_status, SB_SETTEXT, MAKEWPARAM( 1, 0 ), ( LPARAM )status_bar_buf );
+			_SendMessageW( g_hWnd_status, SB_SETTIPTEXT, 2, ( LPARAM )status_bar_buf );
+			_SendMessageW( g_hWnd_status, SB_SETTEXT, MAKEWPARAM( 2, 0 ), ( LPARAM )status_bar_buf );
 
 
 			buf_length = ( unsigned char )( ST_L_Global_download_speed_limit_ > 102 ? 102 : ST_L_Global_download_speed_limit_ ); // Let's not overflow. 128 - ( ' ' + 22 +  '/' + 's' + NULL ) = 102 remaining bytes for our string.
@@ -1220,7 +1248,8 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 				status_bar_buf[ length ] = 0;
 			}
 
-			_SendMessageW( g_hWnd_status, SB_SETTEXT, MAKEWPARAM( 2, 0 ), ( LPARAM )status_bar_buf );
+			_SendMessageW( g_hWnd_status, SB_SETTIPTEXT, 3, ( LPARAM )status_bar_buf );
+			_SendMessageW( g_hWnd_status, SB_SETTEXT, MAKEWPARAM( 3, 0 ), ( LPARAM )status_bar_buf );
 
 			if ( cfg_tray_icon )
 			{
@@ -1393,7 +1422,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 							wchar_t status_bar_buf[ 128 ];
 							unsigned char buf_length;
 
-							if ( nm->dwItemSpec == 0 )
+							if ( nm->dwItemSpec == 1 )
 							{
 								if ( cfg_t_status_down_speed >= SIZE_FORMAT_AUTO )
 								{
@@ -1413,9 +1442,10 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 								status_bar_buf[ length++ ] = L's';
 								status_bar_buf[ length ] = 0;
 
-								_SendMessageW( g_hWnd_status, SB_SETTEXT, MAKEWPARAM( 0, 0 ), ( LPARAM )status_bar_buf );
+								_SendMessageW( g_hWnd_status, SB_SETTIPTEXT, 1, ( LPARAM )status_bar_buf );
+								_SendMessageW( g_hWnd_status, SB_SETTEXT, MAKEWPARAM( 1, 0 ), ( LPARAM )status_bar_buf );
 							}
-							else if ( nm->dwItemSpec == 1 )
+							else if ( nm->dwItemSpec == 2 )
 							{
 								if ( cfg_t_status_downloaded >= SIZE_FORMAT_AUTO )
 								{
@@ -1433,9 +1463,10 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 								FormatSizes( status_bar_buf + buf_length, 128 - buf_length, cfg_t_status_downloaded, g_session_total_downloaded );
 								// NULL terminator is set in FormatSizes.
 
-								_SendMessageW( g_hWnd_status, SB_SETTEXT, MAKEWPARAM( 1, 0 ), ( LPARAM )status_bar_buf );
+								_SendMessageW( g_hWnd_status, SB_SETTIPTEXT, 2, ( LPARAM )status_bar_buf );
+								_SendMessageW( g_hWnd_status, SB_SETTEXT, MAKEWPARAM( 2, 0 ), ( LPARAM )status_bar_buf );
 							}
-							else if ( nm->dwItemSpec == 2 )
+							else if ( nm->dwItemSpec == 3 )
 							{
 								buf_length = ( unsigned char )( ST_L_Global_download_speed_limit_ > 102 ? 102 : ST_L_Global_download_speed_limit_ ); // Let's not overflow. 128 - ( ' ' + 22 +  '/' + 's' + NULL ) = 102 remaining bytes for our string.
 								_wmemcpy_s( status_bar_buf, 128, ST_V_Global_download_speed_limit_, buf_length );
@@ -1463,7 +1494,8 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 									status_bar_buf[ length ] = 0;
 								}
 
-								_SendMessageW( g_hWnd_status, SB_SETTEXT, MAKEWPARAM( 2, 0 ), ( LPARAM )status_bar_buf );
+								_SendMessageW( g_hWnd_status, SB_SETTIPTEXT, 3, ( LPARAM )status_bar_buf );
+								_SendMessageW( g_hWnd_status, SB_SETTEXT, MAKEWPARAM( 3, 0 ), ( LPARAM )status_bar_buf );
 							}
 						}
 					}
@@ -1482,7 +1514,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 						// Let NM_CLICK handle fast (double) clicks if Ctrl is down.
 						if ( !( GetKeyState( VK_CONTROL ) & 0x8000 ) )
 						{
-							if ( ( ( NMMOUSE * )lParam )->dwItemSpec == 2 )
+							if ( ( ( NMMOUSE * )lParam )->dwItemSpec == 3 )
 							{
 								_SendMessageW( hWnd, WM_COMMAND, MENU_GLOBAL_SPEED_LIMIT, 0 );
 							}
@@ -1561,6 +1593,15 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 					_GetWindowRect( g_hWnd_status, &rc_status );
 
 					_DeferWindowPos( hdwp, g_hWnd_tlv_files, HWND_TOP, rc.left, rc.top, rc.right, rc.bottom - ( rc_status.bottom - rc_status.top ), SWP_NOZORDER );
+
+					//int status_bar_widths[] = { 104, 312, 520, -1 };
+					int sbi_width = ( ( rc.right - rc.left ) - 160 ) / 3;
+					int status_bar_widths[ 4 ];
+					status_bar_widths[ 0 ] = sbi_width / 2;
+					status_bar_widths[ 1 ] = status_bar_widths[ 0 ] + sbi_width;
+					status_bar_widths[ 2 ] = status_bar_widths[ 1 ] + sbi_width;
+					status_bar_widths[ 3 ] = -1;
+					_SendMessageW( g_hWnd_status, SB_SETPARTS, 4, ( LPARAM )status_bar_widths );
 
 					// Apparently status bars want WM_SIZE to be called. (See MSDN)
 					_SendMessageW( g_hWnd_status, WM_SIZE, 0, 0 );

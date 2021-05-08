@@ -105,5 +105,6 @@ void ConstructRequest( SOCKET_CONTEXT *context, bool use_connect );
 void ConstructSOCKSRequest( SOCKET_CONTEXT *context, unsigned char request_type );
 
 unsigned int FormatSizes( wchar_t *buffer, unsigned int buffer_size, unsigned char toggle_type, unsigned long long data_size );
+void UpdateSBItemCount();
 
 #endif

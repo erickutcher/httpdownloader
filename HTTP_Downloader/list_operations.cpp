@@ -555,6 +555,7 @@ THREAD_RETURN remove_items( void *pArguments )
 	g_download_history_changed = true;
 
 	_SendMessageW( g_hWnd_tlv_files, TLVM_TOGGLE_DRAW, FALSE, NULL );
+	UpdateSBItemCount();
 
 	ProcessingList( false );
 
@@ -1047,6 +1048,7 @@ THREAD_RETURN handle_download_list( void *pArguments )
 		g_download_history_changed = true;
 
 		_SendMessageW( g_hWnd_tlv_files, TLVM_TOGGLE_DRAW, FALSE, NULL );
+		UpdateSBItemCount();
 	}
 	else if ( handle_type == 3 )	// Restart selected download (from the beginning).
 	{
