@@ -109,7 +109,7 @@
 #define CURRENT_VERSION_A	1
 #define CURRENT_VERSION_B	0
 #define CURRENT_VERSION_C	4
-#define CURRENT_VERSION_D	1
+#define CURRENT_VERSION_D	2
 
 #define CURRENT_VERSION		( ( CURRENT_VERSION_A << 24 ) | \
 							  ( CURRENT_VERSION_B << 16 ) | \
@@ -542,6 +542,7 @@ extern int cfg_sorted_column_index;
 extern unsigned char cfg_sorted_direction;
 extern bool cfg_sort_added_and_updating_items;
 extern bool cfg_expand_added_group_items;
+extern bool cfg_scroll_to_last_item;
 
 extern bool cfg_show_gridlines;
 extern bool cfg_show_part_progress;

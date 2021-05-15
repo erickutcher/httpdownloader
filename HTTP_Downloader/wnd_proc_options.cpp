@@ -471,7 +471,7 @@ void SetAppearanceSettings()
 	// Get the row height for our listview control.
 	AdjustRowHeight();
 
-	_SendMessageW( g_hWnd_tlv_files, TLVM_REFRESH_LIST, 0, 0 );
+	_SendMessageW( g_hWnd_tlv_files, TLVM_REFRESH_LIST, TRUE, FALSE );
 }
 
 LRESULT CALLBACK TreeViewSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
@@ -867,6 +867,7 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 					cfg_sort_added_and_updating_items = ( _SendMessageW( g_hWnd_chk_sort_added_and_updating_items, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
 					cfg_expand_added_group_items = ( _SendMessageW( g_hWnd_chk_expand_added_group_items, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
+					cfg_scroll_to_last_item = ( _SendMessageW( g_hWnd_chk_scroll_to_last_item, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
 
 					cfg_show_gridlines = ( _SendMessageW( g_hWnd_chk_show_gridlines, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
 					cfg_draw_full_rows = ( _SendMessageW( g_hWnd_chk_draw_full_rows, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );

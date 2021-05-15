@@ -48,7 +48,7 @@ void ProcessingList( bool processing )
 	{
 		UpdateMenus( true );										// Enable the appropriate menu items.
 		_SendMessageW( g_hWnd_main, WM_CHANGE_CURSOR, FALSE, 0 );	// Reset the cursor.
-		_SendMessageW( g_hWnd_tlv_files, TLVM_REFRESH_LIST, 0, 0 );	// Refresh the number column values.
+		_SendMessageW( g_hWnd_tlv_files, TLVM_REFRESH_LIST, TRUE, FALSE );	// Refresh the number column values.
 		_SetFocus( g_hWnd_tlv_files );								// Give focus back to the listview to allow shortcut keys.
 		//_SetWindowTextW( g_hWnd_main, PROGRAM_CAPTION );			// Reset the window title.
 	}
@@ -2785,7 +2785,7 @@ THREAD_RETURN import_list( void *pArguments )
 
 				_wmemcpy_s( file_path + iei->file_offset, MAX_PATH - iei->file_offset, filename, filename_length );
 
-				if ( read_download_history( file_path ) == -2 )
+				if ( read_download_history( file_path, ( cfg_scroll_to_last_item && iei->type == 1 ) ) == -2 )
 				{
 					bad_format = true;
 				}

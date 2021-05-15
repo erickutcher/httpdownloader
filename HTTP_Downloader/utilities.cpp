@@ -247,6 +247,7 @@ int cfg_sorted_column_index = 0;
 unsigned char cfg_sorted_direction = 0;	// Sort down.
 bool cfg_sort_added_and_updating_items = false;
 bool cfg_expand_added_group_items = false;
+bool cfg_scroll_to_last_item = false;
 
 bool cfg_show_gridlines = true;
 bool cfg_draw_full_rows = false;

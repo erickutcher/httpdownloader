@@ -28,7 +28,7 @@
 char read_config();
 char save_config();
 
-char read_download_history( wchar_t *file_path );
+char read_download_history( wchar_t *file_path, bool scroll_to_last_item = false );
 char save_download_history( wchar_t *file_path );
 
 char save_download_history_csv_file( wchar_t *file_path );

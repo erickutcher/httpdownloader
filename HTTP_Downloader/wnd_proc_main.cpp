@@ -421,7 +421,7 @@ DWORD WINAPI UpdateWindow( LPVOID /*WorkThreadContext*/ )
 			LeaveCriticalSection( &worker_cs );
 		}
 
-		_SendMessageW( g_hWnd_tlv_files, TLVM_REFRESH_LIST, 0, 0 );
+		_SendMessageW( g_hWnd_tlv_files, TLVM_REFRESH_LIST, FALSE, FALSE );
 
 		update_text_values = false;
 

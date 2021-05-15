@@ -223,6 +223,7 @@ STRING_TABLE_DATA options_appearance_string_table[] =
 	{ L"Progress Color", 14 },
 	{ L"Progress bar:", 13 },
 	{ L"Progress Font Color", 19 },
+	{ L"Scroll to last item when adding URL(s)", 38 },
 	{ L"Selection Marquee Color", 23 },
 	{ L"Show gridlines in download list", 31 },
 	{ L"Show progress for each part", 27 },

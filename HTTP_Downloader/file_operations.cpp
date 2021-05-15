@@ -79,7 +79,7 @@ char read_config()
 			{
 				unsigned char cfg_version = ( unsigned char )cfg_buf[ 3 ];
 
-				reserved = 1024 - ( cfg_version >= 7 ? 695 : 661 );
+				reserved = 1024 - ( cfg_version >= 7 ? 696 : 661 );
 
 				char *next = cfg_buf + 4;
 
@@ -488,10 +488,12 @@ char read_config()
 				_memcpy_s( &cfg_thread_count, sizeof( unsigned long ), next, sizeof( unsigned long ) );
 				next += sizeof( unsigned long );
 
-				// Options SFTP
+				//
 
 				if ( cfg_version >= 7 )
 				{
+					// Options SFTP
+
 					_memcpy_s( &cfg_sftp_enable_compression, sizeof( bool ), next, sizeof( bool ) );
 					next += sizeof( bool );
 
@@ -526,6 +528,11 @@ char read_config()
 						_memcpy_s( &cfg_priority_encryption_cipher[ i ], sizeof( unsigned char ), next, sizeof( unsigned char ) );
 						next += sizeof( unsigned char );
 					}
+
+					// Options Appearance
+
+					_memcpy_s( &cfg_scroll_to_last_item, sizeof( bool ), next, sizeof( bool ) );
+					next += sizeof( bool );
 				}
 
 
@@ -1233,11 +1240,11 @@ char save_config()
 	HANDLE hFile_cfg = CreateFile( g_base_directory, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL );
 	if ( hFile_cfg != INVALID_HANDLE_VALUE )
 	{
-		int reserved = 1024 - 695;
+		int reserved = 1024 - 696;
 		int size = ( sizeof( int ) * 25 ) +
 				   ( sizeof( unsigned short ) * 7 ) +
 				   ( sizeof( char ) * ( 50 + KEX_ALGORITHM_COUNT + HOST_KEY_COUNT + ENCRYPTION_CIPHER_COUNT ) ) +
-				   ( sizeof( bool ) * 42 ) +
+				   ( sizeof( bool ) * 43 ) +
 				   ( sizeof( unsigned long ) * 7 ) +
 				   ( sizeof( LONG ) * 4 ) +
 				   ( sizeof( BYTE ) * 6 ) +
@@ -1693,6 +1700,11 @@ char save_config()
 			pos += sizeof( unsigned char );
 		}
 
+		// Options Appearance
+
+		_memcpy_s( write_buf + pos, size - pos, &cfg_scroll_to_last_item, sizeof( bool ) );
+		pos += sizeof( bool );
+
 
 		//
 
@@ -2037,7 +2049,7 @@ char save_config()
 	return ret_status;
 }
 
-char read_download_history( wchar_t *file_path )
+char read_download_history( wchar_t *file_path, bool scroll_to_last_item )
 {
 	char ret_status = 0;
 
@@ -3076,7 +3088,7 @@ char read_download_history( wchar_t *file_path )
 				_SendMessageW( g_hWnd_tlv_files, TLVM_SORT_ITEMS, NULL, ( LPARAM )&si );
 			}
 
-			_SendMessageW( g_hWnd_tlv_files, TLVM_REFRESH_LIST, 0, 0 );
+			_SendMessageW( g_hWnd_tlv_files, TLVM_REFRESH_LIST, TRUE, ( scroll_to_last_item ? TRUE : FALSE ) );
 			UpdateSBItemCount();
 		}
 		else

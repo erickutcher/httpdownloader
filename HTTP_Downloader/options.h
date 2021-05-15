@@ -280,6 +280,7 @@ extern HWND g_hWnd_chk_show_part_progress;
 
 extern HWND g_hWnd_chk_sort_added_and_updating_items;
 extern HWND g_hWnd_chk_expand_added_group_items;
+extern HWND g_hWnd_chk_scroll_to_last_item;
 
 //
 
