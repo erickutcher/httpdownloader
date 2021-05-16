@@ -169,6 +169,7 @@ Other progress bars:
 Progress Color
 Progress bar:
 Progress Font Color
+Scroll to last item when adding URL(s)
 Selection Marquee Color
 Show gridlines in download list
 Show progress for each part
@@ -355,6 +356,7 @@ Global download speed limit (bytes/s):
 HTTP
 HTTPS
 Import Download History
+Items:
 Moving File
 Options
 Paused

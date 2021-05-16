@@ -26,6 +26,7 @@
 	//pImageList_Add			_ImageList_Add;
 	pImageList_LoadImageW		_ImageList_LoadImageW;
 	//pImageList_ReplaceIcon	_ImageList_ReplaceIcon;
+	//pImageList_GetIcon		_ImageList_GetIcon;
 
 	//pInitCommonControlsEx		_InitCommonControlsEx;
 
@@ -62,6 +63,7 @@
 		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_comctl32, ( void ** )&_ImageList_Add, "ImageList_Add" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_comctl32, ( void ** )&_ImageList_LoadImageW, "ImageList_LoadImageW" ) )
 		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_comctl32, ( void ** )&_ImageList_ReplaceIcon, "ImageList_ReplaceIcon" ) )
+		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_comctl32, ( void ** )&_ImageList_GetIcon, "ImageList_GetIcon" ) )
 
 		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_comctl32, ( void ** )&_InitCommonControlsEx, "InitCommonControlsEx" ) )
 

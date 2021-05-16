@@ -121,7 +121,8 @@ LRESULT CALLBACK DownloadSpeedLimitWndProc( HWND hWnd, UINT msg, WPARAM wParam, 
 						status_bar_buf[ length ] = 0;
 					}
 
-					_SendMessageW( g_hWnd_status, SB_SETTEXT, MAKEWPARAM( 2, 0 ), ( LPARAM )status_bar_buf );
+					_SendMessageW( g_hWnd_status, SB_SETTIPTEXT, 3, ( LPARAM )status_bar_buf );
+					_SendMessageW( g_hWnd_status, SB_SETTEXT, MAKEWPARAM( 3, 0 ), ( LPARAM )status_bar_buf );
 
 					_SendMessageW( hWnd, WM_CLOSE, 0, 0 );
 				}

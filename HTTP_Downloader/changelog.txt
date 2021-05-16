@@ -1,3 +1,14 @@
+Version:	1.0.4.2
+Released:	2021-05-15
+
+Added Home, End, Page Up/Down key support.
+Added Appearance option to scroll to last item when adding URL(s).
+
+Version:	1.0.4.1
+Released:	2021-05-08
+
+Added item count to status bar.
+
 Version:	1.0.4.0
 Released:	2021-04-11
 

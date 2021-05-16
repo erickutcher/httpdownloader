@@ -6597,7 +6597,13 @@ DWORD WINAPI AddURL( void *add_info )
 		_SendMessageW( g_hWnd_tlv_files, TLVM_SORT_ITEMS, NULL, ( LPARAM )&si );
 	}
 
-	ProcessingList( false );
+	UpdateSBItemCount();
+
+//	ProcessingList( false );
+	UpdateMenus( true );										// Enable the appropriate menu items.
+	_SendMessageW( g_hWnd_main, WM_CHANGE_CURSOR, FALSE, 0 );	// Reset the cursor.
+	_SendMessageW( g_hWnd_tlv_files, TLVM_REFRESH_LIST, TRUE, ( cfg_scroll_to_last_item ? TRUE : FALSE ) );
+	_SetFocus( g_hWnd_tlv_files );								// Give focus back to the listview to allow shortcut keys.
 
 	// Process all of the items we've added.
 	// This prevents the window from stalling while adding and starting a lot of items at the same time.
@@ -6647,7 +6653,7 @@ DWORD WINAPI AddURL( void *add_info )
 		first_added_tln = first_added_tln->next;
 	}
 
-	_SendMessageW( g_hWnd_tlv_files, TLVM_REFRESH_LIST, 0, 0 );	// If the downloads were set to queued in StartDownload().
+	_SendMessageW( g_hWnd_tlv_files, TLVM_REFRESH_LIST, FALSE, FALSE );	// If the downloads were set to queued in StartDownload().
 
 	// Release the semaphore if we're killing the thread.
 	if ( worker_semaphore != NULL )

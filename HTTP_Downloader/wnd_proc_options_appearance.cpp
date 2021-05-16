@@ -38,6 +38,7 @@
 
 #define BTN_SORT_ADDED_AND_UPDATING_ITEMS	1009
 #define BTN_EXPAND_ADDED_GROUP_ITEMS		1010
+#define BTN_SCROLL_TO_LAST_ITEM				1011
 
 // Appearance Tab
 HWND g_hWnd_row_options_list = NULL;
@@ -58,6 +59,7 @@ HWND g_hWnd_chk_show_part_progress = NULL;
 
 HWND g_hWnd_chk_sort_added_and_updating_items = NULL;
 HWND g_hWnd_chk_expand_added_group_items = NULL;
+HWND g_hWnd_chk_scroll_to_last_item = NULL;
 
 bool t_show_gridlines;
 bool t_draw_full_rows;
@@ -212,6 +214,7 @@ LRESULT CALLBACK AppearanceTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 
 			g_hWnd_chk_sort_added_and_updating_items = _CreateWindowW( WC_BUTTON, ST_V_Sort_added_and_updating_items, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 635, rc.right, 20, hWnd, ( HMENU )BTN_SORT_ADDED_AND_UPDATING_ITEMS, NULL, NULL );
 			g_hWnd_chk_expand_added_group_items = _CreateWindowW( WC_BUTTON, ST_V_Expand_added_group_items, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 655, rc.right, 20, hWnd, ( HMENU )BTN_EXPAND_ADDED_GROUP_ITEMS, NULL, NULL );
+			g_hWnd_chk_scroll_to_last_item = _CreateWindowW( WC_BUTTON, ST_V_Scroll_to_last_item_when_adding_URL_s_, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 675, rc.right, 20, hWnd, ( HMENU )BTN_SCROLL_TO_LAST_ITEM, NULL, NULL );
 
 
 			SCROLLINFO si;
@@ -219,7 +222,7 @@ LRESULT CALLBACK AppearanceTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 			si.cbSize = sizeof( SCROLLINFO );
 			si.fMask = SIF_RANGE | SIF_PAGE;
 			si.nMin = 0;
-			si.nMax = 675;	// Bottom of the last item in the window.
+			si.nMax = 695;	// Bottom of the last item in the window.
 			si.nPage = rc.bottom - rc.top;
 			_SetScrollInfo( hWnd, SB_VERT, &si, TRUE );
 
@@ -241,7 +244,7 @@ LRESULT CALLBACK AppearanceTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 			_SendMessageW( g_hWnd_chk_show_part_progress, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 			_SendMessageW( g_hWnd_chk_sort_added_and_updating_items, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 			_SendMessageW( g_hWnd_chk_expand_added_group_items, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-
+			_SendMessageW( g_hWnd_chk_scroll_to_last_item, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 
 			_SendMessageW( g_hWnd_chk_show_gridlines, BM_SETCHECK, ( cfg_show_gridlines ? BST_CHECKED : BST_UNCHECKED ), 0 );
 			_SendMessageW( g_hWnd_chk_draw_full_rows, BM_SETCHECK, ( cfg_draw_full_rows ? BST_CHECKED : BST_UNCHECKED ), 0 );
@@ -250,6 +253,7 @@ LRESULT CALLBACK AppearanceTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 
 			_SendMessageW( g_hWnd_chk_sort_added_and_updating_items, BM_SETCHECK, ( cfg_sort_added_and_updating_items ? BST_CHECKED : BST_UNCHECKED ), 0 );
 			_SendMessageW( g_hWnd_chk_expand_added_group_items, BM_SETCHECK, ( cfg_expand_added_group_items ? BST_CHECKED : BST_UNCHECKED ), 0 );
+			_SendMessageW( g_hWnd_chk_scroll_to_last_item, BM_SETCHECK, ( cfg_scroll_to_last_item ? BST_CHECKED : BST_UNCHECKED ), 0 );
 
 			SetAppearance();
 
@@ -578,6 +582,7 @@ LRESULT CALLBACK AppearanceTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 				case BTN_SHOW_PART_PROGRESS:
 				case BTN_SORT_ADDED_AND_UPDATING_ITEMS:
 				case BTN_EXPAND_ADDED_GROUP_ITEMS:
+				case BTN_SCROLL_TO_LAST_ITEM:
 				{
 					options_state_changed = true;
 					_EnableWindow( g_hWnd_options_apply, TRUE );

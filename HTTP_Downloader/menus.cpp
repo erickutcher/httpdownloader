@@ -1270,7 +1270,7 @@ void UpdateColumns( WORD menu_id )
 
 		g_header_width = rc.right;
 
-		_SendMessageW( g_hWnd_tlv_files, TLVM_REFRESH_LIST, 0, 0 );
+		_SendMessageW( g_hWnd_tlv_files, TLVM_REFRESH_LIST, TRUE, FALSE );
 	}
 }
 

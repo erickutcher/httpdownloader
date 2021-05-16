@@ -1751,7 +1751,7 @@ VOID CALLBACK ScrollTimerProc( HWND hWnd, UINT /*msg*/, UINT /*idTimer*/, DWORD 
 	HandleMouseMovement( hWnd );
 }
 
-void HandleWindowChange( HWND hWnd, bool adjust_column = true )
+void HandleWindowChange( HWND hWnd, bool scroll_to_end = false )
 {
 	_GetClientRect( hWnd, &g_client_rc );
 
@@ -1793,6 +1793,11 @@ void HandleWindowChange( HWND hWnd, bool adjust_column = true )
 	si.nPage = g_visible_rows;
 	si.nPos = g_first_visible_index;
 
+	if ( scroll_to_end )
+	{
+		Scroll( &si, SCROLL_TYPE_DOWN, g_expanded_item_count );
+	}
+
 	_SetScrollInfo( hWnd, SB_VERT, &si, TRUE );
 
 	///////////////
@@ -1805,13 +1810,10 @@ void HandleWindowChange( HWND hWnd, bool adjust_column = true )
 	_GetScrollInfo( hWnd, SB_HORZ, &si );
 
 	// If we're adjusting the width of the last column header, then set the nPos.
-	if ( adjust_column )
+	delta = si.nMax - g_header_width;
+	if ( delta > 0 )
 	{
-		delta = si.nMax - g_header_width;
-		if ( delta > 0 )
-		{
-			Scroll( &si, SCROLL_TYPE_LEFT, delta );
-		}
+		Scroll( &si, SCROLL_TYPE_LEFT, delta );
 	}
 
 	// If we're adjusting the width of the window, then set the nPos.
@@ -4024,7 +4026,10 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 
 		case TLVM_REFRESH_LIST:
 		{
-			HandleWindowChange( hWnd );
+			if ( wParam == TRUE )
+			{
+				HandleWindowChange( hWnd, ( lParam == TRUE ? true : false ) );
+			}
 
 			_InvalidateRect( hWnd, &g_client_rc, TRUE );
 		}
@@ -4372,6 +4377,30 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 			{
 				switch ( wParam )
 				{
+					case VK_PRIOR:
+					{
+						TLV_Scroll( hWnd, 0, SB_PAGEUP );
+					}
+					break;
+
+					case VK_NEXT:
+					{
+						TLV_Scroll( hWnd, 0, SB_PAGEDOWN );
+					}
+					break;
+
+					case VK_END:
+					{
+						TLV_Scroll( hWnd, 0, SB_BOTTOM );
+					}
+					break;
+
+					case VK_HOME:
+					{
+						TLV_Scroll( hWnd, 0, SB_TOP );
+					}
+					break;
+
 					case VK_LEFT:
 					case VK_RIGHT:
 					{
@@ -5025,6 +5054,11 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 
 				g_mod_last_selection_index = -1;
 				g_mod_last_selection_node = NULL;
+
+				if ( !in_worker_thread )
+				{
+					UpdateMenus( true );
+				}
 			}
 			else if ( msg == WM_RBUTTONUP )
 			{
