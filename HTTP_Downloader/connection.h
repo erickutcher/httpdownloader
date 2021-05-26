@@ -52,6 +52,7 @@
 #define STATUS_ALLOCATING_FILE			0x00010000
 #define STATUS_MOVING_FILE				0x00020000
 #define STATUS_INPUT_REQUIRED			0x00040000	// A prompt is active.
+#define STATUS_INSUFFICIENT_DISK_SPACE	0x00080000
 
 #define IS_STATUS( a, b )			( ( a ) & ( b ) )
 #define IS_STATUS_NOT( a, b )		!( ( a ) & ( b ) )

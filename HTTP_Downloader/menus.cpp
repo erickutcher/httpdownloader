@@ -175,7 +175,7 @@ void UpdateMenus( bool enable )
 
 		if ( sel_count > 0 )
 		{
-			// Allow start if paused, queued, stopped, timed out, failed, file IO error, skipped, or proxy authorization required.
+			// Allow start if paused, queued, stopped, timed out, failed, file IO error, skipped, proxy authorization required, or insufficient disk space.
 			if ( di != NULL &&
 			   ( di->shared_info->file_size == 0 || ( di->shared_info->downloaded < di->shared_info->file_size ) ) &&
 			   ( IS_STATUS( di->status, STATUS_PAUSED ) ||
@@ -188,7 +188,8 @@ void UpdateMenus( bool enable )
 					STATUS_FILE_IO_ERROR |
 					STATUS_SKIPPED |
 					STATUS_AUTH_REQUIRED |
-					STATUS_PROXY_AUTH_REQUIRED ) ) ) )
+					STATUS_PROXY_AUTH_REQUIRED |
+					STATUS_INSUFFICIENT_DISK_SPACE ) ) ) )
 			{
 				_EnableMenuItem( g_hMenuSub_download, MENU_START, MF_ENABLED );
 				_EnableMenuItem( g_hMenuSub_edit, MENU_START, MF_ENABLED );
@@ -262,7 +263,8 @@ void UpdateMenus( bool enable )
 					STATUS_FILE_IO_ERROR |
 					STATUS_SKIPPED |
 					STATUS_AUTH_REQUIRED |
-					STATUS_PROXY_AUTH_REQUIRED ) )
+					STATUS_PROXY_AUTH_REQUIRED |
+					STATUS_INSUFFICIENT_DISK_SPACE ) )
 			{
 				_EnableMenuItem( g_hMenuSub_download, MENU_RESTART, MF_ENABLED );
 				_EnableMenuItem( g_hMenuSub_edit, MENU_RESTART, MF_ENABLED );
@@ -912,8 +914,8 @@ void CreateMenus()
 	_InsertMenuItemW( g_hMenuSub_edit, 7, TRUE, &mii );
 
 	mii.fType = MFT_STRING;
-	mii.dwTypeData = ST_V_Update_Download___;
-	mii.cch = ST_L_Update_Download___;
+	mii.dwTypeData = ST_V__Update_Download____;
+	mii.cch = ST_L__Update_Download____;
 	mii.wID = MENU_UPDATE_DOWNLOAD;
 	_InsertMenuItemW( g_hMenuSub_edit, 8, TRUE, &mii );
 
@@ -1264,6 +1266,15 @@ void UpdateColumns( WORD menu_id )
 
 		_SendMessageW( g_hWnd_tlv_header, HDM_GETORDERARRAY, g_total_columns, ( LPARAM )arr );
 
+		offset = 0;
+		for ( int i = 0; i < NUM_COLUMNS; ++i )
+		{
+			if ( *download_columns[ i ] != -1 )
+			{
+				*download_columns[ i ] = ( char )arr[ offset++ ];
+			}
+		}
+
 		RECT rc;
 		_memzero( &rc, sizeof( RECT ) );
 		_SendMessageW( g_hWnd_tlv_header, HDM_GETITEMRECT, arr[ g_total_columns - 1 ], ( LPARAM )&rc );
@@ -1522,30 +1533,33 @@ void HandleCommand( HWND hWnd, WORD command )
 
 		case MENU_UPDATE_DOWNLOAD:
 		{
-			TREELISTNODE *tln = TLV_GetFocusedItem();
-			if ( tln == NULL )
+			if ( TLV_GetSelectedCount() == 1 )
 			{
-				TLV_GetNextSelectedItem( NULL, 0, &tln );
-			}
-
-			DOWNLOAD_INFO *di = NULL;
-			if ( tln != NULL )
-			{
-				di = ( DOWNLOAD_INFO * )tln->data;
-			}
-
-			if ( di != NULL )
-			{
-				if ( g_hWnd_update_download == NULL )
+				TREELISTNODE *tln = TLV_GetFocusedItem();
+				if ( tln == NULL )
 				{
-					g_hWnd_update_download = _CreateWindowExW( ( g_is_windows_8_or_higher ? 0 : WS_EX_COMPOSITED ) | ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"update_download", ST_V_Update_Download, WS_CLIPCHILDREN | WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, 0, 600, 370, NULL, NULL, NULL, NULL );
-				}
-				else if ( _IsIconic( g_hWnd_update_download ) )	// If minimized, then restore the window.
-				{
-					_ShowWindow( g_hWnd_update_download, SW_RESTORE );
+					TLV_GetNextSelectedItem( NULL, 0, &tln );
 				}
 
-				_SendMessageW( g_hWnd_update_download, WM_PROPAGATE, 0, ( LPARAM )di/*lvi.lParam*/ );
+				DOWNLOAD_INFO *di = NULL;
+				if ( tln != NULL )
+				{
+					di = ( DOWNLOAD_INFO * )tln->data;
+				}
+
+				if ( di != NULL )
+				{
+					if ( g_hWnd_update_download == NULL )
+					{
+						g_hWnd_update_download = _CreateWindowExW( ( g_is_windows_8_or_higher ? 0 : WS_EX_COMPOSITED ) | ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"update_download", ST_V_Update_Download, WS_CLIPCHILDREN | WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, 0, 600, 370, NULL, NULL, NULL, NULL );
+					}
+					else if ( _IsIconic( g_hWnd_update_download ) )	// If minimized, then restore the window.
+					{
+						_ShowWindow( g_hWnd_update_download, SW_RESTORE );
+					}
+
+					_SendMessageW( g_hWnd_update_download, WM_PROPAGATE, 0, ( LPARAM )di/*lvi.lParam*/ );
+				}
 			}
 		}
 		break;
@@ -1741,6 +1755,7 @@ void HandleCommand( HWND hWnd, WORD command )
 		{
 			if ( g_hWnd_site_manager == NULL )
 			{
+				// Painting issues and slowness with WS_EX_COMPOSITED on XP. I think the listview has something to do with it.
 				g_hWnd_site_manager = _CreateWindowExW( /*( g_is_windows_8_or_higher ? 0 : WS_EX_COMPOSITED ) |*/ ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"site_manager", ST_V_Site_Manager, WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN, CW_USEDEFAULT, 0, MIN_WIDTH, MIN_HEIGHT, NULL, NULL, NULL, NULL );
 			}
 			_ShowWindow( g_hWnd_site_manager, SW_SHOWNORMAL );

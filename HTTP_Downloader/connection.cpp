@@ -150,7 +150,7 @@ int g_file_not_exist_cmb_ret = 0;	// Message box prompt for non existent file.
 
 bool move_file_process_active = false;
 
-unsigned int g_session_status_count[ 8 ] = { 0 };	// 8 states that can be considered finished (Completed, Stopped, Failed, etc.)
+unsigned int g_session_status_count[ NUM_SESSION_STATUS ] = { 0 };	// 9 states that can be considered finished (Completed, Stopped, Failed, etc.)
 
 bool g_timers_running = false;
 
@@ -163,14 +163,15 @@ void SetSessionStatusCount( unsigned int status )
 {
 	switch ( status )
 	{
-		case STATUS_COMPLETED:				{ ++g_session_status_count[ 0 ]; } break;
-		case STATUS_STOPPED:				{ ++g_session_status_count[ 1 ]; } break;
-		case STATUS_TIMED_OUT:				{ ++g_session_status_count[ 2 ]; } break;
-		case STATUS_FAILED:					{ ++g_session_status_count[ 3 ]; } break;
-		case STATUS_FILE_IO_ERROR:			{ ++g_session_status_count[ 4 ]; } break;
-		case STATUS_SKIPPED:				{ ++g_session_status_count[ 5 ]; } break;
-		case STATUS_AUTH_REQUIRED:			{ ++g_session_status_count[ 6 ]; } break;
-		case STATUS_PROXY_AUTH_REQUIRED:	{ ++g_session_status_count[ 7 ]; } break;
+		case STATUS_COMPLETED:					{ ++g_session_status_count[ 0 ]; } break;
+		case STATUS_STOPPED:					{ ++g_session_status_count[ 1 ]; } break;
+		case STATUS_TIMED_OUT:					{ ++g_session_status_count[ 2 ]; } break;
+		case STATUS_FAILED:						{ ++g_session_status_count[ 3 ]; } break;
+		case STATUS_FILE_IO_ERROR:				{ ++g_session_status_count[ 4 ]; } break;
+		case STATUS_SKIPPED:					{ ++g_session_status_count[ 5 ]; } break;
+		case STATUS_AUTH_REQUIRED:				{ ++g_session_status_count[ 6 ]; } break;
+		case STATUS_PROXY_AUTH_REQUIRED:		{ ++g_session_status_count[ 7 ]; } break;
+		case STATUS_INSUFFICIENT_DISK_SPACE:	{ ++g_session_status_count[ 8 ]; } break;
 	}
 }
 
@@ -192,23 +193,24 @@ void SetSharedInfoStatus( DOWNLOAD_INFO *shared_info )
 			host_node = host_node->next;
 		}
 
-		if ( IS_STATUS( shared_status, STATUS_FILE_IO_ERROR ) )				{ shared_info->status = STATUS_FILE_IO_ERROR; }
-		else if ( IS_STATUS( shared_status, STATUS_ALLOCATING_FILE ) )		{ shared_info->status = STATUS_ALLOCATING_FILE; }
-		else if ( IS_STATUS( shared_status, STATUS_FAILED ) )				{ shared_info->status = STATUS_FAILED; }
-		else if ( IS_STATUS( shared_status, STATUS_TIMED_OUT ) )			{ shared_info->status = STATUS_TIMED_OUT; }
-		else if ( IS_STATUS( shared_status, STATUS_AUTH_REQUIRED ) )		{ shared_info->status = STATUS_AUTH_REQUIRED; }
-		else if ( IS_STATUS( shared_status, STATUS_PROXY_AUTH_REQUIRED ) )	{ shared_info->status = STATUS_PROXY_AUTH_REQUIRED; }
-		else if ( IS_STATUS( shared_status, STATUS_QUEUED ) )				{ shared_info->status = STATUS_QUEUED; }
-		else if ( IS_STATUS( shared_status, STATUS_MOVING_FILE ) )			{ shared_info->status = STATUS_MOVING_FILE; }
-		else if ( IS_STATUS( shared_status, STATUS_PAUSED ) )				{ shared_info->status = STATUS_PAUSED; }
+		if ( IS_STATUS( shared_status, STATUS_FILE_IO_ERROR ) )					{ shared_info->status = STATUS_FILE_IO_ERROR; }
+		else if ( IS_STATUS( shared_status, STATUS_ALLOCATING_FILE ) )			{ shared_info->status = STATUS_ALLOCATING_FILE; }
+		else if ( IS_STATUS( shared_status, STATUS_FAILED ) )					{ shared_info->status = STATUS_FAILED; }
+		else if ( IS_STATUS( shared_status, STATUS_TIMED_OUT ) )				{ shared_info->status = STATUS_TIMED_OUT; }
+		else if ( IS_STATUS( shared_status, STATUS_AUTH_REQUIRED ) )			{ shared_info->status = STATUS_AUTH_REQUIRED; }
+		else if ( IS_STATUS( shared_status, STATUS_PROXY_AUTH_REQUIRED ) )		{ shared_info->status = STATUS_PROXY_AUTH_REQUIRED; }
+		else if ( IS_STATUS( shared_status, STATUS_QUEUED ) )					{ shared_info->status = STATUS_QUEUED; }
+		else if ( IS_STATUS( shared_status, STATUS_MOVING_FILE ) )				{ shared_info->status = STATUS_MOVING_FILE; }
+		else if ( IS_STATUS( shared_status, STATUS_INSUFFICIENT_DISK_SPACE ) )	{ shared_info->status = STATUS_INSUFFICIENT_DISK_SPACE; }
+		else if ( IS_STATUS( shared_status, STATUS_PAUSED ) )					{ shared_info->status = STATUS_PAUSED; }
 		else if ( IS_STATUS( shared_status, STATUS_SKIPPED ) && shared_info->file_size > 0 && shared_info->downloaded != shared_info->file_size )
 		{
 			shared_info->status = STATUS_SKIPPED;
 		}
-		else if ( IS_STATUS( shared_status, STATUS_RESTART ) )				{ shared_info->status = STATUS_RESTART; }
-		else if ( IS_STATUS( shared_status, STATUS_DOWNLOADING ) )			{ shared_info->status = STATUS_DOWNLOADING; }
-		else if ( IS_STATUS( shared_status, STATUS_CONNECTING ) )			{ shared_info->status = STATUS_CONNECTING; }
-		else if ( IS_STATUS( shared_status, STATUS_STOPPED ) )				{ shared_info->status = STATUS_STOPPED; }
+		else if ( IS_STATUS( shared_status, STATUS_RESTART ) )					{ shared_info->status = STATUS_RESTART; }
+		else if ( IS_STATUS( shared_status, STATUS_DOWNLOADING ) )				{ shared_info->status = STATUS_DOWNLOADING; }
+		else if ( IS_STATUS( shared_status, STATUS_CONNECTING ) )				{ shared_info->status = STATUS_CONNECTING; }
+		else if ( IS_STATUS( shared_status, STATUS_STOPPED ) )					{ shared_info->status = STATUS_STOPPED; }
 		else if ( shared_status == STATUS_COMPLETED || ( IS_STATUS( shared_status, STATUS_COMPLETED ) && shared_info->file_size > 0 && shared_info->downloaded == shared_info->file_size ) )
 		{
 			shared_info->status = STATUS_COMPLETED;
@@ -1566,10 +1568,6 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 	int nRet = 0;
 	DWORD dwFlags = 0;
 
-	// WINE doesn't download HTTPS URLs unless some ntdll function is called in this thread. Why?
-	char wine_hack;
-	_memset( &wine_hack, 0, sizeof( char ) );
-
 	for ( ;; )
 	{
 		completion_status = GetQueuedCompletionStatus( hIOCP, &io_size, ( ULONG_PTR * )&context, ( OVERLAPPED ** )&overlapped, INFINITE );
@@ -1643,6 +1641,30 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 					{
 						continue;
 					}
+				}
+				else if ( *current_operation == IO_WriteFile )
+				{
+					EnterCriticalSection( &context->context_cs );
+
+					if ( context->download_info != NULL )
+					{
+						EnterCriticalSection( &context->download_info->di_cs );
+
+						if ( GetLastError() == ERROR_DISK_FULL )
+						{
+							context->download_info->status = STATUS_INSUFFICIENT_DISK_SPACE;
+							context->status = STATUS_INSUFFICIENT_DISK_SPACE;
+						}
+						else
+						{
+							context->download_info->status = STATUS_FILE_IO_ERROR;
+							context->status = STATUS_FILE_IO_ERROR;
+						}
+
+						LeaveCriticalSection( &context->download_info->di_cs );
+					}
+
+					LeaveCriticalSection( &context->context_cs );
 				}
 
 				if ( context->ssh != NULL )
@@ -6654,6 +6676,10 @@ DWORD WINAPI AddURL( void *add_info )
 	}
 
 	_SendMessageW( g_hWnd_tlv_files, TLVM_REFRESH_LIST, FALSE, FALSE );	// If the downloads were set to queued in StartDownload().
+	if ( cfg_scroll_to_last_item )
+	{
+		UpdateMenus( true );											// Handles the last item if cfg_scroll_to_last_item is true.
+	}
 
 	// Release the semaphore if we're killing the thread.
 	if ( worker_semaphore != NULL )
@@ -7220,6 +7246,8 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 			DOWNLOAD_INFO *di = context->download_info;
 			if ( di != NULL )
 			{
+				bool update_menus = false;
+
 				bool incomplete_part = false;
 
 				if ( context->header_info.range_info != NULL &&  
@@ -7429,6 +7457,18 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 						{
 							bool move_file = false;
 
+							TREELISTNODE *tln = TLV_GetFocusedItem();
+							if ( tln == NULL )
+							{
+								TLV_GetNextSelectedItem( NULL, 0, &tln );
+							}
+
+							// Is this the currently focused/selected item?
+							if ( tln != NULL && di == tln->data )
+							{
+								update_menus = true;
+							}
+
 							bool incomplete_download = false;
 
 							// Go through our range list and see if any connections have not fully completed.
@@ -7470,7 +7510,7 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 									di->status = context->status;
 								}
 							}
-							else
+							else if ( di->status != STATUS_FILE_IO_ERROR && di->status != STATUS_INSUFFICIENT_DISK_SPACE )
 							{
 								di->status = STATUS_COMPLETED;
 							}
@@ -7729,6 +7769,12 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 					{
 						LeaveCriticalSection( &di->di_cs );
 					}
+				}
+
+				// The currently focused or first selected item has finished downloading.
+				if ( update_menus )
+				{
+					UpdateMenus( true );
 				}
 			}
 		}

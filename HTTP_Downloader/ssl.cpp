@@ -934,46 +934,47 @@ SECURITY_STATUS SSL_WSAConnect_Reply( SOCKET_CONTEXT *context, OVERLAPPEDEX *ove
 
 					return SEC_I_CONTINUE_NEEDED;
 				}
-				else if ( scRet == SEC_I_CONTINUE_NEEDED || scRet == SEC_E_INCOMPLETE_MESSAGE )	// Request more data until we get something.
+			}
+
+			if ( scRet == SEC_I_CONTINUE_NEEDED || scRet == SEC_E_INCOMPLETE_MESSAGE )	// Request more data until we get something.
+			{
+				if ( ssl->acd.OutBuffers[ 0 ].pvBuffer != NULL )
 				{
-					if ( ssl->acd.OutBuffers[ 0 ].pvBuffer != NULL )
-					{
-						g_pSSPI->FreeContextBuffer( ssl->acd.OutBuffers[ 0 ].pvBuffer );
-						ssl->acd.OutBuffers[ 0 ].pvBuffer = NULL;
-					}
-
-					sent = true;
-
-					PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
-
-					return scRet;
+					g_pSSPI->FreeContextBuffer( ssl->acd.OutBuffers[ 0 ].pvBuffer );
+					ssl->acd.OutBuffers[ 0 ].pvBuffer = NULL;
 				}
-				else if ( scRet == SEC_E_OK )
+
+				sent = true;
+
+				PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
+
+				return scRet;
+			}
+			else if ( scRet == SEC_E_OK )
+			{
+				// Store remaining data for further use
+				if ( ssl->acd.InBuffers[ 1 ].BufferType == SECBUFFER_EXTRA )
 				{
-					// Store remaining data for further use
-					if ( ssl->acd.InBuffers[ 1 ].BufferType == SECBUFFER_EXTRA )
-					{
-						_memmove( ssl->pbIoBuffer, ssl->pbIoBuffer + ( ssl->cbIoBuffer - ssl->acd.InBuffers[ 1 ].cbBuffer ), ssl->acd.InBuffers[ 1 ].cbBuffer );
-						ssl->cbIoBuffer = ssl->acd.InBuffers[ 1 ].cbBuffer;
-					}
-					else
-					{
-						ssl->cbIoBuffer = 0;
+					_memmove( ssl->pbIoBuffer, ssl->pbIoBuffer + ( ssl->cbIoBuffer - ssl->acd.InBuffers[ 1 ].cbBuffer ), ssl->acd.InBuffers[ 1 ].cbBuffer );
+					ssl->cbIoBuffer = ssl->acd.InBuffers[ 1 ].cbBuffer;
+				}
+				else
+				{
+					ssl->cbIoBuffer = 0;
 
-						if ( ssl->pbIoBuffer != NULL )
-						{
-							GlobalFree( ssl->pbIoBuffer );
-							ssl->pbIoBuffer = NULL;
-						}
-
-						ssl->sbIoBuffer = 0;
+					if ( ssl->pbIoBuffer != NULL )
+					{
+						GlobalFree( ssl->pbIoBuffer );
+						ssl->pbIoBuffer = NULL;
 					}
 
-					if ( ssl->acd.OutBuffers[ 0 ].pvBuffer != NULL )
-					{
-						g_pSSPI->FreeContextBuffer( ssl->acd.OutBuffers[ 0 ].pvBuffer );
-						ssl->acd.OutBuffers[ 0 ].pvBuffer = NULL;
-					}
+					ssl->sbIoBuffer = 0;
+				}
+
+				if ( ssl->acd.OutBuffers[ 0 ].pvBuffer != NULL )
+				{
+					g_pSSPI->FreeContextBuffer( ssl->acd.OutBuffers[ 0 ].pvBuffer );
+					ssl->acd.OutBuffers[ 0 ].pvBuffer = NULL;
 				}
 			}
 		}

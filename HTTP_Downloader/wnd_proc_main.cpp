@@ -83,7 +83,7 @@ HANDLE g_timer_semaphore = NULL;
 bool use_drag_and_drop_main = true;		// Assumes OLE32_STATE_RUNNING is true.
 IDropTarget *List_DropTarget;
 
-bool use_taskbar_progress_main = true;	// Assumes OLE32_STATE_RUNNING is true.
+bool use_taskbar_progress_main = false;	// Assume WM_TASKBARBUTTONCREATED is never called (Wine does this).
 _ITaskbarList3 *g_taskbar = NULL;
 
 struct PROGRESS_INFO
@@ -151,16 +151,16 @@ void ClearProgressBars()
 void ResetSessionStatus()
 {
 	// Reset.
-	_memzero( g_session_status_count, sizeof( unsigned int ) * 8 );
+	_memzero( g_session_status_count, sizeof( unsigned int ) * NUM_SESSION_STATUS );
 }
 
 void FormatTooltipStatus()
 {
 	unsigned int buf_length = 0;
 
-	wchar_t *status_strings[ 8 ] = { ST_V_Completed, ST_V_Stopped, ST_V_Timed_Out, ST_V_Failed, ST_V_File_IO_Error, ST_V_Skipped, ST_V_Authorization_Required, ST_V_Proxy_Authentication_Required };
+	wchar_t *status_strings[ NUM_SESSION_STATUS ] = { ST_V_Completed, ST_V_Stopped, ST_V_Timed_Out, ST_V_Failed, ST_V_File_IO_Error, ST_V_Skipped, ST_V_Authorization_Required, ST_V_Proxy_Authentication_Required, ST_V_Insufficient_Disk_Space };
 
-	for ( unsigned char i = 0; i < 8; ++i )
+	for ( unsigned char i = 0; i < NUM_SESSION_STATUS; ++i )
 	{
 		if ( g_session_status_count[ i ] > 0 )
 		{
@@ -572,7 +572,7 @@ DWORD WINAPI UpdateWindow( LPVOID /*WorkThreadContext*/ )
 
 			g_progress_info.download_state = 1;	// Completed.
 
-			bool error = ( ( g_session_status_count[ 2 ] > 0 || g_session_status_count[ 3 ] > 0 || g_session_status_count[ 4 ] > 0 ) ? true : false );
+			bool error = ( ( g_session_status_count[ 2 ] > 0 || g_session_status_count[ 3 ] > 0 || g_session_status_count[ 4 ] > 0 || g_session_status_count[ 8 ] > 0 ) ? true : false );
 			progress_color_t = cfg_color_t_e_p;
 			border_color_t = cfg_color_t_e_b;
 
@@ -581,7 +581,7 @@ DWORD WINAPI UpdateWindow( LPVOID /*WorkThreadContext*/ )
 
 			if ( g_taskbar != NULL )
 			{
-				// If Timed Out, Failed, or File IO Error
+				// If Timed Out, Failed, File IO Error, or Insufficient Disk Space
 				if ( error )
 				{
 					g_taskbar->lpVtbl->SetProgressState( g_taskbar, g_hWnd_main, TBPF_ERROR );
@@ -646,6 +646,11 @@ DWORD WINAPI UpdateWindow( LPVOID /*WorkThreadContext*/ )
 				si.direction = cfg_sorted_direction;
 
 				_SendMessageW( g_hWnd_tlv_files, TLVM_SORT_ITEMS, NULL, ( LPARAM )&si );
+			}
+
+			if ( !in_worker_thread )
+			{
+				UpdateMenus( true );
 			}
 
 			if ( cfg_play_sound && cfg_sound_file_path != NULL )
@@ -967,6 +972,10 @@ wchar_t *GetDownloadInfoString( DOWNLOAD_INFO *di, int column, int root_index, i
 				{
 					__snwprintf( buf, tbuf_size, L"%s - %d.%1d%%", ST_V_Moving_File, i_percentage, remainder );
 				}
+				else if ( di->status == STATUS_INSUFFICIENT_DISK_SPACE )
+				{
+					buf = ST_V_Insufficient_Disk_Space;
+				}
 				else	// Downloading.
 				{
 					__snwprintf( buf, tbuf_size, L"%d.%1d%%", i_percentage, remainder );
@@ -1041,6 +1050,10 @@ wchar_t *GetDownloadInfoString( DOWNLOAD_INFO *di, int column, int root_index, i
 			else if ( di->status == STATUS_MOVING_FILE )
 			{
 				buf = ST_V_Moving_File;
+			}
+			else if ( di->status == STATUS_INSUFFICIENT_DISK_SPACE )
+			{
+				buf = ST_V_Insufficient_Disk_Space;
 			}
 			else	// Downloading.
 			{
@@ -2280,6 +2293,10 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 					use_taskbar_progress_main = InitializeOle32();
 				}
 				#endif
+				else
+				{
+					use_taskbar_progress_main = true;
+				}
 
 				if ( use_taskbar_progress_main )
 				{

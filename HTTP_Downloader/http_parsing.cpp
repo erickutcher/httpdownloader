@@ -2856,8 +2856,6 @@ char ParseHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int
 					context->got_filename = 1;
 				}
 
-				LeaveCriticalSection( &context->download_info->di_cs );
-
 				SHFILEINFO *sfi = ( SHFILEINFO * )GlobalAlloc( GMEM_FIXED, sizeof( SHFILEINFO ) );
 
 				// Cache our file's icon.
@@ -4458,67 +4456,71 @@ char AllocateFile( SOCKET_CONTEXT *context, IO_OPERATION current_operation )
 							LARGE_INTEGER li;
 							li.QuadPart = context->header_info.range_info->content_length;
 
-							SetFilePointerEx( context->download_info->shared_info->hFile, li, NULL, FILE_BEGIN );
-							SetEndOfFile( context->download_info->shared_info->hFile );
-
-							if ( cfg_enable_quick_allocation && g_can_fast_allocate )	// Fast disk allocation if we're an administrator.
+							if ( SetFilePointerEx( context->download_info->shared_info->hFile, li, NULL, FILE_BEGIN ) == TRUE &&
+								 SetEndOfFile( context->download_info->shared_info->hFile ) == TRUE )
 							{
-								if ( SetFileValidData( context->download_info->shared_info->hFile, li.QuadPart ) == FALSE )
+								if ( cfg_enable_quick_allocation && g_can_fast_allocate )	// Fast disk allocation if we're an administrator.
 								{
-									file_status = 0;
-
-									CloseHandle( context->download_info->shared_info->hFile );
-									context->download_info->shared_info->hFile = INVALID_HANDLE_VALUE;
-								}
-								else
-								{
-									file_status = 2;	// Start writing to the file immediately.
-								}
-							}
-							else	// Trigger the system to allocate the file on disk. Sloooow.
-							{
-								if ( li.QuadPart > 0 )
-								{
-									--li.QuadPart;	// Adjust the offset back 1.
-
-									file_status = 1;
-
-									context->download_info->status = STATUS_ALLOCATING_FILE;
-									context->status = STATUS_ALLOCATING_FILE;
-
-									// For groups.
-									if ( IS_GROUP( context->download_info ) )
+									if ( SetFileValidData( context->download_info->shared_info->hFile, li.QuadPart ) == TRUE )
 									{
-										context->download_info->shared_info->status = STATUS_ALLOCATING_FILE;
+										file_status = 2;	// Start writing to the file immediately.
 									}
-
-									InterlockedIncrement( &context->pending_operations );
-
-									context->overlapped.current_operation = current_operation;
-
-									context->overlapped.overlapped.hEvent = NULL;
-									context->overlapped.overlapped.Internal = NULL;
-									context->overlapped.overlapped.InternalHigh = NULL;
-									//context->overlapped.overlapped.Pointer = NULL; // union
-									context->overlapped.overlapped.Offset = li.LowPart;
-									context->overlapped.overlapped.OffsetHigh = li.HighPart;
-
-									// Write a non-NULL character to the end of the file to zero it out.
-									BOOL bRet = WriteFile( context->download_info->shared_info->hFile, "\x03", 1, NULL, ( OVERLAPPED * )&context->overlapped );
-									if ( bRet == FALSE && ( GetLastError() != ERROR_IO_PENDING ) )
+									else
 									{
-										InterlockedDecrement( &context->pending_operations );
-
-										file_status = 0;
-
 										CloseHandle( context->download_info->shared_info->hFile );
 										context->download_info->shared_info->hFile = INVALID_HANDLE_VALUE;
 									}
 								}
-								else
+								else	// Trigger the system to allocate the file on disk. Sloooow.
 								{
-									file_status = 2;	// Start writing to the file immediately. If it's a 0 byte file, then it'll just be closed.
+									if ( li.QuadPart > 0 )
+									{
+										--li.QuadPart;	// Adjust the offset back 1.
+
+										file_status = 1;
+
+										context->download_info->status = STATUS_ALLOCATING_FILE;
+										context->status = STATUS_ALLOCATING_FILE;
+
+										// For groups.
+										if ( IS_GROUP( context->download_info ) )
+										{
+											context->download_info->shared_info->status = STATUS_ALLOCATING_FILE;
+										}
+
+										InterlockedIncrement( &context->pending_operations );
+
+										context->overlapped.current_operation = current_operation;
+
+										context->overlapped.overlapped.hEvent = NULL;
+										context->overlapped.overlapped.Internal = NULL;
+										context->overlapped.overlapped.InternalHigh = NULL;
+										//context->overlapped.overlapped.Pointer = NULL; // union
+										context->overlapped.overlapped.Offset = li.LowPart;
+										context->overlapped.overlapped.OffsetHigh = li.HighPart;
+
+										// Write a non-NULL character to the end of the file to zero it out.
+										BOOL bRet = WriteFile( context->download_info->shared_info->hFile, "\x03", 1, NULL, ( OVERLAPPED * )&context->overlapped );
+										if ( bRet == FALSE && ( GetLastError() != ERROR_IO_PENDING ) )
+										{
+											InterlockedDecrement( &context->pending_operations );
+
+											file_status = 0;
+
+											CloseHandle( context->download_info->shared_info->hFile );
+											context->download_info->shared_info->hFile = INVALID_HANDLE_VALUE;
+										}
+									}
+									else
+									{
+										file_status = 2;	// Start writing to the file immediately. If it's a 0 byte file, then it'll just be closed.
+									}
 								}
+							}
+							else
+							{
+								CloseHandle( context->download_info->shared_info->hFile );
+								context->download_info->shared_info->hFile = INVALID_HANDLE_VALUE;
 							}
 						}
 						else
@@ -4531,8 +4533,16 @@ char AllocateFile( SOCKET_CONTEXT *context, IO_OPERATION current_operation )
 
 				if ( file_status == 0 )
 				{
-					context->download_info->status = STATUS_FILE_IO_ERROR;
-					context->status = STATUS_FILE_IO_ERROR;
+					if ( GetLastError() == ERROR_DISK_FULL )
+					{
+						context->download_info->status = STATUS_INSUFFICIENT_DISK_SPACE;
+						context->status = STATUS_INSUFFICIENT_DISK_SPACE;
+					}
+					else
+					{
+						context->download_info->status = STATUS_FILE_IO_ERROR;
+						context->status = STATUS_FILE_IO_ERROR;
+					}
 				}
 			}
 		}

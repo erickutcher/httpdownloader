@@ -76,7 +76,7 @@
 #define COLUMN_TIME_REMAINING		13
 #define COLUMN_URL					14
 
-#define NUM_COLORS			75
+#define NUM_COLORS			80
 #define TD_NUM_COLORS		12
 
 #define MAX_DOMAIN_LENGTH	253
@@ -109,7 +109,7 @@
 #define CURRENT_VERSION_A	1
 #define CURRENT_VERSION_B	0
 #define CURRENT_VERSION_C	4
-#define CURRENT_VERSION_D	2
+#define CURRENT_VERSION_D	3
 
 #define CURRENT_VERSION		( ( CURRENT_VERSION_A << 24 ) | \
 							  ( CURRENT_VERSION_B << 16 ) | \
@@ -595,6 +595,7 @@ extern COLORREF cfg_color_12a, cfg_color_12b, cfg_color_12c, cfg_color_12d, cfg_
 extern COLORREF cfg_color_13a, cfg_color_13b, cfg_color_13c, cfg_color_13d, cfg_color_13e;
 extern COLORREF cfg_color_14a, cfg_color_14b, cfg_color_14c, cfg_color_14d, cfg_color_14e;
 extern COLORREF cfg_color_15a, cfg_color_15b, cfg_color_15c, cfg_color_15d, cfg_color_15e;
+extern COLORREF cfg_color_16a, cfg_color_16b, cfg_color_16c, cfg_color_16d, cfg_color_16e;
 
 //
 
@@ -611,7 +612,9 @@ extern unsigned char g_total_columns;
 extern HANDLE g_timeout_semaphore;	// For updating the connection states.
 extern HANDLE g_timer_semaphore;	// For updating the listview.
 
-extern unsigned int g_session_status_count[ 8 ];	// 8 states that can be considered finished (Completed, Stopped, Failed, etc.)
+#define NUM_SESSION_STATUS	9
+
+extern unsigned int g_session_status_count[ NUM_SESSION_STATUS ];	// 9 states that can be considered finished (Completed, Stopped, Failed, etc.)
 
 extern bool g_timers_running;
 

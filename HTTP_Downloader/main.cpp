@@ -1609,11 +1609,6 @@ CLEANUP:
 
 	UninitializeLocaleValues();
 
-	if ( psftp_state == PSFTP_STATE_RUNNING )
-	{
-		_SFTP_UninitGSSAPI();
-	}
-
 	DeleteCriticalSection( &context_list_cs );
 	DeleteCriticalSection( &active_download_list_cs );
 	DeleteCriticalSection( &download_queue_cs );
@@ -1675,6 +1670,12 @@ CLEANUP:
 
 	// Delay loaded DLLs
 	SSL_library_uninit();
+
+	// Wine crashes on exit if this is before SSL_library_uninit().
+	if ( psftp_state == PSFTP_STATE_RUNNING )
+	{
+		_SFTP_UninitGSSAPI();
+	}
 
 	#ifndef WS2_32_USE_STATIC_LIB
 		UnInitializeWS2_32();

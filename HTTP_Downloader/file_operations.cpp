@@ -24,6 +24,7 @@
 #include "lite_normaliz.h"
 
 #include "file_operations.h"
+#include "menus.h"
 #include "utilities.h"
 
 #include "ftp_parsing.h"
@@ -75,11 +76,9 @@ char read_config()
 			cfg_buf[ fz ] = 0;	// Guarantee a NULL terminated buffer.
 
 			// Read the config. It must be in the order specified below.
-			if ( read == fz && _memcmp( cfg_buf, MAGIC_ID_SETTINGS, 3 ) == 0 && ( unsigned char )cfg_buf[ 3 ] >= 6 )
+			if ( read == fz && _memcmp( cfg_buf, MAGIC_ID_SETTINGS, 4 ) == 0 )
 			{
-				unsigned char cfg_version = ( unsigned char )cfg_buf[ 3 ];
-
-				reserved = 1024 - ( cfg_version >= 7 ? 696 : 661 );
+				reserved = 1024 - 716;
 
 				char *next = cfg_buf + 4;
 
@@ -97,67 +96,17 @@ char read_config()
 				_memcpy_s( &cfg_min_max, sizeof( unsigned char ), next, sizeof( unsigned char ) );
 				next += sizeof( unsigned char );
 
-				_memcpy_s( &cfg_column_width1, sizeof( int ), next, sizeof( int ) );
-				next += sizeof( int );
-				_memcpy_s( &cfg_column_width2, sizeof( int ), next, sizeof( int ) );
-				next += sizeof( int );
-				_memcpy_s( &cfg_column_width3, sizeof( int ), next, sizeof( int ) );
-				next += sizeof( int );
-				_memcpy_s( &cfg_column_width4, sizeof( int ), next, sizeof( int ) );
-				next += sizeof( int );
-				_memcpy_s( &cfg_column_width5, sizeof( int ), next, sizeof( int ) );
-				next += sizeof( int );
-				_memcpy_s( &cfg_column_width6, sizeof( int ), next, sizeof( int ) );
-				next += sizeof( int );
-				_memcpy_s( &cfg_column_width7, sizeof( int ), next, sizeof( int ) );
-				next += sizeof( int );
-				_memcpy_s( &cfg_column_width8, sizeof( int ), next, sizeof( int ) );
-				next += sizeof( int );
-				_memcpy_s( &cfg_column_width9, sizeof( int ), next, sizeof( int ) );
-				next += sizeof( int );
-				_memcpy_s( &cfg_column_width10, sizeof( int ), next, sizeof( int ) );
-				next += sizeof( int );
-				_memcpy_s( &cfg_column_width11, sizeof( int ), next, sizeof( int ) );
-				next += sizeof( int );
-				_memcpy_s( &cfg_column_width12, sizeof( int ), next, sizeof( int ) );
-				next += sizeof( int );
-				_memcpy_s( &cfg_column_width13, sizeof( int ), next, sizeof( int ) );
-				next += sizeof( int );
-				_memcpy_s( &cfg_column_width14, sizeof( int ), next, sizeof( int ) );
-				next += sizeof( int );
-				_memcpy_s( &cfg_column_width15, sizeof( int ), next, sizeof( int ) );
-				next += sizeof( int );
+				for ( i = 0; i < NUM_COLUMNS; ++i )
+				{
+					_memcpy_s( download_columns_width[ i ], sizeof( int ), next, sizeof( int ) );
+					next += sizeof( int );
+				}
 
-				_memcpy_s( &cfg_column_order1, sizeof( char ), next, sizeof( char ) );
-				next += sizeof( char );
-				_memcpy_s( &cfg_column_order2, sizeof( char ), next, sizeof( char ) );
-				next += sizeof( char );
-				_memcpy_s( &cfg_column_order3, sizeof( char ), next, sizeof( char ) );
-				next += sizeof( char );
-				_memcpy_s( &cfg_column_order4, sizeof( char ), next, sizeof( char ) );
-				next += sizeof( char );
-				_memcpy_s( &cfg_column_order5, sizeof( char ), next, sizeof( char ) );
-				next += sizeof( char );
-				_memcpy_s( &cfg_column_order6, sizeof( char ), next, sizeof( char ) );
-				next += sizeof( char );
-				_memcpy_s( &cfg_column_order7, sizeof( char ), next, sizeof( char ) );
-				next += sizeof( char );
-				_memcpy_s( &cfg_column_order8, sizeof( char ), next, sizeof( char ) );
-				next += sizeof( char );
-				_memcpy_s( &cfg_column_order9, sizeof( char ), next, sizeof( char ) );
-				next += sizeof( char );
-				_memcpy_s( &cfg_column_order10, sizeof( char ), next, sizeof( char ) );
-				next += sizeof( char );
-				_memcpy_s( &cfg_column_order11, sizeof( char ), next, sizeof( char ) );
-				next += sizeof( char );
-				_memcpy_s( &cfg_column_order12, sizeof( char ), next, sizeof( char ) );
-				next += sizeof( char );
-				_memcpy_s( &cfg_column_order13, sizeof( char ), next, sizeof( char ) );
-				next += sizeof( char );
-				_memcpy_s( &cfg_column_order14, sizeof( char ), next, sizeof( char ) );
-				next += sizeof( char );
-				_memcpy_s( &cfg_column_order15, sizeof( char ), next, sizeof( char ) );
-				next += sizeof( char );
+				for ( i = 0; i < NUM_COLUMNS; ++i )
+				{
+					_memcpy_s( download_columns[ i ], sizeof( char ), next, sizeof( char ) );
+					next += sizeof( char );
+				}
 
 				_memcpy_s( &cfg_show_column_headers, sizeof( bool ), next, sizeof( bool ) );
 				next += sizeof( bool );
@@ -247,6 +196,8 @@ char read_config()
 				_memcpy_s( &cfg_sort_added_and_updating_items, sizeof( bool ), next, sizeof( bool ) );
 				next += sizeof( bool );
 				_memcpy_s( &cfg_expand_added_group_items, sizeof( bool ), next, sizeof( bool ) );
+				next += sizeof( bool );
+				_memcpy_s( &cfg_scroll_to_last_item, sizeof( bool ), next, sizeof( bool ) );
 				next += sizeof( bool );
 
 				_memcpy_s( &cfg_background_color, sizeof( COLORREF ), next, sizeof( COLORREF ) );
@@ -488,51 +439,41 @@ char read_config()
 				_memcpy_s( &cfg_thread_count, sizeof( unsigned long ), next, sizeof( unsigned long ) );
 				next += sizeof( unsigned long );
 
-				//
+				// Options SFTP
 
-				if ( cfg_version >= 7 )
+				_memcpy_s( &cfg_sftp_enable_compression, sizeof( bool ), next, sizeof( bool ) );
+				next += sizeof( bool );
+
+				_memcpy_s( &cfg_sftp_attempt_gssapi_authentication, sizeof( bool ), next, sizeof( bool ) );
+				next += sizeof( bool );
+				_memcpy_s( &cfg_sftp_attempt_gssapi_key_exchange, sizeof( bool ), next, sizeof( bool ) );
+				next += sizeof( bool );
+
+				_memcpy_s( &cfg_sftp_keep_alive_time, sizeof( int ), next, sizeof( int ) );
+				next += sizeof( int );
+				_memcpy_s( &cfg_sftp_rekey_time, sizeof( int ), next, sizeof( int ) );
+				next += sizeof( int );
+				_memcpy_s( &cfg_sftp_gss_rekey_time, sizeof( int ), next, sizeof( int ) );
+				next += sizeof( int );
+				_memcpy_s( &cfg_sftp_rekey_data_limit, sizeof( unsigned long ), next, sizeof( unsigned long ) );
+				next += sizeof( unsigned long );
+
+				for ( i = 0; i < KEX_ALGORITHM_COUNT; ++i )
 				{
-					// Options SFTP
+					_memcpy_s( &cfg_priority_kex_algorithm[ i ], sizeof( unsigned char ), next, sizeof( unsigned char ) );
+					next += sizeof( unsigned char );
+				}
 
-					_memcpy_s( &cfg_sftp_enable_compression, sizeof( bool ), next, sizeof( bool ) );
-					next += sizeof( bool );
+				for ( i = 0; i < HOST_KEY_COUNT; ++i )
+				{
+					_memcpy_s( &cfg_priority_host_key[ i ], sizeof( unsigned char ), next, sizeof( unsigned char ) );
+					next += sizeof( unsigned char );
+				}
 
-					_memcpy_s( &cfg_sftp_attempt_gssapi_authentication, sizeof( bool ), next, sizeof( bool ) );
-					next += sizeof( bool );
-					_memcpy_s( &cfg_sftp_attempt_gssapi_key_exchange, sizeof( bool ), next, sizeof( bool ) );
-					next += sizeof( bool );
-
-					_memcpy_s( &cfg_sftp_keep_alive_time, sizeof( int ), next, sizeof( int ) );
-					next += sizeof( int );
-					_memcpy_s( &cfg_sftp_rekey_time, sizeof( int ), next, sizeof( int ) );
-					next += sizeof( int );
-					_memcpy_s( &cfg_sftp_gss_rekey_time, sizeof( int ), next, sizeof( int ) );
-					next += sizeof( int );
-					_memcpy_s( &cfg_sftp_rekey_data_limit, sizeof( unsigned long ), next, sizeof( unsigned long ) );
-					next += sizeof( unsigned long );
-
-					for ( i = 0; i < KEX_ALGORITHM_COUNT; ++i )
-					{
-						_memcpy_s( &cfg_priority_kex_algorithm[ i ], sizeof( unsigned char ), next, sizeof( unsigned char ) );
-						next += sizeof( unsigned char );
-					}
-
-					for ( i = 0; i < HOST_KEY_COUNT; ++i )
-					{
-						_memcpy_s( &cfg_priority_host_key[ i ], sizeof( unsigned char ), next, sizeof( unsigned char ) );
-						next += sizeof( unsigned char );
-					}
-
-					for ( i = 0; i < ENCRYPTION_CIPHER_COUNT; ++i )
-					{
-						_memcpy_s( &cfg_priority_encryption_cipher[ i ], sizeof( unsigned char ), next, sizeof( unsigned char ) );
-						next += sizeof( unsigned char );
-					}
-
-					// Options Appearance
-
-					_memcpy_s( &cfg_scroll_to_last_item, sizeof( bool ), next, sizeof( bool ) );
-					next += sizeof( bool );
+				for ( i = 0; i < ENCRYPTION_CIPHER_COUNT; ++i )
+				{
+					_memcpy_s( &cfg_priority_encryption_cipher[ i ], sizeof( unsigned char ), next, sizeof( unsigned char ) );
+					next += sizeof( unsigned char );
 				}
 
 
@@ -1240,7 +1181,7 @@ char save_config()
 	HANDLE hFile_cfg = CreateFile( g_base_directory, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL );
 	if ( hFile_cfg != INVALID_HANDLE_VALUE )
 	{
-		int reserved = 1024 - 696;
+		int reserved = 1024 - 716;
 		int size = ( sizeof( int ) * 25 ) +
 				   ( sizeof( unsigned short ) * 7 ) +
 				   ( sizeof( char ) * ( 50 + KEX_ALGORITHM_COUNT + HOST_KEY_COUNT + ENCRYPTION_CIPHER_COUNT ) ) +
@@ -1272,67 +1213,17 @@ char save_config()
 		_memcpy_s( write_buf + pos, size - pos, &cfg_min_max, sizeof( unsigned char ) );
 		pos += sizeof( unsigned char );
 
-		_memcpy_s( write_buf + pos, size - pos, &cfg_column_width1, sizeof( int ) );
-		pos += sizeof( int );
-		_memcpy_s( write_buf + pos, size - pos, &cfg_column_width2, sizeof( int ) );
-		pos += sizeof( int );
-		_memcpy_s( write_buf + pos, size - pos, &cfg_column_width3, sizeof( int ) );
-		pos += sizeof( int );
-		_memcpy_s( write_buf + pos, size - pos, &cfg_column_width4, sizeof( int ) );
-		pos += sizeof( int );
-		_memcpy_s( write_buf + pos, size - pos, &cfg_column_width5, sizeof( int ) );
-		pos += sizeof( int );
-		_memcpy_s( write_buf + pos, size - pos, &cfg_column_width6, sizeof( int ) );
-		pos += sizeof( int );
-		_memcpy_s( write_buf + pos, size - pos, &cfg_column_width7, sizeof( int ) );
-		pos += sizeof( int );
-		_memcpy_s( write_buf + pos, size - pos, &cfg_column_width8, sizeof( int ) );
-		pos += sizeof( int );
-		_memcpy_s( write_buf + pos, size - pos, &cfg_column_width9, sizeof( int ) );
-		pos += sizeof( int );
-		_memcpy_s( write_buf + pos, size - pos, &cfg_column_width10, sizeof( int ) );
-		pos += sizeof( int );
-		_memcpy_s( write_buf + pos, size - pos, &cfg_column_width11, sizeof( int ) );
-		pos += sizeof( int );
-		_memcpy_s( write_buf + pos, size - pos, &cfg_column_width12, sizeof( int ) );
-		pos += sizeof( int );
-		_memcpy_s( write_buf + pos, size - pos, &cfg_column_width13, sizeof( int ) );
-		pos += sizeof( int );
-		_memcpy_s( write_buf + pos, size - pos, &cfg_column_width14, sizeof( int ) );
-		pos += sizeof( int );
-		_memcpy_s( write_buf + pos, size - pos, &cfg_column_width15, sizeof( int ) );
-		pos += sizeof( int );
+		for ( i = 0; i < NUM_COLUMNS; ++i )
+		{
+			_memcpy_s( write_buf + pos, size - pos, download_columns_width[ i ], sizeof( int ) );
+			pos += sizeof( int );
+		}
 
-		_memcpy_s( write_buf + pos, size - pos, &cfg_column_order1, sizeof( char ) );
-		pos += sizeof( char );
-		_memcpy_s( write_buf + pos, size - pos, &cfg_column_order2, sizeof( char ) );
-		pos += sizeof( char );
-		_memcpy_s( write_buf + pos, size - pos, &cfg_column_order3, sizeof( char ) );
-		pos += sizeof( char );
-		_memcpy_s( write_buf + pos, size - pos, &cfg_column_order4, sizeof( char ) );
-		pos += sizeof( char );
-		_memcpy_s( write_buf + pos, size - pos, &cfg_column_order5, sizeof( char ) );
-		pos += sizeof( char );
-		_memcpy_s( write_buf + pos, size - pos, &cfg_column_order6, sizeof( char ) );
-		pos += sizeof( char );
-		_memcpy_s( write_buf + pos, size - pos, &cfg_column_order7, sizeof( char ) );
-		pos += sizeof( char );
-		_memcpy_s( write_buf + pos, size - pos, &cfg_column_order8, sizeof( char ) );
-		pos += sizeof( char );
-		_memcpy_s( write_buf + pos, size - pos, &cfg_column_order9, sizeof( char ) );
-		pos += sizeof( char );
-		_memcpy_s( write_buf + pos, size - pos, &cfg_column_order10, sizeof( char ) );
-		pos += sizeof( char );
-		_memcpy_s( write_buf + pos, size - pos, &cfg_column_order11, sizeof( char ) );
-		pos += sizeof( char );
-		_memcpy_s( write_buf + pos, size - pos, &cfg_column_order12, sizeof( char ) );
-		pos += sizeof( char );
-		_memcpy_s( write_buf + pos, size - pos, &cfg_column_order13, sizeof( char ) );
-		pos += sizeof( char );
-		_memcpy_s( write_buf + pos, size - pos, &cfg_column_order14, sizeof( char ) );
-		pos += sizeof( char );
-		_memcpy_s( write_buf + pos, size - pos, &cfg_column_order15, sizeof( char ) );
-		pos += sizeof( char );
+		for ( i = 0; i < NUM_COLUMNS; ++i )
+		{
+			_memcpy_s( write_buf + pos, size - pos, download_columns[ i ], sizeof( char ) );
+			pos += sizeof( char );
+		}
 
 		_memcpy_s( write_buf + pos, size - pos, &cfg_show_column_headers, sizeof( bool ) );
 		pos += sizeof( bool );
@@ -1422,6 +1313,8 @@ char save_config()
 		_memcpy_s( write_buf + pos, size - pos, &cfg_sort_added_and_updating_items, sizeof( bool ) );
 		pos += sizeof( bool );
 		_memcpy_s( write_buf + pos, size - pos, &cfg_expand_added_group_items, sizeof( bool ) );
+		pos += sizeof( bool );
+		_memcpy_s( write_buf + pos, size - pos, &cfg_scroll_to_last_item, sizeof( bool ) );
 		pos += sizeof( bool );
 
 		_memcpy_s( write_buf + pos, size - pos, &cfg_background_color, sizeof( COLORREF ) );
@@ -1699,11 +1592,6 @@ char save_config()
 			_memcpy_s( write_buf + pos, size - pos, &cfg_priority_encryption_cipher[ i ], sizeof( unsigned char ) );
 			pos += sizeof( unsigned char );
 		}
-
-		// Options Appearance
-
-		_memcpy_s( write_buf + pos, size - pos, &cfg_scroll_to_last_item, sizeof( bool ) );
-		pos += sizeof( bool );
 
 
 		//
@@ -3089,6 +2977,10 @@ char read_download_history( wchar_t *file_path, bool scroll_to_last_item )
 			}
 
 			_SendMessageW( g_hWnd_tlv_files, TLVM_REFRESH_LIST, TRUE, ( scroll_to_last_item ? TRUE : FALSE ) );
+			if ( scroll_to_last_item )
+			{
+				UpdateMenus( true );
+			}
 			UpdateSBItemCount();
 		}
 		else

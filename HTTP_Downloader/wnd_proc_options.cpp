@@ -623,6 +623,8 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			_GetMonitorInfoW( hMon, &mi );
 			_SetWindowPos( hWnd, NULL, mi.rcMonitor.left + ( ( ( mi.rcMonitor.right - mi.rcMonitor.left ) - 720 ) / 2 ), mi.rcMonitor.top + ( ( ( mi.rcMonitor.bottom - mi.rcMonitor.top ) - 500 ) / 2 ), 720, 500, 0 );
 
+			_SetFocus( g_hWnd_options_tree );
+
 			return 0;
 		}
 		break;
@@ -680,7 +682,7 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 					{
 						_ShowWindow( *( ( HWND * )nmtv->itemNew.lParam ), SW_SHOW );
 
-						//_SetFocus( *( ( HWND * )nmtv->itemNew.lParam ) );
+						_SetFocus( *( ( HWND * )nmtv->itemNew.lParam ) );
 					}
 				}
 				break;

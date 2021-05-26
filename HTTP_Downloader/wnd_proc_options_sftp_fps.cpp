@@ -251,7 +251,7 @@ LRESULT CALLBACK SFTPFpsTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 			RECT rc;
 			_GetClientRect( hWnd, &rc );
 
-			g_hWnd_sftp_fps_host_list = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_LISTVIEW, NULL, LVS_REPORT | LVS_OWNERDRAWFIXED | WS_CHILD | WS_VISIBLE, 0, 0, rc.right, 330, hWnd, NULL, NULL, NULL );
+			g_hWnd_sftp_fps_host_list = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_LISTVIEW, NULL, LVS_REPORT | LVS_OWNERDRAWFIXED | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, rc.right, 330, hWnd, NULL, NULL, NULL );
 			_SendMessageW( g_hWnd_sftp_fps_host_list, LVM_SETEXTENDEDLISTVIEWSTYLE, 0, LVS_EX_DOUBLEBUFFER | LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES );
 
 			HWND hWnd_static_sftp_fps_host = _CreateWindowW( WC_STATIC, ST_V_Host_, WS_CHILD | WS_VISIBLE, 0, 335, 200, 15, hWnd, NULL, NULL, NULL );

@@ -1795,7 +1795,62 @@ void HandleWindowChange( HWND hWnd, bool scroll_to_end = false )
 
 	if ( scroll_to_end )
 	{
-		Scroll( &si, SCROLL_TYPE_DOWN, g_expanded_item_count );
+		if ( g_tree_list != NULL )
+		{
+			ClearDrag();
+			TLV_ClearSelected( false, false );
+
+			TREELISTNODE *focused_node;
+			int focused_index;
+
+			if ( g_tree_list->prev != NULL )
+			{
+				focused_node = g_tree_list->prev;
+			}
+			else
+			{
+				focused_node = g_tree_list;
+			}
+
+			focused_index = g_expanded_item_count - 1;
+
+			if ( focused_node != NULL )
+			{
+				if ( focused_node->is_expanded && focused_node->child != NULL )
+				{
+					if ( focused_node->child->prev != NULL )
+					{
+						focused_node = focused_node->child->prev;
+					}
+					else
+					{
+						focused_node = focused_node->child;
+					}
+				}
+
+				/*if ( focused_node->parent != NULL )
+				{
+					focused_index = TLV_GetParentIndex( focused_node, focused_index );
+					focused_node = focused_node->parent;
+				}*/
+
+				focused_node->flag |= ( TLVS_SELECTED | TLVS_FOCUSED );
+
+				g_selected_count = 1;
+			}
+			else
+			{
+				focused_index = -1;
+				g_selected_count = 0;
+			}
+
+			g_focused_node = g_first_selection_node = g_last_selection_node = g_base_selected_node = focused_node;
+			g_focused_index = g_first_selection_index = g_last_selection_index = g_base_selected_index = focused_index;
+
+			Scroll( &si, SCROLL_TYPE_DOWN, si.nMax );
+		}
+
+		//Scroll( &si, SCROLL_TYPE_DOWN, g_expanded_item_count );
 	}
 
 	_SetScrollInfo( hWnd, SB_VERT, &si, TRUE );
@@ -3377,21 +3432,22 @@ void DrawTreeListView( HWND hWnd )
 
 				COLORREF color_ref_body = 0, color_ref_border = 0, color_ref_background = 0, color_ref_body_text = 0, color_ref_background_text = 0;
 
-				if		( di->status == STATUS_CONNECTING )			{ color_ref_body = cfg_color_4a; color_ref_background = cfg_color_4b; color_ref_body_text = cfg_color_4c; color_ref_background_text = cfg_color_4d; color_ref_border = cfg_color_4e; }
-				else if ( IS_STATUS( di->status, STATUS_RESTART ) )	{ color_ref_body = cfg_color_12a; color_ref_background = cfg_color_12b; color_ref_body_text = cfg_color_12c; color_ref_background_text = cfg_color_12d; color_ref_border = cfg_color_12e; }
-				else if ( IS_STATUS( di->status, STATUS_PAUSED ) )	{ color_ref_body = cfg_color_9a; color_ref_background = cfg_color_9b; color_ref_body_text = cfg_color_9c; color_ref_background_text = cfg_color_9d; color_ref_border = cfg_color_9e; }
-				else if ( IS_STATUS( di->status, STATUS_QUEUED ) )	{ color_ref_body = cfg_color_11a; color_ref_background = cfg_color_11b; color_ref_body_text = cfg_color_11c; color_ref_background_text = cfg_color_11d; color_ref_border = cfg_color_11e; }
-				else if ( di->status == STATUS_COMPLETED )			{ color_ref_body = cfg_color_3a; color_ref_background = cfg_color_3b; color_ref_body_text = cfg_color_3c; color_ref_background_text = cfg_color_3d; color_ref_border = cfg_color_3e; }
-				else if ( di->status == STATUS_STOPPED )			{ color_ref_body = cfg_color_14a; color_ref_background = cfg_color_14b; color_ref_body_text = cfg_color_14c; color_ref_background_text = cfg_color_14d; color_ref_border = cfg_color_14e; }
-				else if ( di->status == STATUS_TIMED_OUT )			{ color_ref_body = cfg_color_15a; color_ref_background = cfg_color_15b; color_ref_body_text = cfg_color_15c; color_ref_background_text = cfg_color_15d; color_ref_border = cfg_color_15e; }
-				else if ( di->status == STATUS_FAILED )				{ color_ref_body = cfg_color_6a; color_ref_background = cfg_color_6b; color_ref_body_text = cfg_color_6c; color_ref_background_text = cfg_color_6d; color_ref_border = cfg_color_6e; }
-				else if ( di->status == STATUS_FILE_IO_ERROR )		{ color_ref_body = cfg_color_7a; color_ref_background = cfg_color_7b; color_ref_body_text = cfg_color_7c; color_ref_background_text = cfg_color_7d; color_ref_border = cfg_color_7e; }
-				else if ( di->status == STATUS_SKIPPED )			{ color_ref_body = cfg_color_13a; color_ref_background = cfg_color_13b; color_ref_body_text = cfg_color_13c; color_ref_background_text = cfg_color_13d; color_ref_border = cfg_color_13e; }
-				else if ( di->status == STATUS_AUTH_REQUIRED )		{ color_ref_body = cfg_color_2a; color_ref_background = cfg_color_2b; color_ref_body_text = cfg_color_2c; color_ref_background_text = cfg_color_2d; color_ref_border = cfg_color_2e; }
-				else if ( di->status == STATUS_PROXY_AUTH_REQUIRED ){ color_ref_body = cfg_color_10a; color_ref_background = cfg_color_10b; color_ref_body_text = cfg_color_10c; color_ref_background_text = cfg_color_10d; color_ref_border = cfg_color_10e; }
-				else if	( di->status == STATUS_ALLOCATING_FILE )	{ color_ref_body = cfg_color_1a; color_ref_background = cfg_color_1b; color_ref_body_text = cfg_color_1c; color_ref_background_text = cfg_color_1d; color_ref_border = cfg_color_1e; }
-				else if	( di->status == STATUS_MOVING_FILE )		{ color_ref_body = cfg_color_8a; color_ref_background = cfg_color_8b; color_ref_body_text = cfg_color_8c; color_ref_background_text = cfg_color_8d; color_ref_border = cfg_color_8e; }
-				else												{ color_ref_body = cfg_color_5a; color_ref_background = cfg_color_5b; color_ref_body_text = cfg_color_5c; color_ref_background_text = cfg_color_5d; color_ref_border = cfg_color_5e; }
+				if		( di->status == STATUS_CONNECTING )					{ color_ref_body = cfg_color_4a; color_ref_background = cfg_color_4b; color_ref_body_text = cfg_color_4c; color_ref_background_text = cfg_color_4d; color_ref_border = cfg_color_4e; }
+				else if ( IS_STATUS( di->status, STATUS_RESTART ) )			{ color_ref_body = cfg_color_13a; color_ref_background = cfg_color_13b; color_ref_body_text = cfg_color_13c; color_ref_background_text = cfg_color_13d; color_ref_border = cfg_color_13e; }
+				else if ( IS_STATUS( di->status, STATUS_PAUSED ) )			{ color_ref_body = cfg_color_10a; color_ref_background = cfg_color_10b; color_ref_body_text = cfg_color_10c; color_ref_background_text = cfg_color_10d; color_ref_border = cfg_color_10e; }
+				else if ( IS_STATUS( di->status, STATUS_QUEUED ) )			{ color_ref_body = cfg_color_12a; color_ref_background = cfg_color_12b; color_ref_body_text = cfg_color_12c; color_ref_background_text = cfg_color_12d; color_ref_border = cfg_color_12e; }
+				else if ( di->status == STATUS_COMPLETED )					{ color_ref_body = cfg_color_3a; color_ref_background = cfg_color_3b; color_ref_body_text = cfg_color_3c; color_ref_background_text = cfg_color_3d; color_ref_border = cfg_color_3e; }
+				else if ( di->status == STATUS_STOPPED )					{ color_ref_body = cfg_color_15a; color_ref_background = cfg_color_15b; color_ref_body_text = cfg_color_15c; color_ref_background_text = cfg_color_15d; color_ref_border = cfg_color_15e; }
+				else if ( di->status == STATUS_TIMED_OUT )					{ color_ref_body = cfg_color_16a; color_ref_background = cfg_color_16b; color_ref_body_text = cfg_color_16c; color_ref_background_text = cfg_color_16d; color_ref_border = cfg_color_16e; }
+				else if ( di->status == STATUS_FAILED )						{ color_ref_body = cfg_color_6a; color_ref_background = cfg_color_6b; color_ref_body_text = cfg_color_6c; color_ref_background_text = cfg_color_6d; color_ref_border = cfg_color_6e; }
+				else if ( di->status == STATUS_FILE_IO_ERROR )				{ color_ref_body = cfg_color_7a; color_ref_background = cfg_color_7b; color_ref_body_text = cfg_color_7c; color_ref_background_text = cfg_color_7d; color_ref_border = cfg_color_7e; }
+				else if ( di->status == STATUS_SKIPPED )					{ color_ref_body = cfg_color_14a; color_ref_background = cfg_color_14b; color_ref_body_text = cfg_color_14c; color_ref_background_text = cfg_color_14d; color_ref_border = cfg_color_14e; }
+				else if ( di->status == STATUS_AUTH_REQUIRED )				{ color_ref_body = cfg_color_2a; color_ref_background = cfg_color_2b; color_ref_body_text = cfg_color_2c; color_ref_background_text = cfg_color_2d; color_ref_border = cfg_color_2e; }
+				else if ( di->status == STATUS_PROXY_AUTH_REQUIRED )		{ color_ref_body = cfg_color_11a; color_ref_background = cfg_color_11b; color_ref_body_text = cfg_color_11c; color_ref_background_text = cfg_color_11d; color_ref_border = cfg_color_11e; }
+				else if	( di->status == STATUS_ALLOCATING_FILE )			{ color_ref_body = cfg_color_1a; color_ref_background = cfg_color_1b; color_ref_body_text = cfg_color_1c; color_ref_background_text = cfg_color_1d; color_ref_border = cfg_color_1e; }
+				else if	( di->status == STATUS_MOVING_FILE )				{ color_ref_body = cfg_color_9a; color_ref_background = cfg_color_9b; color_ref_body_text = cfg_color_9c; color_ref_background_text = cfg_color_9d; color_ref_border = cfg_color_9e; }
+				else if ( di->status == STATUS_INSUFFICIENT_DISK_SPACE )	{ color_ref_body = cfg_color_8a; color_ref_background = cfg_color_8b; color_ref_body_text = cfg_color_8c; color_ref_background_text = cfg_color_8d; color_ref_border = cfg_color_8e; }
+				else														{ color_ref_body = cfg_color_5a; color_ref_background = cfg_color_5b; color_ref_body_text = cfg_color_5c; color_ref_background_text = cfg_color_5d; color_ref_border = cfg_color_5e; }
 
 				int progress_width = progress_rc.right - progress_rc.left;
 				int progress_height = progress_rc.bottom - progress_rc.top;
@@ -3892,7 +3948,7 @@ void DrawTreeListView( HWND hWnd )
 
 void CreateTooltip( HWND hWnd )
 {
-	g_tlv_tooltip_buffer = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * 512 );
+	g_tlv_tooltip_buffer = ( wchar_t * )GlobalAlloc( GPTR, sizeof( wchar_t ) * 512 );
 
 	g_hWnd_tlv_tooltip = _CreateWindowExW( WS_EX_TOPMOST, TOOLTIPS_CLASS, NULL, WS_POPUP | TTS_NOPREFIX | TTS_ALWAYSTIP, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, hWnd, NULL, NULL, NULL );
 
@@ -4363,6 +4419,12 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 					}
 					break;
 
+					case 'U':
+					{
+						HandleCommand( hWnd, MENU_UPDATE_DOWNLOAD );
+					}
+					break;
+
 					case VK_DELETE:	// Remove and Delete selected items.
 					{
 						if ( !in_worker_thread && g_selected_count > 0 )
@@ -4379,25 +4441,316 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 				{
 					case VK_PRIOR:
 					{
-						TLV_Scroll( hWnd, 0, SB_PAGEUP );
+						if ( g_tree_list != NULL )
+						{
+							ClearDrag();
+							TLV_ClearSelected( false, false );
+
+							TREELISTNODE *focused_node;
+							int focused_index;
+
+							int offset;
+
+							if ( g_focused_index < 0 || g_focused_index > g_first_visible_index )
+							{
+								offset = 0;
+
+								focused_node = g_first_visible_node;
+								focused_index = g_first_visible_index;
+							}
+							else
+							{
+								focused_node = g_focused_node;
+								focused_index = g_focused_index;
+
+								int visible_item_count = max( ( g_visible_item_count - 1 ), 1 );
+
+								while ( focused_node != g_tree_list && visible_item_count > 0 )
+								{
+									focused_node = TLV_PrevNode( focused_node, false );
+									--focused_index;
+
+									--visible_item_count;
+								}
+
+								offset = g_first_visible_index - focused_index;
+							}
+
+							if ( focused_node != NULL )
+							{
+								/*if ( focused_node->parent != NULL )
+								{
+									focused_index = TLV_GetParentIndex( focused_node, focused_index );
+									focused_node = focused_node->parent;
+								}*/
+
+								focused_node->flag |= ( TLVS_SELECTED | TLVS_FOCUSED );
+
+								g_selected_count = 1;
+							}
+							else
+							{
+								focused_index = -1;
+								g_selected_count = 0;
+							}
+
+							g_focused_node = g_first_selection_node = g_last_selection_node = g_base_selected_node = focused_node;
+							g_focused_index = g_first_selection_index = g_last_selection_index = g_base_selected_index = focused_index;
+
+							SCROLLINFO si;
+							_memzero( &si, sizeof( SCROLLINFO ) );
+							si.cbSize = sizeof( SCROLLINFO );
+							si.fMask = SIF_ALL;
+							_GetScrollInfo( hWnd, SB_VERT, &si );
+
+							offset = Scroll( &si, SCROLL_TYPE_UP, offset );
+
+							if ( offset != 0 )
+							{
+								_SetScrollInfo( hWnd, SB_VERT, &si, TRUE );
+							}
+
+							_InvalidateRect( hWnd, &g_client_rc, TRUE );
+
+							if ( !in_worker_thread )
+							{
+								UpdateMenus( true );
+							}
+						}
+
+						//TLV_Scroll( hWnd, 0, SB_PAGEUP );
 					}
 					break;
 
 					case VK_NEXT:
 					{
-						TLV_Scroll( hWnd, 0, SB_PAGEDOWN );
+						if ( g_tree_list != NULL )
+						{
+							ClearDrag();
+							TLV_ClearSelected( false, false );
+
+							TREELISTNODE *focused_node;
+							int focused_index;
+
+							int offset;
+
+							if ( g_visible_item_count <= 1 )
+							{
+								offset = 1;
+
+								focused_node = TLV_NextNode( g_first_visible_node, false );
+								if ( focused_node == NULL )
+								{
+									focused_node = g_first_visible_node;
+									focused_index = g_first_visible_index;
+								}
+								else
+								{
+									focused_index = g_first_visible_index + 1;
+								}
+							}
+							else if ( g_focused_index >= g_expanded_item_count || g_focused_index < ( g_visible_item_count - 1 ) || g_focused_index < g_first_visible_index )
+							{
+								offset = 0;
+
+								focused_node = g_first_visible_node;
+								focused_index = g_first_visible_index;
+							}
+							else
+							{
+								offset = g_focused_index - g_first_visible_index;
+
+								focused_node = g_focused_node;
+								focused_index = g_focused_index;
+							}
+
+							TREELISTNODE *tmp_focused_node = focused_node;
+							for ( int i = 0; i < ( g_visible_item_count - 1 ); ++i )
+							{
+								tmp_focused_node = TLV_NextNode( tmp_focused_node, false );
+								if ( tmp_focused_node == NULL )
+								{
+									break;
+								}
+								else
+								{
+									focused_node = tmp_focused_node;
+									++focused_index;
+								}
+							}
+
+							if ( focused_node != NULL )
+							{
+								/*if ( focused_node->parent != NULL )
+								{
+									focused_index = TLV_GetParentIndex( focused_node, focused_index );
+									focused_node = focused_node->parent;
+								}*/
+
+								focused_node->flag |= ( TLVS_SELECTED | TLVS_FOCUSED );
+
+								g_selected_count = 1;
+							}
+							else
+							{
+								focused_index = -1;
+								g_selected_count = 0;
+							}
+
+							g_focused_node = g_first_selection_node = g_last_selection_node = g_base_selected_node = focused_node;
+							g_focused_index = g_first_selection_index = g_last_selection_index = g_base_selected_index = focused_index;
+
+							SCROLLINFO si;
+							_memzero( &si, sizeof( SCROLLINFO ) );
+							si.cbSize = sizeof( SCROLLINFO );
+							si.fMask = SIF_ALL;
+							_GetScrollInfo( hWnd, SB_VERT, &si );
+
+							offset = Scroll( &si, SCROLL_TYPE_DOWN, offset );
+
+							if ( offset != 0 )
+							{
+								_SetScrollInfo( hWnd, SB_VERT, &si, TRUE );
+							}
+
+							_InvalidateRect( hWnd, &g_client_rc, TRUE );
+
+							if ( !in_worker_thread )
+							{
+								UpdateMenus( true );
+							}
+						}
+
+						//TLV_Scroll( hWnd, 0, SB_PAGEDOWN );
 					}
 					break;
 
 					case VK_END:
 					{
-						TLV_Scroll( hWnd, 0, SB_BOTTOM );
+						if ( g_tree_list != NULL )
+						{
+							ClearDrag();
+							TLV_ClearSelected( false, false );
+
+							TREELISTNODE *focused_node;
+							int focused_index;
+
+							if ( g_tree_list->prev != NULL )
+							{
+								focused_node = g_tree_list->prev;
+							}
+							else
+							{
+								focused_node = g_tree_list;
+							}
+
+							focused_index = g_expanded_item_count - 1;
+
+							if ( focused_node != NULL )
+							{
+								if ( focused_node->is_expanded && focused_node->child != NULL )
+								{
+									if ( focused_node->child->prev != NULL )
+									{
+										focused_node = focused_node->child->prev;
+									}
+									else
+									{
+										focused_node = focused_node->child;
+									}
+								}
+
+								/*if ( focused_node->parent != NULL )
+								{
+									focused_index = TLV_GetParentIndex( focused_node, focused_index );
+									focused_node = focused_node->parent;
+								}*/
+
+								focused_node->flag |= ( TLVS_SELECTED | TLVS_FOCUSED );
+
+								g_selected_count = 1;
+							}
+							else
+							{
+								focused_index = -1;
+								g_selected_count = 0;
+							}
+
+							g_focused_node = g_first_selection_node = g_last_selection_node = g_base_selected_node = focused_node;
+							g_focused_index = g_first_selection_index = g_last_selection_index = g_base_selected_index = focused_index;
+
+							SCROLLINFO si;
+							_memzero( &si, sizeof( SCROLLINFO ) );
+							si.cbSize = sizeof( SCROLLINFO );
+							si.fMask = SIF_ALL;
+							_GetScrollInfo( hWnd, SB_VERT, &si );
+
+							int offset = Scroll( &si, SCROLL_TYPE_DOWN, si.nMax );
+
+							if ( offset != 0 )
+							{
+								_SetScrollInfo( hWnd, SB_VERT, &si, TRUE );
+							}
+
+							_InvalidateRect( hWnd, &g_client_rc, TRUE );
+
+							if ( !in_worker_thread )
+							{
+								UpdateMenus( true );
+							}
+						}
+
+						//TLV_Scroll( hWnd, 0, SB_BOTTOM );
 					}
 					break;
 
 					case VK_HOME:
 					{
-						TLV_Scroll( hWnd, 0, SB_TOP );
+						if ( g_tree_list != NULL )
+						{
+							ClearDrag();
+							TLV_ClearSelected( false, false );
+
+							TREELISTNODE *focused_node = g_tree_list;
+							int focused_index = 0;
+
+							if ( focused_node != NULL )
+							{
+								focused_node->flag |= ( TLVS_SELECTED | TLVS_FOCUSED );
+
+								g_selected_count = 1;
+							}
+							else
+							{
+								focused_index = -1;
+								g_selected_count = 0;
+							}
+
+							g_focused_node = g_first_selection_node = g_last_selection_node = g_base_selected_node = focused_node;
+							g_focused_index = g_first_selection_index = g_last_selection_index = g_base_selected_index = focused_index;
+
+							SCROLLINFO si;
+							_memzero( &si, sizeof( SCROLLINFO ) );
+							si.cbSize = sizeof( SCROLLINFO );
+							si.fMask = SIF_ALL;
+							_GetScrollInfo( hWnd, SB_VERT, &si );
+
+							int offset = Scroll( &si, SCROLL_TYPE_UP, si.nMax );
+
+							if ( offset != 0 )
+							{
+								_SetScrollInfo( hWnd, SB_VERT, &si, TRUE );
+							}
+
+							_InvalidateRect( hWnd, &g_client_rc, TRUE );
+
+							if ( !in_worker_thread )
+							{
+								UpdateMenus( true );
+							}
+						}
+
+						//TLV_Scroll( hWnd, 0, SB_TOP );
 					}
 					break;
 
@@ -4836,7 +5189,7 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 
 		case WM_MOUSEHOVER:
 		{
-			if ( g_tlv_is_tracking == TRUE )
+			if ( g_tlv_is_tracking == TRUE && !g_is_dragging )
 			{
 				TOOLINFO tti;
 				_memzero( &tti, sizeof( TOOLINFO ) );
@@ -4948,10 +5301,16 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 
 		case WM_RBUTTONDOWN:
 		case WM_LBUTTONDOWN:
+		case WM_MBUTTONDOWN:
 		{
 			_SetFocus( hWnd );
 
-			HandleMouseClick( hWnd, ( msg == WM_RBUTTONDOWN ? true : false ) );
+			ClearTooltip( hWnd, g_hWnd_tlv_tooltip );
+
+			if ( msg != WM_MBUTTONDOWN )
+			{
+				HandleMouseClick( hWnd, ( msg == WM_RBUTTONDOWN ? true : false ) );
+			}
 		}
 		break;
 
@@ -5073,6 +5432,10 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 				_ClientToScreen( hWnd, &pt );
 
 				_TrackPopupMenu( g_hMenuSub_download, 0, pt.x, pt.y, 0, hWnd, NULL );
+			}
+			else// if ( msg == WM_KILLFOCUS )
+			{
+				ClearTooltip( hWnd, g_hWnd_tlv_tooltip );
 			}
 
 			return 0;

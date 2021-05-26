@@ -1608,7 +1608,8 @@ THREAD_RETURN handle_connection( void *pArguments )
 									 STATUS_FILE_IO_ERROR |
 									 STATUS_SKIPPED |
 									 STATUS_AUTH_REQUIRED |
-									 STATUS_PROXY_AUTH_REQUIRED ) )	// The download is currently stopped.
+									 STATUS_PROXY_AUTH_REQUIRED |
+									 STATUS_INSUFFICIENT_DISK_SPACE ) )	// The download is currently stopped.
 						{
 							// If this is true, then we've attempted to restart before a connection operation has completed.
 							if ( IS_STATUS( di->status, STATUS_RESTART ) && status == STATUS_STOPPED )

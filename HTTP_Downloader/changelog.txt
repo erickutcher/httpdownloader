@@ -1,3 +1,14 @@
+Version:	1.0.4.3
+Released:	2021-05-26
+
+Fixed allocation stalling when no more disk space.
+Improved keyboard navigation for various windows.
+Fixed deadlock on Windows XP and when running in Wine.
+Fixed SSL/TLS connections stalling when running in Wine.
+Fixed crash when cleaning up GSS before SSL/TLS when running in Wine.
+Update menus to reflect the current state of the focused/selected item.
+Settings file has a new format and will be reset.
+
 Version:	1.0.4.2
 Released:	2021-05-15
 

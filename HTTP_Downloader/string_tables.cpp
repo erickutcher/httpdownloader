@@ -143,6 +143,7 @@ STRING_TABLE_DATA menu_string_table[] =
 	{ L"Time Remaining", 14 },
 	{ L"&Toolbar", 8 },
 	{ L"&Tools", 6 },
+	{ L"&Update Download...\tCtrl+U", 26 },
 	{ L"Update Download...", 18 },
 	{ L"URL", 3 },
 	{ L"&View", 5 }
@@ -462,6 +463,7 @@ STRING_TABLE_DATA common_string_table[] =
 	{ L"HTTP", 4 },
 	{ L"HTTPS", 5 },
 	{ L"Import Download History", 23 },
+	{ L"Insufficient Disk Space", 23 },
 	{ L"Items:", 6 },
 	{ L"Moving File", 11 },
 	{ L"Options", 7 },

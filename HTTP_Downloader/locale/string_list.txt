@@ -101,6 +101,7 @@ Time Elapsed
 Time Remaining
 &Toolbar
 &Tools
+&Update Download...\tCtrl+U
 Update Download...
 URL
 &View
@@ -356,6 +357,7 @@ Global download speed limit (bytes/s):
 HTTP
 HTTPS
 Import Download History
+Insufficient Disk Space
 Items:
 Moving File
 Options
