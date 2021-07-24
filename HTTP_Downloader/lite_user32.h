@@ -48,7 +48,8 @@
 	#define _DestroyMenu			DestroyMenu
 	#define _DestroyWindow			DestroyWindow
 	#define _DispatchMessageW		DispatchMessageW
-	#define _DrawEdge				DrawEdge
+	//#define _DrawEdge				DrawEdge
+	#define _DrawFocusRect			DrawFocusRect
 	#define _DrawIconEx				DrawIconEx
 	//#define _DrawMenuBar			DrawMenuBar
 	#define _DrawTextW				DrawTextW
@@ -83,6 +84,7 @@
 	#define _GetSysColorBrush		GetSysColorBrush
 	#define _GetSystemMetrics		GetSystemMetrics
 	#define _GetWindow				GetWindow
+	#define _GetWindowDC			GetWindowDC
 	//#define _GetWindowLongW			GetWindowLongW
 	#define _GetWindowLongPtrW		GetWindowLongPtrW
 	#define _GetWindowRect			GetWindowRect
@@ -169,7 +171,8 @@
 	typedef BOOL ( WINAPI *pDestroyMenu )( HMENU hMenu );
 	typedef BOOL ( WINAPI *pDestroyWindow )( HWND hWnd );
 	typedef LRESULT ( WINAPI *pDispatchMessageW )( const MSG *lpmsg );
-	typedef BOOL ( WINAPI *pDrawEdge )( HDC hdc, LPRECT qrc, UINT edge, UINT grfFlags );
+	//typedef BOOL ( WINAPI *pDrawEdge )( HDC hdc, LPRECT qrc, UINT edge, UINT grfFlags );
+	typedef BOOL ( WINAPI *pDrawFocusRect )( HDC hDC, const RECT *lprc );
 	typedef BOOL ( WINAPI *pDrawIconEx )( HDC hdc, int xLeft, int yTop, HICON hIcon, int cxWidth, int cyWidth, UINT istepIfAniCur, HBRUSH hbrFlickerFreeDraw, UINT diFlags );
 	//typedef BOOL ( WINAPI *pDrawMenuBar )( HWND hWnd );
 	typedef int ( WINAPI *pDrawTextW )( HDC hDC, LPCTSTR lpchText, int nCount, LPRECT lpRect, UINT uFormat );
@@ -204,6 +207,7 @@
 	typedef HBRUSH ( WINAPI *pGetSysColorBrush )( int nIndex );
 	typedef int ( WINAPI *pGetSystemMetrics )( int nIndex );
 	typedef HWND ( WINAPI *pGetWindow )( HWND hWnd, UINT uCmd );
+	typedef HDC ( WINAPI *pGetWindowDC )( HWND hWnd );
 	//typedef LONG ( WINAPI *pGetWindowLongW )( HWND hWnd, int nIndex );
 	typedef LONG_PTR ( WINAPI *pGetWindowLongPtrW )( HWND hWnd, int nIndex );
 	typedef BOOL ( WINAPI *pGetWindowRect )( HWND hWnd, LPRECT lpRect );
@@ -283,7 +287,8 @@
 	extern pDestroyMenu				_DestroyMenu;
 	extern pDestroyWindow			_DestroyWindow;
 	extern pDispatchMessageW		_DispatchMessageW;
-	extern pDrawEdge				_DrawEdge;
+	//extern pDrawEdge				_DrawEdge;
+	extern pDrawFocusRect			_DrawFocusRect;
 	extern pDrawIconEx				_DrawIconEx;
 	//extern pDrawMenuBar				_DrawMenuBar;
 	extern pDrawTextW				_DrawTextW;
@@ -318,6 +323,7 @@
 	extern pGetSysColorBrush		_GetSysColorBrush;
 	extern pGetSystemMetrics		_GetSystemMetrics;
 	extern pGetWindow				_GetWindow;
+	extern pGetWindowDC				_GetWindowDC;
 	//extern pGetWindowLongW			_GetWindowLongW;
 	extern pGetWindowLongPtrW		_GetWindowLongPtrW;
 	extern pGetWindowRect			_GetWindowRect;

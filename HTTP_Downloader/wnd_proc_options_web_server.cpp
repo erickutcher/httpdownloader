@@ -330,7 +330,7 @@ LRESULT CALLBACK WebServerTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 			g_hWnd_btn_certificate_key_location = _CreateWindowW( WC_BUTTON, ST_V_BTN___, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 35, 283, 35, 23, hWnd, ( HMENU )BTN_CERTIFICATE_KEY, NULL, NULL );
 
 			g_hWnd_static_server_ssl_version = _CreateWindowW( WC_STATIC, ST_V_Server_SSL___TLS_version_, WS_CHILD | WS_VISIBLE, 0, 317, 190, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_server_ssl_version = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_COMBOBOX, NULL, CBS_AUTOHSCROLL | CBS_DROPDOWNLIST | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE, rc.right - 100, 313, 100, 23, hWnd, ( HMENU )CB_SERVER_SSL_VERSION, NULL, NULL );
+			g_hWnd_server_ssl_version = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_COMBOBOX, NULL, CBS_AUTOHSCROLL | CBS_DROPDOWNLIST | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE | CBS_DARK_MODE, rc.right - 100, 313, 100, 23, hWnd, ( HMENU )CB_SERVER_SSL_VERSION, NULL, NULL );
 			_SendMessageW( g_hWnd_server_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_V_SSL_2_0 );
 			_SendMessageW( g_hWnd_server_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_V_SSL_3_0 );
 			_SendMessageW( g_hWnd_server_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_V_TLS_1_0 );

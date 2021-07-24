@@ -22,7 +22,6 @@
 #include "lite_ole32.h"
 #include "lite_comctl32.h"
 #include "lite_winmm.h"
-//#include "lite_uxtheme.h"
 
 #include "list_operations.h"
 #include "file_operations.h"
@@ -46,6 +45,8 @@
 
 #include "treelistview.h"
 #include "cmessagebox.h"
+
+#include "dark_mode.h"
 
 HWND g_hWnd_toolbar = NULL;
 HWND g_hWnd_files_columns = NULL;		// The header control window for the listview.
@@ -99,9 +100,7 @@ UINT WM_TASKBARBUTTONCREATED = 0;
 
 #define IDT_UPDATE_CHECK_TIMER	10000
 
-
 /////////////////////////////////////////////////////
-
 
 VOID CALLBACK UpdateCheckTimerProc( HWND hWnd, UINT /*msg*/, UINT /*idTimer*/, DWORD /*dwTime*/ )
 {
@@ -112,7 +111,7 @@ VOID CALLBACK UpdateCheckTimerProc( HWND hWnd, UINT /*msg*/, UINT /*idTimer*/, D
 		// Create the update window so that our update check can send messages to it.
 		if ( g_hWnd_check_for_updates == NULL )
 		{
-			g_hWnd_check_for_updates = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"check_for_updates", L"Check For Updates", WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU, ( ( _GetSystemMetrics( SM_CXSCREEN ) - 400 ) / 2 ), ( ( _GetSystemMetrics( SM_CYSCREEN ) - 135 ) / 2 ), 400, 135, NULL, NULL, NULL, NULL );
+			g_hWnd_check_for_updates = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"class_check_for_updates", L"Check For Updates", WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU, ( ( _GetSystemMetrics( SM_CXSCREEN ) - 400 ) / 2 ), ( ( _GetSystemMetrics( SM_CYSCREEN ) - 135 ) / 2 ), 400, 135, NULL, NULL, NULL, NULL );
 
 			g_update_check_state = 2;	// Automatic update check.
 
@@ -1367,6 +1366,14 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 			}
 			_SetWindowPos( hWnd, NULL, pos_x, pos_y, cfg_width, cfg_height, 0 );
 
+#ifdef ENABLE_DARK_MODE
+			if ( g_use_dark_mode )
+			{
+				_EnumChildWindows( hWnd, EnumChildProc, NULL );
+				_EnumThreadWindows( GetCurrentThreadId(), EnumTLWProc, NULL );
+			}
+#endif
+
 			return 0;
 		}
 		break;
@@ -1929,7 +1936,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 			{
 				if ( g_hWnd_add_urls == NULL )
 				{
-					g_hWnd_add_urls = _CreateWindowExW( ( g_is_windows_8_or_higher ? 0 : WS_EX_COMPOSITED ) | ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"add_urls", ST_V_Add_URL_s_, WS_CLIPCHILDREN | WS_OVERLAPPEDWINDOW, ( ( _GetSystemMetrics( SM_CXSCREEN ) - 600 ) / 2 ), ( ( _GetSystemMetrics( SM_CYSCREEN ) - 270 ) / 2 ), 600, 270, NULL, NULL, NULL, NULL );
+					g_hWnd_add_urls = _CreateWindowExW( ( g_is_windows_8_or_higher ? 0 : WS_EX_COMPOSITED ) | ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"class_add_urls", ST_V_Add_URL_s_, WS_CLIPCHILDREN | WS_OVERLAPPEDWINDOW, ( ( _GetSystemMetrics( SM_CXSCREEN ) - 600 ) / 2 ), ( ( _GetSystemMetrics( SM_CYSCREEN ) - 270 ) / 2 ), 600, 270, NULL, NULL, NULL, NULL );
 				}
 
 				_SendMessageW( g_hWnd_add_urls, WM_PROPAGATE, wParam, lParam );
@@ -2282,6 +2289,43 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 			return TRUE;
 		}
 		break;
+
+#ifdef ENABLE_DARK_MODE
+		// Get rid of the stupid line below the menu bar.
+		case WM_NCPAINT:
+		case WM_NCACTIVATE:
+		{
+			// Draw our scrollbars if there's any.
+			LRESULT ret = _DefWindowProcW( hWnd, msg, wParam, lParam );
+
+			if ( g_use_dark_mode )
+			{
+				MENUBARINFO mbi;
+				mbi.cbSize = sizeof( MENUBARINFO );
+				_GetMenuBarInfo( hWnd, OBJID_MENU, 0, &mbi );
+
+				RECT rc;
+				_GetWindowRect( hWnd, &rc );
+
+				_OffsetRect( &mbi.rcBar, -rc.left, -rc.top );
+
+				HDC hDC = _GetWindowDC( hWnd );
+
+				HPEN line_color = _CreatePen( PS_SOLID, 1, dm_color_window_border );
+				HPEN old_color = ( HPEN )_SelectObject( hDC, line_color );
+				_DeleteObject( old_color );
+
+				_MoveToEx( hDC, mbi.rcBar.left, mbi.rcBar.bottom, NULL );
+				_LineTo( hDC, mbi.rcBar.right, mbi.rcBar.bottom );
+				_DeleteObject( line_color );
+
+				_ReleaseDC( hWnd, hDC );
+			}
+
+			return ret;
+		}
+		break;
+#endif
 
 		default:
 		{

@@ -188,7 +188,7 @@ LRESULT CALLBACK ConnectionTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 			//
 
 			HWND hWnd_static_ssl_version = _CreateWindowW( WC_STATIC, ST_V_Default_SSL___TLS_version_, WS_CHILD | WS_VISIBLE, 0, 200, 190, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_default_ssl_version = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_COMBOBOX, NULL, CBS_AUTOHSCROLL | CBS_DROPDOWNLIST | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE, rc.right - 100, 196, 100, 23, hWnd, ( HMENU )CB_DEFAULT_SSL_VERSION, NULL, NULL );
+			g_hWnd_default_ssl_version = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_COMBOBOX, NULL, CBS_AUTOHSCROLL | CBS_DROPDOWNLIST | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE | CBS_DARK_MODE, rc.right - 100, 196, 100, 23, hWnd, ( HMENU )CB_DEFAULT_SSL_VERSION, NULL, NULL );
 			_SendMessageW( g_hWnd_default_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_V_SSL_2_0 );
 			_SendMessageW( g_hWnd_default_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_V_SSL_3_0 );
 			_SendMessageW( g_hWnd_default_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_V_TLS_1_0 );

@@ -108,6 +108,11 @@ void SelectSFTPFpsHostItem( int index )
 	SFTP_FPS_HOST_INFO *sfhi = ( SFTP_FPS_HOST_INFO * )lvi.lParam;
 	if ( sfhi != NULL && ( lvi.state & LVIS_SELECTED ) )
 	{
+		if ( sfhi == g_selected_fps_host_info )
+		{
+			return;
+		}
+
 		g_selected_fps_host_info = sfhi;
 		g_selected_fps_host_index = index;
 
@@ -258,7 +263,7 @@ LRESULT CALLBACK SFTPFpsTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 			g_hWnd_edit_sftp_fps_host = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 350, 200, 23, hWnd, ( HMENU )EDIT_SFH_HOST, NULL, NULL );
 
 			HWND hWnd_static_sftp_fps_key_algorithm = _CreateWindowW( WC_STATIC, ST_V_Host_key_algorithm_, WS_CHILD | WS_VISIBLE, 205, 335, 140, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_cb_sftp_fps_key_algorithm = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_COMBOBOX, NULL, CBS_AUTOHSCROLL | CBS_DROPDOWN | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE, 205, 350, 140, 23, hWnd, ( HMENU )CB_SFH_KEY_ALGORITHM, NULL, NULL );
+			g_hWnd_cb_sftp_fps_key_algorithm = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_COMBOBOX, NULL, CBS_AUTOHSCROLL | CBS_DROPDOWN | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE | CBS_DARK_MODE, 205, 350, 140, 23, hWnd, ( HMENU )CB_SFH_KEY_ALGORITHM, NULL, NULL );
 
 			_SendMessageW( g_hWnd_cb_sftp_fps_key_algorithm, CB_ADDSTRING, 0, ( LPARAM )ST_V_ecdsa_sha2_nistp256 );
 			_SendMessageW( g_hWnd_cb_sftp_fps_key_algorithm, CB_ADDSTRING, 0, ( LPARAM )ST_V_ecdsa_sha2_nistp384 );
@@ -492,21 +497,54 @@ LRESULT CALLBACK SFTPFpsTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 					return TRUE;
 				}
 
-				// Alternate item color's background.
-				if ( dis->itemID & 1 )	// Even rows will have a light grey background.
+#ifdef ENABLE_DARK_MODE
+				if ( g_use_dark_mode )
 				{
-					HBRUSH color = _CreateSolidBrush( ( COLORREF )RGB( 0xF7, 0xF7, 0xF7 ) );
+					// Alternate item color's background.
+					HBRUSH color;
+					if ( dis->itemID & 1 )	// Even rows will have a dark grey background.
+					{
+						color = _CreateSolidBrush( dm_color_edit_background );
+					}
+					else
+					{
+						color = _CreateSolidBrush( ( COLORREF )RGB( 0x00, 0x00, 0x00 ) );
+					}
 					_FillRect( dis->hDC, &dis->rcItem, color );
 					_DeleteObject( color );
+				}
+				else
+#endif
+				{
+					// Alternate item color's background.
+					if ( dis->itemID & 1 )	// Even rows will have a light grey background.
+					{
+						HBRUSH color = _CreateSolidBrush( ( COLORREF )RGB( 0xF7, 0xF7, 0xF7 ) );
+						_FillRect( dis->hDC, &dis->rcItem, color );
+						_DeleteObject( color );
+					}
 				}
 
 				// Set the selected item's color.
 				bool selected = false;
 				if ( dis->itemState & ( ODS_FOCUS || ODS_SELECTED ) )
 				{
-					HBRUSH color = _CreateSolidBrush( ( COLORREF )_GetSysColor( COLOR_HIGHLIGHT ) );
+					HBRUSH color;
+
+#ifdef ENABLE_DARK_MODE
+					if ( g_use_dark_mode )
+					{
+						color = _CreateSolidBrush( dm_color_list_highlight );
+					}
+					else
+#endif
+					{
+						color = _CreateSolidBrush( ( COLORREF )_GetSysColor( COLOR_HIGHLIGHT ) );
+					}
+
 					_FillRect( dis->hDC, &dis->rcItem, color );
 					_DeleteObject( color );
+
 					selected = true;
 				}
 
@@ -603,11 +641,23 @@ LRESULT CALLBACK SFTPFpsTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 					// Transparent background for text.
 					_SetBkMode( hdcMem, TRANSPARENT );
 
+					HBRUSH color;
+
 					// Draw selected text
 					if ( selected )
 					{
+#ifdef ENABLE_DARK_MODE
+						if ( g_use_dark_mode )
+						{
+							color = _CreateSolidBrush( dm_color_list_highlight );
+						}
+						else
+#endif
+						{
+							color = _CreateSolidBrush( ( COLORREF )_GetSysColor( COLOR_HIGHLIGHT ) );
+						}
+
 						// Fill the background.
-						HBRUSH color = _CreateSolidBrush( ( COLORREF )_GetSysColor( COLOR_HIGHLIGHT ) );
 						_FillRect( hdcMem, &rc, color );
 						_DeleteObject( color );
 
@@ -618,21 +668,71 @@ LRESULT CALLBACK SFTPFpsTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 					}
 					else	// Draw normal text.
 					{
-						// Fill the background.
-						HBRUSH color = _CreateSolidBrush( ( COLORREF )_GetSysColor( COLOR_WINDOW ) );
-						_FillRect( hdcMem, &rc, color );
-						_DeleteObject( color );
+#ifdef ENABLE_DARK_MODE
+						if ( g_use_dark_mode )
+						{
+							// Fill the background.
+							color = _CreateSolidBrush( ( dis->itemID & 1 ? dm_color_edit_background : ( COLORREF )RGB( 0x00, 0x00, 0x00 ) ) );
+							_FillRect( hdcMem, &rc, color );
+							_DeleteObject( color );
 
-						// Black text.
-						_SetTextColor( hdcMem, ( sfhi->temporary ? ( COLORREF )RGB( 0xFF, 0x40, 0x00 ) : _GetSysColor( COLOR_WINDOWTEXT ) ) );
-						_DrawTextW( hdcMem, buf, -1, &rc, DT_NOPREFIX | DT_SINGLELINE | DT_ALIGN | DT_VCENTER | DT_END_ELLIPSIS );
-						_BitBlt( dis->hDC, dis->rcItem.left + last_rc.left, last_rc.top, width, height, hdcMem, 0, 0, SRCAND );
+							// White text.
+							_SetTextColor( hdcMem, ( sfhi->temporary ? ( COLORREF )RGB( 0xFF, 0x40, 0x00 ) : dm_color_window_text ) );
+							_DrawTextW( hdcMem, buf, -1, &rc, DT_NOPREFIX | DT_SINGLELINE | DT_ALIGN | DT_VCENTER | DT_END_ELLIPSIS );
+							_BitBlt( dis->hDC, dis->rcItem.left + last_rc.left, last_rc.top, width, height, hdcMem, 0, 0, SRCCOPY );
+						}
+						else
+#endif
+						{
+							// Fill the background.
+							color = _CreateSolidBrush( ( COLORREF )_GetSysColor( COLOR_WINDOW ) );
+							_FillRect( hdcMem, &rc, color );
+							_DeleteObject( color );
+
+							// Black text.
+							_SetTextColor( hdcMem, ( sfhi->temporary ? ( COLORREF )RGB( 0xFF, 0x40, 0x00 ) : _GetSysColor( COLOR_WINDOWTEXT ) ) );
+							_DrawTextW( hdcMem, buf, -1, &rc, DT_NOPREFIX | DT_SINGLELINE | DT_ALIGN | DT_VCENTER | DT_END_ELLIPSIS );
+							_BitBlt( dis->hDC, dis->rcItem.left + last_rc.left, last_rc.top, width, height, hdcMem, 0, 0, SRCAND );
+						}
 					}
 
 					// Delete our back buffer.
 					_DeleteDC( hdcMem );
 				}
+
+				if ( dis->itemState & ODS_FOCUS )
+				{
+					DWORD ui_state = ( DWORD )_SendMessageW( hWnd, WM_QUERYUISTATE, 0, 0 );
+					if ( !( ui_state & UISF_HIDEFOCUS ) && dis->hwndItem == _GetFocus() )
+					{
+#ifdef ENABLE_DARK_MODE
+						if ( g_use_dark_mode )
+						{
+							LOGBRUSH lb;
+							lb.lbColor = dm_color_focus_rectangle;
+							lb.lbStyle = PS_SOLID;
+							HPEN hPen = _ExtCreatePen( PS_COSMETIC | PS_ALTERNATE, 1, &lb, 0, NULL );
+							HPEN old_color = ( HPEN )_SelectObject( dis->hDC, hPen );
+							_DeleteObject( old_color );
+							HBRUSH old_brush = ( HBRUSH )_SelectObject( dis->hDC, _GetStockObject( NULL_BRUSH ) );
+							_DeleteObject( old_brush );
+							_Rectangle( dis->hDC, dis->rcItem.left, dis->rcItem.top, dis->rcItem.right, dis->rcItem.bottom - 1 );
+							_DeleteObject( hPen );
+						}
+						else
+#endif
+						{
+							RECT rc;
+							rc.left = dis->rcItem.left;
+							rc.top = dis->rcItem.top;
+							rc.right = dis->rcItem.right;
+							rc.bottom = dis->rcItem.bottom - 1;
+							_DrawFocusRect( dis->hDC, &rc );
+						}
+					}
+				}
 			}
+
 			return TRUE;
 		}
 		break;

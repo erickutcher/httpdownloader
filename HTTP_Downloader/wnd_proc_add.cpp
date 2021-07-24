@@ -36,6 +36,8 @@
 #include "wnd_proc.h"
 #include "cmessagebox.h"
 
+#include "dark_mode.h"
+
 #define MIN_ADVANCED_HEIGHT					510
 #define MIN_SIMPLE_HEIGHT					270
 
@@ -312,6 +314,8 @@ void ShowHideAddProxyWindows( int index )
 
 			_ShowWindow( g_hWnd_chk_add_resolve_domain_names_v4a, SW_HIDE );
 
+			_SendMessageW( g_hWnd_chk_add_type_hostname_socks, WM_SETTEXT, 0, ( LPARAM )ST_V_Hostname___IPv6_address_ );
+
 			_ShowWindow( g_hWnd_chk_add_use_authentication_socks, SW_HIDE );
 
 			_ShowWindow( g_hWnd_static_add_auth_username_socks, SW_HIDE );
@@ -587,7 +591,7 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 			g_hWnd_static_ssl_version = _CreateWindowW( WC_STATIC, ST_V_SSL___TLS_version_, WS_CHILD, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 			// Needs dimensions so that list displays in XP.
-			g_hWnd_ssl_version = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_COMBOBOX, NULL, CBS_AUTOHSCROLL | CBS_DROPDOWNLIST | WS_CHILD | WS_TABSTOP | WS_VSCROLL, 0, 0, 100, 23, hWnd, NULL, NULL, NULL );
+			g_hWnd_ssl_version = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_COMBOBOX, NULL, CBS_AUTOHSCROLL | CBS_DROPDOWNLIST | WS_CHILD | WS_TABSTOP | WS_VSCROLL | CBS_DARK_MODE, 0, 0, 100, 23, hWnd, NULL, NULL, NULL );
 			_SendMessageW( g_hWnd_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_V_Default );
 			_SendMessageW( g_hWnd_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_V_SSL_2_0 );
 			_SendMessageW( g_hWnd_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_V_SSL_3_0 );
@@ -623,7 +627,7 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 			g_hWnd_static_add_proxy_type = _CreateWindowW( WC_STATIC, ST_V_Use_proxy_, WS_CHILD, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 			// Needs dimensions so that list displays in XP.
-			g_hWnd_add_proxy_type = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_COMBOBOX, NULL, CBS_AUTOHSCROLL | CBS_DROPDOWNLIST | WS_CHILD | WS_TABSTOP | WS_VSCROLL, 0, 0, 100, 23, hWnd, ( HMENU )CB_ADD_PROXY_TYPE, NULL, NULL );
+			g_hWnd_add_proxy_type = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_COMBOBOX, NULL, CBS_AUTOHSCROLL | CBS_DROPDOWNLIST | WS_CHILD | WS_TABSTOP | WS_VSCROLL | CBS_DARK_MODE, 0, 0, 100, 23, hWnd, ( HMENU )CB_ADD_PROXY_TYPE, NULL, NULL );
 			_SendMessageW( g_hWnd_add_proxy_type, CB_ADDSTRING, 0, ( LPARAM )ST_V_Default );
 			_SendMessageW( g_hWnd_add_proxy_type, CB_ADDSTRING, 0, ( LPARAM )ST_V_HTTP );
 			_SendMessageW( g_hWnd_add_proxy_type, CB_ADDSTRING, 0, ( LPARAM )ST_V_HTTPS );
@@ -705,9 +709,9 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			// Need these windows to be created last to preserve tab order.
 
 			DWORD enabled = ( pcre2_state == PCRE2_STATE_RUNNING ? 0 : WS_DISABLED );
-			g_hWnd_static_regex_filter = _CreateWindowW( WC_STATIC, ST_V_RegEx_filter_, SS_OWNERDRAW | WS_CHILD | WS_VISIBLE | enabled, 85, 14, 90, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_static_regex_filter = _CreateWindowW( WC_STATIC, ST_V_RegEx_filter_, /*SS_OWNERDRAW |*/ WS_CHILD | WS_VISIBLE | enabled, 85, 14, 90, 15, hWnd, NULL, NULL, NULL );
 			// Needs dimensions so that list displays in XP.
-			g_hWnd_regex_filter_preset = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_COMBOBOX, NULL, CBS_AUTOHSCROLL | CBS_DROPDOWNLIST | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE | enabled, 0, 0, 80, 23, hWnd, ( HMENU )CB_REGEX_FILTER_PRESET, NULL, NULL );
+			g_hWnd_regex_filter_preset = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_COMBOBOX, NULL, CBS_AUTOHSCROLL | CBS_DROPDOWNLIST | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE | enabled | CBS_DARK_MODE, 0, 0, 80, 23, hWnd, ( HMENU )CB_REGEX_FILTER_PRESET, NULL, NULL );
 			_SendMessageW( g_hWnd_regex_filter_preset, CB_ADDSTRING, 0, ( LPARAM )ST_V_Custom );
 			_SendMessageW( g_hWnd_regex_filter_preset, CB_ADDSTRING, 0, ( LPARAM )ST_V_Images );
 			_SendMessageW( g_hWnd_regex_filter_preset, CB_ADDSTRING, 0, ( LPARAM )ST_V_Music );
@@ -866,11 +870,19 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			_GetMonitorInfoW( hMon, &mi );
 			_SetWindowPos( hWnd, NULL, mi.rcMonitor.left + ( ( ( mi.rcMonitor.right - mi.rcMonitor.left ) - 600 ) / 2 ), mi.rcMonitor.top + ( ( ( mi.rcMonitor.bottom - mi.rcMonitor.top ) - 270 ) / 2 ), 600, 270, 0 );
 
+#ifdef ENABLE_DARK_MODE
+			if ( g_use_dark_mode )
+			{
+				_EnumChildWindows( hWnd, EnumChildProc, NULL );
+				_EnumThreadWindows( GetCurrentThreadId(), EnumTLWProc, NULL );
+			}
+#endif
+
 			return 0;
 		}
 		break;
 
-		case WM_DRAWITEM:
+		/*case WM_DRAWITEM:
 		{
 			DRAWITEMSTRUCT *dis = ( DRAWITEMSTRUCT * )lParam;
 
@@ -891,7 +903,7 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 			return TRUE;
 		}
-		break;
+		break;*/
 
 		case WM_CTLCOLORSTATIC:
 		{
@@ -1663,9 +1675,6 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 					int sw_type = ( g_show_advanced ? SW_SHOW : SW_HIDE );
 
-					_ShowWindow( g_hWnd_advanced_add_tab, sw_type );
-					ShowHideAddTabs( sw_type );
-
 					// Adjust the window height.
 					RECT rc;
 					_GetWindowRect( hWnd, &rc );
@@ -1681,6 +1690,9 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 							_SetWindowPos( hWnd, NULL, 0, 0, rc.right - rc.left, ( rc.bottom - rc.top ) - ( MIN_ADVANCED_HEIGHT - MIN_SIMPLE_HEIGHT ), SWP_NOMOVE );
 						}
 					}
+
+					_ShowWindow( g_hWnd_advanced_add_tab, sw_type );
+					ShowHideAddTabs( sw_type );
 
 					// Force a resize of our controls.
 					_SendMessageW( hWnd, WM_SIZE, 0, 0 );

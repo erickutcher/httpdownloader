@@ -27,6 +27,8 @@
 
 #include "wnd_proc.h"
 
+#include "dark_mode.h"
+
 #define EDIT_UPDATE_DOWNLOAD_PARTS	1000
 #define EDIT_UPDATE_SPEED_LIMIT		1001
 #define CHK_UPDATE_SEND_DATA		1002
@@ -308,6 +310,8 @@ void ShowHideUpdateProxyWindows( int index )
 
 			_ShowWindow( g_hWnd_chk_update_resolve_domain_names_v4a, SW_HIDE );
 
+			_SendMessageW( g_hWnd_chk_update_type_hostname_socks, WM_SETTEXT, 0, ( LPARAM )ST_V_Hostname___IPv6_address_ );
+
 			_ShowWindow( g_hWnd_chk_update_use_authentication_socks, SW_HIDE );
 
 			_ShowWindow( g_hWnd_static_update_auth_username_socks, SW_HIDE );
@@ -551,7 +555,7 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 
 			g_hWnd_static_update_ssl_version = _CreateWindowW( WC_STATIC, ST_V_SSL___TLS_version_, WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 			// Needs dimensions so that list displays in XP.
-			g_hWnd_update_ssl_version = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_COMBOBOX, NULL, CBS_AUTOHSCROLL | CBS_DROPDOWNLIST | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE, 0, 0, 100, 23, hWnd, NULL, NULL, NULL );
+			g_hWnd_update_ssl_version = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_COMBOBOX, NULL, CBS_AUTOHSCROLL | CBS_DROPDOWNLIST | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE | CBS_DARK_MODE, 0, 0, 100, 23, hWnd, NULL, NULL, NULL );
 			_SendMessageW( g_hWnd_update_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_V_SSL_2_0 );
 			_SendMessageW( g_hWnd_update_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_V_SSL_3_0 );
 			_SendMessageW( g_hWnd_update_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_V_TLS_1_0 );
@@ -584,7 +588,7 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 
 			g_hWnd_static_update_proxy_type = _CreateWindowW( WC_STATIC, ST_V_Use_proxy_, WS_CHILD, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 			// Needs dimensions so that list displays in XP.
-			g_hWnd_update_proxy_type = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_COMBOBOX, NULL, CBS_AUTOHSCROLL | CBS_DROPDOWNLIST | WS_CHILD | WS_TABSTOP | WS_VSCROLL, 0, 0, 100, 23, hWnd, ( HMENU )CB_UPDATE_PROXY_TYPE, NULL, NULL );
+			g_hWnd_update_proxy_type = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_COMBOBOX, NULL, CBS_AUTOHSCROLL | CBS_DROPDOWNLIST | WS_CHILD | WS_TABSTOP | WS_VSCROLL | CBS_DARK_MODE, 0, 0, 100, 23, hWnd, ( HMENU )CB_UPDATE_PROXY_TYPE, NULL, NULL );
 			_SendMessageW( g_hWnd_update_proxy_type, CB_ADDSTRING, 0, ( LPARAM )ST_V_Default );
 			_SendMessageW( g_hWnd_update_proxy_type, CB_ADDSTRING, 0, ( LPARAM )ST_V_HTTP );
 			_SendMessageW( g_hWnd_update_proxy_type, CB_ADDSTRING, 0, ( LPARAM )ST_V_HTTPS );
@@ -747,6 +751,14 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 			mi.cbSize = sizeof( MONITORINFO );
 			_GetMonitorInfoW( hMon, &mi );
 			_SetWindowPos( hWnd, NULL, mi.rcMonitor.left + ( ( ( mi.rcMonitor.right - mi.rcMonitor.left ) - 600 ) / 2 ), mi.rcMonitor.top + ( ( ( mi.rcMonitor.bottom - mi.rcMonitor.top ) - 370 ) / 2 ), 600, 370, 0 );
+
+#ifdef ENABLE_DARK_MODE
+			if ( g_use_dark_mode )
+			{
+				_EnumChildWindows( hWnd, EnumChildProc, NULL );
+				_EnumThreadWindows( GetCurrentThreadId(), EnumTLWProc, NULL );
+			}
+#endif
 
 			return 0;
 		}

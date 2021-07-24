@@ -98,7 +98,7 @@ LRESULT CALLBACK AdvancedTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 			g_hWnd_chk_resume_downloads = _CreateWindowW( WC_BUTTON, ST_V_Resume_previously_downloading, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 120, rc.right, 20, hWnd, ( HMENU )BTN_RESUME_DOWNLOADS, NULL, NULL );
 
 			HWND hWnd_static_drag_and_drop_action = _CreateWindowW( WC_STATIC, ST_V_Drag_and_drop_URL_s__action_, WS_CHILD | WS_VISIBLE, 0, 149, rc.right - 155, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_drag_and_drop_action = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_COMBOBOX, NULL, CBS_AUTOHSCROLL | CBS_DROPDOWNLIST | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE, rc.right - 150, 145, 150, 23, hWnd, ( HMENU )CB_DRAG_AND_DROP_ACTION, NULL, NULL );
+			g_hWnd_drag_and_drop_action = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_COMBOBOX, NULL, CBS_AUTOHSCROLL | CBS_DROPDOWNLIST | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE | CBS_DARK_MODE, rc.right - 150, 145, 150, 23, hWnd, ( HMENU )CB_DRAG_AND_DROP_ACTION, NULL, NULL );
 			_SendMessageW( g_hWnd_drag_and_drop_action, CB_ADDSTRING, 0, ( LPARAM )ST_V_None );
 			_SendMessageW( g_hWnd_drag_and_drop_action, CB_ADDSTRING, 0, ( LPARAM )ST_V_Download_immediately );
 			_SendMessageW( g_hWnd_drag_and_drop_action, CB_ADDSTRING, 0, ( LPARAM )ST_V_Add_in_Stopped_state );
@@ -107,7 +107,7 @@ LRESULT CALLBACK AdvancedTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 
 
 			HWND hWnd_static_prompt_last_modified = _CreateWindowW( WC_STATIC, ST_V_When_a_file_has_been_modified_, WS_CHILD | WS_VISIBLE, 0, 177, rc.right - 155, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_prompt_last_modified = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_COMBOBOX, NULL, CBS_AUTOHSCROLL | CBS_DROPDOWNLIST | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE, rc.right - 150, 173, 150, 23, hWnd, ( HMENU )CB_PROMPT_LAST_MODIFIED, NULL, NULL );
+			g_hWnd_prompt_last_modified = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_COMBOBOX, NULL, CBS_AUTOHSCROLL | CBS_DROPDOWNLIST | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE | CBS_DARK_MODE, rc.right - 150, 173, 150, 23, hWnd, ( HMENU )CB_PROMPT_LAST_MODIFIED, NULL, NULL );
 			_SendMessageW( g_hWnd_prompt_last_modified, CB_ADDSTRING, 0, ( LPARAM )ST_V_Display_Prompt );
 			_SendMessageW( g_hWnd_prompt_last_modified, CB_ADDSTRING, 0, ( LPARAM )ST_V_Continue_Download );
 			_SendMessageW( g_hWnd_prompt_last_modified, CB_ADDSTRING, 0, ( LPARAM )ST_V_Restart_Download );
@@ -117,7 +117,7 @@ LRESULT CALLBACK AdvancedTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 
 
 			HWND hWnd_static_prompt_rename = _CreateWindowW( WC_STATIC, ST_V_When_a_file_already_exists_, WS_CHILD | WS_VISIBLE, 0, 205, rc.right - 155, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_prompt_rename = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_COMBOBOX, NULL, CBS_AUTOHSCROLL | CBS_DROPDOWNLIST | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE, rc.right - 150, 201, 150, 23, hWnd, ( HMENU )CB_PROMPT_RENAME, NULL, NULL );
+			g_hWnd_prompt_rename = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_COMBOBOX, NULL, CBS_AUTOHSCROLL | CBS_DROPDOWNLIST | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE | CBS_DARK_MODE, rc.right - 150, 201, 150, 23, hWnd, ( HMENU )CB_PROMPT_RENAME, NULL, NULL );
 			_SendMessageW( g_hWnd_prompt_rename, CB_ADDSTRING, 0, ( LPARAM )ST_V_Display_Prompt );
 			_SendMessageW( g_hWnd_prompt_rename, CB_ADDSTRING, 0, ( LPARAM )ST_V_Rename_File );
 			_SendMessageW( g_hWnd_prompt_rename, CB_ADDSTRING, 0, ( LPARAM )ST_V_Overwrite_File );
@@ -153,7 +153,7 @@ LRESULT CALLBACK AdvancedTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 			_SendMessageA( g_hWnd_max_file_size, WM_SETTEXT, 0, ( LPARAM )value );
 
 
-			g_hWnd_prompt_file_size = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_COMBOBOX, NULL, CBS_AUTOHSCROLL | CBS_DROPDOWNLIST | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE, rc.right - 150, 229, 150, 23, hWnd, ( HMENU )CB_PROMPT_FILE_SIZE, NULL, NULL );
+			g_hWnd_prompt_file_size = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_COMBOBOX, NULL, CBS_AUTOHSCROLL | CBS_DROPDOWNLIST | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE | CBS_DARK_MODE, rc.right - 150, 229, 150, 23, hWnd, ( HMENU )CB_PROMPT_FILE_SIZE, NULL, NULL );
 			_SendMessageW( g_hWnd_prompt_file_size, CB_ADDSTRING, 0, ( LPARAM )ST_V_Display_Prompt );
 			_SendMessageW( g_hWnd_prompt_file_size, CB_ADDSTRING, 0, ( LPARAM )ST_V_Continue_Download );
 			_SendMessageW( g_hWnd_prompt_file_size, CB_ADDSTRING, 0, ( LPARAM )ST_V_Skip_Download );
@@ -162,7 +162,7 @@ LRESULT CALLBACK AdvancedTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 
 
 			HWND hWnd_static_shutdown_action = _CreateWindowW( WC_STATIC, ST_V_System_shutdown_action_, WS_CHILD | WS_VISIBLE, 0, 261, rc.right - 155, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_shutdown_action = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_COMBOBOX, NULL, CBS_AUTOHSCROLL | CBS_DROPDOWNLIST | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE, rc.right - 150, 257, 150, 23, hWnd, ( HMENU )CB_SHUTDOWN_ACTION, NULL, NULL );
+			g_hWnd_shutdown_action = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_COMBOBOX, NULL, CBS_AUTOHSCROLL | CBS_DROPDOWNLIST | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE | CBS_DARK_MODE, rc.right - 150, 257, 150, 23, hWnd, ( HMENU )CB_SHUTDOWN_ACTION, NULL, NULL );
 
 			_SendMessageW( g_hWnd_shutdown_action, CB_ADDSTRING, 0, ( LPARAM )ST_V_None );
 			_SendMessageW( g_hWnd_shutdown_action, CB_ADDSTRING, 0, ( LPARAM )ST_V_Exit_program );

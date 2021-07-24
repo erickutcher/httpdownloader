@@ -487,6 +487,36 @@ LRESULT CALLBACK TreeViewSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPa
 			}
 		}
 		break;
+
+		case WM_GETDLGCODE:
+		{
+			// Don't process the tab key if we're focusing on a window with scrollbars.
+			if ( wParam == VK_TAB && !( _GetKeyState( VK_SHIFT ) & 0x8000 ) )
+			{
+				HTREEITEM hti = NULL;
+
+				TVITEM tvi;
+				_memzero( &tvi, sizeof( TVITEM ) );
+				tvi.mask = TVIF_PARAM;
+				tvi.hItem = ( HTREEITEM )_SendMessageW( hWnd, TVM_GETNEXTITEM, TVGN_CARET, ( LPARAM )hti );
+				_SendMessageW( hWnd, TVM_GETITEM, 0, ( LPARAM )&tvi );
+
+				HWND hWnd_next = *( HWND * )tvi.lParam;
+
+				// We're cheating here. Ideally we'd detect which window has scrollbars, but we already know that the appearance tab does.
+				if ( hWnd_next == g_hWnd_appearance_tab )
+				{
+					// returning DLGC_WANTTAB will cause a beep.
+					LRESULT ret = _CallWindowProcW( TreeViewProc, hWnd, msg, wParam, lParam );
+
+					// Can't do SetFocus() here otherwise it focuses on the listview in the appearance tab instead of the window itself.
+					_PostMessageW( *( HWND * )tvi.lParam, WM_PROPAGATE, 0, 0 );
+
+					return ret;
+				}
+			}
+		}
+		break;
 	}
 
 	return _CallWindowProcW( TreeViewProc, hWnd, msg, wParam, lParam );
@@ -592,16 +622,16 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			_SendMessageW( g_hWnd_options_tree, TVM_INSERTITEM, 0, ( LPARAM )&tvis );
 
 			// WS_EX_CONTROLPARENT for tab key access.
-			g_hWnd_general_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"general_tab", NULL, WS_CHILD | WS_TABSTOP | WS_VISIBLE, 140, 10, rc.right - 150, rc.bottom - 50, hWnd, NULL, NULL, NULL );
-			g_hWnd_appearance_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"appearance_tab", NULL, WS_VSCROLL | WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, rc.bottom - 50, hWnd, NULL, NULL, NULL );
-			g_hWnd_connection_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"connection_tab", NULL, WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, rc.bottom - 50, hWnd, NULL, NULL, NULL );
-			g_hWnd_web_server_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"web_server_tab", NULL, WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, rc.bottom - 50, hWnd, NULL, NULL, NULL );
-			g_hWnd_ftp_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"ftp_tab", NULL, WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, rc.bottom - 50, hWnd, NULL, NULL, NULL );
-			g_hWnd_sftp_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"sftp_tab", NULL, WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, rc.bottom - 50, hWnd, NULL, NULL, NULL );
-			g_hWnd_sftp_fps_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"sftp_fps_tab", NULL, WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, rc.bottom - 50, hWnd, NULL, NULL, NULL );
-			g_hWnd_sftp_keys_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"sftp_keys_tab", NULL, WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, rc.bottom - 50, hWnd, NULL, NULL, NULL );
-			g_hWnd_proxy_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"proxy_tab", NULL, WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, rc.bottom - 50, hWnd, NULL, NULL, NULL );
-			g_hWnd_advanced_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"advanced_tab", NULL, WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, rc.bottom - 50, hWnd, NULL, NULL, NULL );
+			g_hWnd_general_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"class_general_tab", NULL, WS_CHILD | WS_TABSTOP | WS_VISIBLE, 140, 10, rc.right - 150, rc.bottom - 50, hWnd, NULL, NULL, NULL );
+			g_hWnd_appearance_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"class_appearance_tab", NULL, WS_VSCROLL | WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, rc.bottom - 50, hWnd, NULL, NULL, NULL );
+			g_hWnd_connection_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"class_connection_tab", NULL, WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, rc.bottom - 50, hWnd, NULL, NULL, NULL );
+			g_hWnd_web_server_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"class_web_server_tab", NULL, WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, rc.bottom - 50, hWnd, NULL, NULL, NULL );
+			g_hWnd_ftp_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"class_ftp_tab", NULL, WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, rc.bottom - 50, hWnd, NULL, NULL, NULL );
+			g_hWnd_sftp_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"class_sftp_tab", NULL, WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, rc.bottom - 50, hWnd, NULL, NULL, NULL );
+			g_hWnd_sftp_fps_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"class_sftp_fps_tab", NULL, WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, rc.bottom - 50, hWnd, NULL, NULL, NULL );
+			g_hWnd_sftp_keys_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"class_sftp_keys_tab", NULL, WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, rc.bottom - 50, hWnd, NULL, NULL, NULL );
+			g_hWnd_proxy_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"class_proxy_tab", NULL, WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, rc.bottom - 50, hWnd, NULL, NULL, NULL );
+			g_hWnd_advanced_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"class_advanced_tab", NULL, WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, rc.bottom - 50, hWnd, NULL, NULL, NULL );
 
 			g_hWnd_options_ok = _CreateWindowW( WC_BUTTON, ST_V_OK, BS_DEFPUSHBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 260, rc.bottom - 32, 80, 23, hWnd, ( HMENU )BTN_OK, NULL, NULL );
 			g_hWnd_options_cancel = _CreateWindowW( WC_BUTTON, ST_V_Cancel, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 175, rc.bottom - 32, 80, 23, hWnd, ( HMENU )BTN_CANCEL, NULL, NULL );
@@ -625,11 +655,19 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 			_SetFocus( g_hWnd_options_tree );
 
+#ifdef ENABLE_DARK_MODE
+			if ( g_use_dark_mode )
+			{
+				_EnumChildWindows( hWnd, EnumChildProc, NULL );
+				_EnumThreadWindows( GetCurrentThreadId(), EnumTLWProc, NULL );
+			}
+#endif
+
 			return 0;
 		}
 		break;
 
-		case WM_SIZE:
+		/*case WM_SIZE:
 		{
 			RECT rc;
 			_GetClientRect( hWnd, &rc );
@@ -656,7 +694,7 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 			return 0;
 		}
-		break;
+		break;*/
 
 		case WM_NOTIFY:
 		{
@@ -682,7 +720,7 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 					{
 						_ShowWindow( *( ( HWND * )nmtv->itemNew.lParam ), SW_SHOW );
 
-						_SetFocus( *( ( HWND * )nmtv->itemNew.lParam ) );
+						//_SetFocus( *( ( HWND * )nmtv->itemNew.lParam ) );
 					}
 				}
 				break;
@@ -827,7 +865,7 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 					{
 						if ( g_hWnd_url_drop_window == NULL )
 						{
-							g_hWnd_url_drop_window = _CreateWindowExW( WS_EX_NOPARENTNOTIFY | WS_EX_NOACTIVATE | WS_EX_TOPMOST, L"url_drop_window", NULL, WS_CLIPCHILDREN | WS_POPUP, 0, 0, DW_WIDTH, DW_HEIGHT, NULL, NULL, NULL, NULL );
+							g_hWnd_url_drop_window = _CreateWindowExW( WS_EX_NOPARENTNOTIFY | WS_EX_NOACTIVATE | WS_EX_TOPMOST, L"class_url_drop_window", NULL, WS_CLIPCHILDREN | WS_POPUP, 0, 0, DW_WIDTH, DW_HEIGHT, NULL, NULL, NULL, NULL );
 							_SetWindowLongPtrW( g_hWnd_url_drop_window, GWL_EXSTYLE, _GetWindowLongPtrW( g_hWnd_url_drop_window, GWL_EXSTYLE ) | WS_EX_LAYERED );
 							_SetLayeredWindowAttributes( g_hWnd_url_drop_window, 0, cfg_drop_window_transparency, LWA_ALPHA );
 

@@ -22,8 +22,30 @@
 #include "sftp.h"
 #include "cmessagebox.h"
 
+#include "dark_mode.h"
+
 #define BTN_FP_YES				1000
 #define BTN_FP_NO				1001
+
+WNDPROC FingerprintsProc = NULL;
+
+LRESULT CALLBACK FingerprintsSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
+{
+	switch ( msg )
+	{
+		case WM_GETDLGCODE:
+		{
+			// Don't process the tab key in the edit control. (Allows us to tab between controls)
+			if ( wParam == VK_TAB )
+			{
+				return DLGC_WANTCHARS | DLGC_HASSETSEL | DLGC_WANTARROWS;
+			}
+		}
+		break;
+	}
+
+	return _CallWindowProcW( FingerprintsProc, hWnd, msg, wParam, lParam );
+}
 
 LRESULT CALLBACK FingerprintPromptWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
 {
@@ -83,6 +105,9 @@ LRESULT CALLBACK FingerprintPromptWndProc( HWND hWnd, UINT msg, WPARAM wParam, L
 				HWND hWnd_fp_yes = _CreateWindowW( WC_BUTTON, ST_V_Yes, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 175, rc.bottom - 32, 80, 23, hWnd, ( HMENU )BTN_FP_YES, NULL, NULL );
 				HWND hWnd_fp_no = _CreateWindowW( WC_BUTTON, ST_V_No, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 90, rc.bottom - 32, 80, 23, hWnd, ( HMENU )BTN_FP_NO, NULL, NULL );
 
+				FingerprintsProc = ( WNDPROC )_GetWindowLongPtrW( cp_info->hWnd_key_fingerprints, GWLP_WNDPROC );
+				_SetWindowLongPtrW( cp_info->hWnd_key_fingerprints, GWLP_WNDPROC, ( LONG_PTR )FingerprintsSubProc );
+
 				_SendMessageW( hWnd_static_fp_msg, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 				_SendMessageW( hWnd_static_fp_host, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 				_SendMessageW( cp_info->hWnd_host, WM_SETFONT, ( WPARAM )g_hFont, 0 );
@@ -104,6 +129,14 @@ LRESULT CALLBACK FingerprintPromptWndProc( HWND hWnd, UINT msg, WPARAM wParam, L
 				mi.cbSize = sizeof( MONITORINFO );
 				_GetMonitorInfoW( hMon, &mi );
 				_SetWindowPos( hWnd, NULL, mi.rcMonitor.left + ( ( ( mi.rcMonitor.right - mi.rcMonitor.left ) - 600 ) / 2 ), mi.rcMonitor.top + ( ( ( mi.rcMonitor.bottom - mi.rcMonitor.top ) - 253 ) / 2 ), 600, 253, 0 );
+
+#ifdef ENABLE_DARK_MODE
+				if ( g_use_dark_mode )
+				{
+					_EnumChildWindows( hWnd, EnumChildProc, NULL );
+					_EnumThreadWindows( GetCurrentThreadId(), EnumTLWProc, NULL );
+				}
+#endif
 
 				return 0;
 			}

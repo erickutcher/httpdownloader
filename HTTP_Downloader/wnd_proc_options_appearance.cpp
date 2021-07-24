@@ -209,7 +209,7 @@ LRESULT CALLBACK AppearanceTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 			_GetClientRect( hWnd, &rc );
 
 			HWND hWnd_static_row_options = _CreateWindowW( WC_STATIC, ST_V_Download_list_, WS_CHILD | WS_VISIBLE, 0, 0, rc.right, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_row_options_list = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_LISTBOX, NULL, LBS_NOTIFY | LBS_NOINTEGRALHEIGHT | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE, 0, 15, 250, 95, hWnd, ( HMENU )LB_ROW_OPTIONS, NULL, NULL );
+			g_hWnd_row_options_list = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_LISTBOX, NULL, LBS_NOTIFY | LBS_NOINTEGRALHEIGHT | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE | LBS_DARK_MODE, 0, 15, 250, 95, hWnd, ( HMENU )LB_ROW_OPTIONS, NULL, NULL );
 			_SendMessageW( g_hWnd_row_options_list, LB_ADDSTRING, 0, ( LPARAM )ST_V_Background_Color );
 			_SendMessageW( g_hWnd_row_options_list, LB_ADDSTRING, 0, ( LPARAM )ST_V_Gridline_Color );
 			_SendMessageW( g_hWnd_row_options_list, LB_ADDSTRING, 0, ( LPARAM )ST_V_Selection_Marquee_Color );
@@ -233,7 +233,7 @@ LRESULT CALLBACK AppearanceTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 			/*HWND hWnd_static_hoz1 =*/ _CreateWindowW( WC_STATIC, NULL, SS_ETCHEDHORZ | WS_CHILD | WS_VISIBLE, 0, 185, rc.right, 1, hWnd, NULL, NULL, NULL );
 
 			HWND hWnd_static_progress_color = _CreateWindowW( WC_STATIC, ST_V_Progress_bar_, WS_CHILD | WS_VISIBLE, 0, 195, rc.right, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_progress_color_list = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_LISTBOX, NULL, LBS_NOTIFY | LBS_NOINTEGRALHEIGHT | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE, 0, 210, 250, 95, hWnd, ( HMENU )LB_PROGRESS_COLOR, NULL, NULL );
+			g_hWnd_progress_color_list = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_LISTBOX, NULL, LBS_NOTIFY | LBS_NOINTEGRALHEIGHT | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE | LBS_DARK_MODE, 0, 210, 250, 95, hWnd, ( HMENU )LB_PROGRESS_COLOR, NULL, NULL );
 			_SendMessageW( g_hWnd_progress_color_list, LB_ADDSTRING, 0, ( LPARAM )ST_V_Allocating_File );
 			_SendMessageW( g_hWnd_progress_color_list, LB_ADDSTRING, 0, ( LPARAM )ST_V_Authorization_Required );
 			_SendMessageW( g_hWnd_progress_color_list, LB_ADDSTRING, 0, ( LPARAM )ST_V_Completed );
@@ -251,7 +251,7 @@ LRESULT CALLBACK AppearanceTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 			_SendMessageW( g_hWnd_progress_color_list, LB_ADDSTRING, 0, ( LPARAM )ST_V_Stopped );
 			_SendMessageW( g_hWnd_progress_color_list, LB_ADDSTRING, 0, ( LPARAM )ST_V_Timed_Out );
 
-			g_hWnd_progress_color_options_list = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_LISTBOX, NULL, LBS_NOTIFY | LBS_NOINTEGRALHEIGHT | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE, 0, 310, 250, 95, hWnd, ( HMENU )LB_PROGRESS_COLOR_OPTIONS, NULL, NULL );
+			g_hWnd_progress_color_options_list = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_LISTBOX, NULL, LBS_NOTIFY | LBS_NOINTEGRALHEIGHT | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE | LBS_DARK_MODE, 0, 310, 250, 95, hWnd, ( HMENU )LB_PROGRESS_COLOR_OPTIONS, NULL, NULL );
 			_SendMessageW( g_hWnd_progress_color_options_list, LB_ADDSTRING, 0, ( LPARAM )ST_V_Progress_Color );
 			_SendMessageW( g_hWnd_progress_color_options_list, LB_ADDSTRING, 0, ( LPARAM )ST_V_Background_Color );
 			_SendMessageW( g_hWnd_progress_color_options_list, LB_ADDSTRING, 0, ( LPARAM )ST_V_Progress_Font_Color );
@@ -265,7 +265,7 @@ LRESULT CALLBACK AppearanceTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 			/*HWND hWnd_static_proxy_hoz2 =*/ _CreateWindowW( WC_STATIC, NULL, SS_ETCHEDHORZ | WS_CHILD | WS_VISIBLE, 0, 440, rc.right, 1, hWnd, NULL, NULL, NULL );
 
 			HWND hWnd_static_td_progress_color = _CreateWindowW( WC_STATIC, ST_V_Other_progress_bars_, WS_CHILD | WS_VISIBLE, 0, 450, rc.right, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_td_progress_color_list = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_LISTBOX, NULL, LBS_NOTIFY | LBS_NOINTEGRALHEIGHT | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE, 0, 465, 250, 80, hWnd, ( HMENU )LB_TD_PROGRESS_COLOR, NULL, NULL );
+			g_hWnd_td_progress_color_list = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_LISTBOX, NULL, LBS_NOTIFY | LBS_NOINTEGRALHEIGHT | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE | LBS_DARK_MODE, 0, 465, 250, 80, hWnd, ( HMENU )LB_TD_PROGRESS_COLOR, NULL, NULL );
 			_SendMessageW( g_hWnd_td_progress_color_list, LB_ADDSTRING, 0, ( LPARAM )ST_V_System_Tray_Icon_Downloading );
 			_SendMessageW( g_hWnd_td_progress_color_list, LB_ADDSTRING, 0, ( LPARAM )ST_V_System_Tray_Icon_Paused );
 			_SendMessageW( g_hWnd_td_progress_color_list, LB_ADDSTRING, 0, ( LPARAM )ST_V_System_Tray_Icon_Error );
@@ -273,7 +273,7 @@ LRESULT CALLBACK AppearanceTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 			_SendMessageW( g_hWnd_td_progress_color_list, LB_ADDSTRING, 0, ( LPARAM )ST_V_URL_Drop_Window_Paused );
 			_SendMessageW( g_hWnd_td_progress_color_list, LB_ADDSTRING, 0, ( LPARAM )ST_V_URL_Drop_Window_Error );
 
-			g_hWnd_td_progress_color_options_list = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_LISTBOX, NULL, LBS_NOTIFY | LBS_NOINTEGRALHEIGHT | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE, 0, 550, 160, 60, hWnd, ( HMENU )LB_TD_PROGRESS_COLOR_OPTIONS, NULL, NULL );
+			g_hWnd_td_progress_color_options_list = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_LISTBOX, NULL, LBS_NOTIFY | LBS_NOINTEGRALHEIGHT | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE | LBS_DARK_MODE, 0, 550, 160, 60, hWnd, ( HMENU )LB_TD_PROGRESS_COLOR_OPTIONS, NULL, NULL );
 			_SendMessageW( g_hWnd_td_progress_color_options_list, LB_ADDSTRING, 0, ( LPARAM )ST_V_Progress_Color );
 			_SendMessageW( g_hWnd_td_progress_color_options_list, LB_ADDSTRING, 0, ( LPARAM )ST_V_Border_Color );
 
@@ -344,6 +344,38 @@ LRESULT CALLBACK AppearanceTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 			_SendMessageW( g_hWnd_row_options_list, LB_SETCURSEL, 0, 0 );
 			_SendMessageW( g_hWnd_progress_color_list, LB_SETCURSEL, 0, 0 );
 			_SendMessageW( g_hWnd_td_progress_color_list, LB_SETCURSEL, 0, 0 );
+
+			return 0;
+		}
+		break;
+
+		case WM_GETDLGCODE:
+		{
+			if ( wParam == VK_TAB )
+			{
+				// We're cheating here since we know this will be the first tab item in this window.
+				// Normally we'd use: HWND hWnd_next = GetNextDlgTabItem( hWnd, hWnd, TRUE/FALSE );
+				if ( ( _GetKeyState( VK_SHIFT ) & 0x8000 ) )
+				{
+					_SetFocus( g_hWnd_options_tree );
+				}
+				else
+				{
+					_SetFocus( g_hWnd_row_options_list );
+				}
+
+				return DLGC_WANTTAB;
+			}
+			else
+			{
+				return _DefWindowProcW( hWnd, msg, wParam, lParam );
+			}
+		}
+		break;
+
+		case WM_PROPAGATE:
+		{
+			_SetFocus( hWnd );
 
 			return 0;
 		}
@@ -842,6 +874,8 @@ LRESULT CALLBACK AppearanceTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 
 							_MoveToEx( hdcMem, row_rc.right, 0, NULL );
 							_LineTo( hdcMem, row_rc.right, height );
+
+							_DeleteObject( line_color );
 						}
 
 						/////////////////////////
@@ -940,8 +974,10 @@ LRESULT CALLBACK AppearanceTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 
 						// Border Color
 						HPEN hPen = _CreatePen( PS_SOLID, 4, t_progress_colors[ index + 4 ] );
-						_SelectObject( dis->hDC, hPen );
-						_SelectObject( dis->hDC, _GetStockObject( NULL_BRUSH ) );
+						HPEN old_color = ( HPEN )_SelectObject( dis->hDC, hPen );
+						_DeleteObject( old_color );
+						HBRUSH old_brush = ( HBRUSH )_SelectObject( dis->hDC, _GetStockObject( NULL_BRUSH ) );
+						_DeleteObject( old_brush );
 						_Rectangle( dis->hDC, dis->rcItem.left, dis->rcItem.top, width, height );
 						_DeleteObject( hPen );
 
@@ -966,8 +1002,10 @@ LRESULT CALLBACK AppearanceTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 
 						// Border Color
 						HPEN hPen = _CreatePen( PS_SOLID, 4, t_td_progress_colors[ index + 1 ] );
-						_SelectObject( dis->hDC, hPen );
-						_SelectObject( dis->hDC, _GetStockObject( NULL_BRUSH ) );
+						HPEN old_color = ( HPEN )_SelectObject( dis->hDC, hPen );
+						_DeleteObject( old_color );
+						HBRUSH old_brush = ( HBRUSH )_SelectObject( dis->hDC, _GetStockObject( NULL_BRUSH ) );
+						_DeleteObject( old_brush );
 						_Rectangle( dis->hDC, dis->rcItem.left, dis->rcItem.top, width, height );
 						_DeleteObject( hPen );
 					}
@@ -976,6 +1014,27 @@ LRESULT CALLBACK AppearanceTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 			return TRUE;
 		}
 		break;
+
+#ifdef ENABLE_DARK_MODE
+		// Sent when the control (listbox in this case) is created.
+		case WM_MEASUREITEM:
+		{
+			if ( g_use_dark_mode )
+			{
+				// Set the row height of the list box.
+				if ( ( ( LPMEASUREITEMSTRUCT )lParam )->CtlType == ODT_LISTBOX )
+				{
+					( ( LPMEASUREITEMSTRUCT )lParam )->itemHeight += 2;
+				}
+				return TRUE;
+			}
+			else
+			{
+				return _DefWindowProcW( hWnd, msg, wParam, lParam );
+			}
+		}
+		break;
+#endif
 
 		case WM_DESTROY:
 		{

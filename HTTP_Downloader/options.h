@@ -23,6 +23,8 @@
 
 #include "string_tables.h"
 
+#include "dark_mode.h"
+
 extern bool options_state_changed;
 
 extern wchar_t *t_default_download_directory;

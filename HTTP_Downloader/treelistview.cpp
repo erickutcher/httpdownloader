@@ -33,6 +33,7 @@
 #include "connection.h"
 #include "list_operations.h"
 
+#include "dark_mode.h"
 
 #define EDIT_BOX	1000
 
@@ -185,7 +186,7 @@ void ClearTooltip( HWND hWnd, HWND hWnd_tooltip )
 		tti.cbSize = sizeof( TOOLINFO );
 		tti.hwnd = hWnd;
 		tti.uId = ( UINT_PTR )hWnd;
-		tti.lpszText = NULL;
+		//tti.lpszText = NULL;
 		_SendMessageW( hWnd_tooltip, TTM_TRACKACTIVATE, FALSE, ( LPARAM )&tti );
 	}
 }
@@ -1751,7 +1752,7 @@ VOID CALLBACK ScrollTimerProc( HWND hWnd, UINT /*msg*/, UINT /*idTimer*/, DWORD 
 	HandleMouseMovement( hWnd );
 }
 
-void HandleWindowChange( HWND hWnd, bool scroll_to_end = false )
+void HandleWindowChange( HWND hWnd, bool scroll_to_end = false, bool adjust_column = true )
 {
 	_GetClientRect( hWnd, &g_client_rc );
 
@@ -1865,10 +1866,13 @@ void HandleWindowChange( HWND hWnd, bool scroll_to_end = false )
 	_GetScrollInfo( hWnd, SB_HORZ, &si );
 
 	// If we're adjusting the width of the last column header, then set the nPos.
-	delta = si.nMax - g_header_width;
-	if ( delta > 0 )
+	if ( adjust_column )
 	{
-		Scroll( &si, SCROLL_TYPE_LEFT, delta );
+		delta = si.nMax - g_header_width;
+		if ( delta > 0 )
+		{
+			Scroll( &si, SCROLL_TYPE_LEFT, delta );
+		}
 	}
 
 	// If we're adjusting the width of the window, then set the nPos.
@@ -2815,7 +2819,7 @@ void HandleMouseClick( HWND hWnd, bool right_button )
 	}
 
 	// Assume we're dragging until we release the mouse button.
-	SetCapture( hWnd );
+	_SetCapture( hWnd );
 	g_is_dragging = true;
 
 MOUSE_CLICK_END:
@@ -3105,8 +3109,8 @@ void DrawTreeListView( HWND hWnd )
 	PAINTSTRUCT ps;
 	HDC hDC = _BeginPaint( hWnd, &ps );
 
-	RECT rc;
-	_GetClientRect( hWnd, &rc );	// Includes the area occupied by the header control.
+	//RECT rc;
+	//_GetClientRect( hWnd, &rc );	// Includes the area occupied by the header control.
 
 	// Create a memory buffer to draw to.
 	HDC hdcMem = _CreateCompatibleDC( hDC );
@@ -3123,7 +3127,7 @@ void DrawTreeListView( HWND hWnd )
 	// This is cached. We'll delete it when we destory the control.
 	if ( g_hbm == NULL )
 	{
-		g_hbm = _CreateCompatibleBitmap( hDC, rc.right - rc.left, rc.bottom - rc.top );
+		g_hbm = _CreateCompatibleBitmap( hDC, ps.rcPaint.right - ps.rcPaint.left, ps.rcPaint.bottom - ps.rcPaint.top );
 	}
 
 	HBITMAP ohbm = ( HBITMAP )_SelectObject( hdcMem, g_hbm );
@@ -3131,7 +3135,7 @@ void DrawTreeListView( HWND hWnd )
 
 	// Fill the memory background with the window color
 	HBRUSH background = _CreateSolidBrush( cfg_background_color );
-	_FillRect( hdcMem, &rc, background );
+	_FillRect( hdcMem, &ps.rcPaint, background );
 	_DeleteObject( background );
 
 	int row_count = 0;
@@ -3201,6 +3205,8 @@ void DrawTreeListView( HWND hWnd )
 	int root_count = g_first_visible_root_index + 1;
 	int child_count = g_first_visible_index - TLV_GetParentIndex( g_first_visible_node, g_first_visible_index );
 
+	int gridline_offset = ( cfg_show_gridlines ? 1 : 0 );
+
 	TREELISTNODE *tln = g_first_visible_node;
 	while ( tln != NULL )
 	{
@@ -3208,7 +3214,7 @@ void DrawTreeListView( HWND hWnd )
 		row_rc.bottom += g_row_height;
 
 		RECT row_bg_rc;
-		row_bg_rc.top = row_rc.top + 1;
+		row_bg_rc.top = row_rc.top + gridline_offset;
 		row_bg_rc.left = row_rc.left;
 		row_bg_rc.right = ( cfg_draw_full_rows ? g_client_rc.right : row_rc.right );
 		row_bg_rc.bottom = row_rc.bottom;
@@ -3249,7 +3255,7 @@ void DrawTreeListView( HWND hWnd )
 					if ( g_hTheme != NULL )
 					{
 						RECT glyph_rc;
-						glyph_rc.top = row_rc.top + ( ( g_row_height - g_glyph_size.cy ) / 2 ) + 1;
+						glyph_rc.top = row_rc.top + ( ( g_row_height - g_glyph_size.cy ) / 2 ) + gridline_offset;
 						glyph_rc.bottom = glyph_rc.top + g_glyph_size.cy;//row_rc.bottom;
 
 						glyph_rc.left = rc_array[ 0 ].left + GLYPH_OFFSET;
@@ -3291,8 +3297,8 @@ void DrawTreeListView( HWND hWnd )
 			{
 				text_rc.right = text_rc.left;
 			}
-			text_rc.top = row_rc.top + 1;
-			text_rc.bottom = row_rc.bottom;
+			text_rc.top = item_rc.top + gridline_offset;
+			text_rc.bottom = item_rc.bottom;
 
 			// Save the appropriate text in our buffer for the current column.
 			buf = GetDownloadInfoString( di, arr2[ i ], root_count, child_count, tbuf, 128 );
@@ -3364,7 +3370,7 @@ void DrawTreeListView( HWND hWnd )
 					}
 
 					RECT icon_rc;
-					icon_rc.top = item_rc.top + 1;
+					icon_rc.top = item_rc.top + gridline_offset;
 					icon_rc.bottom = item_rc.bottom - 1;
 					icon_rc.left = item_rc.left + 2;
 					if ( i == 0 )
@@ -3417,7 +3423,7 @@ void DrawTreeListView( HWND hWnd )
 			else if ( arr2[ i ] == COLUMN_PROGRESS )	// Progress
 			{
 				RECT progress_rc;
-				progress_rc.top = item_rc.top + 3;
+				progress_rc.top = item_rc.top + 2 + gridline_offset;
 				progress_rc.bottom = item_rc.bottom - 2;
 				progress_rc.left = item_rc.left + 2;
 				if ( i == 0 )
@@ -3712,7 +3718,7 @@ void DrawTreeListView( HWND hWnd )
 				////////////////////
 
 				RECT frame_rc;
-				frame_rc.top = item_rc.top + 2;
+				frame_rc.top = item_rc.top + 1 + gridline_offset;
 				frame_rc.bottom = item_rc.bottom - 1;
 				frame_rc.left = item_rc.left + 2;
 				if ( i == 0 )
@@ -3726,8 +3732,10 @@ void DrawTreeListView( HWND hWnd )
 				}
 
 				HPEN hPen = _CreatePen( PS_SOLID, 1, color_ref_border );
-				_SelectObject( hdcMem, hPen );
-				_SelectObject( hdcMem, _GetStockObject( NULL_BRUSH ) );
+				HPEN old_color = ( HPEN )_SelectObject( hdcMem, hPen );
+				_DeleteObject( old_color );
+				HBRUSH old_brush = ( HBRUSH )_SelectObject( hdcMem, _GetStockObject( NULL_BRUSH ) );
+				_DeleteObject( old_brush );
 				_Rectangle( hdcMem, frame_rc.left, frame_rc.top, frame_rc.right, frame_rc.bottom );
 				_DeleteObject( hPen );
 			}
@@ -3940,7 +3948,7 @@ void DrawTreeListView( HWND hWnd )
 	//
 
 	// Draw our memory buffer to the main device context.
-	_BitBlt( hDC, 0, 0, rc.right, rc.bottom, hdcMem, 0, 0, SRCCOPY );
+	_BitBlt( hDC, 0, 0, ps.rcPaint.right, ps.rcPaint.bottom, hdcMem, 0, 0, SRCCOPY );
 
 	_DeleteDC( hdcMem );
 	_EndPaint( hWnd, &ps );
@@ -3976,11 +3984,7 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 
 			int arr[ NUM_COLUMNS ];
 
-			// Initialize our listview columns
-			LVCOLUMN lvc;
-			_memzero( &lvc, sizeof( LVCOLUMN ) );
-			lvc.mask = LVCF_FMT | LVCF_WIDTH | LVCF_TEXT;
-
+			// Initialize our treelistview columns
 			HDITEM hdi;
 			_memzero( &hdi, sizeof( HDITEM ) );
 			hdi.mask = HDI_TEXT | HDI_FORMAT | HDI_WIDTH;
@@ -5475,7 +5479,7 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 
 					bool adjust_column = ( ( si.nPos + si.nPage ) <= ( unsigned int )si.nMax ? false : true );
 
-					HandleWindowChange( hWnd, adjust_column );
+					HandleWindowChange( hWnd, false, adjust_column );
 
 					_InvalidateRect( hWnd, &g_client_rc, TRUE );
 				}
@@ -5875,6 +5879,37 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 					}
 				}
 				break;
+
+#ifdef ENABLE_DARK_MODE
+				case NM_CUSTOMDRAW:
+				{
+					if ( g_use_dark_mode )
+					{
+						NMCUSTOMDRAW *nmcd = ( NMCUSTOMDRAW * )lParam;
+						switch ( nmcd->dwDrawStage )
+						{
+							case CDDS_PREPAINT:
+							{
+								return CDRF_NOTIFYITEMDRAW;
+							}
+							break;
+
+							case CDDS_ITEMPREPAINT:
+							{
+								_SetTextColor( nmcd->hdc, dm_color_window_text );
+
+								return CDRF_DODEFAULT;
+							}
+							break;
+						}
+					}
+					else
+					{
+						return _DefWindowProcW( hWnd, msg, wParam, lParam );
+					}
+				}
+				break;
+#endif
 			}
 
 			return FALSE;
@@ -5899,47 +5934,57 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 		case WM_NCCALCSIZE:
 		{
 			// Draw our scrollbars if there's any.
-			_DefWindowProcW( hWnd, msg, wParam, lParam );
+			LRESULT ret = _DefWindowProcW( hWnd, msg, wParam, lParam );
 
-			//if ( cfg_show_column_headers )
-			//{
+			if ( cfg_show_toolbar )
+			{
 				if ( wParam == FALSE )
 				{
 					RECT *pRect = ( RECT * )lParam;
 					++pRect->top;
 				}
-				else if ( wParam == TRUE )
+				else// if ( wParam == TRUE )
 				{
 					NCCALCSIZE_PARAMS *nccsp = ( NCCALCSIZE_PARAMS * )lParam;
 					++nccsp->rgrc[ 0 ].top;
 				}
-			//}
+			}
 
-			return 0;
+			return ret;
 		}
 		break;
 
 		case WM_NCPAINT:
 		{
 			// Draw our scrollbars if there's any.
-			_DefWindowProcW( hWnd, msg, wParam, lParam );
+			LRESULT ret = _DefWindowProcW( hWnd, msg, wParam, lParam );
 
-			//if ( cfg_show_column_headers )
-			//{
-				HDC hDC = GetWindowDC( hWnd );
+			if ( cfg_show_toolbar )
+			{
+				HDC hDC = _GetWindowDC( hWnd );
+				HPEN line_color;
+#ifdef ENABLE_DARK_MODE
+				if ( g_use_dark_mode )
+				{
+					line_color = _CreatePen( PS_SOLID, 1, dm_color_window_border );
+				}
+				else
+#endif
+				{
+					line_color = _CreatePen( PS_SOLID, 1, ( COLORREF )_GetSysColor( COLOR_3DSHADOW ) );
+				}
 
-				HPEN line_color = _CreatePen( PS_SOLID, 1, ( COLORREF )_GetSysColor( COLOR_3DSHADOW ) );
 				HPEN old_color = ( HPEN )_SelectObject( hDC, line_color );
 				_DeleteObject( old_color );
 
 				_MoveToEx( hDC, 0, 0, NULL );
-				_LineTo( hDC, g_client_rc.right, 0 );
+				_LineTo( hDC, g_client_rc.right + _GetSystemMetrics( SM_CXVSCROLL ), 0 );
 				_DeleteObject( line_color );
 
 				_ReleaseDC( hWnd, hDC );
-			//}
+			}
 
-			return 0;
+			return ret;
 		}
 		break;
 

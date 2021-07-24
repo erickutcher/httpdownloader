@@ -161,8 +161,6 @@ LRESULT CALLBACK FTPTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 			_EnableWindow( g_hWnd_ftp_static_colon, enable );
 			_EnableWindow( g_hWnd_static_ftp_port_start, enable );
 			_EnableWindow( g_hWnd_ftp_port_start, enable );
-			_EnableWindow( g_hWnd_ftp_static_dash, enable );
-			_EnableWindow( g_hWnd_static_ftp_port_end, enable );
 
 			if ( cfg_ftp_address_type == 1 )
 			{
@@ -205,6 +203,8 @@ LRESULT CALLBACK FTPTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 			}
 
 			_EnableWindow( g_hWnd_ftp_port_end, enable );
+			_EnableWindow( g_hWnd_ftp_static_dash, enable );
+			_EnableWindow( g_hWnd_static_ftp_port_end, enable );
 
 			_SendMessageW( g_hWnd_chk_send_keep_alive, BM_SETCHECK, ( cfg_ftp_send_keep_alive ? BST_CHECKED : BST_UNCHECKED ), 0 );
 
@@ -239,8 +239,6 @@ LRESULT CALLBACK FTPTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 					_EnableWindow( g_hWnd_ftp_static_colon, enable );
 					_EnableWindow( g_hWnd_static_ftp_port_start, enable );
 					_EnableWindow( g_hWnd_ftp_port_start, enable );
-					_EnableWindow( g_hWnd_ftp_static_dash, enable );
-					_EnableWindow( g_hWnd_static_ftp_port_end, enable );
 
 					char value[ 11 ];
 					_SendMessageA( g_hWnd_ftp_port_end, WM_GETTEXT, 6, ( LPARAM )value );
@@ -250,6 +248,8 @@ LRESULT CALLBACK FTPTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 					}
 
 					_EnableWindow( g_hWnd_ftp_port_end, enable );
+					_EnableWindow( g_hWnd_ftp_static_dash, enable );
+					_EnableWindow( g_hWnd_static_ftp_port_end, enable );
 
 					options_state_changed = true;
 					_EnableWindow( g_hWnd_options_apply, TRUE );
@@ -266,7 +266,7 @@ LRESULT CALLBACK FTPTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 						char value[ 11 ];
 						_SendMessageA( g_hWnd_ftp_port_end, WM_GETTEXT, 6, ( LPARAM )value );
 						unsigned long num_end = _strtoul( value, NULL, 10 );
-						//unsigned int start_length = ( unsigned int )_SendMessageA( g_hWnd_ftp_port_start, WM_GETTEXT, 6, ( LPARAM )value );
+						unsigned int start_length = ( unsigned int )_SendMessageA( g_hWnd_ftp_port_start, WM_GETTEXT, 6, ( LPARAM )value );
 						unsigned long num_start = _strtoul( value, NULL, 10 );
 
 						if ( num_start > 65535 )	// If the start port is beyond the port range, set it and the end port to the highest port number.
@@ -279,9 +279,17 @@ LRESULT CALLBACK FTPTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 
 							num_end = num_start;
 						}
-						else if ( num_start == 0 && num_end > 0 )	// Make sure that if the start port is 0, that the end port is as well.
+						else if ( num_start == 0 )	// Make sure that if the start port is 0, that the end port is as well.
 						{
-							_SendMessageA( g_hWnd_ftp_port_end, WM_SETTEXT, 0, ( LPARAM )"0" );
+							if ( start_length == 0 )
+							{
+								_SendMessageA( g_hWnd_ftp_port_start, WM_SETTEXT, 0, ( LPARAM )"0" );
+							}
+
+							if ( num_end > 0 )
+							{
+								_SendMessageA( g_hWnd_ftp_port_end, WM_SETTEXT, 0, ( LPARAM )"0" );
+							}
 
 							num_end = num_start;
 						}
@@ -294,14 +302,19 @@ LRESULT CALLBACK FTPTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 
 							_SendMessageA( g_hWnd_ftp_port_end, EM_SETSEL, sel_start, sel_start );
 						}
-						/*else if ( num_start > num_end )	// Make sure the end port is always greater than the start port.
+						else if ( num_start > num_end )	// Make sure the end port is always greater than or equal to the start port.
 						{
 							_SendMessageA( g_hWnd_ftp_port_end, WM_SETTEXT, 0, ( LPARAM )value );
 
 							_SendMessageA( g_hWnd_ftp_port_end, EM_SETSEL, start_length, -1 );
-						}*/
 
-						_EnableWindow( g_hWnd_ftp_port_end, ( num_start > 0 ? TRUE : FALSE ) );
+							num_end = num_start;
+						}
+
+						BOOL enable = ( num_start > 0 ? TRUE : FALSE );
+						_EnableWindow( g_hWnd_ftp_port_end, enable );
+						_EnableWindow( g_hWnd_ftp_static_dash, enable );
+						_EnableWindow( g_hWnd_static_ftp_port_end, enable );
 
 						if ( ( LOWORD( wParam ) == EDIT_FTP_PORT_START && num_start != cfg_ftp_port_start ) ||
 							 ( LOWORD( wParam ) == EDIT_FTP_PORT_END && num_end != cfg_ftp_port_end ) )
@@ -310,7 +323,7 @@ LRESULT CALLBACK FTPTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 							_EnableWindow( g_hWnd_options_apply, TRUE );
 						}
 					}
-					else if ( HIWORD( wParam ) == EN_KILLFOCUS )
+					/*else if ( HIWORD( wParam ) == EN_KILLFOCUS )
 					{
 						char value[ 11 ];
 						_SendMessageA( g_hWnd_ftp_port_end, WM_GETTEXT, 6, ( LPARAM )value );
@@ -331,7 +344,7 @@ LRESULT CALLBACK FTPTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 							options_state_changed = true;
 							_EnableWindow( g_hWnd_options_apply, TRUE );
 						}
-					}
+					}*/
 				}
 				break;
 

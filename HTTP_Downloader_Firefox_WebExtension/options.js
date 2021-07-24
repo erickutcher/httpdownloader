@@ -22,25 +22,23 @@ function UpdateTheme( show )
 				var body = "";
 				if ( theme.colors.popup ) { body += "background-color: " + theme.colors.popup + ";"; }
 				if ( theme.colors.popup_text ) { body += "color: " + theme.colors.popup_text + ";"; }
-				else if ( theme.colors.toolbar_text ) { body += "color: " + theme.colors.toolbar_text + ";"; }
 
 				var inputs = "";
-				if ( theme.colors.sidebar ) { inputs += "background-color: " + theme.colors.sidebar + ";"; }
-				if ( theme.colors.sidebar_border ) { inputs += "border-color: " + theme.colors.sidebar_border + ";"; }
-				if ( theme.colors.sidebar_text ) { inputs += "color: " + theme.colors.sidebar_text + ";"; }
-
-				var inputs_focus = "";
-				if ( theme.colors.toolbar_field_border_focus ) { inputs_focus += "border-color: " + theme.colors.toolbar_field_border_focus + ";"; }
+				if ( theme.colors.input_background ) { inputs += "background-color: " + theme.colors.input_background + ";"; }
+				else if ( theme.colors.toolbar_field ) { inputs += "background-color: " + theme.colors.toolbar_field + ";"; }
+				if ( theme.colors.input_border ) { inputs += "border-color: " + theme.colors.input_border + ";"; }
+				//else if ( theme.colors.toolbar_field_border ) { inputs += "border-color: " + theme.colors.toolbar_field_border + ";"; }
+				if ( theme.colors.input_color ) { inputs += "color: " + theme.colors.input_color + ";"; }
+				else if ( theme.colors.toolbar_field_text ) { inputs += "color: " + theme.colors.toolbar_field_text + ";"; }
 
 				var fieldset = "";
-				if ( theme.colors.toolbar_field_border ) { fieldset += "border-color: " + theme.colors.toolbar_field_border + ";"; }
+				if ( theme.colors.popup_border ) { fieldset += "border-color: " + theme.colors.popup_border + ";"; }
 
 				var section_separator = "";
-				if ( theme.colors.toolbar_field_border ) { section_separator += "border-color: " + theme.colors.toolbar_field_border + ";"; }
+				if ( theme.colors.popup_border ) { section_separator += "background-color: " + theme.colors.popup_border + ";"; }
 
 				if ( body != "" ) { style_text += "body {" + body + "}"; }
 				if ( inputs != "" ) { style_text += "input, textarea, select {" + inputs + "}"; }
-				if ( inputs_focus != "" ) { style_text += "input:focus, textarea:focus, select:focus {" + inputs_focus + "}"; }
 				if ( fieldset != "" ) { style_text += "fieldset {" + fieldset + "}"; }
 				if ( section_separator != "" ) { style_text += ".section-separator {" + section_separator + "}"; }
 

@@ -21,6 +21,8 @@
 #include "utilities.h"
 #include "string_tables.h"
 
+#include "dark_mode.h"
+
 #define EDIT_SPEED_LIMIT		1000
 #define BTN_SPEED_LIMIT_SET		1001
 #define BTN_SPEED_LIMIT_CANCEL	1002
@@ -85,6 +87,14 @@ LRESULT CALLBACK DownloadSpeedLimitWndProc( HWND hWnd, UINT msg, WPARAM wParam, 
 			mi.cbSize = sizeof( MONITORINFO );
 			_GetMonitorInfoW( hMon, &mi );
 			_SetWindowPos( hWnd, NULL, mi.rcMonitor.left + ( ( ( mi.rcMonitor.right - mi.rcMonitor.left ) - 280 ) / 2 ), mi.rcMonitor.top + ( ( ( mi.rcMonitor.bottom - mi.rcMonitor.top ) - 120 ) / 2 ), 280, 120, 0 );
+
+#ifdef ENABLE_DARK_MODE
+			if ( g_use_dark_mode )
+			{
+				_EnumChildWindows( hWnd, EnumChildProc, NULL );
+				_EnumThreadWindows( GetCurrentThreadId(), EnumTLWProc, NULL );
+			}
+#endif
 
 			return 0;
 		}

@@ -332,7 +332,7 @@ LRESULT CALLBACK URLDropWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			{
 				window_settings.is_tracking = true;
 
-				TrackMouseEvent( &window_settings.tme );
+				_TrackMouseEvent( &window_settings.tme );
 
 				_SetLayeredWindowAttributes( hWnd, 0, 0xFF, LWA_ALPHA );
 			}

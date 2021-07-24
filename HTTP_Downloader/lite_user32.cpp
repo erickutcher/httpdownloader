@@ -40,7 +40,8 @@
 	pDestroyMenu			_DestroyMenu;
 	pDestroyWindow			_DestroyWindow;
 	pDispatchMessageW		_DispatchMessageW;
-	pDrawEdge				_DrawEdge;
+	//pDrawEdge				_DrawEdge;
+	pDrawFocusRect			_DrawFocusRect;
 	pDrawIconEx				_DrawIconEx;
 	//pDrawMenuBar				_DrawMenuBar;
 	pDrawTextW				_DrawTextW;
@@ -75,6 +76,7 @@
 	pGetSysColorBrush		_GetSysColorBrush;
 	pGetSystemMetrics		_GetSystemMetrics;
 	pGetWindow				_GetWindow;
+	pGetWindowDC			_GetWindowDC;
 	//pGetWindowLongW			_GetWindowLongW;
 	pGetWindowLongPtrW		_GetWindowLongPtrW;
 	pGetWindowRect			_GetWindowRect;
@@ -172,7 +174,8 @@
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_DestroyMenu, "DestroyMenu" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_DestroyWindow, "DestroyWindow" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_DispatchMessageW, "DispatchMessageW" ) )
-		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_DrawEdge, "DrawEdge" ) )
+		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_DrawEdge, "DrawEdge" ) )
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_DrawFocusRect, "DrawFocusRect" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_DrawIconEx, "DrawIconEx" ) )
 		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_DrawMenuBar, "DrawMenuBar" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_DrawTextW, "DrawTextW" ) )
@@ -207,6 +210,7 @@
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_GetSysColorBrush, "GetSysColorBrush" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_GetSystemMetrics, "GetSystemMetrics" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_GetWindow, "GetWindow" ) )
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_GetWindowDC, "GetWindowDC" ) )
 		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_GetWindowLongW, "GetWindowLongW" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_GetWindowLongPtrW, "GetWindowLongPtrW" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_GetWindowRect, "GetWindowRect" ) )

@@ -22,6 +22,8 @@
 #include "string_tables.h"
 #include "lite_pcre2.h"
 
+#include "dark_mode.h"
+
 #define BTN_SEARCH_ALL			1000
 #define BTN_SEARCH				1001
 #define BTN_SEARCH_CANCEL		1002
@@ -93,6 +95,14 @@ LRESULT CALLBACK SearchWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 			mi.cbSize = sizeof( MONITORINFO );
 			_GetMonitorInfoW( hMon, &mi );
 			_SetWindowPos( hWnd, NULL, mi.rcMonitor.left + ( ( ( mi.rcMonitor.right - mi.rcMonitor.left ) - 400 ) / 2 ), mi.rcMonitor.top + ( ( ( mi.rcMonitor.bottom - mi.rcMonitor.top ) - 190 ) / 2 ), 400, 190, 0 );
+
+#ifdef ENABLE_DARK_MODE
+			if ( g_use_dark_mode )
+			{
+				_EnumChildWindows( hWnd, EnumChildProc, NULL );
+				_EnumThreadWindows( GetCurrentThreadId(), EnumTLWProc, NULL );
+			}
+#endif
 
 			return 0;
 		}

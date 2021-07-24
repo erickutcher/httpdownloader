@@ -21,6 +21,8 @@
 #include "connection.h"
 #include "string_tables.h"
 
+#include "dark_mode.h"
+
 #define BTN_DOWNLOAD_UPDATE				1000
 #define BTN_VIEW_CHANGELOG				1001
 #define BTN_CHECK_UPDATES_CANCEL		1002
@@ -72,6 +74,14 @@ LRESULT CALLBACK CheckForUpdatesWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPA
 			mi.cbSize = sizeof( MONITORINFO );
 			_GetMonitorInfoW( hMon, &mi );
 			_SetWindowPos( hWnd, NULL, mi.rcMonitor.left + ( ( ( mi.rcMonitor.right - mi.rcMonitor.left ) - 400 ) / 2 ), mi.rcMonitor.top + ( ( ( mi.rcMonitor.bottom - mi.rcMonitor.top ) - 135 ) / 2 ), 400, 135, 0 );
+
+#ifdef ENABLE_DARK_MODE
+			if ( g_use_dark_mode )
+			{
+				_EnumChildWindows( hWnd, EnumChildProc, NULL );
+				_EnumThreadWindows( GetCurrentThreadId(), EnumTLWProc, NULL );
+			}
+#endif
 
 			return 0;
 		}

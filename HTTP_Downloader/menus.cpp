@@ -1551,7 +1551,7 @@ void HandleCommand( HWND hWnd, WORD command )
 				{
 					if ( g_hWnd_update_download == NULL )
 					{
-						g_hWnd_update_download = _CreateWindowExW( ( g_is_windows_8_or_higher ? 0 : WS_EX_COMPOSITED ) | ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"update_download", ST_V_Update_Download, WS_CLIPCHILDREN | WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, 0, 600, 370, NULL, NULL, NULL, NULL );
+						g_hWnd_update_download = _CreateWindowExW( ( g_is_windows_8_or_higher ? 0 : WS_EX_COMPOSITED ) | ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"class_update_download", ST_V_Update_Download, WS_CLIPCHILDREN | WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, 0, 600, 370, NULL, NULL, NULL, NULL );
 					}
 					else if ( _IsIconic( g_hWnd_update_download ) )	// If minimized, then restore the window.
 					{
@@ -1667,7 +1667,7 @@ void HandleCommand( HWND hWnd, WORD command )
 		{
 			if ( g_hWnd_add_urls == NULL )
 			{
-				g_hWnd_add_urls = _CreateWindowExW( ( g_is_windows_8_or_higher ? 0 : WS_EX_COMPOSITED ) | ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"add_urls", ST_V_Add_URL_s_, WS_CLIPCHILDREN | WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, 0, 600, 270, NULL, NULL, NULL, NULL );
+				g_hWnd_add_urls = _CreateWindowExW( ( g_is_windows_8_or_higher ? 0 : WS_EX_COMPOSITED ) | ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"class_add_urls", ST_V_Add_URL_s_, WS_CLIPCHILDREN | WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, 0, 600, 270, NULL, NULL, NULL, NULL );
 			}
 
 			_SendMessageW( g_hWnd_add_urls, WM_PROPAGATE, 0, 0 );
@@ -1733,7 +1733,7 @@ void HandleCommand( HWND hWnd, WORD command )
 		{
 			if ( g_hWnd_search == NULL )
 			{
-				g_hWnd_search = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"search", ST_V_Search, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU, CW_USEDEFAULT, 0, 400, 190, NULL, NULL, NULL, NULL );
+				g_hWnd_search = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"class_search", ST_V_Search, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU, CW_USEDEFAULT, 0, 400, 190, NULL, NULL, NULL, NULL );
 			}
 
 			_SendMessageW( g_hWnd_search, WM_PROPAGATE, 0, 0 );
@@ -1744,7 +1744,7 @@ void HandleCommand( HWND hWnd, WORD command )
 		{
 			if ( g_hWnd_download_speed_limit == NULL )
 			{
-				g_hWnd_download_speed_limit = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"download_speed_limit", ST_V_Global_Download_Speed_Limit, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU, CW_USEDEFAULT, 0, 280, 120, NULL, NULL, NULL, NULL );
+				g_hWnd_download_speed_limit = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"class_download_speed_limit", ST_V_Global_Download_Speed_Limit, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU, CW_USEDEFAULT, 0, 280, 120, NULL, NULL, NULL, NULL );
 				_ShowWindow( g_hWnd_download_speed_limit, SW_SHOWNORMAL );
 			}
 			_SetForegroundWindow( g_hWnd_download_speed_limit );
@@ -1756,7 +1756,7 @@ void HandleCommand( HWND hWnd, WORD command )
 			if ( g_hWnd_site_manager == NULL )
 			{
 				// Painting issues and slowness with WS_EX_COMPOSITED on XP. I think the listview has something to do with it.
-				g_hWnd_site_manager = _CreateWindowExW( /*( g_is_windows_8_or_higher ? 0 : WS_EX_COMPOSITED ) |*/ ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"site_manager", ST_V_Site_Manager, WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN, CW_USEDEFAULT, 0, MIN_WIDTH, MIN_HEIGHT, NULL, NULL, NULL, NULL );
+				g_hWnd_site_manager = _CreateWindowExW( /*( g_is_windows_8_or_higher ? 0 : WS_EX_COMPOSITED ) |*/ ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"class_site_manager", ST_V_Site_Manager, WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN, CW_USEDEFAULT, 0, MIN_WIDTH, MIN_HEIGHT, NULL, NULL, NULL, NULL );
 			}
 			_ShowWindow( g_hWnd_site_manager, SW_SHOWNORMAL );
 			_SetForegroundWindow( g_hWnd_site_manager );
@@ -1767,7 +1767,7 @@ void HandleCommand( HWND hWnd, WORD command )
 		{
 			if ( g_hWnd_options == NULL )
 			{
-				g_hWnd_options = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"options", ST_V_Options, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU /*| WS_THICKFRAME*/, CW_USEDEFAULT, 0, 720, 500, NULL, NULL, NULL, NULL );
+				g_hWnd_options = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"class_options", ST_V_Options, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU /*| WS_THICKFRAME*/, CW_USEDEFAULT, 0, 720, 500, NULL, NULL, NULL, NULL );
 				_ShowWindow( g_hWnd_options, SW_SHOWNORMAL );
 			}
 			_SetForegroundWindow( g_hWnd_options );
@@ -1804,7 +1804,7 @@ void HandleCommand( HWND hWnd, WORD command )
 
 			if ( g_hWnd_check_for_updates == NULL )
 			{
-				g_hWnd_check_for_updates = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"check_for_updates", L"Check For Updates", WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU, CW_USEDEFAULT, 0, 400, 135, NULL, NULL, NULL, NULL );
+				g_hWnd_check_for_updates = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"class_check_for_updates", L"Check For Updates", WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU, CW_USEDEFAULT, 0, 400, 135, NULL, NULL, NULL, NULL );
 
 				CloseHandle( ( HANDLE )_CreateThread( NULL, 0, CheckForUpdates, NULL, 0, NULL ) );
 			}

@@ -27,7 +27,7 @@ function CreateDownloadWindow( download_info, message = "" )
 {
 	browser.windows.create(
 	{
-		url: browser.extension.getURL( "download.html" ),
+		url: browser.runtime.getURL( "download.html" ),
 		type: "popup",
 		left: g_left,
 		top: g_top,
@@ -378,26 +378,36 @@ function OnDownloadItemCreated( item )
 			 protocol.startsWith( "sftp:" ) )
 		{
 			var method = 1; // GET
+			var headers = "";
 			var post_data = "";
 
-			var request_body = GetPOSTRequestBody( item.url );
+			var request_info = GetPOSTRequestInfo( item.url, 2 );
 
-			if ( request_body != null )
+			if ( request_info != null )
 			{
 				method = 2; // POST
 
 				// Format the POST data as a URL encoded string.
-				if ( request_body.formData != null )
+				if ( request_info.formData != null )
 				{
-					var values = Object.entries( request_body.formData );
+					var values = Object.entries( request_info.formData );
 					post_data = values[ 0 ][ 0 ] + "=" + values[ 0 ][ 1 ];
 
 					for ( var i = 1; i < values.length; ++i )
 					{
 						post_data += "&" + values[ i ][ 0 ] + "=" + values[ i ][ 1 ];
 					}
+
+					request_info = GetPOSTRequestInfo( item.url, 3 );
+
+					if ( request_info != null )
+					{
+						headers = "Content-Type: " + request_info + "\r\n";
+					}
 				}
 			}
+
+			g_last_requests.length = 0;	// Clear the array of requests.
 
 			// Cancel the download before it begins.
 			browser.downloads.cancel( item.id )
@@ -422,11 +432,9 @@ function OnDownloadItemCreated( item )
 				var id = item.id;
 				var show_add_window = g_options.show_add_window;
 
-				var headers = "";
-
 				if ( g_options.user_agent )
 				{
-					headers = "User-Agent: " + window.navigator.userAgent + "\r\n";
+					headers += "User-Agent: " + window.navigator.userAgent + "\r\n";
 				}
 
 				if ( g_options.referer && item.referrer != null && item.referrer != "" )
@@ -464,19 +472,17 @@ function OnDownloadItemCreated( item )
 	}
 }
 
-function GetPOSTRequestBody( url )
+function GetPOSTRequestInfo( url, type )
 {
 	var request = null;
 
 	for ( var i = 0; i < g_last_requests.length; ++i )
 	{
-		if ( g_last_requests[ i ][ 0 ] == url )
+		if ( g_last_requests[ i ][ 1 ] == url )
 		{
-			request = g_last_requests[ i ][ 1 ];
+			request = g_last_requests[ i ][ type ];
 		}
 	}
-
-	g_last_requests.length = 0;	// Clear the array of requests.
 
 	return request;
 }
@@ -485,11 +491,54 @@ function GetURLRequest( request )
 {
 	if ( request.method == "POST" )
 	{
-		g_last_requests.unshift( [ request.url, request.requestBody ] );
-
-		if ( g_last_requests.length > 10 )
+		if ( g_last_requests.length > 0 && g_last_requests[ 0 ][ 0 ] == request.requestId )
 		{
-			g_last_requests.pop();
+			g_last_requests[ 0 ][ 2 ] = request.requestBody;
+		}
+		else
+		{
+			g_last_requests.unshift( [ request.requestId, request.url, request.requestBody, "" ] );
+
+			if ( g_last_requests.length > 10 )
+			{
+				g_last_requests.pop();
+			}
+		}
+	}
+}
+
+function GetURLHeaders( request )
+{
+	if ( request.method == "POST" )
+	{
+		if ( g_last_requests.length > 0 && g_last_requests[ 0 ][ 0 ] == request.requestId )
+		{
+			for ( let header of request.requestHeaders )
+			{
+				if ( header.name.toLowerCase() === "content-type" )
+				{
+					g_last_requests[ 0 ][ 3 ] = header.value;
+
+					break;
+				}
+			}
+		}
+		else
+		{
+			for ( let header of request.requestHeaders )
+			{
+				if ( header.name.toLowerCase() === "content-type" )
+				{
+					g_last_requests.unshift( [ request.requestId, request.url, "", header.value ] );
+
+					break;
+				}
+			}
+
+			if ( g_last_requests.length > 10 )
+			{
+				g_last_requests.pop();
+			}
 		}
 	}
 }
@@ -745,6 +794,7 @@ browser.storage.local.get().then( OnGetOptions )
 	{
 		browser.browserAction.setIcon( { path: "icons/icon-e-64.png" } );
 		browser.webRequest.onBeforeRequest.addListener( GetURLRequest, { urls: [ "<all_urls>" ] }, [ "requestBody" ] );
+		browser.webRequest.onBeforeSendHeaders.addListener( GetURLHeaders, { urls: [ "<all_urls>" ] }, [ "requestHeaders" ] );
 		browser.downloads.onCreated.addListener( OnDownloadItemCreated );
 	}
 } );

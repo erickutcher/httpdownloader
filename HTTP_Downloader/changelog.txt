@@ -1,3 +1,14 @@
+Version:	1.0.4.4
+Released:	2021-07-24
+
+Fixed crash after removing completed downloads.
+Fixed crash when starting server with no certificate context.
+Fixed various GDI leaks.
+Created a dark mode build.
+Improved keyboard navigation in Options window.
+Better handling of Content-Type header for POST requests.
+Better theme support for Firefox extension.
+
 Version:	1.0.4.3
 Released:	2021-05-26
 

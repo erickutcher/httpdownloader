@@ -28,6 +28,8 @@
 #include "cmessagebox.h"
 #include "wnd_proc.h"
 
+#include "dark_mode.h"
+
 #define BTN_YES			1001
 #define BTN_NO			1002
 #define BTN_OK			1003
@@ -78,7 +80,14 @@ bool InitializeCMessageBox( HINSTANCE hInstance )
 	wcex.cbWndExtra		= sizeof( LONG_PTR );		// We're going to pass each message window an info struct pointer.
 	wcex.lpfnWndProc	= CustomMessageBoxWndProc;
 
-	wcex.lpszClassName	= L"cmessagebox";
+#ifdef ENABLE_DARK_MODE
+	if ( g_use_dark_mode )
+	{
+		wcex.hbrBackground = g_hBrush_window_background;
+	}
+#endif
+
+	wcex.lpszClassName	= L"class_cmessagebox";
 	if ( !_RegisterClassExW( &wcex ) )
 	{
 		return false;
@@ -86,7 +95,7 @@ bool InitializeCMessageBox( HINSTANCE hInstance )
 
 	// Disable the close button.
 	//wcex.style		   |= CS_NOCLOSE;
-	wcex.lpszClassName	= L"cmessageboxdc";
+	wcex.lpszClassName	= L"class_cmessageboxdc";
 	if ( !_RegisterClassExW( &wcex ) )
 	{
 		return false;
@@ -94,7 +103,7 @@ bool InitializeCMessageBox( HINSTANCE hInstance )
 
 	//wcex.style		   &= ~CS_NOCLOSE;
 	wcex.lpfnWndProc	= FingerprintPromptWndProc;
-	wcex.lpszClassName	= L"fingerprint_prompt";
+	wcex.lpszClassName	= L"class_fingerprint_prompt";
 	if ( !_RegisterClassExW( &wcex ) )
 	{
 		return false;
@@ -128,7 +137,7 @@ int CMessageBoxW( HWND hWnd, LPCWSTR lpText, LPCWSTR lpCaption, UINT uType )
 																   ( uType & 0x0F ) == CMB_YESNOALL ||
 																   ( uType & 0x0F ) == CMB_RENAMEOVERWRITESKIPALL ||
 																   ( uType & 0x0F ) == CMB_CONTINUERESTARTSKIPALL ||
-																   ( uType & 0x0F ) == CMB_OKALL ) ? L"cmessageboxdc" : L"cmessagebox" ), lpCaption, WS_POPUP | WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_CLIPCHILDREN, CW_USEDEFAULT, 0, 100, 100, hWnd, NULL, NULL, ( LPVOID )cmb_info );
+																   ( uType & 0x0F ) == CMB_OKALL ) ? L"class_cmessageboxdc" : L"class_cmessagebox" ), lpCaption, WS_POPUP | WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_CLIPCHILDREN, CW_USEDEFAULT, 0, 100, 100, hWnd, NULL, NULL, ( LPVOID )cmb_info );
 	if ( hWnd_cmsgbox != NULL )
 	{
 		EnterCriticalSection( &cmessagebox_prompt_cs );
@@ -206,7 +215,7 @@ int CPromptW( HWND hWnd, LPCWSTR lpText, LPCWSTR lpCaption, UINT uType, void *da
 	cp_info->hWnd_checkbox = NULL;
 	cp_info->data = data;
 
-	HWND hWnd_cmsgbox = _CreateWindowExW( WS_EX_DLGMODALFRAME, L"fingerprint_prompt", lpCaption, WS_POPUP | WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_CLIPCHILDREN, CW_USEDEFAULT, 0, 600, 253, hWnd, NULL, NULL, ( LPVOID )cp_info );
+	HWND hWnd_cmsgbox = _CreateWindowExW( WS_EX_DLGMODALFRAME, L"class_fingerprint_prompt", lpCaption, WS_POPUP | WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_CLIPCHILDREN, CW_USEDEFAULT, 0, 600, 253, hWnd, NULL, NULL, ( LPVOID )cp_info );
 	if ( hWnd_cmsgbox != NULL )
 	{
 		EnterCriticalSection( &cmessagebox_prompt_cs );
@@ -563,6 +572,14 @@ LRESULT CALLBACK CustomMessageBoxWndProc( HWND hWnd, UINT msg, WPARAM wParam, LP
 				// Disable the parent window.
 				_EnableWindow( _GetParent( hWnd ), FALSE );
 
+#ifdef ENABLE_DARK_MODE
+				if ( g_use_dark_mode )
+				{
+					_EnumChildWindows( hWnd, EnumMsgBoxChildProc, NULL );	// Only need the buttons changed.
+					_EnumThreadWindows( GetCurrentThreadId(), EnumTLWProc, NULL );
+				}
+#endif
+
 				return 0;
 			}
 			else
@@ -607,8 +624,20 @@ LRESULT CALLBACK CustomMessageBoxWndProc( HWND hWnd, UINT msg, WPARAM wParam, LP
 				_DeleteObject( ohbm );
 				_DeleteObject( hbm );
 
+				HBRUSH color;
+
+#ifdef ENABLE_DARK_MODE
+				if ( g_use_dark_mode )
+				{
+					color = _CreateSolidBrush( dm_color_edit_background );
+				}
+				else
+#endif
+				{
+					color = _CreateSolidBrush( ( COLORREF )_GetSysColor( COLOR_WINDOW ) );
+				}
+
 				// Fill the background.
-				HBRUSH color = _CreateSolidBrush( ( COLORREF )_GetSysColor( COLOR_WINDOW ) );
 				_FillRect( hdcMem, &client_rc, color );
 				_DeleteObject( color );
 

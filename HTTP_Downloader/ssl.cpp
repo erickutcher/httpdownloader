@@ -145,33 +145,39 @@ SSL *SSL_new( DWORD protocol, bool is_server )
 	{
 		if ( !SecIsValidHandle( &g_hCreds_server ) )
 		{
-			_memzero( &SchannelCred, sizeof( SchannelCred ) );
+			if ( g_pCertContext != NULL )
+			{
+				_memzero( &SchannelCred, sizeof( SchannelCred ) );
 
-			SchannelCred.dwVersion = SCHANNEL_CRED_VERSION;
-			SchannelCred.cCreds = 1;
-			SchannelCred.paCred = &g_pCertContext;
-			SchannelCred.dwMinimumCipherStrength = ( DWORD )-1;
-			SchannelCred.grbitEnabledProtocols = protocol;
-			SchannelCred.dwFlags = ( SCH_CRED_NO_SYSTEM_MAPPER | SCH_CRED_NO_DEFAULT_CREDS | SCH_CRED_REVOCATION_CHECK_CHAIN );
+				SchannelCred.dwVersion = SCHANNEL_CRED_VERSION;
+				SchannelCred.cCreds = 1;
+				SchannelCred.paCred = &g_pCertContext;
+				SchannelCred.dwMinimumCipherStrength = ( DWORD )-1;
+				SchannelCred.grbitEnabledProtocols = protocol;
+				SchannelCred.dwFlags = ( SCH_CRED_NO_SYSTEM_MAPPER | SCH_CRED_NO_DEFAULT_CREDS | SCH_CRED_REVOCATION_CHECK_CHAIN );
 
-			scRet = g_pSSPI->AcquireCredentialsHandleA(
-							NULL,
-							UNISP_NAME_A,
-							SECPKG_CRED_INBOUND,
-							NULL,
-							&SchannelCred,
-							NULL,
-							NULL,
-							&g_hCreds_server,
-							&tsExpiry );
+				scRet = g_pSSPI->AcquireCredentialsHandleA(
+								NULL,
+								UNISP_NAME_A,
+								SECPKG_CRED_INBOUND,
+								NULL,
+								&SchannelCred,
+								NULL,
+								NULL,
+								&g_hCreds_server,
+								&tsExpiry );
+			}
+			else
+			{
+				scRet = ~SEC_E_OK;
+			}
 
 			if ( scRet != SEC_E_OK )
 			{
 				ResetServerCredentials();
 
 				GlobalFree( ssl );
-
-				return NULL;
+				ssl = NULL;
 			}
 		}
 	}

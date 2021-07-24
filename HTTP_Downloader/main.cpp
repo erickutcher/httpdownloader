@@ -53,6 +53,8 @@
 
 #include "system_tray.h"
 
+#include "dark_mode.h"
+
 //#define USE_DEBUG_DIRECTORY
 
 #ifdef USE_DEBUG_DIRECTORY
@@ -1208,10 +1210,37 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 	wcex.lpszMenuName	= NULL;
 	wcex.hIconSm		= NULL;
 
+#ifdef ENABLE_DARK_MODE
+	if ( IsWindowsVersionOrGreater( HIBYTE( _WIN32_WINNT_WIN10 ), LOBYTE( _WIN32_WINNT_WIN10 ), 0 ) )
+	{
+		_wmemcpy_s( g_base_directory + g_base_directory_length, MAX_PATH - g_base_directory_length, L"\\dark_mode\0", 11 );
+		g_base_directory[ g_base_directory_length + 10 ] = 0;	// Sanity.
+
+		// See if the user wants to run the program with dark mode support.
+		if ( GetFileAttributesW( g_base_directory ) != INVALID_FILE_ATTRIBUTES )
+		{
+			g_use_dark_mode = InitDarkMode();
+			if ( g_use_dark_mode )
+			{
+				if ( g_dm_buildNumber < WINDOWS_BUILD_1909 )
+				{
+					_AllowDarkModeForApp( true );
+				}
+				else
+				{
+					_SetPreferredAppMode( ForceDark );
+				}
+
+				wcex.hbrBackground = g_hBrush_window_background;
+			}
+		}
+	}
+#endif
+
 	// Since the main window's children cover it up, we don't need to redraw the window.
 	// This also prevents the status bar child from flickering during a window resize. Dumb!
 	wcex.lpfnWndProc	= MainWndProc;
-	wcex.lpszClassName	= L"http_downloader_class";
+	wcex.lpszClassName	= L"class_http_downloader";
 
 	if ( !_RegisterClassExW( &wcex ) )
 	{
@@ -1221,7 +1250,7 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 
 //	wcex.style			= CS_VREDRAW | CS_HREDRAW;
 	wcex.lpfnWndProc	= AddURLsWndProc;
-	wcex.lpszClassName	= L"add_urls";
+	wcex.lpszClassName	= L"class_add_urls";
 
 	if ( !_RegisterClassExW( &wcex ) )
 	{
@@ -1230,7 +1259,7 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 	}
 
 	wcex.lpfnWndProc	= OptionsWndProc;
-	wcex.lpszClassName	= L"options";
+	wcex.lpszClassName	= L"class_options";
 
 	if ( !_RegisterClassExW( &wcex ) )
 	{
@@ -1239,7 +1268,7 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 	}
 
 	wcex.lpfnWndProc	= UpdateDownloadWndProc;
-	wcex.lpszClassName	= L"update_download";
+	wcex.lpszClassName	= L"class_update_download";
 
 	if ( !_RegisterClassExW( &wcex ) )
 	{
@@ -1248,7 +1277,7 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 	}
 
 	wcex.lpfnWndProc	= SearchWndProc;
-	wcex.lpszClassName	= L"search";
+	wcex.lpszClassName	= L"class_search";
 
 	if ( !_RegisterClassExW( &wcex ) )
 	{
@@ -1257,7 +1286,7 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 	}
 
 	wcex.lpfnWndProc	= DownloadSpeedLimitWndProc;
-	wcex.lpszClassName	= L"download_speed_limit";
+	wcex.lpszClassName	= L"class_download_speed_limit";
 
 	if ( !_RegisterClassExW( &wcex ) )
 	{
@@ -1266,7 +1295,7 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 	}
 
 	wcex.lpfnWndProc	= SiteManagerWndProc;
-	wcex.lpszClassName	= L"site_manager";
+	wcex.lpszClassName	= L"class_site_manager";
 
 	if ( !_RegisterClassExW( &wcex ) )
 	{
@@ -1275,7 +1304,7 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 	}
 
 	wcex.lpfnWndProc	= CheckForUpdatesWndProc;
-	wcex.lpszClassName	= L"check_for_updates";
+	wcex.lpszClassName	= L"class_check_for_updates";
 
 	if ( !_RegisterClassExW( &wcex ) )
 	{
@@ -1286,7 +1315,7 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 	wcex.hIcon			= NULL;
 
 	wcex.lpfnWndProc	= AdvancedTabWndProc;
-	wcex.lpszClassName	= L"advanced_tab";
+	wcex.lpszClassName	= L"class_advanced_tab";
 
 	if ( !_RegisterClassExW( &wcex ) )
 	{
@@ -1295,7 +1324,7 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 	}
 
 	wcex.lpfnWndProc	= ProxyTabWndProc;
-	wcex.lpszClassName	= L"proxy_tab";
+	wcex.lpszClassName	= L"class_proxy_tab";
 
 	if ( !_RegisterClassExW( &wcex ) )
 	{
@@ -1304,7 +1333,7 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 	}
 
 	wcex.lpfnWndProc	= ConnectionTabWndProc;
-	wcex.lpszClassName	= L"connection_tab";
+	wcex.lpszClassName	= L"class_connection_tab";
 
 	if ( !_RegisterClassExW( &wcex ) )
 	{
@@ -1313,7 +1342,7 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 	}
 
 	wcex.lpfnWndProc	= AppearanceTabWndProc;
-	wcex.lpszClassName	= L"appearance_tab";
+	wcex.lpszClassName	= L"class_appearance_tab";
 
 	if ( !_RegisterClassExW( &wcex ) )
 	{
@@ -1322,7 +1351,7 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 	}
 
 	wcex.lpfnWndProc	= GeneralTabWndProc;
-	wcex.lpszClassName	= L"general_tab";
+	wcex.lpszClassName	= L"class_general_tab";
 
 	if ( !_RegisterClassExW( &wcex ) )
 	{
@@ -1331,7 +1360,7 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 	}
 
 	wcex.lpfnWndProc	= FTPTabWndProc;
-	wcex.lpszClassName	= L"ftp_tab";
+	wcex.lpszClassName	= L"class_ftp_tab";
 
 	if ( !_RegisterClassExW( &wcex ) )
 	{
@@ -1340,7 +1369,7 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 	}
 
 	wcex.lpfnWndProc	= SFTPTabWndProc;
-	wcex.lpszClassName	= L"sftp_tab";
+	wcex.lpszClassName	= L"class_sftp_tab";
 
 	if ( !_RegisterClassExW( &wcex ) )
 	{
@@ -1349,7 +1378,7 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 	}
 
 	wcex.lpfnWndProc	= SFTPFpsTabWndProc;
-	wcex.lpszClassName	= L"sftp_fps_tab";
+	wcex.lpszClassName	= L"class_sftp_fps_tab";
 
 	if ( !_RegisterClassExW( &wcex ) )
 	{
@@ -1358,7 +1387,7 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 	}
 
 	wcex.lpfnWndProc	= SFTPKeysTabWndProc;
-	wcex.lpszClassName	= L"sftp_keys_tab";
+	wcex.lpszClassName	= L"class_sftp_keys_tab";
 
 	if ( !_RegisterClassExW( &wcex ) )
 	{
@@ -1367,7 +1396,7 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 	}
 
 	wcex.lpfnWndProc	= WebServerTabWndProc;
-	wcex.lpszClassName	= L"web_server_tab";
+	wcex.lpszClassName	= L"class_web_server_tab";
 
 	if ( !_RegisterClassExW( &wcex ) )
 	{
@@ -1377,7 +1406,7 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 
 	wcex.style		   |= CS_DBLCLKS;
 	wcex.lpfnWndProc	= URLDropWndProc;
-	wcex.lpszClassName	= L"url_drop_window";
+	wcex.lpszClassName	= L"class_url_drop_window";
 
 	if ( !_RegisterClassExW( &wcex ) )
 	{
@@ -1400,7 +1429,8 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 		goto CLEANUP;
 	}
 
-	g_hWnd_main = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"http_downloader_class", PROGRAM_CAPTION, WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN, CW_USEDEFAULT, 0, cfg_width, cfg_height, NULL, NULL, NULL, NULL );
+	// WS_EX_COMPOSITED stops the menu bar and status bar from flickering when the window is resized.
+	g_hWnd_main = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ) | ( g_is_windows_8_or_higher ? 0 : WS_EX_COMPOSITED ), L"class_http_downloader", PROGRAM_CAPTION, WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN, CW_USEDEFAULT, 0, cfg_width, cfg_height, NULL, NULL, NULL, NULL );
 
 	if ( !g_hWnd_main )
 	{
@@ -1431,7 +1461,7 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 
 	if ( cfg_enable_drop_window )
 	{
-		g_hWnd_url_drop_window = _CreateWindowExW( WS_EX_NOPARENTNOTIFY | WS_EX_NOACTIVATE | WS_EX_TOPMOST, L"url_drop_window", NULL, WS_CLIPCHILDREN | WS_POPUP, 0, 0, DW_WIDTH, DW_HEIGHT, NULL, NULL, NULL, NULL );
+		g_hWnd_url_drop_window = _CreateWindowExW( WS_EX_NOPARENTNOTIFY | WS_EX_NOACTIVATE | WS_EX_TOPMOST, L"class_url_drop_window", NULL, WS_CLIPCHILDREN | WS_POPUP, 0, 0, DW_WIDTH, DW_HEIGHT, NULL, NULL, NULL, NULL );
 		_SetWindowLongPtrW( g_hWnd_url_drop_window, GWL_EXSTYLE, _GetWindowLongPtrW( g_hWnd_url_drop_window, GWL_EXSTYLE ) | WS_EX_LAYERED );
 		_SetLayeredWindowAttributes( g_hWnd_url_drop_window, 0, cfg_drop_window_transparency, LWA_ALPHA );
 
@@ -1597,6 +1627,10 @@ CLEANUP:
 	{
 		_DestroyIcon( g_default_tray_icon );
 	}
+
+#ifdef ENABLE_DARK_MODE
+	UninitDarkMode();
+#endif
 
 	if ( fail_type == 1 )
 	{

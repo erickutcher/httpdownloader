@@ -895,6 +895,16 @@ THREAD_RETURN handle_download_list( void *pArguments )
 
 				tln = tln_parent;
 
+				if ( tln->flag & TLVS_SELECTED )
+				{
+					++selected_count;
+
+					if ( tln->flag & TLVS_FOCUSED )
+					{
+						TLV_SetFocusedItem( NULL );
+						TLV_SetFocusedIndex( -1 );
+					}
+				}
 
 				++root_item_count;
 
@@ -1037,10 +1047,10 @@ THREAD_RETURN handle_download_list( void *pArguments )
 		TLV_SetExpandedItemCount( TLV_GetExpandedItemCount() - expanded_item_count );
 		TLV_SetRootItemCount( TLV_GetRootItemCount() - root_item_count );
 		TLV_SetSelectedCount( TLV_GetSelectedCount() - selected_count );
+		TLV_ResetSelectionBounds();
 
 		if ( g_tree_list != NULL )
 		{
-			TLV_ResetSelectionBounds();
 			TLV_SetSelectionBounds( 0, g_tree_list );
 			TLV_SetSelectionBounds( TLV_GetExpandedItemCount() - 1, g_tree_list->prev );
 		}

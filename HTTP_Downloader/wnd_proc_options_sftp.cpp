@@ -579,7 +579,19 @@ LRESULT CALLBACK SFTPTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 				_SendMessageW( g_hWnd_tv_current, WM_PRINTCLIENT, ( WPARAM )hdcMem, ( LPARAM )( PRF_ERASEBKGND | PRF_CLIENT | PRF_NONCLIENT ) );
 
-				HPEN line_color = _CreatePen( PS_DOT, 1, ( COLORREF )_GetSysColor( COLOR_HOTLIGHT ) );
+				HPEN line_color;
+
+#ifdef ENABLE_DARK_MODE
+				if ( g_use_dark_mode )
+				{
+					line_color = _CreatePen( PS_DOT, 1, dm_color_list_highlight );
+				}
+				else
+#endif
+				{
+					line_color = _CreatePen( PS_DOT, 1, ( COLORREF )_GetSysColor( COLOR_HOTLIGHT ) );
+				}
+
 				HPEN old_color = ( HPEN )_SelectObject( hdcMem, line_color );
 				_DeleteObject( old_color );
 				_MoveToEx( hdcMem, g_lb_item_rc.left, g_lb_item_rc.top, NULL );

@@ -471,38 +471,39 @@ function SetThemeStyle( theme )
 		}
 
 		var style_text = "";
-		
+
 		var body = "";
-		if ( theme.colors.toolbar ) { body += "background-color: " + theme.colors.toolbar + ";"; }
-		if ( theme.colors.toolbar_text ) { body += "color: " + theme.colors.toolbar_text + ";"; }
-		else if ( theme.colors.popup_text ) { body += "color: " + theme.colors.popup_text + ";"; }
+		if ( theme.colors.frame ) { body += "background-color: " + theme.colors.frame + ";"; }
+		if ( theme.colors.tab_text ) { body += "color: " + theme.colors.tab_text + ";"; }
 
 		var tab_frame = "";
-		if ( theme.colors.toolbar ) { tab_frame += "background-color: " + theme.colors.toolbar + ";"; }
-		if ( theme.colors.toolbar_field_border ) { tab_frame += "border-color: " + theme.colors.toolbar_field_border + ";"; }
+		if ( theme.colors.frame ) { tab_frame += "background-color: " + theme.colors.frame + ";"; }
+		if ( theme.colors.input_border ) { tab_frame += "border-color: " + theme.colors.input_border + ";"; }
 
 		var input_label = "";
-		if ( theme.colors.toolbar_field ) { input_label += "background-color: " + theme.colors.toolbar_field + ";"; }
-		if ( theme.colors.toolbar_field_border ) { input_label += "border-color: " + theme.colors.toolbar_field_border + ";"; }
+		if ( theme.colors.button ) { input_label += "background-color: " + theme.colors.button + ";"; }
+		else if ( theme.colors.button_background_hover ) { input_label += "background-color: " + theme.colors.button_background_hover + ";"; }
+		else if ( theme.colors.button_hover ) { input_label_hover += "background-color: " + theme.colors.button_hover + ";"; }
+		if ( theme.colors.input_border ) { input_label += "border-color: " + theme.colors.input_border + ";"; }
 
 		var input_label_hover = "";
-		if ( theme.colors.toolbar_field_focus && theme.colors.toolbar_field_focus != theme.colors.toolbar_field ) { input_label_hover += "background-color: " + theme.colors.toolbar_field_focus + ";"; }
-		else if ( theme.colors.toolbar_field_border_focus ) { input_label_hover += "background-color: " + theme.colors.toolbar_field_border_focus + ";"; }
-		else if ( theme.colors.toolbar_field ) { input_label_hover += "background-color: " + theme.colors.toolbar_field + ";"; }
+		if ( theme.colors.button_background_hover ) { input_label_hover += "background-color: " + theme.colors.button_background_hover + ";"; }
+		else if ( theme.colors.button_hover ) { input_label_hover += "background-color: " + theme.colors.button_hover + ";"; }
 
 		var input_checked = "";
-		if ( theme.colors.toolbar ) { input_checked += "background-color: " + theme.colors.toolbar + ";"; }
+		if ( theme.colors.frame ) { input_checked += "background-color: " + theme.colors.frame + ";"; }
 
 		var inputs = "";
-		if ( theme.colors.toolbar_field ) { inputs += "background-color: " + theme.colors.toolbar_field + ";"; }
-		if ( theme.colors.toolbar_field_border ) { inputs += "border-color: " + theme.colors.toolbar_field_border + ";"; }
-		if ( theme.colors.toolbar_field_text ) { inputs += "color: " + theme.colors.toolbar_field_text + ";"; }
-
-		var inputs_focus = "";
-		if ( theme.colors.toolbar_field_border_focus ) { inputs_focus += "border-color: " + theme.colors.toolbar_field_border_focus + ";"; }
+		if ( theme.colors.input_background ) { inputs += "background-color: " + theme.colors.input_background + ";"; }
+		else if ( theme.colors.toolbar_field ) { inputs += "background-color: " + theme.colors.toolbar_field + ";"; }
+		if ( theme.colors.input_border ) { inputs += "border-color: " + theme.colors.input_border + ";"; }
+		//else if ( theme.colors.toolbar_field_border ) { inputs += "border-color: " + theme.colors.toolbar_field_border + ";"; }
+		if ( theme.colors.input_color ) { inputs += "color: " + theme.colors.input_color + ";"; }
+		else if ( theme.colors.toolbar_field_text ) { inputs += "color: " + theme.colors.toolbar_field_text + ";"; }
 
 		var fieldset = "";
-		if ( theme.colors.toolbar_field_border ) { fieldset += "border-color: " + theme.colors.toolbar_field_border + ";"; }
+		if ( theme.colors.input_border ) { fieldset += "border-color: " + theme.colors.input_border + ";"; }
+		//else if ( theme.colors.toolbar_field_border ) { fieldset += "border-color: " + theme.colors.toolbar_field_border + ";"; }
 
 		if ( body != "" ) { style_text += "body {" + body + "}"; }
 		if ( tab_frame != "" ) { style_text += ".tab_frame {" + tab_frame + "}"; }
@@ -510,7 +511,6 @@ function SetThemeStyle( theme )
 		if ( input_label_hover != "" ) { style_text += ".tab > input + label:hover {" + input_label_hover + "}"; }
 		if ( input_checked != "" ) { style_text += ".tab > input:checked + label {" + input_checked + "}"; }
 		if ( inputs != "" ) { style_text += "input, textarea, select {" + inputs + "}"; }
-		if ( inputs_focus != "" ) { style_text += "input:focus, textarea:focus, select:focus {" + inputs_focus + "}"; }
 		if ( fieldset != "" ) { style_text += "fieldset {" + fieldset + "}"; }
 
 		if ( style_text != "" )
