@@ -62,6 +62,7 @@
 	//#define _EnumChildWindows		EnumChildWindows
 	#define _ExitWindowsEx			ExitWindowsEx
 	#define _FillRect				FillRect
+	#define _FindWindowW			FindWindowW
 	#define _FlashWindow			FlashWindow
 	#define _FrameRect				FrameRect
 	//#define _GetClassLongPtrW		GetClassLongPtrW
@@ -185,6 +186,7 @@
 	//typedef BOOL ( WINAPI *pEnumChildWindows )( HWND hWndParent, WNDENUMPROC lpEnumFunc, LPARAM lParam );
 	typedef BOOL ( WINAPI *pExitWindowsEx )( UINT uFlags, DWORD dwReason );
 	typedef int ( WINAPI *pFillRect )( HDC hDC, const RECT *lprc, HBRUSH hbr );
+	typedef HWND ( WINAPI *pFindWindowW )( LPCWSTR lpClassName, LPCWSTR lpWindowName );
 	typedef BOOL ( WINAPI *pFlashWindow )( HWND hWnd, BOOL bInvert );
 	typedef int ( WINAPI *pFrameRect )( HDC hDC, const RECT *lprc, HBRUSH hbr );
 	//typedef ULONG_PTR WINAPI ( WINAPI *pGetClassLongPtrW )( HWND hWnd, int nIndex );
@@ -301,6 +303,7 @@
 	//extern pEnumChildWindows		_EnumChildWindows;
 	extern pExitWindowsEx			_ExitWindowsEx;
 	extern pFillRect				_FillRect;
+	extern pFindWindowW				_FindWindowW;
 	extern pFlashWindow				_FlashWindow;
 	extern pFrameRect				_FrameRect;
 	//extern pGetClassLongPtrW		_GetClassLongPtrW;

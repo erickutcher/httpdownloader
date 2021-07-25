@@ -41,6 +41,8 @@
 #include "treelistview.h"
 #include "doublylinkedlist.h"
 
+#include "dark_mode.h"
+
 HANDLE g_hIOCP = NULL;
 
 WSAEVENT g_cleanup_event[ 1 ];
@@ -8019,7 +8021,15 @@ THREAD_RETURN CheckForUpdates( void * /*pArguments*/ )
 			unsigned int host_length = 0;
 			unsigned int resource_length = 0;
 
-			ParseURL_A( UPDATE_CHECK_URL, NULL, context->request_info.protocol, &context->request_info.host, host_length, context->request_info.port, &context->request_info.resource, resource_length, NULL, NULL, NULL, NULL );
+			char *update_check_url;
+
+#ifdef ENABLE_DARK_MODE
+			update_check_url = DM_UPDATE_CHECK_URL;
+#else
+			update_check_url = UPDATE_CHECK_URL;
+#endif
+
+			ParseURL_A( update_check_url, NULL, context->request_info.protocol, &context->request_info.host, host_length, context->request_info.port, &context->request_info.resource, resource_length, NULL, NULL, NULL, NULL );
 
 			context->update_status = 0x01;	// Check for updates.
 

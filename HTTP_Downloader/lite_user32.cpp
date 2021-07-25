@@ -54,6 +54,7 @@
 	//pEnumChildWindows		_EnumChildWindows;
 	pExitWindowsEx			_ExitWindowsEx;
 	pFillRect				_FillRect;
+	pFindWindowW			_FindWindowW;
 	pFlashWindow			_FlashWindow;
 	pFrameRect				_FrameRect;
 	//pGetClassLongPtrW		_GetClassLongPtrW;
@@ -188,6 +189,7 @@
 		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_EnumChildWindows, "EnumChildWindows" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_ExitWindowsEx, "ExitWindowsEx" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_FillRect, "FillRect" ) )
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_FindWindowW, "FindWindowW" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_FlashWindow, "FlashWindow" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_FrameRect, "FrameRect" ) )
 		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_GetClassLongPtrW, "GetClassLongPtrW" ) )

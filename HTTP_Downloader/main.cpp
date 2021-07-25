@@ -760,7 +760,7 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 	{
 		if ( cfg_use_one_instance )
 		{
-			HWND hWnd_instance = FindWindow( L"http_downloader_class", NULL );
+			HWND hWnd_instance = _FindWindowW( L"class_http_downloader", NULL );
 			if ( hWnd_instance != NULL )
 			{
 				// If we're passing command-line values, then the Add URLs window will take focus when the copy data is received.

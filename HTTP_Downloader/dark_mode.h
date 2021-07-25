@@ -36,6 +36,10 @@
 
 //
 
+#define DM_UPDATE_CHECK_URL			"https://raw.githubusercontent.com/erickutcher/httpdownloader/master/HTTP_Downloader/dm_version.txt"
+
+//
+
 #define WINDOWS_BUILD_1809			17763
 #define WINDOWS_BUILD_1903			18362
 #define WINDOWS_BUILD_1909			18363

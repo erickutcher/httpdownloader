@@ -1,3 +1,9 @@
+Version:	1.0.4.5
+Released:	2021-07-25
+
+Fixed single instance not receiving URLs from command-line.
+Separated regular and dark mode version checks.
+
 Version:	1.0.4.4
 Released:	2021-07-24
 
