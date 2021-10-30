@@ -1162,7 +1162,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 			// Allows us to use the iString value for tooltips.
 			_SendMessageW( g_hWnd_toolbar, TB_SETMAXTEXTROWS, 0, 0 );
 
-			TBBUTTON tbb[ 15 ] = 
+			TBBUTTON tbb[ 16 ] = 
 			{
 				{ MAKELONG( 0, 0 ),				  MENU_ADD_URLS,	TBSTATE_ENABLED, BTNS_AUTOSIZE,	{ 0 }, 0,					 ( INT_PTR )ST_V_Add_URL_s_ },
 				{ MAKELONG( 1, 0 ),					MENU_REMOVE,	TBSTATE_ENABLED, BTNS_AUTOSIZE,	{ 0 }, 0,						 ( INT_PTR )ST_V_Remove },
@@ -1172,16 +1172,17 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 				{ MAKELONG( 4, 0 ),					  MENU_STOP,	TBSTATE_ENABLED, BTNS_AUTOSIZE,	{ 0 }, 0,						   ( INT_PTR )ST_V_Stop },
 				{ MAKELONG( 5, 0 ),				   MENU_RESTART,	TBSTATE_ENABLED, BTNS_AUTOSIZE,	{ 0 }, 0,						( INT_PTR )ST_V_Restart },
 				{				 0,							 -1,				  0,	  BTNS_SEP,	{ 0 }, 0,										   NULL },
-				{ MAKELONG( 6, 0 ),			  MENU_PAUSE_ACTIVE,	TBSTATE_ENABLED, BTNS_AUTOSIZE,	{ 0 }, 0,				   ( INT_PTR )ST_V_Pause_Active },
-				{ MAKELONG( 7, 0 ),				  MENU_STOP_ALL,	TBSTATE_ENABLED, BTNS_AUTOSIZE,	{ 0 }, 0,					   ( INT_PTR )ST_V_Stop_All },
+				{ MAKELONG( 6, 0 ),			MENU_START_INACTIVE,	TBSTATE_ENABLED, BTNS_AUTOSIZE,	{ 0 }, 0,		( INT_PTR )ST_V_Start___Resume_Inactive },
+				{ MAKELONG( 7, 0 ),			  MENU_PAUSE_ACTIVE,	TBSTATE_ENABLED, BTNS_AUTOSIZE,	{ 0 }, 0,				   ( INT_PTR )ST_V_Pause_Active },
+				{ MAKELONG( 8, 0 ),				  MENU_STOP_ALL,	TBSTATE_ENABLED, BTNS_AUTOSIZE,	{ 0 }, 0,					   ( INT_PTR )ST_V_Stop_All },
 				{				 0,							 -1,				  0,	  BTNS_SEP,	{ 0 }, 0,										   NULL },
-				{ MAKELONG( 8, 0 ),					MENU_SEARCH,	TBSTATE_ENABLED, BTNS_AUTOSIZE,	{ 0 }, 0,						 ( INT_PTR )ST_V_Search },
-				{ MAKELONG( 9, 0 ),		MENU_GLOBAL_SPEED_LIMIT,	TBSTATE_ENABLED, BTNS_AUTOSIZE,	{ 0 }, 0,	( INT_PTR )ST_V_Global_Download_Speed_Limit },
-				{ MAKELONG( 10, 0 ),		  MENU_SITE_MANAGER,	TBSTATE_ENABLED, BTNS_AUTOSIZE,	{ 0 }, 0,				   ( INT_PTR )ST_V_Site_Manager },
-				{ MAKELONG( 11, 0 ),			   MENU_OPTIONS,	TBSTATE_ENABLED, BTNS_AUTOSIZE,	{ 0 }, 0,						( INT_PTR )ST_V_Options }
+				{ MAKELONG( 9, 0 ),					MENU_SEARCH,	TBSTATE_ENABLED, BTNS_AUTOSIZE,	{ 0 }, 0,						 ( INT_PTR )ST_V_Search },
+				{ MAKELONG( 10, 0 ),	MENU_GLOBAL_SPEED_LIMIT,	TBSTATE_ENABLED, BTNS_AUTOSIZE,	{ 0 }, 0,	( INT_PTR )ST_V_Global_Download_Speed_Limit },
+				{ MAKELONG( 11, 0 ),		  MENU_SITE_MANAGER,	TBSTATE_ENABLED, BTNS_AUTOSIZE,	{ 0 }, 0,				   ( INT_PTR )ST_V_Site_Manager },
+				{ MAKELONG( 12, 0 ),			   MENU_OPTIONS,	TBSTATE_ENABLED, BTNS_AUTOSIZE,	{ 0 }, 0,						( INT_PTR )ST_V_Options }
 			};
 
-			_SendMessageW( g_hWnd_toolbar, TB_ADDBUTTONS, 15, ( LPARAM )&tbb );
+			_SendMessageW( g_hWnd_toolbar, TB_ADDBUTTONS, 16, ( LPARAM )&tbb );
 
 			g_hWnd_tlv_files = _CreateWindowW( L"TreeListView", NULL, WS_VSCROLL | WS_HSCROLL | WS_CHILDWINDOW | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 
@@ -1676,7 +1677,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 			{
 				_OffsetRect( rc, mi.rcWork.left - rc->left - g_border_width, 0 );
 			}
-			else if ( is_close( mi.rcWork.right, rc->right + g_border_width ) )			// Attach to right side of the desktop.
+			else if ( is_close( mi.rcWork.right, rc->right - g_border_width ) )			// Attach to right side of the desktop.
 			{
 				_OffsetRect( rc, mi.rcWork.right - rc->right + g_border_width, 0 );
 			}
@@ -1685,7 +1686,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 			{
 				_OffsetRect( rc, 0, mi.rcWork.top - rc->top );
 			}
-			else if ( is_close( mi.rcWork.bottom, rc->bottom + g_border_width ) )		// Attach to bottom of the desktop.
+			else if ( is_close( mi.rcWork.bottom, rc->bottom - g_border_width ) )		// Attach to bottom of the desktop.
 			{
 				_OffsetRect( rc, 0, mi.rcWork.bottom - rc->bottom + g_border_width );
 			}

@@ -4008,7 +4008,7 @@ char MakeRangeRequest( SOCKET_CONTEXT *context )
 				new_context->context_node.data = new_context;
 
 				EnterCriticalSection( &context_list_cs );
-				
+
 				DLL_AddNode( &g_context_list, &new_context->context_node, 0 );
 
 				LeaveCriticalSection( &context_list_cs );
@@ -4090,9 +4090,14 @@ char MakeRequest( SOCKET_CONTEXT *context, IO_OPERATION next_operation, bool use
 			{
 				context->header_info.range_info->range_start = 0;
 				context->header_info.range_info->range_end = 0;
-				context->header_info.range_info->content_offset = 0;
 				context->header_info.range_info->file_write_offset = 0;
 			}
+			else
+			{
+				context->header_info.range_info->range_start += context->header_info.range_info->content_offset;
+			}
+
+			context->header_info.range_info->content_offset = 0;
 
 			//
 
@@ -4170,9 +4175,16 @@ char MakeRequest( SOCKET_CONTEXT *context, IO_OPERATION next_operation, bool use
 			{
 				new_context->header_info.range_info->range_start = 0;
 				new_context->header_info.range_info->range_end = 0;
-				new_context->header_info.range_info->content_offset = 0;
 				new_context->header_info.range_info->file_write_offset = 0;
 			}
+			else
+			{
+				new_context->header_info.range_info->range_start = context->header_info.range_info->range_start + context->header_info.range_info->content_offset;
+				new_context->header_info.range_info->range_end = context->header_info.range_info->range_end;
+				new_context->header_info.range_info->file_write_offset = new_context->header_info.range_info->range_start;
+			}
+
+			new_context->header_info.range_info->content_offset = 0;
 
 			new_context->header_info.digest_info = context->header_info.digest_info;
 			new_context->header_info.proxy_digest_info = context->header_info.proxy_digest_info;

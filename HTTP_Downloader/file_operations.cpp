@@ -78,7 +78,7 @@ char read_config()
 			// Read the config. It must be in the order specified below.
 			if ( read == fz && _memcmp( cfg_buf, MAGIC_ID_SETTINGS, 4 ) == 0 )
 			{
-				reserved = 1024 - 716;
+				reserved = 1024 - 717;
 
 				char *next = cfg_buf + 4;
 
@@ -475,6 +475,11 @@ char read_config()
 					_memcpy_s( &cfg_priority_encryption_cipher[ i ], sizeof( unsigned char ), next, sizeof( unsigned char ) );
 					next += sizeof( unsigned char );
 				}
+
+				//
+
+				_memcpy_s( &cfg_reallocate_parts, sizeof( bool ), next, sizeof( bool ) );
+				next += sizeof( bool );
 
 
 				//
@@ -1181,11 +1186,11 @@ char save_config()
 	HANDLE hFile_cfg = CreateFile( g_base_directory, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL );
 	if ( hFile_cfg != INVALID_HANDLE_VALUE )
 	{
-		int reserved = 1024 - 716;
+		int reserved = 1024 - 717;
 		int size = ( sizeof( int ) * 25 ) +
 				   ( sizeof( unsigned short ) * 7 ) +
 				   ( sizeof( char ) * ( 50 + KEX_ALGORITHM_COUNT + HOST_KEY_COUNT + ENCRYPTION_CIPHER_COUNT ) ) +
-				   ( sizeof( bool ) * 43 ) +
+				   ( sizeof( bool ) * 44 ) +
 				   ( sizeof( unsigned long ) * 7 ) +
 				   ( sizeof( LONG ) * 4 ) +
 				   ( sizeof( BYTE ) * 6 ) +
@@ -1592,6 +1597,11 @@ char save_config()
 			_memcpy_s( write_buf + pos, size - pos, &cfg_priority_encryption_cipher[ i ], sizeof( unsigned char ) );
 			pos += sizeof( unsigned char );
 		}
+
+		//
+
+		_memcpy_s( write_buf + pos, size - pos, &cfg_reallocate_parts, sizeof( bool ) );
+		pos += sizeof( bool );
 
 
 		//

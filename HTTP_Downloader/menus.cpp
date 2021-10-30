@@ -384,15 +384,23 @@ void UpdateMenus( bool enable )
 
 		if ( item_count > 0 )
 		{
+			_EnableMenuItem( g_hMenuSub_edit, MENU_START_INACTIVE, MF_ENABLED );
 			//_EnableMenuItem( g_hMenuSub_edit, MENU_PAUSE_ACTIVE, MF_ENABLED );
 			//_EnableMenuItem( g_hMenuSub_edit, MENU_STOP_ALL, MF_ENABLED );
 			_EnableMenuItem( g_hMenuSub_edit, MENU_REMOVE_COMPLETED, MF_ENABLED );
+
+			tbb.fsState = TBSTATE_ENABLED;
+			_SendMessageW( g_hWnd_toolbar, TB_SETBUTTONINFO, MENU_START_INACTIVE, ( LPARAM )&tbb );
 		}
 		else
 		{
+			_EnableMenuItem( g_hMenuSub_edit, MENU_START_INACTIVE, MF_GRAYED );
 			//_EnableMenuItem( g_hMenuSub_edit, MENU_PAUSE_ACTIVE, MF_GRAYED );
 			//_EnableMenuItem( g_hMenuSub_edit, MENU_STOP_ALL, MF_GRAYED );
 			_EnableMenuItem( g_hMenuSub_edit, MENU_REMOVE_COMPLETED, MF_GRAYED );
+
+			tbb.fsState = TBSTATE_INDETERMINATE;
+			_SendMessageW( g_hWnd_toolbar, TB_SETBUTTONINFO, MENU_START_INACTIVE, ( LPARAM )&tbb );
 		}
 
 		_EnableMenuItem( g_hMenuSub_download, MENU_ADD_URLS, MF_ENABLED );
@@ -455,6 +463,7 @@ void UpdateMenus( bool enable )
 		_EnableMenuItem( g_hMenuSub_edit, MENU_PAUSE, MF_GRAYED );
 		_EnableMenuItem( g_hMenuSub_edit, MENU_STOP, MF_GRAYED );
 		_EnableMenuItem( g_hMenuSub_edit, MENU_RESTART, MF_GRAYED );
+		_EnableMenuItem( g_hMenuSub_edit, MENU_START_INACTIVE, MF_GRAYED );
 		_EnableMenuItem( g_hMenuSub_edit, MENU_PAUSE_ACTIVE, MF_GRAYED );
 		_EnableMenuItem( g_hMenuSub_edit, MENU_STOP_ALL, MF_GRAYED );
 		_EnableMenuItem( g_hMenuSub_edit, MENU_UPDATE_DOWNLOAD, MF_GRAYED );
@@ -477,6 +486,7 @@ void UpdateMenus( bool enable )
 		_SendMessageW( g_hWnd_toolbar, TB_SETBUTTONINFO, MENU_PAUSE, ( LPARAM )&tbb );
 		_SendMessageW( g_hWnd_toolbar, TB_SETBUTTONINFO, MENU_STOP, ( LPARAM )&tbb );
 		_SendMessageW( g_hWnd_toolbar, TB_SETBUTTONINFO, MENU_RESTART, ( LPARAM )&tbb );
+		_SendMessageW( g_hWnd_toolbar, TB_SETBUTTONINFO, MENU_START_INACTIVE, ( LPARAM )&tbb );
 		_SendMessageW( g_hWnd_toolbar, TB_SETBUTTONINFO, MENU_PAUSE_ACTIVE, ( LPARAM )&tbb );
 		_SendMessageW( g_hWnd_toolbar, TB_SETBUTTONINFO, MENU_STOP_ALL, ( LPARAM )&tbb );
 
@@ -900,86 +910,91 @@ void CreateMenus()
 	_InsertMenuItemW( g_hMenuSub_edit, 4, TRUE, &mii );
 
 	mii.fType = MFT_STRING;
+	mii.dwTypeData = ST_V_Start___Resume_Inactive;
+	mii.cch = ST_L_Start___Resume_Inactive;
+	mii.wID = MENU_START_INACTIVE;
+	_InsertMenuItemW( g_hMenuSub_edit, 5, TRUE, &mii );
+
 	mii.dwTypeData = ST_V_Pause_Active;
 	mii.cch = ST_L_Pause_Active;
 	mii.wID = MENU_PAUSE_ACTIVE;
-	_InsertMenuItemW( g_hMenuSub_edit, 5, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_edit, 6, TRUE, &mii );
 
 	mii.dwTypeData = ST_V_Stop_All;
 	mii.cch = ST_L_Stop_All;
 	mii.wID = MENU_STOP_ALL;
-	_InsertMenuItemW( g_hMenuSub_edit, 6, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_edit, 7, TRUE, &mii );
 
 	mii.fType = MFT_SEPARATOR;
-	_InsertMenuItemW( g_hMenuSub_edit, 7, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_edit, 8, TRUE, &mii );
 
 	mii.fType = MFT_STRING;
 	mii.dwTypeData = ST_V__Update_Download____;
 	mii.cch = ST_L__Update_Download____;
 	mii.wID = MENU_UPDATE_DOWNLOAD;
-	_InsertMenuItemW( g_hMenuSub_edit, 8, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_edit, 9, TRUE, &mii );
 
 	mii.fType = MFT_SEPARATOR;
-	_InsertMenuItemW( g_hMenuSub_edit, 9, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_edit, 10, TRUE, &mii );
 
 	mii.fMask = MIIM_TYPE | MIIM_SUBMENU;
 	mii.fType = MFT_STRING;
 	mii.dwTypeData = ST_V_Queue;
 	mii.cch = ST_L_Queue;
 	mii.hSubMenu = g_hMenuSub_queue;
-	_InsertMenuItemW( g_hMenuSub_edit, 10, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_edit, 11, TRUE, &mii );
 
 	mii.fMask = MIIM_TYPE | MIIM_ID | MIIM_STATE;
 	mii.fType = MFT_SEPARATOR;
-	_InsertMenuItemW( g_hMenuSub_edit, 11, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_edit, 12, TRUE, &mii );
 
 	mii.fType = MFT_STRING;
 	mii.dwTypeData = ST_V__Remove_;
 	mii.cch = ST_L__Remove_;
 	mii.wID = MENU_REMOVE;
-	_InsertMenuItemW( g_hMenuSub_edit, 12, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_edit, 13, TRUE, &mii );
 
 	mii.dwTypeData = ST_V_Remove_Completed;
 	mii.cch = ST_L_Remove_Completed;
 	mii.wID = MENU_REMOVE_COMPLETED;
-	_InsertMenuItemW( g_hMenuSub_edit, 13, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_edit, 14, TRUE, &mii );
 
 	mii.dwTypeData = ST_V_Remove_and_Delete_;
 	mii.cch = ST_L_Remove_and_Delete_;
 	mii.wID = MENU_REMOVE_AND_DELETE;
-	_InsertMenuItemW( g_hMenuSub_edit, 14, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_edit, 15, TRUE, &mii );
 
 	mii.fType = MFT_SEPARATOR;
-	_InsertMenuItemW( g_hMenuSub_edit, 15, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_edit, 16, TRUE, &mii );
 
 	mii.fType = MFT_STRING;
 	mii.dwTypeData = ST_V__Delete_;
 	mii.cch = ST_L__Delete_;
 	mii.wID = MENU_DELETE;
-	_InsertMenuItemW( g_hMenuSub_edit, 16, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_edit, 17, TRUE, &mii );
 
 	mii.dwTypeData = ST_V_Rename_;
 	mii.cch = ST_L_Rename_;
 	mii.wID = MENU_RENAME;
-	_InsertMenuItemW( g_hMenuSub_edit, 17, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_edit, 18, TRUE, &mii );
 
 	mii.fType = MFT_SEPARATOR;
-	_InsertMenuItemW( g_hMenuSub_edit, 18, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_edit, 19, TRUE, &mii );
 
 	mii.fType = MFT_STRING;
 	mii.dwTypeData = ST_V__Copy_URL_s_;
 	mii.cch = ST_L__Copy_URL_s_;
 	mii.wID = MENU_COPY_URLS;
-	_InsertMenuItemW( g_hMenuSub_edit, 19, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_edit, 20, TRUE, &mii );
 
 	mii.fType = MFT_SEPARATOR;
-	_InsertMenuItemW( g_hMenuSub_edit, 20, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_edit, 21, TRUE, &mii );
 
 	mii.fType = MFT_STRING;
 	mii.dwTypeData = ST_V__Select_All_;
 	mii.cch = ST_L__Select_All_;
 	mii.wID = MENU_SELECT_ALL;
-	_InsertMenuItemW( g_hMenuSub_edit, 21, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_edit, 22, TRUE, &mii );
 
 
 	// VIEW MENU
@@ -1516,6 +1531,12 @@ void HandleCommand( HWND hWnd, WORD command )
 			{
 				CloseHandle( ( HANDLE )_CreateThread( NULL, 0, handle_connection, ( void * )STATUS_RESTART, 0, NULL ) );
 			}
+		}
+		break;
+
+		case MENU_START_INACTIVE:
+		{
+			CloseHandle( ( HANDLE )_CreateThread( NULL, 0, handle_connection, ( void * )UINT_MAX, 0, NULL ) );
 		}
 		break;
 

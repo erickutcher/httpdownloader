@@ -119,6 +119,8 @@ unsigned char cfg_retry_parts_count = 0;
 unsigned char cfg_default_ssl_version = 4;	// Default is TLS 1.2.
 unsigned char cfg_default_download_parts = 1;
 
+bool cfg_reallocate_parts = false;
+
 unsigned char cfg_max_redirects = 10;
 
 unsigned long long cfg_default_speed_limit = 0;	// 0 = Unlimited

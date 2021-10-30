@@ -93,6 +93,7 @@ Site &Manager...\tCtrl+M
 SSL / TLS Version
 St&art
 Start
+Start / Resume Inactive
 &Status Bar
 St&op
 Stop
@@ -185,6 +186,7 @@ Active download limit:
 Default download parts:
 Default SSL / TLS version:
 Maximum redirects:
+Reallocate parts to maximize connections
 Retry incomplete downloads:
 Retry incomplete parts:
 Timeout (seconds):

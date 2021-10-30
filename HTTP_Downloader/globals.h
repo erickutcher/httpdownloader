@@ -90,7 +90,7 @@
 #define SAFESTRW( s ) ( s != NULL ? s : L"" )
 #define SAFESTR2W( s1, s2 ) ( s1 != NULL ? s1 : ( s2 != NULL ? s2 : L"" ) )
 
-#define is_close( a, b ) ( _abs( a - b ) < SNAP_WIDTH )
+#define is_close( a, b ) ( _abs( ( a ) - ( b ) ) < SNAP_WIDTH )
 
 #define is_digit_a( c ) ( c - '0' + 0U <= 9U )
 #define is_digit_w( c ) ( c - L'0' + 0U <= 9U )
@@ -109,7 +109,7 @@
 #define CURRENT_VERSION_A	1
 #define CURRENT_VERSION_B	0
 #define CURRENT_VERSION_C	4
-#define CURRENT_VERSION_D	5
+#define CURRENT_VERSION_D	6
 
 #define CURRENT_VERSION		( ( CURRENT_VERSION_A << 24 ) | \
 							  ( CURRENT_VERSION_B << 16 ) | \
@@ -389,6 +389,8 @@ extern unsigned char cfg_retry_parts_count;
 
 extern unsigned char cfg_default_ssl_version;
 extern unsigned char cfg_default_download_parts;
+
+extern bool cfg_reallocate_parts;
 
 extern unsigned char cfg_max_redirects;
 

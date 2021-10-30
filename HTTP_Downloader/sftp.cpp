@@ -1315,14 +1315,14 @@ char SFTP_MakeRangeRequest( SOCKET_CONTEXT *context )
 			new_context->header_info.range_info->content_length = content_length;
 			new_context->header_info.range_info->file_write_offset = new_context->header_info.range_info->range_start;
 
-			new_context->request_info.redirect_count = context->request_info.redirect_count;	// This is being used to determine whether we've switched modes (fallback mode).
-			new_context->header_info.connection = context->header_info.connection;				// This is being used as our mode value. (cfg_ftp_mode_type)
+			//new_context->request_info.redirect_count = context->request_info.redirect_count;	// This is being used to determine whether we've switched modes (fallback mode).
+			//new_context->header_info.connection = context->header_info.connection;				// This is being used as our mode value. (cfg_ftp_mode_type)
 			//
 
 			new_context->context_node.data = new_context;
 
 			EnterCriticalSection( &context_list_cs );
-			
+
 			DLL_AddNode( &g_context_list, &new_context->context_node, 0 );
 
 			LeaveCriticalSection( &context_list_cs );

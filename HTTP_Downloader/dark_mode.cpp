@@ -3650,6 +3650,18 @@ void ToolbarPaint( HWND hWnd, HDC hDC, int index1, COLORREF button1_color, int i
 			if ( tbb.fsStyle & BTNS_SEP )
 			{
 				++il_offset;
+
+				HPEN hPen = _CreatePen( PS_SOLID, 1, dm_color_window_border );
+				HPEN old_color = ( HPEN )_SelectObject( hdcMem, hPen );
+				_DeleteObject( old_color );
+				HBRUSH old_brush = ( HBRUSH )_SelectObject( hdcMem, _GetStockObject( NULL_BRUSH ) );
+				_DeleteObject( old_brush );
+
+				int offset = rc_row.left + ( ( rc_row.right - rc_row.left ) / 2 );
+				_MoveToEx( hdcMem, offset, rc_row.top + 2, NULL );
+				_LineTo( hdcMem, offset, rc_row.bottom - 1 );
+
+				_DeleteObject( hPen );
 			}
 			else if ( tbb.fsState & TBSTATE_ENABLED )
 			{

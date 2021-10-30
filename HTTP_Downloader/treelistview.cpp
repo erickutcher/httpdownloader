@@ -2726,21 +2726,51 @@ void HandleMouseClick( HWND hWnd, bool right_button )
 
 				// See if we've clicked within the Filename column so that we can show the edit textbox.
 				int index = GetColumnIndexFromVirtualIndex( *download_columns[ COLUMN_FILENAME ], download_columns, NUM_COLUMNS );
-				if ( *download_columns[ COLUMN_FILENAME ] != -1 )
-				{
-					_SendMessageW( g_hWnd_tlv_header, HDM_GETITEMRECT, index, ( LPARAM )&g_edit_column_rc );
-				}
 
 				// Allow the edit textbox to be shown if we've clicked within the Filename column.
-				if ( g_drag_start_index != -1 &&
+				if ( index != -1 &&
+					 *download_columns[ COLUMN_FILENAME ] != -1 &&
+					 g_drag_start_index != -1 &&
 					 g_base_selected_node == tli_node &&
 					 g_base_selected_node == g_focused_node &&
-					 g_base_selected_node->data_type & TLVDT_GROUP &&
-					 g_drag_pos.x >= g_edit_column_rc.left && g_drag_pos.x <= g_edit_column_rc.right )
+					 g_base_selected_node->data_type & TLVDT_GROUP )
 				{
-					g_show_edit_state = ( g_show_edit_state == 2 ? 0 : 1 );	// 1 = activate the edit textbox
+					_SendMessageW( g_hWnd_tlv_header, HDM_GETITEMRECT, index, ( LPARAM )&g_edit_column_rc );
+
+					SCROLLINFO si;
+					_memzero( &si, sizeof( SCROLLINFO ) );
+					si.cbSize = sizeof( SCROLLINFO );
+					si.fMask = SIF_POS;
+					_GetScrollInfo( hWnd, SB_HORZ, &si );
+
+					g_edit_column_rc.left -= si.nPos;
+					g_edit_column_rc.right -= si.nPos;
+
+					if ( g_drag_pos.x >= g_edit_column_rc.left && g_drag_pos.x <= g_edit_column_rc.right )
+					{
+						if ( g_edit_column_rc.left < 0 )
+						{
+							int offset = Scroll( &si, SCROLL_TYPE_LEFT, -g_edit_column_rc.left );
+
+							g_edit_column_rc.left += offset;
+							g_edit_column_rc.right += offset;
+
+							HDWP hdwp = _BeginDeferWindowPos( 1 );
+							_DeferWindowPos( hdwp, g_hWnd_tlv_header, HWND_TOP, -si.nPos, 0, g_client_rc.right + si.nPos, g_header_height, 0 );
+							_EndDeferWindowPos( hdwp );
+
+							_SetScrollInfo( hWnd, SB_HORZ, &si, TRUE );
+						}
+
+						g_show_edit_state = ( g_show_edit_state == 2 ? 0 : 1 );	// 1 = activate the edit textbox
+					}
+					else
+					{
+						index = -1;
+					}
 				}
-				else
+
+				if ( index == -1 )
 				{
 					// Hide the edit textbox if it's displayed and we've clicked outside the Filename column.
 					if ( g_show_edit_state != 0 )
@@ -3629,7 +3659,7 @@ void DrawTreeListView( HWND hWnd )
 					}
 
 					// Fill out the remaining progress bar if later parts have completed.
-					if ( ( IS_STATUS_NOT( di->status, STATUS_CONNECTING ) || range_info_count == total_range_info_count ) && /*last_host_end*/ last_range_end < di->file_size )
+					if ( ( IS_STATUS_NOT( di->status, STATUS_CONNECTING ) || range_info_count >= total_range_info_count ) && /*last_host_end*/ last_range_end < di->file_size )
 					{
 						int range_offset = 0;
 						if ( di->file_size > 0 )
@@ -4097,13 +4127,61 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 
 		case TLVM_EDIT_LABEL:
 		{
-			_KillTimer( hWnd, IDT_EDIT_TIMER );
-
-			g_show_edit_state = 1;
-
-			if ( g_hWnd_edit_box == NULL )
+			if ( !in_worker_thread && g_selected_count == 1 && g_base_selected_node != NULL && g_base_selected_node->data_type & TLVDT_GROUP )
 			{
-				CreateEditBox( hWnd );
+				// See if we've clicked within the Filename column so that we can show the edit textbox.
+				int index = GetColumnIndexFromVirtualIndex( *download_columns[ COLUMN_FILENAME ], download_columns, NUM_COLUMNS );
+
+				// Allow the edit textbox to be shown if we've clicked within the Filename column.
+				if ( index != -1 && *download_columns[ COLUMN_FILENAME ] != -1 )
+				{
+					_SendMessageW( g_hWnd_tlv_header, HDM_GETITEMRECT, index, ( LPARAM )&g_edit_column_rc );
+
+					SCROLLINFO si;
+					_memzero( &si, sizeof( SCROLLINFO ) );
+					si.cbSize = sizeof( SCROLLINFO );
+					si.fMask = SIF_RANGE | SIF_PAGE | SIF_POS;
+					_GetScrollInfo( hWnd, SB_HORZ, &si );
+
+					g_edit_column_rc.left -= si.nPos;
+					g_edit_column_rc.right -= si.nPos;
+
+					int offset = 0;
+					if ( g_edit_column_rc.left < 0 )
+					{
+						offset = Scroll( &si, SCROLL_TYPE_LEFT, -g_edit_column_rc.left );
+
+						g_edit_column_rc.left += offset;
+						g_edit_column_rc.right += offset;
+					}
+					else if ( g_edit_column_rc.left > ( LONG )( si.nPos + si.nPage ) )
+					{
+						offset = Scroll( &si, SCROLL_TYPE_RIGHT, g_edit_column_rc.left );
+
+						g_edit_column_rc.left -= offset;
+						g_edit_column_rc.right -= offset;
+					}
+
+					if ( offset != 0 )
+					{
+						HDWP hdwp = _BeginDeferWindowPos( 1 );
+						_DeferWindowPos( hdwp, g_hWnd_tlv_header, HWND_TOP, -si.nPos, 0, g_client_rc.right + si.nPos, g_header_height, 0 );
+						_EndDeferWindowPos( hdwp );
+
+						_SetScrollInfo( hWnd, SB_HORZ, &si, TRUE );
+
+						_InvalidateRect( hWnd, &g_client_rc, TRUE );
+					}
+				}
+
+				_KillTimer( hWnd, IDT_EDIT_TIMER );
+
+				g_show_edit_state = 1;
+
+				if ( g_hWnd_edit_box == NULL )
+				{
+					CreateEditBox( hWnd );
+				}
 			}
 		}
 		break;
@@ -5142,10 +5220,7 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 
 					case VK_F2:	// Rename selected item.
 					{
-						if ( !in_worker_thread && g_selected_count == 1 && g_base_selected_node != NULL && g_base_selected_node->data_type & TLVDT_GROUP )
-						{
-							HandleCommand( hWnd, MENU_RENAME );
-						}
+						_SendMessageW( hWnd, TLVM_EDIT_LABEL, 0, 0 );
 					}
 					break;
 				}

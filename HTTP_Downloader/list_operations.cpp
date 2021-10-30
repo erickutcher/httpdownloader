@@ -666,10 +666,31 @@ THREAD_RETURN handle_download_list( void *pArguments )
 
 			if ( di != NULL )
 			{
+				DoublyLinkedList *host_node = di->shared_info->host_list;
+				while ( host_node != NULL )
+				{
+					DOWNLOAD_INFO *host_di = ( DOWNLOAD_INFO * )host_node->data;
+					if ( host_di != NULL && host_di != di )
+					{
+						EnterCriticalSection( &host_di->di_cs );
+
+						if ( IS_STATUS( host_di->status, STATUS_QUEUED ) )
+						{
+							host_di->status = STATUS_STOPPED;
+						}
+
+						LeaveCriticalSection( &host_di->di_cs );
+					}
+
+					host_node = host_node->next;
+				}
+
+				EnterCriticalSection( &di->shared_info->di_cs );
+				di->shared_info->status = STATUS_STOPPED;
+				LeaveCriticalSection( &di->shared_info->di_cs );
+
 				EnterCriticalSection( &di->di_cs );
-
 				di->status = STATUS_STOPPED;
-
 				LeaveCriticalSection( &di->di_cs );
 
 				// Remove the item from the download queue.
@@ -1112,10 +1133,24 @@ THREAD_RETURN handle_connection( void *pArguments )
 
 	ProcessingList( true );
 
+	bool process_all = false;
+
 	TREELISTNODE *tln_last_parent = NULL;
 
 	TREELISTNODE *tln;
-	TLV_GetNextSelectedItem( NULL, 0, &tln );
+	if ( status == UINT_MAX )
+	{
+		process_all = true;
+
+		status = STATUS_DOWNLOADING;	// Start / Resume all downloads.
+
+		tln = g_tree_list;
+	}
+	else
+	{
+		TLV_GetNextSelectedItem( NULL, 0, &tln );
+	}
+
 	while ( tln != NULL )
 	{
 		// Stop processing and exit the thread.
@@ -1932,7 +1967,14 @@ THREAD_RETURN handle_connection( void *pArguments )
 
 		tln = tln_parent;
 
-		TLV_GetNextSelectedItem( tln, 0, &tln );
+		if ( process_all )
+		{
+			tln = tln->next;
+		}
+		else
+		{
+			TLV_GetNextSelectedItem( tln, 0, &tln );
+		}
 	}
 
 	ProcessingList( false );
@@ -2496,182 +2538,186 @@ THREAD_RETURN rename_file( void *pArguments )
 
 	in_worker_thread = true;
 
-	_SendMessageW( g_hWnd_tlv_files, TLVM_TOGGLE_DRAW, TRUE, NULL );
-
-	ProcessingList( true );
-
-	EnterCriticalSection( &cleanup_cs );
-
-	if ( ri != NULL )
+	// If we close the program while the rename edit box is visible, then it might get in here. We don't want that.
+	if ( !kill_worker_thread_flag )
 	{
-		if ( ri->filename != NULL  )
+		_SendMessageW( g_hWnd_tlv_files, TLVM_TOGGLE_DRAW, TRUE, NULL );
+
+		ProcessingList( true );
+
+		EnterCriticalSection( &cleanup_cs );
+
+		if ( ri != NULL )
 		{
-			DOWNLOAD_INFO *di = ri->di;
-
-			if ( di != NULL )
+			if ( ri->filename != NULL  )
 			{
-				if ( di->shared_info->filename_offset > 0 )
+				DOWNLOAD_INFO *di = ri->di;
+
+				if ( di != NULL )
 				{
-					bool renamed = true;
-
-					if ( !( di->shared_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
+					if ( di->shared_info->filename_offset > 0 )
 					{
-						if ( di->shared_info->hFile != INVALID_HANDLE_VALUE )
-						{
-							// Make sure SetFileInformationByHandle is available on our system.
-							if ( kernel32_state != KERNEL32_STATE_SHUTDOWN )
-							{
-								FILE_RENAME_INFO *fri = ( FILE_RENAME_INFO * )GlobalAlloc( GPTR, sizeof( FILE_RENAME_INFO ) + ( sizeof( wchar_t ) * MAX_PATH ) );
+						bool renamed = true;
 
-								if ( cfg_use_temp_download_directory && di->status != STATUS_COMPLETED )
+						if ( !( di->shared_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
+						{
+							if ( di->shared_info->hFile != INVALID_HANDLE_VALUE )
+							{
+								// Make sure SetFileInformationByHandle is available on our system.
+								if ( kernel32_state != KERNEL32_STATE_SHUTDOWN )
 								{
-									_wmemcpy_s( fri->FileName, MAX_PATH, cfg_temp_download_directory, g_temp_download_directory_length );
-									fri->FileName[ g_temp_download_directory_length ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
-									_wmemcpy_s( fri->FileName + ( g_temp_download_directory_length + 1 ), MAX_PATH - ( g_temp_download_directory_length - 1 ), ri->filename, ri->filename_length );
-									fri->FileName[ g_temp_download_directory_length + ri->filename_length + 1 ] = 0; // Sanity.
-									fri->FileNameLength = g_temp_download_directory_length + ri->filename_length + 1;
+									FILE_RENAME_INFO *fri = ( FILE_RENAME_INFO * )GlobalAlloc( GPTR, sizeof( FILE_RENAME_INFO ) + ( sizeof( wchar_t ) * MAX_PATH ) );
+
+									if ( cfg_use_temp_download_directory && di->status != STATUS_COMPLETED )
+									{
+										_wmemcpy_s( fri->FileName, MAX_PATH, cfg_temp_download_directory, g_temp_download_directory_length );
+										fri->FileName[ g_temp_download_directory_length ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
+										_wmemcpy_s( fri->FileName + ( g_temp_download_directory_length + 1 ), MAX_PATH - ( g_temp_download_directory_length - 1 ), ri->filename, ri->filename_length );
+										fri->FileName[ g_temp_download_directory_length + ri->filename_length + 1 ] = 0; // Sanity.
+										fri->FileNameLength = g_temp_download_directory_length + ri->filename_length + 1;
+									}
+									else
+									{
+										_wmemcpy_s( fri->FileName, MAX_PATH, di->shared_info->file_path, di->shared_info->filename_offset );
+										fri->FileName[ di->shared_info->filename_offset - 1 ] = L'\\';
+										_wmemcpy_s( fri->FileName + di->shared_info->filename_offset, MAX_PATH - di->shared_info->filename_offset, ri->filename, ri->filename_length );
+										fri->FileName[ di->shared_info->filename_offset + ri->filename_length ] = 0;	// Sanity.
+										fri->FileNameLength = di->shared_info->filename_offset + ri->filename_length;
+									}
+
+									fri->ReplaceIfExists = FALSE;
+									fri->RootDirectory = NULL;
+
+									if ( _SetFileInformationByHandle( di->shared_info->hFile, FileRenameInfo, fri, sizeof( FILE_RENAME_INFO ) + ( sizeof( wchar_t ) * MAX_PATH ) ) == FALSE )
+									{
+										renamed = false;
+									}
+
+									GlobalFree( fri );
 								}
 								else
 								{
-									_wmemcpy_s( fri->FileName, MAX_PATH, di->shared_info->file_path, di->shared_info->filename_offset );
-									fri->FileName[ di->shared_info->filename_offset - 1 ] = L'\\';
-									_wmemcpy_s( fri->FileName + di->shared_info->filename_offset, MAX_PATH - di->shared_info->filename_offset, ri->filename, ri->filename_length );
-									fri->FileName[ di->shared_info->filename_offset + ri->filename_length ] = 0;	// Sanity.
-									fri->FileNameLength = di->shared_info->filename_offset + ri->filename_length;
-								}
+									SetLastError( ERROR_ACCESS_DENIED );
 
-								fri->ReplaceIfExists = FALSE;
-								fri->RootDirectory = NULL;
-
-								if ( _SetFileInformationByHandle( di->shared_info->hFile, FileRenameInfo, fri, sizeof( FILE_RENAME_INFO ) + ( sizeof( wchar_t ) * MAX_PATH ) ) == FALSE )
-								{
 									renamed = false;
 								}
-
-								GlobalFree( fri );
 							}
 							else
 							{
-								SetLastError( ERROR_ACCESS_DENIED );
+								wchar_t old_file_path[ MAX_PATH ];
+								wchar_t new_file_path[ MAX_PATH ];
 
-								renamed = false;
+								if ( cfg_use_temp_download_directory && di->status != STATUS_COMPLETED )
+								{
+									GetTemporaryFilePath( di, old_file_path );
+
+									_wmemcpy_s( new_file_path, MAX_PATH, cfg_temp_download_directory, g_temp_download_directory_length );
+									new_file_path[ g_temp_download_directory_length ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
+									_wmemcpy_s( new_file_path + ( g_temp_download_directory_length + 1 ), MAX_PATH - ( g_temp_download_directory_length - 1 ), ri->filename, ri->filename_length );
+									new_file_path[ g_temp_download_directory_length + ri->filename_length + 1 ] = 0;	// Sanity.
+								}
+								else
+								{
+									GetDownloadFilePath( di, old_file_path );
+
+									_wmemcpy_s( new_file_path, MAX_PATH, di->shared_info->file_path, MAX_PATH - di->shared_info->filename_offset );
+									new_file_path[ di->shared_info->filename_offset - 1 ] = L'\\';
+									_wmemcpy_s( new_file_path + di->shared_info->filename_offset, MAX_PATH - di->shared_info->filename_offset, ri->filename, ri->filename_length );
+									new_file_path[ di->shared_info->filename_offset + ri->filename_length ] = 0;	// Sanity.
+								}
+
+								if ( MoveFileW( old_file_path, new_file_path ) == FALSE )
+								{
+									if ( GetLastError() != ERROR_FILE_NOT_FOUND )
+									{
+										renamed = false;
+									}
+								}
 							}
+						}
+
+						if ( renamed )
+						{
+							_wmemcpy_s( di->shared_info->file_path + di->shared_info->filename_offset, MAX_PATH - di->shared_info->filename_offset, ri->filename, ri->filename_length );
+							di->shared_info->file_path[ di->shared_info->filename_offset + ri->filename_length ] = 0;	// Sanity.
+
+							// Get the new file extension offset.
+							di->shared_info->file_extension_offset = di->shared_info->filename_offset + get_file_extension_offset( di->shared_info->file_path + di->shared_info->filename_offset, lstrlenW( di->shared_info->file_path + di->shared_info->filename_offset ) );
+
+							DoublyLinkedList *context_node;
+
+							// If we manually renamed our download, then prevent it from being set elsewhere.
+							EnterCriticalSection( &di->di_cs );
+
+							context_node = di->parts_list;
+
+							LeaveCriticalSection( &di->di_cs );
+
+							while ( context_node != NULL )
+							{
+								SOCKET_CONTEXT *context = ( SOCKET_CONTEXT * )context_node->data;
+
+								context_node = context_node->next;
+
+								if ( context != NULL )
+								{
+									EnterCriticalSection( &context->context_cs );
+
+									context->got_filename = 1;
+
+									LeaveCriticalSection( &context->context_cs );
+								}
+							}
+
+							RemoveCachedIcon( di->shared_info );
+
+							SHFILEINFO *sfi = ( SHFILEINFO * )GlobalAlloc( GMEM_FIXED, sizeof( SHFILEINFO ) );
+
+							// Cache our file's icon.
+							ICON_INFO *ii = CacheIcon( di->shared_info, sfi );
+
+							EnterCriticalSection( &di->di_cs );
+
+							di->shared_info->icon = ( ii != NULL ? &ii->icon : NULL );
+
+							LeaveCriticalSection( &di->di_cs );
+
+							GlobalFree( sfi );
+
+							g_download_history_changed = true;
 						}
 						else
 						{
-							wchar_t old_file_path[ MAX_PATH ];
-							wchar_t new_file_path[ MAX_PATH ];
-
-							if ( cfg_use_temp_download_directory && di->status != STATUS_COMPLETED )
+							// Alert the user, but don't hang up this thread.
+							int error = GetLastError();
+							if ( error == ERROR_ALREADY_EXISTS )
 							{
-								GetTemporaryFilePath( di, old_file_path );
-
-								_wmemcpy_s( new_file_path, MAX_PATH, cfg_temp_download_directory, g_temp_download_directory_length );
-								new_file_path[ g_temp_download_directory_length ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
-								_wmemcpy_s( new_file_path + ( g_temp_download_directory_length + 1 ), MAX_PATH - ( g_temp_download_directory_length - 1 ), ri->filename, ri->filename_length );
-								new_file_path[ g_temp_download_directory_length + ri->filename_length + 1 ] = 0;	// Sanity.
+								_SendNotifyMessageW( g_hWnd_main, WM_ALERT, 0, ( LPARAM )ST_V_There_is_already_a_file );
 							}
-							else
+							else if ( error == ERROR_FILE_NOT_FOUND )
 							{
-								GetDownloadFilePath( di, old_file_path );
-
-								_wmemcpy_s( new_file_path, MAX_PATH, di->shared_info->file_path, MAX_PATH - di->shared_info->filename_offset );
-								new_file_path[ di->shared_info->filename_offset - 1 ] = L'\\';
-								_wmemcpy_s( new_file_path + di->shared_info->filename_offset, MAX_PATH - di->shared_info->filename_offset, ri->filename, ri->filename_length );
-								new_file_path[ di->shared_info->filename_offset + ri->filename_length ] = 0;	// Sanity.
+								_SendNotifyMessageW( g_hWnd_main, WM_ALERT, 1, 0 );
 							}
-
-							if ( MoveFileW( old_file_path, new_file_path ) == FALSE )
+							else if ( error == ERROR_ACCESS_DENIED )
 							{
-								if ( GetLastError() != ERROR_FILE_NOT_FOUND )
-								{
-									renamed = false;
-								}
+								_SendNotifyMessageW( g_hWnd_main, WM_ALERT, 0, ( LPARAM )ST_V_File_is_in_use_cannot_rename );
 							}
-						}
-					}
-
-					if ( renamed )
-					{
-						_wmemcpy_s( di->shared_info->file_path + di->shared_info->filename_offset, MAX_PATH - di->shared_info->filename_offset, ri->filename, ri->filename_length );
-						di->shared_info->file_path[ di->shared_info->filename_offset + ri->filename_length ] = 0;	// Sanity.
-
-						// Get the new file extension offset.
-						di->shared_info->file_extension_offset = di->shared_info->filename_offset + get_file_extension_offset( di->shared_info->file_path + di->shared_info->filename_offset, lstrlenW( di->shared_info->file_path + di->shared_info->filename_offset ) );
-
-						DoublyLinkedList *context_node;
-
-						// If we manually renamed our download, then prevent it from being set elsewhere.
-						EnterCriticalSection( &di->di_cs );
-
-						context_node = di->parts_list;
-
-						LeaveCriticalSection( &di->di_cs );
-
-						while ( context_node != NULL )
-						{
-							SOCKET_CONTEXT *context = ( SOCKET_CONTEXT * )context_node->data;
-
-							context_node = context_node->next;
-
-							if ( context != NULL )
-							{
-								EnterCriticalSection( &context->context_cs );
-
-								context->got_filename = 1;
-
-								LeaveCriticalSection( &context->context_cs );
-							}
-						}
-
-						RemoveCachedIcon( di->shared_info );
-
-						SHFILEINFO *sfi = ( SHFILEINFO * )GlobalAlloc( GMEM_FIXED, sizeof( SHFILEINFO ) );
-
-						// Cache our file's icon.
-						ICON_INFO *ii = CacheIcon( di->shared_info, sfi );
-
-						EnterCriticalSection( &di->di_cs );
-
-						di->shared_info->icon = ( ii != NULL ? &ii->icon : NULL );
-
-						LeaveCriticalSection( &di->di_cs );
-
-						GlobalFree( sfi );
-
-						g_download_history_changed = true;
-					}
-					else
-					{
-						// Alert the user, but don't hang up this thread.
-						int error = GetLastError();
-						if ( error == ERROR_ALREADY_EXISTS )
-						{
-							_SendNotifyMessageW( g_hWnd_main, WM_ALERT, 0, ( LPARAM )ST_V_There_is_already_a_file );
-						}
-						else if ( error == ERROR_FILE_NOT_FOUND )
-						{
-							_SendNotifyMessageW( g_hWnd_main, WM_ALERT, 1, 0 );
-						}
-						else if ( error == ERROR_ACCESS_DENIED )
-						{
-							_SendNotifyMessageW( g_hWnd_main, WM_ALERT, 0, ( LPARAM )ST_V_File_is_in_use_cannot_rename );
 						}
 					}
 				}
+
+				GlobalFree( ri->filename );
 			}
 
-			GlobalFree( ri->filename );
+			GlobalFree( ri );
 		}
 
-		GlobalFree( ri );
+		LeaveCriticalSection( &cleanup_cs );
+
+		_SendMessageW( g_hWnd_tlv_files, TLVM_TOGGLE_DRAW, FALSE, NULL );
+
+		ProcessingList( false );
 	}
-
-	LeaveCriticalSection( &cleanup_cs );
-
-	_SendMessageW( g_hWnd_tlv_files, TLVM_TOGGLE_DRAW, FALSE, NULL );
-
-	ProcessingList( false );
 
 	// Release the semaphore if we're killing the thread.
 	if ( worker_semaphore != NULL )

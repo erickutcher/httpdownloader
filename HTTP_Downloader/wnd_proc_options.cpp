@@ -953,6 +953,8 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 					_SendMessageA( g_hWnd_default_download_parts, WM_GETTEXT, 11, ( LPARAM )value );
 					cfg_default_download_parts = ( unsigned char )_strtoul( value, NULL, 10 );
 
+					cfg_reallocate_parts = ( _SendMessageW( g_hWnd_chk_reallocate_parts, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
+
 					_SendMessageA( g_hWnd_default_speed_limit, WM_GETTEXT, 21, ( LPARAM )value );
 					cfg_default_speed_limit = strtoull( value );
 

@@ -135,6 +135,7 @@ STRING_TABLE_DATA menu_string_table[] =
 	{ L"SSL / TLS Version", 17 },
 	{ L"St&art", 6 },
 	{ L"Start", 5 },
+	{ L"Start / Resume Inactive", 23 },
 	{ L"&Status Bar", 11 },
 	{ L"St&op", 5 },
 	{ L"Stop", 4 },
@@ -243,6 +244,7 @@ STRING_TABLE_DATA options_connection_string_table[] =
 	{ L"Default download parts:", 23 },
 	{ L"Default SSL / TLS version:", 26 },
 	{ L"Maximum redirects:", 18 },
+	{ L"Reallocate parts to maximize connections", 40 },
 	{ L"Retry incomplete downloads:", 27 },
 	{ L"Retry incomplete parts:", 23 },
 	{ L"Timeout (seconds):", 18 }

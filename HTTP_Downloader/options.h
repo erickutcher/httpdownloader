@@ -95,6 +95,8 @@ extern HWND g_hWnd_default_speed_limit;
 extern HWND g_hWnd_default_ssl_version;
 extern HWND g_hWnd_default_download_parts;
 
+extern HWND g_hWnd_chk_reallocate_parts;
+
 // Web Server Tab
 extern HWND g_hWnd_chk_enable_server;
 extern HWND g_hWnd_static_hoz1;

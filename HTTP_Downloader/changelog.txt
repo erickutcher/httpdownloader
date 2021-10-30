@@ -1,3 +1,14 @@
+Version:	1.0.4.6
+Released:	2021-10-30
+
+Fixed snapping windows calculations.
+Fixed crash when exiting while rename edit box is visible.
+Fixed restarting hosts in multi-host/mirrored downloads.
+Fixed corrupted multi-host/mirrored downloads.
+Improved position of rename edit box when visible.
+Added option to reallocate parts to maximize the number of active connections.
+Added toolbar and menu item to start/resume all inactive downloads.
+
 Version:	1.0.4.5
 Released:	2021-07-25
 

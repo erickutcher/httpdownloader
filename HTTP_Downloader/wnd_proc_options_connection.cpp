@@ -27,6 +27,7 @@
 #define EDIT_MAX_REDIRECTS				1005
 #define EDIT_DEFAULT_SPEED_LIMIT		1006
 #define CB_DEFAULT_SSL_VERSION			1007
+#define BTN_REALLOCATE_PARTS			1008
 
 // Connection Tab
 HWND g_hWnd_max_downloads = NULL;
@@ -48,6 +49,8 @@ HWND g_hWnd_default_speed_limit = NULL;
 HWND g_hWnd_default_ssl_version = NULL;
 HWND g_hWnd_default_download_parts = NULL;
 HWND g_hWnd_default_ud_download_parts = NULL;
+
+HWND g_hWnd_chk_reallocate_parts = NULL;
 
 wchar_t default_limit_tooltip_text[ 32 ];
 HWND g_hWnd_default_limit_tooltip = NULL;
@@ -199,6 +202,12 @@ LRESULT CALLBACK ConnectionTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 
 			//
 
+			g_hWnd_chk_reallocate_parts = _CreateWindowW( WC_BUTTON, ST_V_Reallocate_parts_to_maximize_connections, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 228, rc.right, 20, hWnd, ( HMENU )BTN_REALLOCATE_PARTS, NULL, NULL );
+
+			_SendMessageW( g_hWnd_chk_reallocate_parts, BM_SETCHECK, ( cfg_reallocate_parts ? BST_CHECKED : BST_UNCHECKED ), 0 );
+			
+			//
+
 			_SendMessageW( hWnd_static_max_downloads, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 			_SendMessageW( g_hWnd_max_downloads, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 
@@ -222,6 +231,8 @@ LRESULT CALLBACK ConnectionTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 
 			_SendMessageW( hWnd_static_default_speed_limit, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 			_SendMessageW( g_hWnd_default_speed_limit, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+
+			_SendMessageW( g_hWnd_chk_reallocate_parts, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 
 			return 0;
 		}
@@ -440,6 +451,13 @@ LRESULT CALLBACK ConnectionTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 							_EnableWindow( g_hWnd_options_apply, TRUE );
 						}
 					}
+				}
+				break;
+
+				case BTN_REALLOCATE_PARTS:
+				{
+					options_state_changed = true;
+					_EnableWindow( g_hWnd_options_apply, TRUE );
 				}
 				break;
 			}

@@ -518,7 +518,7 @@ char MakeRangeDataRequest( SOCKET_CONTEXT *context )
 			new_context->context_node.data = new_context;
 
 			EnterCriticalSection( &context_list_cs );
-			
+
 			DLL_AddNode( &g_context_list, &new_context->context_node, 0 );
 
 			LeaveCriticalSection( &context_list_cs );
