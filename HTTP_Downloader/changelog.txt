@@ -1,3 +1,8 @@
+Version:	1.0.4.7
+Released:	2021-10-31
+
+Fixed reallocated parts over-downloading when server connection is set to close.
+
 Version:	1.0.4.6
 Released:	2021-10-30
 

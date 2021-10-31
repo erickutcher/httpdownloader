@@ -5299,6 +5299,9 @@ char GetHTTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, uns
 		   ( ( ( context->header_info.range_info->file_write_offset - context->header_info.range_info->range_start ) + output_buffer_length ) > ( ( context->header_info.range_info->range_end - context->header_info.range_info->range_start ) + 1 ) ) )
 		{
 			output_buffer_length -= ( unsigned int )( ( ( context->header_info.range_info->file_write_offset - context->header_info.range_info->range_start ) + output_buffer_length ) - ( ( context->header_info.range_info->range_end - context->header_info.range_info->range_start ) + 1 ) );
+
+			// Tricks us into closing the connection since we don't know how much more the server is going to send us.
+			context->header_info.connection = CONNECTION_KEEP_ALIVE;
 		}
 
 		if ( context->download_info != NULL )
