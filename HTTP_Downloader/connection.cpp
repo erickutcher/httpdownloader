@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
-	Copyright (C) 2015-2021 Eric Kutcher
+	Copyright (C) 2015-2022 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -487,6 +487,10 @@ void CleanupServerInfo()
 
 void StartServer()
 {
+#ifdef ENABLE_LOGGING
+	WriteLog( LOG_INFO, "Starting web server" );
+#endif
+
 	g_listen_socket = CreateListenSocket();
 
 	// Create the accept socket.
@@ -501,6 +505,10 @@ void CleanupServer()
 	// When we shutdown/close g_listen_socket, g_listen_context will complete with a status of FALSE and we can then clean it up.
 	if ( g_listen_socket != INVALID_SOCKET )
 	{
+#ifdef ENABLE_LOGGING
+		WriteLog( LOG_INFO, "Shutting down web server" );
+#endif
+
 		SOCKET del_listen_socket = g_listen_socket;
 		g_listen_socket = INVALID_SOCKET;
 
@@ -517,6 +525,10 @@ THREAD_RETURN IOCPDownloader( void * /*pArguments*/ )
 
 	DWORD dwThreadCount = cfg_thread_count;
 
+#ifdef ENABLE_LOGGING
+	WriteLog( LOG_INFO, "Initializing Winsock" );
+#endif
+
 	if ( ws2_32_state == WS2_32_STATE_SHUTDOWN )
 	{
 		#ifndef WS2_32_USE_STATIC_LIB
@@ -531,6 +543,10 @@ THREAD_RETURN IOCPDownloader( void * /*pArguments*/ )
 	{
 		goto HARD_CLEANUP;
 	}
+
+#ifdef ENABLE_LOGGING
+	WriteLog( LOG_INFO, "Initializing SSL" );
+#endif
 
 	// Load our SSL functions.
 	if ( ssl_state == SSL_STATE_SHUTDOWN )
@@ -557,6 +573,10 @@ THREAD_RETURN IOCPDownloader( void * /*pArguments*/ )
 	{
 		goto CLEANUP;
 	}
+
+#ifdef ENABLE_LOGGING
+	WriteLog( LOG_INFO, "Initializing IOCP with %lu threads", dwThreadCount );
+#endif
 
 	g_hIOCP = CreateIoCompletionPort( INVALID_HANDLE_VALUE, NULL, 0, 0 );
 	if ( g_hIOCP == NULL )
@@ -600,6 +620,10 @@ THREAD_RETURN IOCPDownloader( void * /*pArguments*/ )
 	SetThreadPriority( timeout_handle, THREAD_PRIORITY_LOWEST );
 	CloseHandle( timeout_handle );
 
+#ifdef ENABLE_LOGGING
+	WriteLog( LOG_INFO, "Waiting on IOCP threads" );
+#endif
+
 	_WSAWaitForMultipleEvents( 1, g_cleanup_event, TRUE, WSA_INFINITE, FALSE );
 
 	g_end_program = true;
@@ -612,6 +636,10 @@ THREAD_RETURN IOCPDownloader( void * /*pArguments*/ )
 			PostQueuedCompletionStatus( g_hIOCP, 0, 0, NULL );
 		}
 	}
+
+#ifdef ENABLE_LOGGING
+	WriteLog( LOG_INFO, "Waiting for IOCP threads to exit" );
+#endif
 
 	// Make sure IOCP worker threads have exited.
 	if ( WaitForMultipleObjects( dwThreadCount, g_ThreadHandles, TRUE, 1000 ) == WAIT_OBJECT_0 )
@@ -673,6 +701,10 @@ HARD_CLEANUP:
 	{
 		ReleaseSemaphore( downloader_ready_semaphore, 1, NULL );
 	}
+
+#ifdef ENABLE_LOGGING
+	WriteLog( LOG_INFO, "Exiting main IOCP thread" );
+#endif
 
 	_ExitThread( 0 );
 	//return 0;
@@ -4637,6 +4669,21 @@ void StartDownload( DOWNLOAD_INFO *di, unsigned char start_type, unsigned char s
 
 				//
 
+#ifdef ENABLE_LOGGING
+				wchar_t *l_file_path;
+				wchar_t t_l_file_path[ MAX_PATH ];
+				if ( di->shared_info->download_operations & DOWNLOAD_OPERATION_SIMULATE )
+				{
+					l_file_path = L"Simulated";
+				}
+				else
+				{
+					GetDownloadFilePath( di, t_l_file_path );
+					l_file_path = t_l_file_path;
+				}
+				WriteLog( LOG_INFO, "Connecting: %S | %S", di->url, l_file_path );
+#endif
+
 				context->status = STATUS_CONNECTING;
 
 				if ( !CreateConnection( context, context->request_info.host, context->request_info.port ) )
@@ -6509,6 +6556,23 @@ DWORD WINAPI AddURL( void *add_info )
 								// print_range_list is used in DrawTreeListView
 								shared_info->print_range_list = shared_info->host_list;
 							}
+#ifdef ENABLE_LOGGING
+							else
+							{
+								wchar_t *l_file_path;
+								wchar_t t_l_file_path[ MAX_PATH ];
+								if ( di->shared_info->download_operations & DOWNLOAD_OPERATION_SIMULATE )
+								{
+									l_file_path = L"Simulated";
+								}
+								else
+								{
+									GetDownloadFilePath( di, t_l_file_path );
+									l_file_path = t_l_file_path;
+								}
+								WriteLog( LOG_INFO, "Added URL: %S | %S", di->url, l_file_path );
+							}
+#endif
 
 							if ( download_operations & DOWNLOAD_OPERATION_ADD_STOPPED )
 							{
@@ -6535,6 +6599,20 @@ DWORD WINAPI AddURL( void *add_info )
 
 						if ( di != shared_info )
 						{
+#ifdef ENABLE_LOGGING
+							wchar_t *l_file_path;
+							wchar_t t_l_file_path[ MAX_PATH ];
+							if ( di->shared_info->download_operations & DOWNLOAD_OPERATION_SIMULATE )
+							{
+								l_file_path = L"Simulated";
+							}
+							else
+							{
+								GetDownloadFilePath( di, t_l_file_path );
+								l_file_path = t_l_file_path;
+							}
+							WriteLog( LOG_INFO, "Added group URL: %S | %S", di->url, l_file_path );
+#endif
 							di->shared_info->parts += parts;
 
 							++tln_parent->child_count;
@@ -7803,6 +7881,23 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 								di->status = STATUS_COMPLETED;
 							}
 
+#ifdef ENABLE_LOGGING
+							char log_status[ 256 ];
+							GetDownloadStatus( log_status, 256, di->status );
+							wchar_t *l_file_path;
+							wchar_t t_l_file_path[ MAX_PATH ];
+							if ( di->shared_info->download_operations & DOWNLOAD_OPERATION_SIMULATE )
+							{
+								l_file_path = L"Simulated";
+							}
+							else
+							{
+								GetDownloadFilePath( di, t_l_file_path );
+								l_file_path = t_l_file_path;
+							}
+							WriteLog( LOG_INFO, "Download cleanup status: %s | %s%S | %S", log_status, ( is_group ? "group | " : "" ), di->url, l_file_path );
+#endif
+
 							EnterCriticalSection( &active_download_list_cs );
 
 							// Remove the node from the active download list.
@@ -8008,7 +8103,7 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 									{
 										wchar_t *file_path_delete;
 
-										wchar_t file_path[ MAX_PATH ];
+										wchar_t file_path[ MAX_PATH + 1 ];
 										if ( cfg_use_temp_download_directory )
 										{
 											GetTemporaryFilePath( shared_info, file_path );
@@ -8023,7 +8118,30 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 											file_path_delete = shared_info->file_path;
 										}
 
-										DeleteFileW( file_path_delete );
+										if ( cfg_move_to_trash )
+										{
+											int file_path_length = lstrlenW( file_path_delete );
+
+											if ( file_path[ 0 ] == 0 )
+											{
+												_wmemcpy_s( file_path, MAX_PATH + 1, file_path_delete, file_path_length );
+											}
+
+											file_path[ file_path_length ] = 0;
+											file_path[ file_path_length + 1 ] = 0;
+
+											SHFILEOPSTRUCTW sfos;
+											_memzero( &sfos, sizeof( SHFILEOPSTRUCTW ) );
+											sfos.wFunc = FO_DELETE;
+											sfos.pFrom = file_path;
+											sfos.fFlags = FOF_ALLOWUNDO | FOF_NO_UI;
+
+											_SHFileOperationW( &sfos );
+										}
+										else
+										{
+											DeleteFileW( file_path_delete );
+										}
 									}
 
 									free_shared_info = true;
@@ -8288,6 +8406,10 @@ void FreeListenContext()
 {
 	if ( g_listen_context != NULL )
 	{
+#ifdef ENABLE_LOGGING
+		WriteLog( LOG_INFO, "Shutting down web server" );
+#endif
+
 		CleanupConnection( g_listen_context );
 		g_listen_context = NULL;
 	}
@@ -8298,6 +8420,9 @@ THREAD_RETURN CheckForUpdates( void * /*pArguments*/ )
 	// Only need one check going on at a time.
 	if ( TryEnterCriticalSection( &worker_cs ) == TRUE )
 	{
+#ifdef ENABLE_LOGGING
+		WriteLog( LOG_INFO, "Checking for updates" );
+#endif
 		in_worker_thread = true;
 
 		SOCKET_CONTEXT *context = CreateSocketContext();
@@ -8378,6 +8503,15 @@ THREAD_RETURN CheckForUpdates( void * /*pArguments*/ )
 
 				CloseHandle( g_update_semaphore );
 				g_update_semaphore = NULL;
+
+#ifdef ENABLE_LOGGING
+				unsigned long version_a = g_new_version >> 24;
+				unsigned long version_b = ( g_new_version & 0x00FF0000 ) >> 16;
+				unsigned long version_c = ( g_new_version & 0x0000FF00 ) >> 8;
+				unsigned long version_d = ( g_new_version & 0x000000FF );
+
+				WriteLog( LOG_INFO, "Update response: %lu.%lu.%lu.%lu", version_a, version_b, version_c, version_d );
+#endif
 			}
 
 			if ( g_hWnd_check_for_updates != NULL )

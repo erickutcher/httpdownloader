@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
-	Copyright (C) 2015-2021 Eric Kutcher
+	Copyright (C) 2015-2022 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -43,6 +43,8 @@
 	pSHGetFileInfoW			_SHGetFileInfoW;
 	pSHGetFolderPathW		_SHGetFolderPathW;
 	pSHGetKnownFolderPath	_SHGetKnownFolderPath;
+
+	pSHFileOperationW		_SHFileOperationW;
 
 	pSHOpenFolderAndSelectItems	_SHOpenFolderAndSelectItems;
 	pILCreateFromPathW	_ILCreateFromPathW;
@@ -94,6 +96,8 @@
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_shell32, ( void ** )&_SHGetFileInfoW, "SHGetFileInfoW" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_shell32, ( void ** )&_SHGetFolderPathW, "SHGetFolderPathW" ) )
 		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_shell32, ( void ** )&_SHGetKnownFolderPath, "SHGetKnownFolderPath" ) )
+
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_shell32, ( void ** )&_SHFileOperationW, "SHFileOperationW" ) )
 
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_shell32, ( void ** )&_SHOpenFolderAndSelectItems, "SHOpenFolderAndSelectItems" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_shell32, ( void ** )&_ILCreateFromPathW, "ILCreateFromPathW" ) )

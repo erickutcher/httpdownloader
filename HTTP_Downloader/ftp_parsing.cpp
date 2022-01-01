@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
-	Copyright (C) 2015-2021 Eric Kutcher
+	Copyright (C) 2015-2022 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -1274,6 +1274,13 @@ char GetFTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, unsi
 				return FTP_CONTENT_STATUS_READ_MORE_CONTENT;
 			}
 
+			if ( context->download_info != NULL )
+			{
+				EnterCriticalSection( &context->download_info->di_cs );
+				context->download_info->code = code;
+				LeaveCriticalSection( &context->download_info->di_cs );
+			}
+
 			switch ( code )
 			{
 				case 220:	// Server ready, we'll send our username.
@@ -1939,6 +1946,35 @@ char GetFTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, unsi
 					context->content_status = FTP_CONTENT_STATUS_SEND_QUIT;
 
 					return FTP_CONTENT_STATUS_HANDLE_REQUEST;
+				}
+				break;
+
+				default:
+				{
+					context->status = STATUS_FAILED;
+
+					if ( context->download_info != NULL &&
+						 IS_GROUP( context->download_info ) )
+					{
+						DoublyLinkedList *host_node = context->download_info->shared_info->host_list;
+						while ( host_node != NULL )
+						{
+							DOWNLOAD_INFO *host_di = ( DOWNLOAD_INFO * )host_node->data;
+							if ( host_di != NULL && host_di != context->download_info )
+							{
+								EnterCriticalSection( &host_di->di_cs );
+
+								if ( host_di->status == STATUS_NONE )	// status might have been set to stopped when added.
+								{
+									host_di->status = STATUS_SKIPPED;
+								}
+
+								LeaveCriticalSection( &host_di->di_cs );
+							}
+
+							host_node = host_node->next;
+						}
+					}
 				}
 				break;
 			}

@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
-	Copyright (C) 2015-2021 Eric Kutcher
+	Copyright (C) 2015-2022 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -253,9 +253,11 @@ extern HWND g_hWnd_chk_download_history;
 extern HWND g_hWnd_chk_quick_allocation;
 extern HWND g_hWnd_chk_set_filetime;
 extern HWND g_hWnd_chk_update_redirected;
+extern HWND g_hWnd_chk_download_non_200_206;
 extern HWND g_hWnd_chk_use_one_instance;
 extern HWND g_hWnd_chk_prevent_standby;
 extern HWND g_hWnd_chk_resume_downloads;
+extern HWND g_hWnd_chk_move_to_trash;
 
 extern HWND g_hWnd_drag_and_drop_action;
 
@@ -285,6 +287,20 @@ extern HWND g_hWnd_chk_show_part_progress;
 extern HWND g_hWnd_chk_sort_added_and_updating_items;
 extern HWND g_hWnd_chk_expand_added_group_items;
 extern HWND g_hWnd_chk_scroll_to_last_item;
+
+//
+
+extern WNDPROC FocusLBProc;
+extern WNDPROC FocusCBProc;
+extern WNDPROC FocusComboProc;
+extern WNDPROC FocusEditProc;
+extern WNDPROC FocusBtnProc;
+
+LRESULT CALLBACK FocusLBSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam );
+LRESULT CALLBACK FocusCBSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam );
+LRESULT CALLBACK FocusComboSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam );
+LRESULT CALLBACK FocusEditSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam );
+LRESULT CALLBACK FocusBtnSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam );
 
 //
 

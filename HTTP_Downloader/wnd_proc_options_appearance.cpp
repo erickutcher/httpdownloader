@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
-	Copyright (C) 2015-2021 Eric Kutcher
+	Copyright (C) 2015-2022 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -91,9 +91,6 @@ COLORREF last_row_background_color;
 COLORREF last_row_font_color;
 COLORREF opposite_row_background_color;
 
-WNDPROC FocusLBProc = NULL;
-WNDPROC FocusCBProc = NULL;
-
 void SetAppearance()
 {
 	for ( unsigned char i = 0; i < NUM_COLORS; ++i )
@@ -134,71 +131,6 @@ void SetAppearance()
 	_memcpy_s( &t_even_row_font_settings.lf, sizeof( LOGFONT ), &cfg_even_row_font_settings.lf, sizeof( LOGFONT ) );
 }
 
-
-void ScrollToFocusedWindow( HWND hWnd )
-{
-	HWND p_hWnd = _GetParent( hWnd );
-	RECT rc, p_rc;
-	_GetWindowRect( hWnd, &rc );
-	_GetClientRect( p_hWnd, &p_rc );
-
-	_MapWindowPoints( HWND_DESKTOP, p_hWnd, ( LPPOINT )&rc, 2 );
-
-	SCROLLINFO si;
-	si.cbSize = sizeof( SCROLLINFO );
-	si.fMask = SIF_RANGE | SIF_PAGE | SIF_POS;
-	_GetScrollInfo( p_hWnd, SB_VERT, &si );
-
-	int delta = si.nPos;
-
-	if ( rc.bottom > p_rc.bottom )
-	{
-		si.nPos += ( rc.bottom - p_rc.bottom );
-	}
-	else if ( rc.top < p_rc.top )
-	{
-		si.nPos -= ( p_rc.top - rc.top );
-	}
-
-	_SetScrollPos( p_hWnd, SB_VERT, si.nPos, TRUE );
-
-	si.fMask = SIF_POS;
-	_GetScrollInfo( p_hWnd, SB_VERT, &si );
-
-	if ( si.nPos != delta )
-	{
-		_ScrollWindow( p_hWnd, 0, delta - si.nPos, NULL, NULL );
-	}
-}
-
-LRESULT CALLBACK FocusLBSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
-{
-	switch ( msg )
-	{
-		case WM_SETFOCUS:
-		{
-			ScrollToFocusedWindow( hWnd );
-		}
-		break;
-	}
-
-	return _CallWindowProcW( FocusLBProc, hWnd, msg, wParam, lParam );
-}
-
-LRESULT CALLBACK FocusCBSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
-{
-	switch ( msg )
-	{
-		case WM_SETFOCUS:
-		{
-			ScrollToFocusedWindow( hWnd );
-		}
-		break;
-	}
-
-	return _CallWindowProcW( FocusCBProc, hWnd, msg, wParam, lParam );
-}
-
 LRESULT CALLBACK AppearanceTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
 {
 	switch ( msg )
@@ -208,7 +140,7 @@ LRESULT CALLBACK AppearanceTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 			RECT rc;
 			_GetClientRect( hWnd, &rc );
 
-			HWND hWnd_static_row_options = _CreateWindowW( WC_STATIC, ST_V_Download_list_, WS_CHILD | WS_VISIBLE, 0, 0, rc.right, 15, hWnd, NULL, NULL, NULL );
+			HWND hWnd_static_row_options = _CreateWindowW( WC_STATIC, ST_V_Download_list_, WS_CHILD | WS_VISIBLE, 0, 0, rc.right - 10, 15, hWnd, NULL, NULL, NULL );
 			g_hWnd_row_options_list = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_LISTBOX, NULL, LBS_NOTIFY | LBS_NOINTEGRALHEIGHT | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE | LBS_DARK_MODE, 0, 15, 250, 95, hWnd, ( HMENU )LB_ROW_OPTIONS, NULL, NULL );
 			_SendMessageW( g_hWnd_row_options_list, LB_ADDSTRING, 0, ( LPARAM )ST_V_Background_Color );
 			_SendMessageW( g_hWnd_row_options_list, LB_ADDSTRING, 0, ( LPARAM )ST_V_Gridline_Color );
@@ -226,13 +158,13 @@ LRESULT CALLBACK AppearanceTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 
 			g_hWnd_static_example_row = _CreateWindowW( WC_STATIC, NULL, SS_OWNERDRAW | WS_BORDER | WS_CHILD | WS_VISIBLE, 255, 15, 180, 95, hWnd, NULL, NULL, NULL );
 
-			g_hWnd_chk_show_gridlines = _CreateWindowW( WC_BUTTON, ST_V_Show_gridlines_in_download_list, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 115, rc.right, 20, hWnd, ( HMENU )BTN_SHOW_GRIDLINES, NULL, NULL );
-			g_hWnd_chk_draw_full_rows = _CreateWindowW( WC_BUTTON, ST_V_Draw_full_rows, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 135, rc.right, 20, hWnd, ( HMENU )BTN_DRAW_FULL_ROWS, NULL, NULL );
-			g_hWnd_chk_draw_all_rows = _CreateWindowW( WC_BUTTON, ST_V_Draw_all_rows, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 155, rc.right, 20, hWnd, ( HMENU )BTN_DRAW_ALL_ROWS, NULL, NULL );
+			g_hWnd_chk_show_gridlines = _CreateWindowW( WC_BUTTON, ST_V_Show_gridlines_in_download_list, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 115, rc.right - 10, 20, hWnd, ( HMENU )BTN_SHOW_GRIDLINES, NULL, NULL );
+			g_hWnd_chk_draw_full_rows = _CreateWindowW( WC_BUTTON, ST_V_Draw_full_rows, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 135, rc.right - 10, 20, hWnd, ( HMENU )BTN_DRAW_FULL_ROWS, NULL, NULL );
+			g_hWnd_chk_draw_all_rows = _CreateWindowW( WC_BUTTON, ST_V_Draw_all_rows, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 155, rc.right - 10, 20, hWnd, ( HMENU )BTN_DRAW_ALL_ROWS, NULL, NULL );
 
-			/*HWND hWnd_static_hoz1 =*/ _CreateWindowW( WC_STATIC, NULL, SS_ETCHEDHORZ | WS_CHILD | WS_VISIBLE, 0, 185, rc.right, 1, hWnd, NULL, NULL, NULL );
+			/*HWND hWnd_static_hoz1 =*/ _CreateWindowW( WC_STATIC, NULL, SS_ETCHEDHORZ | WS_CHILD | WS_VISIBLE, 0, 185, rc.right - 10, 1, hWnd, NULL, NULL, NULL );
 
-			HWND hWnd_static_progress_color = _CreateWindowW( WC_STATIC, ST_V_Progress_bar_, WS_CHILD | WS_VISIBLE, 0, 195, rc.right, 15, hWnd, NULL, NULL, NULL );
+			HWND hWnd_static_progress_color = _CreateWindowW( WC_STATIC, ST_V_Progress_bar_, WS_CHILD | WS_VISIBLE, 0, 195, rc.right - 10, 15, hWnd, NULL, NULL, NULL );
 			g_hWnd_progress_color_list = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_LISTBOX, NULL, LBS_NOTIFY | LBS_NOINTEGRALHEIGHT | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE | LBS_DARK_MODE, 0, 210, 250, 95, hWnd, ( HMENU )LB_PROGRESS_COLOR, NULL, NULL );
 			_SendMessageW( g_hWnd_progress_color_list, LB_ADDSTRING, 0, ( LPARAM )ST_V_Allocating_File );
 			_SendMessageW( g_hWnd_progress_color_list, LB_ADDSTRING, 0, ( LPARAM )ST_V_Authorization_Required );
@@ -260,11 +192,11 @@ LRESULT CALLBACK AppearanceTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 
 			g_hWnd_static_example_progress = _CreateWindowW( WC_STATIC, NULL, SS_OWNERDRAW | WS_BORDER | WS_CHILD | WS_VISIBLE, 255, 210, 180, 50, hWnd, NULL, NULL, NULL );
 
-			g_hWnd_chk_show_part_progress = _CreateWindowW( WC_BUTTON, ST_V_Show_progress_for_each_part, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 410, rc.right, 20, hWnd, ( HMENU )BTN_SHOW_PART_PROGRESS, NULL, NULL );
+			g_hWnd_chk_show_part_progress = _CreateWindowW( WC_BUTTON, ST_V_Show_progress_for_each_part, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 410, rc.right - 10, 20, hWnd, ( HMENU )BTN_SHOW_PART_PROGRESS, NULL, NULL );
 
-			/*HWND hWnd_static_proxy_hoz2 =*/ _CreateWindowW( WC_STATIC, NULL, SS_ETCHEDHORZ | WS_CHILD | WS_VISIBLE, 0, 440, rc.right, 1, hWnd, NULL, NULL, NULL );
+			/*HWND hWnd_static_proxy_hoz2 =*/ _CreateWindowW( WC_STATIC, NULL, SS_ETCHEDHORZ | WS_CHILD | WS_VISIBLE, 0, 440, rc.right - 10, 1, hWnd, NULL, NULL, NULL );
 
-			HWND hWnd_static_td_progress_color = _CreateWindowW( WC_STATIC, ST_V_Other_progress_bars_, WS_CHILD | WS_VISIBLE, 0, 450, rc.right, 15, hWnd, NULL, NULL, NULL );
+			HWND hWnd_static_td_progress_color = _CreateWindowW( WC_STATIC, ST_V_Other_progress_bars_, WS_CHILD | WS_VISIBLE, 0, 450, rc.right - 10, 15, hWnd, NULL, NULL, NULL );
 			g_hWnd_td_progress_color_list = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_LISTBOX, NULL, LBS_NOTIFY | LBS_NOINTEGRALHEIGHT | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE | LBS_DARK_MODE, 0, 465, 250, 80, hWnd, ( HMENU )LB_TD_PROGRESS_COLOR, NULL, NULL );
 			_SendMessageW( g_hWnd_td_progress_color_list, LB_ADDSTRING, 0, ( LPARAM )ST_V_System_Tray_Icon_Downloading );
 			_SendMessageW( g_hWnd_td_progress_color_list, LB_ADDSTRING, 0, ( LPARAM )ST_V_System_Tray_Icon_Paused );
@@ -279,11 +211,11 @@ LRESULT CALLBACK AppearanceTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 
 			g_hWnd_static_example_td_progress = _CreateWindowW( WC_STATIC, NULL, SS_OWNERDRAW | WS_BORDER | WS_CHILD | WS_VISIBLE, 255, 465, 180, 50, hWnd, NULL, NULL, NULL );
 
-			/*HWND hWnd_static_proxy_hoz3 =*/ _CreateWindowW( WC_STATIC, NULL, SS_ETCHEDHORZ | WS_CHILD | WS_VISIBLE, 0, 625, rc.right, 1, hWnd, NULL, NULL, NULL );
+			/*HWND hWnd_static_proxy_hoz3 =*/ _CreateWindowW( WC_STATIC, NULL, SS_ETCHEDHORZ | WS_CHILD | WS_VISIBLE, 0, 625, rc.right - 10, 1, hWnd, NULL, NULL, NULL );
 
-			g_hWnd_chk_sort_added_and_updating_items = _CreateWindowW( WC_BUTTON, ST_V_Sort_added_and_updating_items, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 635, rc.right, 20, hWnd, ( HMENU )BTN_SORT_ADDED_AND_UPDATING_ITEMS, NULL, NULL );
-			g_hWnd_chk_expand_added_group_items = _CreateWindowW( WC_BUTTON, ST_V_Expand_added_group_items, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 655, rc.right, 20, hWnd, ( HMENU )BTN_EXPAND_ADDED_GROUP_ITEMS, NULL, NULL );
-			g_hWnd_chk_scroll_to_last_item = _CreateWindowW( WC_BUTTON, ST_V_Scroll_to_last_item_when_adding_URL_s_, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 675, rc.right, 20, hWnd, ( HMENU )BTN_SCROLL_TO_LAST_ITEM, NULL, NULL );
+			g_hWnd_chk_sort_added_and_updating_items = _CreateWindowW( WC_BUTTON, ST_V_Sort_added_and_updating_items, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 635, rc.right - 10, 20, hWnd, ( HMENU )BTN_SORT_ADDED_AND_UPDATING_ITEMS, NULL, NULL );
+			g_hWnd_chk_expand_added_group_items = _CreateWindowW( WC_BUTTON, ST_V_Expand_added_group_items, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 655, rc.right - 10, 20, hWnd, ( HMENU )BTN_EXPAND_ADDED_GROUP_ITEMS, NULL, NULL );
+			g_hWnd_chk_scroll_to_last_item = _CreateWindowW( WC_BUTTON, ST_V_Scroll_to_last_item_when_adding_URL_s_, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 675, rc.right - 10, 20, hWnd, ( HMENU )BTN_SCROLL_TO_LAST_ITEM, NULL, NULL );
 
 
 			SCROLLINFO si;
@@ -315,13 +247,22 @@ LRESULT CALLBACK AppearanceTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 			_SendMessageW( g_hWnd_chk_expand_added_group_items, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 			_SendMessageW( g_hWnd_chk_scroll_to_last_item, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 
-			FocusLBProc = ( WNDPROC )_GetWindowLongPtrW( g_hWnd_row_options_list, GWLP_WNDPROC );
+			//
+
+			if ( FocusLBProc == NULL )
+			{
+				FocusLBProc = ( WNDPROC )_GetWindowLongPtrW( g_hWnd_row_options_list, GWLP_WNDPROC );
+			}
 			_SetWindowLongPtrW( g_hWnd_row_options_list, GWLP_WNDPROC, ( LONG_PTR )FocusLBSubProc );
 			_SetWindowLongPtrW( g_hWnd_progress_color_list, GWLP_WNDPROC, ( LONG_PTR )FocusLBSubProc );
 			_SetWindowLongPtrW( g_hWnd_progress_color_options_list, GWLP_WNDPROC, ( LONG_PTR )FocusLBSubProc );
 			_SetWindowLongPtrW( g_hWnd_td_progress_color_list, GWLP_WNDPROC, ( LONG_PTR )FocusLBSubProc );
 			_SetWindowLongPtrW( g_hWnd_td_progress_color_options_list, GWLP_WNDPROC, ( LONG_PTR )FocusLBSubProc );
-			FocusCBProc = ( WNDPROC )_GetWindowLongPtrW( g_hWnd_chk_show_gridlines, GWLP_WNDPROC );
+
+			if ( FocusCBProc == NULL )
+			{
+				FocusCBProc = ( WNDPROC )_GetWindowLongPtrW( g_hWnd_chk_show_gridlines, GWLP_WNDPROC );
+			}
 			_SetWindowLongPtrW( g_hWnd_chk_show_gridlines, GWLP_WNDPROC, ( LONG_PTR )FocusCBSubProc );
 			_SetWindowLongPtrW( g_hWnd_chk_draw_full_rows, GWLP_WNDPROC, ( LONG_PTR )FocusCBSubProc );
 			_SetWindowLongPtrW( g_hWnd_chk_draw_all_rows, GWLP_WNDPROC, ( LONG_PTR )FocusCBSubProc );
@@ -329,6 +270,8 @@ LRESULT CALLBACK AppearanceTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 			_SetWindowLongPtrW( g_hWnd_chk_sort_added_and_updating_items, GWLP_WNDPROC, ( LONG_PTR )FocusCBSubProc );
 			_SetWindowLongPtrW( g_hWnd_chk_expand_added_group_items, GWLP_WNDPROC, ( LONG_PTR )FocusCBSubProc );
 			_SetWindowLongPtrW( g_hWnd_chk_scroll_to_last_item, GWLP_WNDPROC, ( LONG_PTR )FocusCBSubProc );
+
+			//
 
 			_SendMessageW( g_hWnd_chk_show_gridlines, BM_SETCHECK, ( cfg_show_gridlines ? BST_CHECKED : BST_UNCHECKED ), 0 );
 			_SendMessageW( g_hWnd_chk_draw_full_rows, BM_SETCHECK, ( cfg_draw_full_rows ? BST_CHECKED : BST_UNCHECKED ), 0 );

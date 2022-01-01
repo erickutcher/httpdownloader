@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
-	Copyright (C) 2015-2021 Eric Kutcher
+	Copyright (C) 2015-2022 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -3774,8 +3774,7 @@ void DrawTreeListView( HWND hWnd )
 				if ( tln->data_type & TLVDT_GROUP ||
 				   ( arr2[ i ] != COLUMN_DATE_AND_TIME_ADDED &&
 					 arr2[ i ] != COLUMN_DOWNLOAD_DIRECTORY &&
-					 arr2[ i ] != COLUMN_FILENAME &&
-					 arr2[ i ] != COLUMN_SSL_TLS_VERSION ) )
+					 arr2[ i ] != COLUMN_FILENAME ) )
 				{
 					// Draw selected text
 					if ( selected )
@@ -5386,10 +5385,7 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 
 			ClearTooltip( hWnd, g_hWnd_tlv_tooltip );
 
-			if ( msg != WM_MBUTTONDOWN )
-			{
-				HandleMouseClick( hWnd, ( msg == WM_RBUTTONDOWN ? true : false ) );
-			}
+			HandleMouseClick( hWnd, ( msg == WM_LBUTTONDOWN ? false : true ) );
 		}
 		break;
 
@@ -5431,13 +5427,17 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 				}
 				else
 				{
-					if ( tli_node->child_count > 0 )
+					if ( tli_node->child_count > 0 && !( _GetKeyState( VK_CONTROL ) & 0x8000 ) )
 					{
 						TLV_ExpandCollapseParent( tli_node, pick_index, !tli_node->is_expanded );
 
 						HandleWindowChange( hWnd );
 
 						_InvalidateRect( hWnd, &g_client_rc, TRUE );
+					}
+					else
+					{
+						HandleCommand( hWnd, MENU_UPDATE_DOWNLOAD );
 					}
 				}
 			}
@@ -5452,6 +5452,7 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 		case WM_KILLFOCUS:
 		case WM_LBUTTONUP:
 		case WM_RBUTTONUP:
+		case WM_MBUTTONUP:
 		{
 			if ( g_scroll_timer_active )
 			{
@@ -5511,6 +5512,18 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 				_ClientToScreen( hWnd, &pt );
 
 				_TrackPopupMenu( g_hMenuSub_download, 0, pt.x, pt.y, 0, hWnd, NULL );
+			}
+			else if ( msg == WM_MBUTTONUP )
+			{
+				if ( !in_worker_thread )
+				{
+					UpdateMenus( true );
+				}
+
+				if ( g_focused_node != NULL && g_focused_node->data != NULL && ( ( DOWNLOAD_INFO * )g_focused_node->data )->status == STATUS_COMPLETED )
+				{
+					HandleCommand( hWnd, MENU_OPEN_DIRECTORY );
+				}
 			}
 			else// if ( msg == WM_KILLFOCUS )
 			{

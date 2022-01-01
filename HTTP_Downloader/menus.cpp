@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
-	Copyright (C) 2015-2021 Eric Kutcher
+	Copyright (C) 2015-2022 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -358,6 +358,12 @@ void UpdateMenus( bool enable )
 			_EnableMenuItem( g_hMenuSub_edit, MENU_PAUSE_ACTIVE, MF_ENABLED );
 			_EnableMenuItem( g_hMenuSub_edit, MENU_STOP_ALL, MF_ENABLED );
 
+			_EnableMenuItem( g_hMenuSub_tray, MENU_PAUSE_ACTIVE, MF_ENABLED );
+			_EnableMenuItem( g_hMenuSub_tray, MENU_STOP_ALL, MF_ENABLED );
+
+			_EnableMenuItem( g_hMenuSub_drag_drop, MENU_PAUSE_ACTIVE, MF_ENABLED );
+			_EnableMenuItem( g_hMenuSub_drag_drop, MENU_STOP_ALL, MF_ENABLED );
+
 			tbb.fsState = TBSTATE_ENABLED;
 			_SendMessageW( g_hWnd_toolbar, TB_SETBUTTONINFO, MENU_PAUSE_ACTIVE, ( LPARAM )&tbb );
 			_SendMessageW( g_hWnd_toolbar, TB_SETBUTTONINFO, MENU_STOP_ALL, ( LPARAM )&tbb );
@@ -366,6 +372,12 @@ void UpdateMenus( bool enable )
 		{
 			_EnableMenuItem( g_hMenuSub_edit, MENU_PAUSE_ACTIVE, MF_GRAYED );
 			_EnableMenuItem( g_hMenuSub_edit, MENU_STOP_ALL, MF_ENABLED );
+
+			_EnableMenuItem( g_hMenuSub_tray, MENU_PAUSE_ACTIVE, MF_GRAYED );
+			_EnableMenuItem( g_hMenuSub_tray, MENU_STOP_ALL, MF_ENABLED );
+
+			_EnableMenuItem( g_hMenuSub_drag_drop, MENU_PAUSE_ACTIVE, MF_GRAYED );
+			_EnableMenuItem( g_hMenuSub_drag_drop, MENU_STOP_ALL, MF_ENABLED );
 
 			tbb.fsState = TBSTATE_INDETERMINATE;
 			_SendMessageW( g_hWnd_toolbar, TB_SETBUTTONINFO, MENU_PAUSE_ACTIVE, ( LPARAM )&tbb );
@@ -376,6 +388,12 @@ void UpdateMenus( bool enable )
 		{
 			_EnableMenuItem( g_hMenuSub_edit, MENU_PAUSE_ACTIVE, MF_GRAYED );
 			_EnableMenuItem( g_hMenuSub_edit, MENU_STOP_ALL, MF_GRAYED );
+
+			_EnableMenuItem( g_hMenuSub_tray, MENU_PAUSE_ACTIVE, MF_GRAYED );
+			_EnableMenuItem( g_hMenuSub_tray, MENU_STOP_ALL, MF_GRAYED );
+
+			_EnableMenuItem( g_hMenuSub_drag_drop, MENU_PAUSE_ACTIVE, MF_GRAYED );
+			_EnableMenuItem( g_hMenuSub_drag_drop, MENU_STOP_ALL, MF_GRAYED );
 
 			tbb.fsState = TBSTATE_INDETERMINATE;
 			_SendMessageW( g_hWnd_toolbar, TB_SETBUTTONINFO, MENU_PAUSE_ACTIVE, ( LPARAM )&tbb );
@@ -389,6 +407,10 @@ void UpdateMenus( bool enable )
 			//_EnableMenuItem( g_hMenuSub_edit, MENU_STOP_ALL, MF_ENABLED );
 			_EnableMenuItem( g_hMenuSub_edit, MENU_REMOVE_COMPLETED, MF_ENABLED );
 
+			_EnableMenuItem( g_hMenuSub_tray, MENU_START_INACTIVE, MF_ENABLED );
+
+			_EnableMenuItem( g_hMenuSub_drag_drop, MENU_START_INACTIVE, MF_ENABLED );
+
 			tbb.fsState = TBSTATE_ENABLED;
 			_SendMessageW( g_hWnd_toolbar, TB_SETBUTTONINFO, MENU_START_INACTIVE, ( LPARAM )&tbb );
 		}
@@ -398,6 +420,10 @@ void UpdateMenus( bool enable )
 			//_EnableMenuItem( g_hMenuSub_edit, MENU_PAUSE_ACTIVE, MF_GRAYED );
 			//_EnableMenuItem( g_hMenuSub_edit, MENU_STOP_ALL, MF_GRAYED );
 			_EnableMenuItem( g_hMenuSub_edit, MENU_REMOVE_COMPLETED, MF_GRAYED );
+
+			_EnableMenuItem( g_hMenuSub_tray, MENU_START_INACTIVE, MF_GRAYED );
+
+			_EnableMenuItem( g_hMenuSub_drag_drop, MENU_START_INACTIVE, MF_GRAYED );
 
 			tbb.fsState = TBSTATE_INDETERMINATE;
 			_SendMessageW( g_hWnd_toolbar, TB_SETBUTTONINFO, MENU_START_INACTIVE, ( LPARAM )&tbb );
@@ -474,6 +500,14 @@ void UpdateMenus( bool enable )
 		_EnableMenuItem( g_hMenuSub_edit, MENU_RENAME, MF_GRAYED );
 		_EnableMenuItem( g_hMenuSub_edit, MENU_COPY_URLS, MF_GRAYED );
 		_EnableMenuItem( g_hMenuSub_edit, MENU_SELECT_ALL, MF_GRAYED );
+
+		_EnableMenuItem( g_hMenuSub_tray, MENU_START_INACTIVE, MF_GRAYED );
+		_EnableMenuItem( g_hMenuSub_tray, MENU_PAUSE_ACTIVE, MF_GRAYED );
+		_EnableMenuItem( g_hMenuSub_tray, MENU_STOP_ALL, MF_GRAYED );
+
+		_EnableMenuItem( g_hMenuSub_drag_drop, MENU_START_INACTIVE, MF_GRAYED );
+		_EnableMenuItem( g_hMenuSub_drag_drop, MENU_PAUSE_ACTIVE, MF_GRAYED );
+		_EnableMenuItem( g_hMenuSub_drag_drop, MENU_STOP_ALL, MF_GRAYED );
 
 		_EnableMenuItem( g_hMenuSub_queue, MENU_QUEUE_TOP, MF_GRAYED );
 		_EnableMenuItem( g_hMenuSub_queue, MENU_QUEUE_UP, MF_GRAYED );
@@ -779,19 +813,38 @@ void CreateMenus()
 	_InsertMenuItemW( g_hMenuSub_tray, 3, TRUE, &mii );
 
 	mii.fType = MFT_STRING;
+	mii.dwTypeData = ST_V_Start___Resume_Inactive;
+	mii.cch = ST_L_Start___Resume_Inactive;
+	mii.wID = MENU_START_INACTIVE;
+	_InsertMenuItemW( g_hMenuSub_tray, 4, TRUE, &mii );
+
+	mii.dwTypeData = ST_V_Pause_Active;
+	mii.cch = ST_L_Pause_Active;
+	mii.wID = MENU_PAUSE_ACTIVE;
+	_InsertMenuItemW( g_hMenuSub_tray, 5, TRUE, &mii );
+
+	mii.dwTypeData = ST_V_Stop_All;
+	mii.cch = ST_L_Stop_All;
+	mii.wID = MENU_STOP_ALL;
+	_InsertMenuItemW( g_hMenuSub_tray, 6, TRUE, &mii );
+
+	mii.fType = MFT_SEPARATOR;
+	_InsertMenuItemW( g_hMenuSub_tray, 7, TRUE, &mii );
+
+	mii.fType = MFT_STRING;
 	mii.dwTypeData = ST_V_Options___;
 	mii.cch = ST_L_Options___;
 	mii.wID = MENU_OPTIONS;
-	_InsertMenuItemW( g_hMenuSub_tray, 4, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_tray, 8, TRUE, &mii );
 
 	mii.fType = MFT_SEPARATOR;
-	_InsertMenuItemW( g_hMenuSub_tray, 5, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_tray, 9, TRUE, &mii );
 
 	mii.fType = MFT_STRING;
 	mii.dwTypeData = ST_V_Exit;
 	mii.cch = ST_L_Exit;
 	mii.wID = MENU_EXIT;
-	_InsertMenuItemW( g_hMenuSub_tray, 6, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_tray, 10, TRUE, &mii );
 
 	//
 
@@ -825,19 +878,38 @@ void CreateMenus()
 	_InsertMenuItemW( g_hMenuSub_drag_drop, 5, TRUE, &mii );
 
 	mii.fType = MFT_STRING;
+	mii.dwTypeData = ST_V_Start___Resume_Inactive;
+	mii.cch = ST_L_Start___Resume_Inactive;
+	mii.wID = MENU_START_INACTIVE;
+	_InsertMenuItemW( g_hMenuSub_drag_drop, 6, TRUE, &mii );
+
+	mii.dwTypeData = ST_V_Pause_Active;
+	mii.cch = ST_L_Pause_Active;
+	mii.wID = MENU_PAUSE_ACTIVE;
+	_InsertMenuItemW( g_hMenuSub_drag_drop, 7, TRUE, &mii );
+
+	mii.dwTypeData = ST_V_Stop_All;
+	mii.cch = ST_L_Stop_All;
+	mii.wID = MENU_STOP_ALL;
+	_InsertMenuItemW( g_hMenuSub_drag_drop, 8, TRUE, &mii );
+
+	mii.fType = MFT_SEPARATOR;
+	_InsertMenuItemW( g_hMenuSub_drag_drop, 9, TRUE, &mii );
+
+	mii.fType = MFT_STRING;
 	mii.dwTypeData = ST_V_Options___;
 	mii.cch = ST_L_Options___;
 	mii.wID = MENU_OPTIONS;
-	_InsertMenuItemW( g_hMenuSub_drag_drop, 6, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_drag_drop, 10, TRUE, &mii );
 
 	mii.fType = MFT_SEPARATOR;
-	_InsertMenuItemW( g_hMenuSub_drag_drop, 7, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_drag_drop, 11, TRUE, &mii );
 
 	mii.fType = MFT_STRING;
 	mii.dwTypeData = ST_V_Exit;
 	mii.cch = ST_L_Exit;
 	mii.wID = MENU_EXIT;
-	_InsertMenuItemW( g_hMenuSub_drag_drop, 8, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_drag_drop, 12, TRUE, &mii );
 
 	//
 
@@ -1840,7 +1912,7 @@ void HandleCommand( HWND hWnd, WORD command )
 			int msg_length = __snwprintf( msg, 512, L"%s\r\n\r\n" \
 												    L"%s %lu.%lu.%lu.%lu (%u-bit)\r\n\r\n" \
 												    L"%s %s, %s %d, %04d %d:%02d:%02d %s (UTC)\r\n\r\n" \
-												    L"%s \xA9 2015-2021 Eric Kutcher\r\n\r\n" \
+												    L"%s \xA9 2015-2022 Eric Kutcher\r\n\r\n" \
 												    L"%s ",
 												    ST_V_LICENSE,
 												    ST_V_VERSION,

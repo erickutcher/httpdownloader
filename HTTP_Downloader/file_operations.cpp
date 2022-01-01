@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
-	Copyright (C) 2015-2021 Eric Kutcher
+	Copyright (C) 2015-2022 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -78,7 +78,7 @@ char read_config()
 			// Read the config. It must be in the order specified below.
 			if ( read == fz && _memcmp( cfg_buf, MAGIC_ID_SETTINGS, 4 ) == 0 )
 			{
-				reserved = 1024 - 717;
+				reserved = 1024 - 719;
 
 				char *next = cfg_buf + 4;
 
@@ -481,6 +481,11 @@ char read_config()
 				_memcpy_s( &cfg_reallocate_parts, sizeof( bool ), next, sizeof( bool ) );
 				next += sizeof( bool );
 
+				_memcpy_s( &cfg_download_non_200_206, sizeof( bool ), next, sizeof( bool ) );
+				next += sizeof( bool );
+
+				_memcpy_s( &cfg_move_to_trash, sizeof( bool ), next, sizeof( bool ) );
+				next += sizeof( bool );
 
 				//
 
@@ -1173,6 +1178,10 @@ char read_config()
 		}
 	}
 
+#ifdef ENABLE_LOGGING
+	WriteLog( ( ret_status == 0 ? LOG_INFO : LOG_ERROR ), "Reading configuration: %d | %S", ret_status, g_base_directory );
+#endif
+
 	return ret_status;
 }
 
@@ -1186,11 +1195,11 @@ char save_config()
 	HANDLE hFile_cfg = CreateFile( g_base_directory, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL );
 	if ( hFile_cfg != INVALID_HANDLE_VALUE )
 	{
-		int reserved = 1024 - 717;
+		int reserved = 1024 - 719;
 		int size = ( sizeof( int ) * 25 ) +
 				   ( sizeof( unsigned short ) * 7 ) +
 				   ( sizeof( char ) * ( 50 + KEX_ALGORITHM_COUNT + HOST_KEY_COUNT + ENCRYPTION_CIPHER_COUNT ) ) +
-				   ( sizeof( bool ) * 44 ) +
+				   ( sizeof( bool ) * 46 ) +
 				   ( sizeof( unsigned long ) * 7 ) +
 				   ( sizeof( LONG ) * 4 ) +
 				   ( sizeof( BYTE ) * 6 ) +
@@ -1603,6 +1612,11 @@ char save_config()
 		_memcpy_s( write_buf + pos, size - pos, &cfg_reallocate_parts, sizeof( bool ) );
 		pos += sizeof( bool );
 
+		_memcpy_s( write_buf + pos, size - pos, &cfg_download_non_200_206, sizeof( bool ) );
+		pos += sizeof( bool );
+
+		_memcpy_s( write_buf + pos, size - pos, &cfg_move_to_trash, sizeof( bool ) );
+		pos += sizeof( bool );
 
 		//
 
@@ -1944,6 +1958,10 @@ char save_config()
 		ret_status = -1;	// Can't open file for writing.
 	}
 
+#ifdef ENABLE_LOGGING
+	WriteLog( ( ret_status == 0 ? LOG_INFO : LOG_ERROR ), "Saving configuration: %d | %S", ret_status, g_base_directory );
+#endif
+
 	return ret_status;
 }
 
@@ -1976,6 +1994,7 @@ char read_download_history( wchar_t *file_path, bool scroll_to_last_item )
 		unsigned char		parts;
 		unsigned char		parts_limit;
 		unsigned int		status;
+		int					code;
 
 		char				*cookies = NULL;
 		char				*headers = NULL;
@@ -2024,8 +2043,10 @@ char read_download_history( wchar_t *file_path, bool scroll_to_last_item )
 
 		char magic_identifier[ 4 ];
 		ReadFile( hFile_read, magic_identifier, sizeof( char ) * 4, &read, NULL );
-		if ( read == 4 && _memcmp( magic_identifier, MAGIC_ID_DOWNLOADS, 4 ) == 0 )
+		if ( read == 4 && _memcmp( magic_identifier, MAGIC_ID_DOWNLOADS, 3 ) == 0 && ( int )magic_identifier[ 3 ] >= 0x15 )
 		{
+			char version = magic_identifier[ 3 ] - 0x10;
+
 			DWORD fz = GetFileSize( hFile_read, NULL ) - 4;
 
 			char *history_buf = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( 524288 + 1 ) );	// 512 KB buffer.
@@ -2254,6 +2275,8 @@ char read_download_history( wchar_t *file_path, bool scroll_to_last_item )
 							password = NULL;
 							range_list = NULL;
 
+							code = 0;
+
 							//
 
 							proxy_type = 0;
@@ -2320,6 +2343,15 @@ char read_download_history( wchar_t *file_path, bool scroll_to_last_item )
 							if ( offset >= read ) { goto CLEANUP; }
 							_memcpy_s( &status, sizeof( unsigned int ), p, sizeof( unsigned int ) );
 							p += sizeof( unsigned int );
+
+							if ( version >= 6 )
+							{
+								// Code
+								offset += sizeof( int );
+								if ( offset >= read ) { goto CLEANUP; }
+								_memcpy_s( &code, sizeof( int ), p, sizeof( int ) );
+								p += sizeof( int );
+							}
 
 							// SSL Version
 							offset += sizeof( char );
@@ -2717,6 +2749,7 @@ char read_download_history( wchar_t *file_path, bool scroll_to_last_item )
 								di->parts = parts;
 								di->parts_limit = parts_limit;
 								di->status = status;
+								di->code = code;
 								di->ssl_version = ssl_version;
 								di->processed_header = processed_header;
 								di->method = method;
@@ -3005,6 +3038,10 @@ char read_download_history( wchar_t *file_path, bool scroll_to_last_item )
 		ret_status = -1;	// Can't open file for reading.
 	}
 
+#ifdef ENABLE_LOGGING
+	WriteLog( ( ret_status == 0 ? LOG_INFO : LOG_ERROR ), "Reading download history: %d | %S", ret_status, file_path );
+#endif
+
 	return ret_status;
 }
 
@@ -3149,7 +3186,7 @@ char save_download_history( wchar_t *file_path )
 									 proxy_username_length +
 									 proxy_password_length +
 									 optional_extra_length +
-								   ( sizeof( int ) * 2 ) +
+								   ( sizeof( int ) * 3 ) +
 									 sizeof( ULONGLONG ) +
 								   ( sizeof( unsigned long long ) * 3 ) +
 								   ( sizeof( unsigned char ) * 5 ) +
@@ -3184,6 +3221,9 @@ char save_download_history( wchar_t *file_path )
 
 					_memcpy_s( buf + pos, size - pos, &di->status, sizeof( unsigned int ) );
 					pos += sizeof( unsigned int );
+
+					_memcpy_s( buf + pos, size - pos, &di->code, sizeof( int ) );
+					pos += sizeof( int );
 
 					_memcpy_s( buf + pos, size - pos, &di->ssl_version, sizeof( char ) );
 					pos += sizeof( char );
@@ -3432,6 +3472,10 @@ char save_download_history( wchar_t *file_path )
 	{
 		ret_status = -1;	// Can't open file for writing.
 	}
+
+#ifdef ENABLE_LOGGING
+	WriteLog( ( ret_status == 0 ? LOG_INFO : LOG_ERROR ), "Saving download history: %d | %S", ret_status, file_path );
+#endif
 
 	return ret_status;
 }

@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
-	Copyright (C) 2015-2021 Eric Kutcher
+	Copyright (C) 2015-2022 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -208,6 +208,10 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 			UnInitializeKernel32();
 		}
 	#endif
+
+#ifdef ENABLE_LOGGING
+	InitLogging();
+#endif
 
 	_memzero( &g_compile_time, sizeof( SYSTEMTIME ) );
 	if ( hInstance != NULL )
@@ -579,6 +583,15 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 
 					g_shutdown_action = ( unsigned char )_wcstoul( szArgList[ arg ], NULL, 10 );
 				}
+#ifdef ENABLE_LOGGING
+				else if ( ( arg + 1 ) < argCount &&
+					 arg_name_length == 3 && _StrCmpNIW( arg_name, L"log", 3 ) == 0 )	// Log file.
+				{
+					++arg;	// Move to the supplied filepath.
+
+					OpenLog( szArgList[ arg ] );
+				}
+#endif
 			}
 			else
 			{
@@ -1187,6 +1200,12 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 		_SFTP_SetAlgorithmPriorities( 2, cfg_priority_encryption_cipher, ENCRYPTION_CIPHER_COUNT );
 	}
 
+#ifdef ENABLE_LOGGING
+	WriteLog( LOG_INFO, "zlib1.dll %s", ( zlib1_state == ZLIB1_STATE_RUNNING ? "loaded" : "not loaded" ) );
+	WriteLog( LOG_INFO, "psftp.dll %s", ( psftp_state == PSFTP_STATE_RUNNING ? "loaded" : "not loaded" ) );
+	WriteLog( LOG_INFO, "libpcre2-16-0.dll %s", ( pcre2_state == PCRE2_STATE_RUNNING ? "loaded" : "not loaded" ) );
+#endif
+
 	downloader_ready_semaphore = CreateSemaphore( NULL, 0, 1, NULL );
 
 	CloseHandle( _CreateThread( NULL, 0, IOCPDownloader, NULL, 0, NULL ) );
@@ -1665,6 +1684,11 @@ CLEANUP:
 
 	ReleaseMutex( app_instance_mutex );
 	CloseHandle( app_instance_mutex );
+
+#ifdef ENABLE_LOGGING
+	CloseLog();
+	UnInitLogging();
+#endif
 
 	if ( g_shutdown_action != SHUTDOWN_ACTION_NONE && g_perform_shutdown_action )
 	{

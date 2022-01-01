@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
-	Copyright (C) 2015-2021 Eric Kutcher
+	Copyright (C) 2015-2022 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -64,6 +64,118 @@ HWND g_hWnd_options_cancel = NULL;
 HWND g_hWnd_options_apply = NULL;
 
 WNDPROC TreeViewProc = NULL;
+
+WNDPROC FocusLBProc = NULL;
+WNDPROC FocusCBProc = NULL;
+WNDPROC FocusComboProc = NULL;
+WNDPROC FocusEditProc = NULL;
+WNDPROC FocusBtnProc = NULL;
+
+void ScrollToFocusedWindow( HWND hWnd )
+{
+	HWND p_hWnd = _GetParent( hWnd );
+	RECT rc, p_rc;
+	_GetWindowRect( hWnd, &rc );
+	_GetClientRect( p_hWnd, &p_rc );
+
+	_MapWindowPoints( HWND_DESKTOP, p_hWnd, ( LPPOINT )&rc, 2 );
+
+	SCROLLINFO si;
+	si.cbSize = sizeof( SCROLLINFO );
+	si.fMask = SIF_RANGE | SIF_PAGE | SIF_POS;
+	_GetScrollInfo( p_hWnd, SB_VERT, &si );
+
+	int delta = si.nPos;
+
+	if ( rc.bottom > p_rc.bottom )
+	{
+		si.nPos += ( rc.bottom - p_rc.bottom );
+	}
+	else if ( rc.top < p_rc.top )
+	{
+		si.nPos -= ( p_rc.top - rc.top );
+	}
+
+	_SetScrollPos( p_hWnd, SB_VERT, si.nPos, TRUE );
+
+	si.fMask = SIF_POS;
+	_GetScrollInfo( p_hWnd, SB_VERT, &si );
+
+	if ( si.nPos != delta )
+	{
+		_ScrollWindow( p_hWnd, 0, delta - si.nPos, NULL, NULL );
+	}
+}
+
+LRESULT CALLBACK FocusLBSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
+{
+	switch ( msg )
+	{
+		case WM_SETFOCUS:
+		{
+			ScrollToFocusedWindow( hWnd );
+		}
+		break;
+	}
+
+	return _CallWindowProcW( FocusLBProc, hWnd, msg, wParam, lParam );
+}
+
+LRESULT CALLBACK FocusCBSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
+{
+	switch ( msg )
+	{
+		case WM_SETFOCUS:
+		{
+			ScrollToFocusedWindow( hWnd );
+		}
+		break;
+	}
+
+	return _CallWindowProcW( FocusCBProc, hWnd, msg, wParam, lParam );
+}
+
+LRESULT CALLBACK FocusComboSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
+{
+	switch ( msg )
+	{
+		case WM_SETFOCUS:
+		{
+			ScrollToFocusedWindow( hWnd );
+		}
+		break;
+	}
+
+	return _CallWindowProcW( FocusComboProc, hWnd, msg, wParam, lParam );
+}
+
+LRESULT CALLBACK FocusEditSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
+{
+	switch ( msg )
+	{
+		case WM_SETFOCUS:
+		{
+			ScrollToFocusedWindow( hWnd );
+		}
+		break;
+	}
+
+	return _CallWindowProcW( FocusEditProc, hWnd, msg, wParam, lParam );
+}
+
+LRESULT CALLBACK FocusBtnSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
+{
+	switch ( msg )
+	{
+		case WM_SETFOCUS:
+		{
+			ScrollToFocusedWindow( hWnd );
+		}
+		break;
+	}
+
+	return _CallWindowProcW( FocusBtnProc, hWnd, msg, wParam, lParam );
+}
 
 void SetServerSettings()
 {
@@ -350,19 +462,19 @@ void SetServerSettings()
 
 	if ( auth_info_changed )
 	{
-		if ( g_authentication_username != NULL ) { GlobalFree( g_authentication_username ); }
+		if ( g_authentication_username != NULL ) { GlobalFree( g_authentication_username ); g_authentication_username = NULL; }
 		g_authentication_username_length = 0;
 
-		if ( g_authentication_password != NULL ) { GlobalFree( g_authentication_password ); }
+		if ( g_authentication_password != NULL ) { GlobalFree( g_authentication_password ); g_authentication_password = NULL; }
 		g_authentication_password_length = 0;
 
-		if ( g_nonce != NULL ) { GlobalFree( g_nonce ); }
+		if ( g_nonce != NULL ) { GlobalFree( g_nonce ); g_nonce = NULL; }
 		g_nonce_length = 0;
 
-		if ( g_opaque != NULL ) { GlobalFree( g_opaque ); }
+		if ( g_opaque != NULL ) { GlobalFree( g_opaque ); g_opaque = NULL; }
 		g_opaque_length = 0;
 
-		if ( g_encoded_authentication != NULL ) { GlobalFree( g_encoded_authentication ); }
+		if ( g_encoded_authentication != NULL ) { GlobalFree( g_encoded_authentication ); g_encoded_authentication = NULL; }
 		g_encoded_authentication_length = 0;
 
 		if ( cfg_use_authentication )
@@ -504,7 +616,8 @@ LRESULT CALLBACK TreeViewSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPa
 				HWND hWnd_next = *( HWND * )tvi.lParam;
 
 				// We're cheating here. Ideally we'd detect which window has scrollbars, but we already know that the appearance tab does.
-				if ( hWnd_next == g_hWnd_appearance_tab )
+				if ( hWnd_next == g_hWnd_appearance_tab ||
+					 hWnd_next == g_hWnd_advanced_tab )
 				{
 					// returning DLGC_WANTTAB will cause a beep.
 					LRESULT ret = _CallWindowProcW( TreeViewProc, hWnd, msg, wParam, lParam );
@@ -631,7 +744,7 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			g_hWnd_sftp_fps_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"class_sftp_fps_tab", NULL, WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, rc.bottom - 50, hWnd, NULL, NULL, NULL );
 			g_hWnd_sftp_keys_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"class_sftp_keys_tab", NULL, WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, rc.bottom - 50, hWnd, NULL, NULL, NULL );
 			g_hWnd_proxy_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"class_proxy_tab", NULL, WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, rc.bottom - 50, hWnd, NULL, NULL, NULL );
-			g_hWnd_advanced_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"class_advanced_tab", NULL, WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, rc.bottom - 50, hWnd, NULL, NULL, NULL );
+			g_hWnd_advanced_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"class_advanced_tab", NULL, WS_VSCROLL | WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, rc.bottom - 50, hWnd, NULL, NULL, NULL );
 
 			g_hWnd_options_ok = _CreateWindowW( WC_BUTTON, ST_V_OK, BS_DEFPUSHBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 260, rc.bottom - 32, 80, 23, hWnd, ( HMENU )BTN_OK, NULL, NULL );
 			g_hWnd_options_cancel = _CreateWindowW( WC_BUTTON, ST_V_Cancel, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 175, rc.bottom - 32, 80, 23, hWnd, ( HMENU )BTN_CANCEL, NULL, NULL );
@@ -851,6 +964,10 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 					cfg_set_filetime = ( _SendMessageW( g_hWnd_chk_set_filetime, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
 					cfg_update_redirected = ( _SendMessageW( g_hWnd_chk_update_redirected, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
+
+					cfg_download_non_200_206 = ( _SendMessageW( g_hWnd_chk_download_non_200_206, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
+
+					cfg_move_to_trash = ( _SendMessageW( g_hWnd_chk_move_to_trash, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
 
 					cfg_use_one_instance = ( _SendMessageW( g_hWnd_chk_use_one_instance, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
 

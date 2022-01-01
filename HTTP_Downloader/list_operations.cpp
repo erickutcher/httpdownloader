@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
-	Copyright (C) 2015-2021 Eric Kutcher
+	Copyright (C) 2015-2022 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -321,7 +321,7 @@ THREAD_RETURN remove_items( void *pArguments )
 						{
 							wchar_t *file_path_delete;
 
-							wchar_t file_path[ MAX_PATH ];
+							wchar_t file_path[ MAX_PATH + 1 ];
 							if ( cfg_use_temp_download_directory && di->status != STATUS_COMPLETED )
 							{
 								GetTemporaryFilePath( di, file_path );
@@ -334,9 +334,44 @@ THREAD_RETURN remove_items( void *pArguments )
 								di->file_path[ di->filename_offset - 1 ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
 
 								file_path_delete = di->file_path;
+
+								file_path[ 0 ] = 0;	// Flag for if we're moving to the Recycle Bin.
 							}
 
-							if ( DeleteFileW( file_path_delete ) == FALSE )
+							if ( cfg_move_to_trash )
+							{
+								int file_path_length = lstrlenW( file_path_delete );
+
+								if ( file_path[ 0 ] == 0 )
+								{
+									_wmemcpy_s( file_path, MAX_PATH + 1, file_path_delete, file_path_length );
+								}
+
+								file_path[ file_path_length ] = 0;
+								file_path[ file_path_length + 1 ] = 0;
+
+								SHFILEOPSTRUCTW sfos;
+								_memzero( &sfos, sizeof( SHFILEOPSTRUCTW ) );
+								sfos.wFunc = FO_DELETE;
+								sfos.pFrom = file_path;
+								sfos.fFlags = FOF_ALLOWUNDO | FOF_NO_UI;
+
+								int error = _SHFileOperationW( &sfos );
+								if ( error != 0 )
+								{
+									delete_success = false;
+
+									if ( error == ERROR_ACCESS_DENIED )
+									{
+										error_type |= 1;
+									}
+									else if ( error == ERROR_FILE_NOT_FOUND )
+									{
+										error_type |= 2;
+									}
+								}
+							}
+							else if ( DeleteFileW( file_path_delete ) == FALSE )
 							{
 								delete_success = false;
 
@@ -588,6 +623,9 @@ THREAD_RETURN handle_download_list( void *pArguments )
 
 	if ( handle_type == 0 )	// Pause active downloads.
 	{
+#ifdef ENABLE_LOGGING
+		WriteLog( LOG_INFO, "Pausing active downloads" );
+#endif
 		// Go through each active download, and set their status to paused.
 		EnterCriticalSection( &active_download_list_cs );
 
@@ -651,6 +689,9 @@ THREAD_RETURN handle_download_list( void *pArguments )
 	}
 	else if ( handle_type == 1 )	// Stop all active and queued downloads.
 	{
+#ifdef ENABLE_LOGGING
+		WriteLog( LOG_INFO, "Stopping active and queued downloads" );
+#endif
 		// We'll stop queued downloads first so that the active downloads don't trigger the queued downloads to start.
 
 		// Go through each queued download, and set their status to stopped.
@@ -774,6 +815,9 @@ THREAD_RETURN handle_download_list( void *pArguments )
 	}
 	else if ( handle_type == 2 )	// Remove completed downloads.
 	{
+#ifdef ENABLE_LOGGING
+		WriteLog( LOG_INFO, "Removing completed downloads" );
+#endif
 		// Prevent the listviews from drawing while freeing lParam values.
 		_SendMessageW( g_hWnd_tlv_files, TLVM_TOGGLE_DRAW, TRUE, NULL );
 
@@ -1083,6 +1127,9 @@ THREAD_RETURN handle_download_list( void *pArguments )
 	}
 	else if ( handle_type == 3 )	// Restart selected download (from the beginning).
 	{
+#ifdef ENABLE_LOGGING
+		WriteLog( LOG_INFO, "Restarting selected download" );
+#endif
 		TREELISTNODE *tln = TLV_GetFocusedItem();
 		if ( tln != NULL )
 		{
@@ -1223,6 +1270,24 @@ THREAD_RETURN handle_connection( void *pArguments )
 			DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )tln->data;
 			if ( di != NULL )
 			{
+#ifdef ENABLE_LOGGING
+				char log_status1[ 256 ];
+				char log_status2[ 256 ];
+				GetDownloadStatus( log_status1, 256, di->status );
+				GetDownloadStatus( log_status2, 256, status );
+				wchar_t *l_file_path;
+				wchar_t t_l_file_path[ MAX_PATH ];
+				if ( di->shared_info->download_operations & DOWNLOAD_OPERATION_SIMULATE )
+				{
+					l_file_path = L"Simulated";
+				}
+				else
+				{
+					GetDownloadFilePath( di, t_l_file_path );
+					l_file_path = t_l_file_path;
+				}
+				WriteLog( LOG_INFO, "Setting download status: %s -> %s | %s%S | %S", log_status1, log_status2, ( is_group ? "group | " : "" ), di->url, l_file_path );
+#endif
 				unsigned int tmp_status;
 
 				EnterCriticalSection( &di->di_cs );
@@ -2895,7 +2960,7 @@ THREAD_RETURN delete_files( void * /*pArguments*/ )
 
 	ProcessingList( true );
 
-	wchar_t file_path[ MAX_PATH ];
+	wchar_t file_path[ MAX_PATH + 1 ];
 	bool delete_success = true;
 	unsigned char error_type = 0;
 
@@ -2962,7 +3027,33 @@ THREAD_RETURN delete_files( void * /*pArguments*/ )
 					GetDownloadFilePath( di, file_path );
 				}
 
-				if ( DeleteFileW( file_path ) == FALSE )
+				if ( cfg_move_to_trash )
+				{
+					int file_path_length = lstrlenW( file_path );
+					file_path[ file_path_length ] = 0;
+					file_path[ file_path_length + 1 ] = 0;
+					SHFILEOPSTRUCTW sfos;
+					_memzero( &sfos, sizeof( SHFILEOPSTRUCTW ) );
+					sfos.wFunc = FO_DELETE;
+					sfos.pFrom = file_path;
+					sfos.fFlags = FOF_ALLOWUNDO | FOF_NO_UI;
+
+					int error = _SHFileOperationW( &sfos );
+					if ( error != 0 )
+					{
+						delete_success = false;
+
+						if ( error == ERROR_ACCESS_DENIED )
+						{
+							error_type |= 1;
+						}
+						else if ( error == ERROR_FILE_NOT_FOUND )
+						{
+							error_type |= 2;
+						}
+					}
+				}
+				else if ( DeleteFileW( file_path ) == FALSE )
 				{
 					delete_success = false;
 

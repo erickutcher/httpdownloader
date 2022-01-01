@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
-	Copyright (C) 2015-2021 Eric Kutcher
+	Copyright (C) 2015-2022 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -58,6 +58,8 @@
 	#define _SHGetFolderPathW	SHGetFolderPathW
 	#define _SHGetKnownFolderPath	SHGetKnownFolderPath;
 
+	#define _SHFileOperationW	SHFileOperationW;
+
 	#define _SHOpenFolderAndSelectItems SHOpenFolderAndSelectItems
 	#define _ILCreateFromPathW	ILCreateFromPathW
 	//#define _ILFree				ILFree
@@ -96,6 +98,8 @@
 	typedef HRESULT ( WINAPI *pSHGetFolderPathW )( HWND hwndOwner, int nFolder, HANDLE hToken, DWORD dwFlags, LPTSTR pszPath );
 	typedef HRESULT ( WINAPI *pSHGetKnownFolderPath )( REFKNOWNFOLDERID rfid, DWORD dwFlags, HANDLE hToken, PWSTR *ppszPath );
 
+	typedef int ( WINAPI *pSHFileOperationW )( LPSHFILEOPSTRUCTW lpFileOp );
+
 	typedef HRESULT ( WINAPI *pSHOpenFolderAndSelectItems )( PCIDLIST_ABSOLUTE pidlFolder, UINT cidl, PCUITEMID_CHILD_ARRAY apidl, DWORD dwFlags ); // Returns an HRESULT but is documented/defined as SHSTDAPI.
 	typedef PIDLIST_ABSOLUTE ( WINAPI *pILCreateFromPathW )( PCWSTR pszPath );
 	//typedef void ( WINAPI *pILFree )( PIDLIST_RELATIVE pidl );
@@ -128,6 +132,8 @@
 	extern pSHGetFileInfoW		_SHGetFileInfoW;
 	extern pSHGetFolderPathW	_SHGetFolderPathW;
 	extern pSHGetKnownFolderPath	_SHGetKnownFolderPath;
+
+	extern pSHFileOperationW	_SHFileOperationW;
 
 	extern pSHOpenFolderAndSelectItems	_SHOpenFolderAndSelectItems;
 	extern pILCreateFromPathW	_ILCreateFromPathW;

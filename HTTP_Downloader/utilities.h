@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
-	Copyright (C) 2015-2021 Eric Kutcher
+	Copyright (C) 2015-2022 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -18,6 +18,8 @@
 
 #ifndef _UTILITIES_H
 #define _UTILITIES_H
+
+//#define	ENABLE_LOGGING
 
 #include "connection.h"
 #include "lite_advapi32.h"
@@ -106,5 +108,38 @@ void ConstructSOCKSRequest( SOCKET_CONTEXT *context, unsigned char request_type 
 
 unsigned int FormatSizes( wchar_t *buffer, unsigned int buffer_size, unsigned char toggle_type, unsigned long long data_size );
 void UpdateSBItemCount();
+
+#ifdef ENABLE_LOGGING
+
+#define LOG_INFO	0
+#define LOG_WARNING	1
+#define LOG_ERROR	2
+
+//typedef int ( WINAPIV *p_vsnwprintf )( wchar_t *buffer, size_t count, const wchar_t *format, va_list argptr );
+typedef int ( WINAPIV *p_vsnprintf )( char *buffer, size_t count, const char *format, va_list argptr );
+typedef void ( WINAPIV *pRtlGetNtVersionNumbers )( LPDWORD major, LPDWORD minor, LPDWORD build );
+
+//extern p_vsnwprintf				__vsnwprintf;
+extern p_vsnprintf				__vsnprintf;
+extern pRtlGetNtVersionNumbers	_RtlGetNtVersionNumbers;
+
+bool InitLogging();
+bool UnInitLogging();
+
+void OpenLog( wchar_t *file_path );
+void CloseLog();
+void WriteLog( char type, const char *format, ... );
+
+#define LOG_BUFFER_SIZE	65536
+
+extern char *g_log_buffer;
+extern unsigned int g_log_buffer_offset;
+
+#define LOG_BUFFER			( g_log_buffer + g_log_buffer_offset )
+#define LOG_BUFFER_OFFSET	( LOG_BUFFER_SIZE - g_log_buffer_offset )
+
+void GetDownloadStatus( char *buf, unsigned short buf_size, unsigned int status );
+
+#endif
 
 #endif

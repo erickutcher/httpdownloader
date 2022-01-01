@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
-	Copyright (C) 2015-2021 Eric Kutcher
+	Copyright (C) 2015-2022 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -173,7 +173,7 @@
 #endif
 
 //wchar_t * WINAPIV _wcsncpy_s( wchar_t *strDest, size_t size, const wchar_t *strSource, size_t count );
-wchar_t * WINAPI _wcsncpy_s( wchar_t *strDest, int size, const wchar_t *strSource, int count );
+wchar_t * WINAPIV _wcsncpy_s( wchar_t *strDest, int size, const wchar_t *strSource, int count );
 
 #define _memzero( dest, count ) _memset( dest, 0, count )
 

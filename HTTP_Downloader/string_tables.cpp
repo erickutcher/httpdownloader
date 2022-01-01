@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
-	Copyright (C) 2015-2021 Eric Kutcher
+	Copyright (C) 2015-2022 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -173,6 +173,7 @@ STRING_TABLE_DATA options_advanced_string_table[] =
 	{ L"Default download directory:", 27 },
 	{ L"Display Prompt", 14 },
 	{ L"Download immediately", 20 },
+	{ L"Download non-200 and non-206 responses", 38 },
 	{ L"Drag and drop URL(s) action:", 28 },
 	{ L"Enable download history", 23 },
 	{ L"Enable quick file allocation (administrator access required)", 60 },
@@ -181,6 +182,7 @@ STRING_TABLE_DATA options_advanced_string_table[] =
 	{ L"Hybrid shut down", 16 },
 	{ L"Lock", 4 },
 	{ L"Log off", 7 },
+	{ L"Move deleted downloads to Recycle Bin", 37 },
 	{ L"None", 4 },
 	{ L"Overwrite File", 14 },
 	{ L"Prevent system standby while downloads are active", 49 },

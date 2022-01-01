@@ -123,6 +123,7 @@ Continue Download
 Default download directory:
 Display Prompt
 Download immediately
+Download non-200 and non-206 responses
 Drag and drop URL(s) action:
 Enable download history
 Enable quick file allocation (administrator access required)
@@ -131,6 +132,7 @@ Hibernate
 Hybrid shut down
 Lock
 Log off
+Move deleted downloads to Recycle Bin
 None
 Overwrite File
 Prevent system standby while downloads are active

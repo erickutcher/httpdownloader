@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
-	Copyright (C) 2015-2021 Eric Kutcher
+	Copyright (C) 2015-2022 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -96,6 +96,8 @@ bool cfg_enable_download_history = true;
 bool cfg_enable_quick_allocation = false;
 bool cfg_set_filetime = true;
 bool cfg_update_redirected = false;
+bool cfg_download_non_200_206 = false;
+bool cfg_move_to_trash = false;
 bool cfg_use_one_instance = false;
 bool cfg_enable_drop_window = false;
 bool cfg_prevent_standby = true;
@@ -1400,10 +1402,10 @@ char *url_decode_a( char *str, unsigned int str_len, unsigned int *dec_len )
 				*pbuf++ = *pstr;
 			}
 		}
-		else if ( *pstr == '+' )
+		/*else if ( *pstr == '+' )
 		{ 
 			*pbuf++ = ' ';
-		}
+		}*/
 		else
 		{
 			*pbuf++ = *pstr;
@@ -1452,10 +1454,10 @@ wchar_t *url_decode_w( wchar_t *str, unsigned int str_len, unsigned int *dec_len
 				*pbuf++ = *pstr;
 			}
 		}
-		else if ( *pstr == L'+' )
+		/*else if ( *pstr == L'+' )
 		{ 
 			*pbuf++ = L' ';
-		}
+		}*/
 		else
 		{
 			*pbuf++ = *pstr;
@@ -2771,3 +2773,382 @@ void ConstructSOCKSRequest( SOCKET_CONTEXT *context, unsigned char request_type 
 
 	context->wsabuf.len = request_length;
 }
+
+#ifdef ENABLE_LOGGING
+
+#include "lite_dlls.h"
+
+bool g_can_log = false;
+
+HMODULE hModule_ntdll_logging = NULL;
+
+CRITICAL_SECTION logging_cs;
+
+HANDLE hFile_log = INVALID_HANDLE_VALUE;
+
+char *g_log_buffer = NULL;
+unsigned int g_log_buffer_offset = 0;
+
+//p_vsnwprintf			__vsnwprintf;
+p_vsnprintf				__vsnprintf;
+pRtlGetNtVersionNumbers	_RtlGetNtVersionNumbers;
+
+char *g_size_prefix_a[] = { "B", "KB", "MB", "GB", "TB", "PB", "EB" };
+
+unsigned int FormatSizesA( char *buffer, unsigned int buffer_size, unsigned char toggle_type, unsigned long long data_size )
+{
+	unsigned int length;
+
+	double divisor;
+
+	if ( toggle_type == SIZE_FORMAT_AUTO )
+	{
+		if ( data_size >= ( 1ULL << 60 ) )
+		{
+			toggle_type = SIZE_FORMAT_EXABYTE;	// Exabyte
+		}
+		else if ( data_size >= ( 1ULL << 50 ) )
+		{
+			toggle_type = SIZE_FORMAT_PETABYTE;	// Petabyte
+		}
+		else if ( data_size >= ( 1ULL << 40 ) )
+		{
+			toggle_type = SIZE_FORMAT_TERABYTE;	// Terabyte
+		}
+		else if ( data_size >= ( 1 << 30 ) )
+		{
+			toggle_type = SIZE_FORMAT_GIGABYTE;	// Gigabyte
+		}
+		else if ( data_size >= ( 1 << 20 ) )
+		{
+			toggle_type = SIZE_FORMAT_MEGABYTE;	// Megabyte
+		}
+		else if ( data_size >= ( 1 << 10 ) )
+		{
+			toggle_type = SIZE_FORMAT_KILOBYTE;	// Kilobyte
+		}
+		else
+		{
+			toggle_type = SIZE_FORMAT_BYTE;		// Byte
+		}
+	}
+
+	if ( toggle_type != SIZE_FORMAT_BYTE )
+	{
+		divisor = ( double )( 1ULL << ( toggle_type * 10 ) );
+
+		unsigned long long i_percentage;
+#ifdef _WIN64
+		i_percentage = ( unsigned long long )( 100.0 * ( ( double )data_size / divisor ) );
+#else
+		// This leaves us with an integer in which the last digit will represent the decimal value.
+		double f_percentage = 100.0 * ( ( double )data_size / divisor );
+		__asm
+		{
+			fld f_percentage;	//; Load the floating point value onto the FPU stack.
+			fistp i_percentage;	//; Convert the floating point value into an integer, store it in an integer, and then pop it off the stack.
+		}
+#endif
+		// Get the last digit (decimal value).
+		unsigned int remainder = i_percentage % 100;
+		i_percentage /= 100;
+
+		length = __snprintf( buffer, buffer_size, "%I64u.%02lu %s", i_percentage, remainder, g_size_prefix_a[ toggle_type ] );
+	}
+	else
+	{
+		length = __snprintf( buffer, buffer_size, "%I64u %s", data_size, g_size_prefix_a[ toggle_type ] );
+	}
+
+	return length;
+}
+
+void GetDownloadStatus( char *buf, unsigned short buf_size, unsigned int status )
+{
+	unsigned short offset = 0;
+	unsigned int mask = 1;
+
+	char *val;
+
+	for ( unsigned int i = 0; i < 20 && status != 0; ++i )
+	{
+		val = NULL;
+
+		switch ( status & mask )
+		{
+			//case STATUS_NONE:
+			case STATUS_CONNECTING:					{ val = "Connecting"; } break;
+			case STATUS_DOWNLOADING:				{ val = "Downloading"; } break;
+			case STATUS_PAUSED:						{ val = "Paused"; } break;
+			case STATUS_QUEUED:						{ val = "Queued"; } break;
+			case STATUS_COMPLETED:					{ val = "Completed"; } break;
+			case STATUS_STOPPED:					{ val = "Stopped"; } break;
+			case STATUS_TIMED_OUT:					{ val = "Timed Out"; } break;
+			case STATUS_FAILED:						{ val = "Failed"; } break;
+			case STATUS_RESTART:					{ val = "Restart"; } break;
+			case STATUS_REMOVE:						{ val = "Remove"; } break;
+			case STATUS_DELETE:						{ val = "Delete"; } break;
+			case STATUS_FILE_IO_ERROR:				{ val = "File IO Error"; } break;
+			case STATUS_SKIPPED:					{ val = "Skipped"; } break;
+			case STATUS_AUTH_REQUIRED:				{ val = "Authorization Required"; } break;
+			case STATUS_PROXY_AUTH_REQUIRED:		{ val = "Proxy Authentication Required"; } break;
+			case STATUS_UPDATING:					{ val = "Updating"; } break;
+			case STATUS_ALLOCATING_FILE:			{ val = "Allocating File"; } break;
+			case STATUS_MOVING_FILE:				{ val = "Moving File"; } break;
+			case STATUS_INPUT_REQUIRED:				{ val = "Input Required"; } break;
+			case STATUS_INSUFFICIENT_DISK_SPACE:	{ val = "Insufficient Disk Space"; } break;
+		}
+
+		status &= ~mask;
+
+		if ( val != NULL )
+		{
+			if ( offset > 0 )
+			{
+				buf[ offset++ ] = ',';
+				buf[ offset++ ] = ' ';
+			}
+
+			unsigned char val_length = ( unsigned char )lstrlenA( val );
+			_memcpy_s( buf + offset, buf_size - offset, val, val_length );
+
+			offset += val_length;
+
+			buf[ offset ] = 0;	// Sanity.
+		}
+
+		mask <<= 1;
+	}
+}
+
+bool InitLogging()
+{
+	hModule_ntdll_logging = LoadLibraryDEMW( L"ntdll.dll" );
+
+	if ( hModule_ntdll_logging == NULL )
+	{
+		return false;
+	}
+
+	//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_ntdll_logging, ( void ** )&__vsnwprintf, "_vsnwprintf" ) )
+	VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_ntdll_logging, ( void ** )&__vsnprintf, "_vsnprintf" ) )
+
+	// Undocumented
+	VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_ntdll_logging, ( void ** )&_RtlGetNtVersionNumbers, "RtlGetNtVersionNumbers" ) )
+
+	InitializeCriticalSection( &logging_cs );
+
+	g_log_buffer = ( char * )GlobalAlloc( GMEM_FIXED, ( LOG_BUFFER_SIZE * sizeof( char ) ) );
+
+	g_can_log = true;
+
+	return true;
+}
+
+bool UnInitLogging()
+{
+	if ( hModule_ntdll_logging != NULL )
+	{
+		if ( g_log_buffer != NULL )
+		{
+			GlobalFree( g_log_buffer );
+			g_log_buffer = NULL;
+		}
+
+		g_log_buffer_offset = 0;
+
+		DeleteCriticalSection( &logging_cs );
+
+		return ( FreeLibrary( hModule_ntdll_logging ) == FALSE ? false : true );
+	}
+	else
+	{
+		return true;
+	}
+}
+
+void OpenLog( wchar_t *file_path )
+{
+	if ( g_can_log )
+	{
+		EnterCriticalSection( &logging_cs );
+
+		if ( file_path != NULL && hFile_log == INVALID_HANDLE_VALUE )
+		{
+			hFile_log = CreateFile( file_path, GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL );
+
+			if ( hFile_log != INVALID_HANDLE_VALUE )
+			{
+				// Write the UTF-8 BOM
+				if ( GetLastError() != ERROR_ALREADY_EXISTS )
+				{
+					_memcpy_s( LOG_BUFFER, LOG_BUFFER_OFFSET, "\xEF\xBB\xBF", 3 );
+					g_log_buffer_offset += 3;
+				}
+				else
+				{
+					LARGE_INTEGER li;
+					li.QuadPart = 0;
+
+					SetFilePointerEx( hFile_log, li, NULL, FILE_END );
+				}
+
+				SYSTEMTIME st;
+
+				GetSystemTime( &st );
+
+				g_log_buffer_offset += __snprintf( LOG_BUFFER, LOG_BUFFER_OFFSET,
+										  "--------------------------------------------------\r\n" \
+										  "Logging started at: %04d-%02d-%02d %02d:%02d:%02d.%03d UTC\r\n" \
+										  "HTTP Downloader version: %lu.%lu.%lu.%lu (%u-bit)\r\n",
+										  st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond, st.wMilliseconds,
+										  CURRENT_VERSION_A, CURRENT_VERSION_B, CURRENT_VERSION_C, CURRENT_VERSION_D,
+				#ifdef _WIN64
+										  64
+				#else
+										  32
+				#endif
+										  );
+
+				///////
+
+				SYSTEM_INFO systemInfo;
+				GetSystemInfo( &systemInfo );
+				char *arch;
+
+				#define PROCESSOR_ARCHITECTURE_ARM64 12
+
+				switch ( systemInfo.wProcessorArchitecture )
+				{
+					case PROCESSOR_ARCHITECTURE_AMD64: { arch = "x64"; } break;
+					case PROCESSOR_ARCHITECTURE_ARM: { arch = "ARM"; } break;
+					case PROCESSOR_ARCHITECTURE_ARM64: { arch = "ARM64"; } break;
+					case PROCESSOR_ARCHITECTURE_IA64: { arch = "Intel Itanium"; } break;
+					case PROCESSOR_ARCHITECTURE_INTEL: { arch = "x86"; } break;
+					case PROCESSOR_ARCHITECTURE_UNKNOWN:
+					default: { arch = "Unknown"; } break;
+				}
+
+				DWORD major, minor, buildNumber = 0;
+				_RtlGetNtVersionNumbers( &major, &minor, &buildNumber );
+				buildNumber &= ~0xF0000000;
+
+				g_log_buffer_offset += __snprintf( LOG_BUFFER, LOG_BUFFER_OFFSET,
+							"Logical processors: %lu\r\n" \
+							"Architecture: %s\r\n" \
+							"Windows build: %lu.%lu.%lu\r\n",
+							systemInfo.dwNumberOfProcessors,
+							arch,
+							major, minor, buildNumber );
+
+				///////
+
+				MEMORYSTATUSEX mstatus;
+				mstatus.dwLength = sizeof( MEMORYSTATUSEX );
+				GlobalMemoryStatusEx( &mstatus );
+
+				_memcpy_s( LOG_BUFFER, LOG_BUFFER_OFFSET, "Memory usage: ", 14 );
+				g_log_buffer_offset += 14;
+
+				g_log_buffer_offset += FormatSizesA( LOG_BUFFER, LOG_BUFFER_OFFSET, SIZE_FORMAT_AUTO, mstatus.ullTotalPhys - mstatus.ullAvailPhys );
+
+				_memcpy_s( LOG_BUFFER, LOG_BUFFER_OFFSET, " / ", 3 );
+				g_log_buffer_offset += 3;
+
+				g_log_buffer_offset += FormatSizesA( LOG_BUFFER, LOG_BUFFER_OFFSET, SIZE_FORMAT_AUTO, mstatus.ullTotalPhys );
+
+				//
+
+				ULARGE_INTEGER free_bytes, total_bytes;
+
+				GetDiskFreeSpaceExW( NULL, &free_bytes, &total_bytes, NULL );
+
+				_memcpy_s( LOG_BUFFER, LOG_BUFFER_OFFSET, "\r\nDisk usage: ", 14 );
+				g_log_buffer_offset += 14;
+
+				g_log_buffer_offset += FormatSizesA( LOG_BUFFER, LOG_BUFFER_OFFSET, SIZE_FORMAT_AUTO, total_bytes.QuadPart - free_bytes.QuadPart );
+
+				_memcpy_s( LOG_BUFFER, LOG_BUFFER_OFFSET, " / ", 3 );
+				g_log_buffer_offset += 3;
+
+				g_log_buffer_offset += FormatSizesA( LOG_BUFFER, LOG_BUFFER_OFFSET, SIZE_FORMAT_AUTO, total_bytes.QuadPart );
+
+				_memcpy_s( LOG_BUFFER, LOG_BUFFER_OFFSET, "\r\n--------------------------------------------------\r\n", 54 );
+				g_log_buffer_offset += 54;
+
+				///////
+
+				DWORD written = 0;
+				WriteFile( hFile_log, g_log_buffer, g_log_buffer_offset, &written, NULL );
+				g_log_buffer_offset = 0;
+			}
+		}
+
+		LeaveCriticalSection( &logging_cs );
+	}
+}
+
+void CloseLog()
+{
+	if ( g_can_log )
+	{
+		EnterCriticalSection( &logging_cs );
+
+		if ( hFile_log != INVALID_HANDLE_VALUE )
+		{
+			CloseHandle( hFile_log );
+			hFile_log = INVALID_HANDLE_VALUE;
+		}
+
+		LeaveCriticalSection( &logging_cs );
+	}
+}
+
+void WriteLog( char type, const char *format, ... )
+{
+	if ( g_can_log )
+	{
+		EnterCriticalSection( &logging_cs );
+
+		if ( hFile_log != INVALID_HANDLE_VALUE )
+		{
+			va_list arglist;
+
+			SYSTEMTIME st;
+
+			GetSystemTime( &st );
+
+			char *str_type;
+
+			switch ( type )
+			{
+				case 0: { str_type = "INFO"; } break;
+				case 1: { str_type = "WARNING"; } break;
+				case 2: { str_type = "ERROR"; } break;
+				default: { str_type = ""; } break;
+			}
+
+			g_log_buffer_offset += __snprintf( LOG_BUFFER, LOG_BUFFER_OFFSET, "%04d-%02d-%02d %02d:%02d:%02d.%03d UTC | %s | ", st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond, st.wMilliseconds, str_type );
+
+			va_start( arglist, format );
+
+			g_log_buffer_offset += __vsnprintf( LOG_BUFFER, LOG_BUFFER_OFFSET, format, arglist );
+
+			_memcpy_s( LOG_BUFFER, LOG_BUFFER_OFFSET, "\r\n", 2 );
+
+			g_log_buffer_offset += 2;
+
+			va_end( arglist );
+
+			///////
+
+			DWORD written = 0;
+			WriteFile( hFile_log, g_log_buffer, g_log_buffer_offset, &written, NULL );
+			g_log_buffer_offset = 0;
+		}
+
+		LeaveCriticalSection( &logging_cs );
+	}
+}
+
+#endif

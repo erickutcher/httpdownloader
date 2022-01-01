@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
-	Copyright (C) 2015-2021 Eric Kutcher
+	Copyright (C) 2015-2022 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -2556,13 +2556,11 @@ char ParseHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int
 				}
 			}
 
-			if ( context->header_info.digest_info == NULL )
-			{
-				context->header_info.digest_info = ( AUTH_INFO * )GlobalAlloc( GPTR, sizeof( AUTH_INFO ) );
-			}
+			FreeAuthInfo( &context->header_info.digest_info );
 
-			if ( context->header_info.digest_info != NULL &&
-				 context->header_info.digest_info->auth_type == AUTH_TYPE_NONE )
+			context->header_info.digest_info = ( AUTH_INFO * )GlobalAlloc( GPTR, sizeof( AUTH_INFO ) );
+
+			if ( context->header_info.digest_info != NULL )
 			{
 				GetAuthorization( header_buffer, context->header_info.digest_info );
 			}
@@ -2980,6 +2978,13 @@ char GetHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int h
 	}
 	else// if ( content_status == CONTENT_STATUS_GET_CONTENT );
 	{
+		if ( context->download_info != NULL )
+		{
+			EnterCriticalSection( &context->download_info->di_cs );
+			context->download_info->code = context->header_info.http_status;
+			LeaveCriticalSection( &context->download_info->di_cs );
+		}
+
 		// If resource is not NULL and we got a 3XX status.
 		// Handle redirects before processing any data.
 		if ( context->header_info.http_status >= 300 &&
@@ -3260,7 +3265,7 @@ char GetHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int h
 				return CONTENT_STATUS_FAILED;
 			}
 		}
-		else
+		else if ( cfg_download_non_200_206 || context->header_info.http_status == 200 || context->header_info.http_status == 206 )
 		{
 			// Check the file size threshold (4GB).
 			if ( context->header_info.range_info->content_length > cfg_max_file_size )
@@ -3527,6 +3532,35 @@ char GetHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int h
 
 				LeaveCriticalSection( &context->download_info->di_cs );
 			}
+		}
+		else
+		{
+			context->status = STATUS_FAILED;
+
+			if ( context->download_info != NULL &&
+				 IS_GROUP( context->download_info ) )
+			{
+				DoublyLinkedList *host_node = context->download_info->shared_info->host_list;
+				while ( host_node != NULL )
+				{
+					DOWNLOAD_INFO *host_di = ( DOWNLOAD_INFO * )host_node->data;
+					if ( host_di != NULL && host_di != context->download_info )
+					{
+						EnterCriticalSection( &host_di->di_cs );
+
+						if ( host_di->status == STATUS_NONE )	// status might have been set to stopped when added.
+						{
+							host_di->status = STATUS_SKIPPED;
+						}
+
+						LeaveCriticalSection( &host_di->di_cs );
+					}
+
+					host_node = host_node->next;
+				}
+			}
+
+			content_status = CONTENT_STATUS_FAILED;
 		}
 
 		return content_status;

@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
-	Copyright (C) 2015-2021 Eric Kutcher
+	Copyright (C) 2015-2022 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -1024,7 +1024,29 @@ wchar_t *GetDownloadInfoString( DOWNLOAD_INFO *di, int column, int root_index, i
 			}
 			else if ( di->status == STATUS_FAILED )
 			{
-				buf = ST_V_Failed;
+				if ( di->code != 0 && di->url != NULL )
+				{
+					if ( di->url[ 0 ] == L'h' || di->url[ 0 ] == L'H' )
+					{
+						__snwprintf( buf, tbuf_size, L"%s - HTTP %d", ST_V_Failed, di->code );
+					}
+					else if ( di->url[ 0 ] == L'f' || di->url[ 0 ] == L'F' )
+					{
+						__snwprintf( buf, tbuf_size, L"%s - FTP %d", ST_V_Failed, di->code );
+					}
+					else if ( di->url[ 0 ] == L's' || di->url[ 0 ] == L'S' )
+					{
+						__snwprintf( buf, tbuf_size, L"%s - SFTP %d", ST_V_Failed, di->code );
+					}
+					else	// Shouldn't happen.
+					{
+						__snwprintf( buf, tbuf_size, L"%s - %d", ST_V_Failed, di->code );
+					}
+				}
+				else
+				{
+					buf = ST_V_Failed;
+				}
 			}
 			else if ( di->status == STATUS_FILE_IO_ERROR )
 			{
@@ -1063,14 +1085,21 @@ wchar_t *GetDownloadInfoString( DOWNLOAD_INFO *di, int column, int root_index, i
 
 		case COLUMN_SSL_TLS_VERSION:
 		{
-			switch ( di->ssl_version )
+			if ( di == di->shared_info && di != ( DOWNLOAD_INFO * )di->shared_info->host_list->data )
 			{
-				case 0: { buf = ST_V_SSL_2_0; } break;
-				case 1: { buf = ST_V_SSL_3_0; } break;
-				case 2: { buf = ST_V_TLS_1_0; } break;
-				case 3: { buf = ST_V_TLS_1_1; } break;
-				case 4: { buf = ST_V_TLS_1_2; } break;
-				default: { buf = L""; } break;
+				buf = ST_V__DATA_;
+			}
+			else
+			{
+				switch ( di->ssl_version )
+				{
+					case 0: { buf = ST_V_SSL_2_0; } break;
+					case 1: { buf = ST_V_SSL_3_0; } break;
+					case 2: { buf = ST_V_TLS_1_0; } break;
+					case 3: { buf = ST_V_TLS_1_1; } break;
+					case 4: { buf = ST_V_TLS_1_2; } break;
+					default: { buf = L""; } break;
+				}
 			}
 		}
 		break;
@@ -1763,6 +1792,23 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 		{
 			switch ( lParam )
 			{
+				case NIN_BALLOONUSERCLICK:
+				{
+					_ShowWindow( hWnd, SW_SHOW );
+					_SetForegroundWindow( hWnd );
+				}
+				break;
+
+				case WM_LBUTTONDBLCLK:
+				{
+					if ( _IsIconic( hWnd ) )	// If minimized, then restore the window.
+					{
+						_ShowWindow( hWnd, SW_RESTORE );
+						_SetForegroundWindow( hWnd );
+					}
+				}
+				break;
+
 				case WM_LBUTTONDOWN:
 				{
 					if ( _IsWindowVisible( hWnd ) == FALSE )

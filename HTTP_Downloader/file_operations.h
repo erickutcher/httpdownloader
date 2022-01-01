@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
-	Copyright (C) 2015-2021 Eric Kutcher
+	Copyright (C) 2015-2022 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -20,7 +20,7 @@
 #define _FILE_OPERATIONS_H
 
 #define MAGIC_ID_SETTINGS			"HDM\x08"	// Version 9
-#define MAGIC_ID_DOWNLOADS			"HDM\x15"	// Version 6
+#define MAGIC_ID_DOWNLOADS			"HDM\x16"	// Version 7
 #define MAGIC_ID_SITES				"HDM\x21"	// Version 2
 #define MAGIC_ID_SFTP_HOSTS			"HDM\x30"	// Version 1
 #define MAGIC_ID_SFTP_KEYS			"HDM\x40"	// Version 1

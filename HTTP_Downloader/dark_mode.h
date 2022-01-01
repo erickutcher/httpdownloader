@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
-	Copyright (C) 2015-2021 Eric Kutcher
+	Copyright (C) 2015-2022 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -278,7 +278,7 @@ typedef HRGN ( WINAPI *pCreateRectRgnIndirect )( const RECT *lprect );
 
 // ntdll.dll
 // Undocumented
-typedef void ( WINAPI *pRtlGetNtVersionNumbers )( LPDWORD major, LPDWORD minor, LPDWORD build );		// In ntdll.dll
+typedef void ( WINAPIV *pRtlGetNtVersionNumbers )( LPDWORD major, LPDWORD minor, LPDWORD build );		// In ntdll.dll
 
 // Undocumented
 extern pRtlGetNtVersionNumbers					_RtlGetNtVersionNumbers;

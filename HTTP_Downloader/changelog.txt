@@ -1,3 +1,13 @@
+Version:	1.0.4.8
+Released:	2022-01-01
+
+Prevented decoding of plus character in URL.
+Fixed crash when switching server authentication modes.
+Fixed server authentication not being accepted.
+Added option to download non-200 and non-206 responses (they will fail by default now).
+Added option to move deleted downloads to Recycle Bin.
+Added additional menu items to System Tray and URL Drop window context menus.
+
 Version:	1.0.4.7
 Released:	2021-10-31
 
