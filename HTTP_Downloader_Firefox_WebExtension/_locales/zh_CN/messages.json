@@ -179,12 +179,12 @@
 		"message": "覆盖 HTTP Downloader 提示"
 	},
 
-	"ok": {
-		"message": "确定"
+	"theme_support": {
+		"message": "启用主题支持"
 	},
 
-	"apply": {
-		"message": "应用"
+	"save": {
+		"message": "保存"
 	},
 
 	"menu_download_link": {
