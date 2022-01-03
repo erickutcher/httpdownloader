@@ -1,0 +1,233 @@
+{
+	"extension_description": {
+		"message": "使用 HTTP 下载器下载文件。"
+	},
+
+	"title": {
+		"message": "HTTP Downloader - 添加网址"
+	},
+
+	"url_s__": {
+		"message": "网址"
+	},
+
+	"regex_filter_": {
+		"message": "正则表达式过滤器："
+	},
+
+	"custom": {
+		"message": "自定义"
+	},
+
+	"images": {
+		"message": "图像"
+	},
+
+	"music": {
+		"message": "音乐"
+	},
+
+	"videos": {
+		"message": "视频"
+	},
+
+	"apply": {
+		"message": "应用"
+	},
+
+	"revert": {
+		"message": "恢复"
+	},
+
+	"download_directory_": {
+		"message": "下载目录："
+	},
+
+	"_use_program_default_": {
+		"message": "[使用程序默认]"
+	},
+
+	"download_parts_": {
+		"message": "下载部分："
+	},
+
+	"ssl_tls_version_": {
+		"message": "SSL/TLS 版本："
+	},
+
+	"authentication": {
+		"message": "验证"
+	},
+
+	"username_": {
+		"message": "用户名："
+	},
+
+	"password_": {
+		"message": "密码："
+	},
+
+	"download_speed_limit_": {
+		"message": "下载速度限制（字节/秒）："
+	},
+
+	"simulate_download": {
+		"message": "模拟下载"
+	},
+
+	"general": {
+		"message": "常规"
+	},
+
+	"cookies": {
+		"message": "Cookies"
+	},
+
+	"headers": {
+		"message": "标题"
+	},
+
+	"post_data": {
+		"message": "POST 数据"
+	},
+
+	"proxy": {
+		"message": "代理"
+	},
+
+	"cookies_": {
+		"message": "Cookies："
+	},
+
+	"headers_": {
+		"message": "标题："
+	},
+
+	"send_post_data_": {
+		"message": "发送 POST 数据："
+	},
+
+	"proxy_": {
+		"message": "使用代理服务器："
+	},
+
+	"default": {
+		"message": "默认"
+	},
+
+	"hostname_ip_": {
+		"message": "主机名/IP 地址："
+	},
+
+	"port_": {
+		"message": "端口："
+	},
+
+	"resolve_dn_v4a": {
+		"message": "允许代理解析域名（使用 SOCKS v4a）"
+	},
+
+	"resolve_dn": {
+		"message": "允许代理解析域名"
+	},
+
+	"use_authentication_": {
+		"message": "使用身份验证："
+	},
+
+	"advanced_options": {
+		"message": "高级选项"
+	},
+
+	"download": {
+		"message": "下载"
+	},
+
+	"add": {
+		"message": "添加"
+	},
+
+	"cancel": {
+		"message": "取消"
+	},
+
+	"server_": {
+		"message": "服务器："
+	},
+
+	"server_authentication": {
+		"message": "服务器身份验证"
+	},
+
+	"send_user_agent_header": {
+		"message": "发送用户代理标头"
+	},
+
+	"send_referer_header": {
+		"message": "发送 Referer 标头"
+	},
+
+	"override_browsers_download_manager": {
+		"message": "覆盖浏览器的下载管理器"
+	},
+
+	"show_add_urls_window_before_download": {
+		"message": "下载前显示添加 URL 窗口"
+	},
+
+	"override_prompts": {
+		"message": "覆盖 HTTP Downloader 提示"
+	},
+
+	"ok": {
+		"message": "确定"
+	},
+
+	"apply": {
+		"message": "应用"
+	},
+
+	"menu_download_link": {
+		"message": "下载链接..."
+	},
+
+	"menu_download_image": {
+		"message": "下载图像..."
+	},
+
+	"menu_download_audio": {
+		"message": "下载音频..."
+	},
+
+	"menu_download_video": {
+		"message": "下载视频..."
+	},
+
+	"menu_download_all_images": {
+		"message": "下载所有图像..."
+	},
+
+	"menu_download_all_media": {
+		"message": "下载所有媒体..."
+	},
+
+	"menu_download_all_links": {
+		"message": "下载所有链接..."
+	},
+
+	"menu_download_page": {
+		"message": "下载页面..."
+	},
+
+	"SEND_FAILED": {
+		"message": "发送下载请求时出错。"
+	},
+
+	"CONNECTION_TIMEOUT": {
+		"message": "发送下载请求时连接超时。"
+	},
+
+	"INVALID_RESPONSE": {
+		"message": "服务器对我们的下载请求返回了无效响应。"
+	}
+}
