@@ -31,6 +31,7 @@
 
 	#define _SetFileInformationByHandle		SetFileInformationByHandle
 	#define _GetUserDefaultLocaleName		GetUserDefaultLocaleName
+	//#define _GetQueuedCompletionStatusEx	GetQueuedCompletionStatusEx
 
 #else
 
@@ -39,9 +40,11 @@
 
 	typedef BOOL ( WINAPI *pSetFileInformationByHandle )( HANDLE hFile, FILE_INFO_BY_HANDLE_CLASS FileInformationClass, LPVOID lpFileInformation, DWORD dwBufferSize );
 	typedef int ( WINAPI *pGetUserDefaultLocaleName )( LPWSTR lpLocaleName, int cchLocaleName );
+	//typedef BOOL ( WINAPI *pGetQueuedCompletionStatusEx )( HANDLE CompletionPort, LPOVERLAPPED_ENTRY lpCompletionPortEntries, ULONG ulCount, PULONG ulNumEntriesRemoved, DWORD dwMilliseconds, BOOL fAlertable );
 
 	extern pSetFileInformationByHandle		_SetFileInformationByHandle;
 	extern pGetUserDefaultLocaleName		_GetUserDefaultLocaleName;
+	//extern pGetQueuedCompletionStatusEx		_GetQueuedCompletionStatusEx;
 
 	extern unsigned char kernel32_state;
 

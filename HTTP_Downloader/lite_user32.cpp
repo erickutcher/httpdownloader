@@ -97,8 +97,8 @@
 	pLockWorkStation		_LockWorkStation;
 	pMapWindowPoints		_MapWindowPoints;
 	//pMessageBoxA			_MessageBoxA;
-	//pMessageBoxW			_MessageBoxW;
-	//pMonitorFromRect		_MonitorFromRect;
+	pMessageBoxW			_MessageBoxW;
+	pMonitorFromRect		_MonitorFromRect;
 	pMonitorFromWindow		_MonitorFromWindow;
 	pOffsetRect				_OffsetRect;
 	pOpenClipboard			_OpenClipboard;
@@ -232,8 +232,8 @@
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_LockWorkStation, "LockWorkStation" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_MapWindowPoints, "MapWindowPoints" ) )
 		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_MessageBoxA, "MessageBoxA" ) )
-		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_MessageBoxW, "MessageBoxW" ) )
-		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_MonitorFromRect, "MonitorFromRect" ) )
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_MessageBoxW, "MessageBoxW" ) )
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_MonitorFromRect, "MonitorFromRect" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_MonitorFromWindow, "MonitorFromWindow" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_OffsetRect, "OffsetRect" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_OpenClipboard, "OpenClipboard" ) )

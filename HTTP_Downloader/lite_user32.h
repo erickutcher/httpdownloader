@@ -105,8 +105,8 @@
 	#define _LockWorkStation		LockWorkStation
 	#define _MapWindowPoints		MapWindowPoints
 	//#define _MessageBoxA			MessageBoxA
-	//#define _MessageBoxW			MessageBoxW
-	//#define _MonitorFromRect		MonitorFromRect
+	#define _MessageBoxW			MessageBoxW
+	#define _MonitorFromRect		MonitorFromRect
 	#define _MonitorFromWindow		MonitorFromWindow
 	#define _OffsetRect				OffsetRect
 	#define _OpenClipboard			OpenClipboard
@@ -229,8 +229,8 @@
 	typedef BOOL ( WINAPI *pLockWorkStation )();
 	typedef int ( WINAPI *pMapWindowPoints )( HWND hWndFrom, HWND hWndTo, LPPOINT lpPoints, UINT cPoints );
 	//typedef int ( WINAPI *pMessageBoxA )( HWND hWnd, LPCSTR lpText, LPCSTR lpCaption, UINT uType );
-	//typedef int ( WINAPI *pMessageBoxW )( HWND hWnd, LPCTSTR lpText, LPCTSTR lpCaption, UINT uType );
-	//typedef HMONITOR ( WINAPI *pMonitorFromRect )( LPCRECT lprc, DWORD dwFlags );
+	typedef int ( WINAPI *pMessageBoxW )( HWND hWnd, LPCTSTR lpText, LPCTSTR lpCaption, UINT uType );
+	typedef HMONITOR ( WINAPI *pMonitorFromRect )( LPCRECT lprc, DWORD dwFlags );
 	typedef HMONITOR ( WINAPI *pMonitorFromWindow )( HWND hwnd, DWORD dwFlags );
 	typedef BOOL ( WINAPI *pOffsetRect )( LPRECT lprc, int dx, int dy );
 	typedef BOOL ( WINAPI *pOpenClipboard )( HWND hWndNewOwner );
@@ -346,8 +346,8 @@
 	extern pLockWorkStation			_LockWorkStation;
 	extern pMapWindowPoints			_MapWindowPoints;
 	//extern pMessageBoxA				_MessageBoxA;
-	//extern pMessageBoxW				_MessageBoxW;
-	//extern pMonitorFromRect			_MonitorFromRect;
+	extern pMessageBoxW				_MessageBoxW;
+	extern pMonitorFromRect			_MonitorFromRect;
 	extern pMonitorFromWindow		_MonitorFromWindow;
 	extern pOffsetRect				_OffsetRect;
 	extern pOpenClipboard			_OpenClipboard;

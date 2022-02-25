@@ -29,98 +29,110 @@ void HandleFileList( HDROP hdrop )
 	UINT count = _DragQueryFileW( hdrop, 0xFFFFFFFF, NULL, 0 );
 
 	importexportinfo *iei = ( importexportinfo * )GlobalAlloc( GMEM_FIXED, sizeof( importexportinfo ) );
-	iei->file_paths = NULL;
-	iei->file_offset = 0;
-	iei->type = 1;	// Import from menu.
-
-	wchar_t file_path[ MAX_PATH ];
-
-	int file_paths_offset = 0;	// Keeps track of the last file in filepath.
-	int file_paths_length = ( MAX_PATH * count ) + 1;
-
-	// Go through the list of paths.
-	for ( UINT i = 0; i < count; ++i )
+	if ( iei != NULL )
 	{
-		// Get the file path and its length.
-		int file_path_length = _DragQueryFileW( hdrop, i, file_path, MAX_PATH ) + 1;	// Include the NULL terminator.
+		iei->file_paths = NULL;
+		iei->file_offset = 0;
+		iei->type = 1;	// Import from menu.
 
-		// Skip any folders that were dropped.
-		if ( !( GetFileAttributesW( file_path ) & FILE_ATTRIBUTE_DIRECTORY ) )
+		wchar_t file_path[ MAX_PATH ];
+
+		int file_paths_offset = 0;	// Keeps track of the last file in filepath.
+		int file_paths_length = ( MAX_PATH * count ) + 1;
+
+		// Go through the list of paths.
+		for ( UINT i = 0; i < count; ++i )
 		{
-			if ( iei->file_paths == NULL )
+			// Get the file path and its length.
+			int file_path_length = _DragQueryFileW( hdrop, i, file_path, MAX_PATH ) + 1;	// Include the NULL terminator.
+
+			// Skip any folders that were dropped.
+			if ( !( GetFileAttributesW( file_path ) & FILE_ATTRIBUTE_DIRECTORY ) )
 			{
-				iei->file_paths = ( wchar_t * )GlobalAlloc( GPTR, sizeof( wchar_t ) * file_paths_length );
-				iei->file_offset = file_path_length;
+				if ( iei->file_paths == NULL )
+				{
+					iei->file_paths = ( wchar_t * )GlobalAlloc( GPTR, sizeof( wchar_t ) * file_paths_length );
+					if ( iei->file_paths != NULL )
+					{
+						iei->file_offset = file_path_length;
 
-				// Find the last occurance of "\" in the string.
-				while ( iei->file_offset != 0 && file_path[ --iei->file_offset ] != L'\\' );
+						// Find the last occurance of "\" in the string.
+						while ( iei->file_offset != 0 && file_path[ --iei->file_offset ] != L'\\' );
 
-				// Save the root directory name.
-				_wmemcpy_s( iei->file_paths, file_paths_length - iei->file_offset, file_path, iei->file_offset );
+						// Save the root directory name.
+						_wmemcpy_s( iei->file_paths, file_paths_length - iei->file_offset, file_path, iei->file_offset );
 
-				file_paths_offset = ++iei->file_offset;
+						file_paths_offset = ++iei->file_offset;
+					}
+				}
+
+				if ( iei->file_paths != NULL )
+				{
+					// Copy the file name. Each is separated by the NULL character.
+					_wmemcpy_s( iei->file_paths + file_paths_offset, file_paths_length - file_paths_offset, file_path + iei->file_offset, file_path_length - iei->file_offset );
+
+					file_paths_offset += ( file_path_length - iei->file_offset );
+				}
 			}
-
-			// Copy the file name. Each is separated by the NULL character.
-			_wmemcpy_s( iei->file_paths + file_paths_offset, file_paths_length - file_paths_offset, file_path + iei->file_offset, file_path_length - iei->file_offset );
-
-			file_paths_offset += ( file_path_length - iei->file_offset );
 		}
-	}
 
-	// Can't do this because ReleaseStgMedium will release the memory again (double free). Should only be called in WM_DROPFILES.
-	//_DragFinish( hdrop );
+		// Can't do this because ReleaseStgMedium will release the memory again (double free). Should only be called in WM_DROPFILES.
+		//_DragFinish( hdrop );
 
-	if ( iei->file_paths != NULL )
-	{
-		// iei will be freed in the import_list thread.
-		HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, import_list, ( void * )iei, 0, NULL );
-		if ( thread != NULL )
+		if ( iei->file_paths != NULL )
 		{
-			CloseHandle( thread );
+			// iei will be freed in the import_list thread.
+			HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, import_list, ( void * )iei, 0, NULL );
+			if ( thread != NULL )
+			{
+				CloseHandle( thread );
+			}
+			else
+			{
+				GlobalFree( iei->file_paths );
+				GlobalFree( iei );
+			}
 		}
-		else
+		else	// No files were dropped.
 		{
-			GlobalFree( iei->file_paths );
 			GlobalFree( iei );
 		}
-	}
-	else	// No files were dropped.
-	{
-		GlobalFree( iei );
 	}
 }
 
 void HandleAddInfo( UINT cfFormat, PVOID data )
 {
 	ADD_INFO *ai = ( ADD_INFO * )GlobalAlloc( GPTR, sizeof( ADD_INFO ) );
-	ai->method = METHOD_GET;
-
-	ai->download_operations = ( cfg_drag_and_drop_action == DRAG_AND_DROP_ACTION_ADD_IN_STOPPED_STATE ? DOWNLOAD_OPERATION_ADD_STOPPED : DOWNLOAD_OPERATION_NONE );
-
-	//ai->download_operations = DOWNLOAD_OPERATION_SIMULATE;	// For testing.
-
-	if ( cfFormat == CF_UNICODETEXT || cfFormat == CF_HTML )
+	if ( ai != NULL )
 	{
-		ai->urls = GlobalStrDupW( ( wchar_t * )data );
-	}
-	else// if ( cfFormat == CF_TEXT )
-	{
-		int urls_length = MultiByteToWideChar( CP_UTF8, 0, ( char * )data, -1, NULL, 0 );	// Include the NULL terminator.
-		ai->urls = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * urls_length );
-		MultiByteToWideChar( CP_UTF8, 0, ( char * )data, -1, ai->urls, urls_length );
-	}
+		ai->method = METHOD_GET;
 
-	// ai is freed in AddURL.
-	HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, AddURL, ( void * )ai, 0, NULL );
-	if ( thread != NULL )
-	{
-		CloseHandle( thread );
-	}
-	else
-	{
-		GlobalFree( ai->urls );
-		GlobalFree( ai );
+		ai->download_operations = ( cfg_drag_and_drop_action == DRAG_AND_DROP_ACTION_ADD_IN_STOPPED_STATE ? DOWNLOAD_OPERATION_ADD_STOPPED : DOWNLOAD_OPERATION_NONE );
+
+		//ai->download_operations = DOWNLOAD_OPERATION_SIMULATE;	// For testing.
+
+		if ( cfFormat == CF_UNICODETEXT || cfFormat == CF_HTML )
+		{
+			ai->urls = GlobalStrDupW( ( wchar_t * )data );
+		}
+		else// if ( cfFormat == CF_TEXT )
+		{
+			int urls_length = MultiByteToWideChar( CP_UTF8, 0, ( char * )data, -1, NULL, 0 );	// Include the NULL terminator.
+			ai->urls = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * urls_length );
+			MultiByteToWideChar( CP_UTF8, 0, ( char * )data, -1, ai->urls, urls_length );
+		}
+
+		// ai is freed in AddURL.
+		HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, AddURL, ( void * )ai, 0, NULL );
+		if ( thread != NULL )
+		{
+			CloseHandle( thread );
+		}
+		else
+		{
+			GlobalFree( ai->urls );
+			GlobalFree( ai );
+		}
 	}
 }
 
@@ -150,7 +162,7 @@ char *FindCharExcludeAttributeValues( char *element_start, char *element_end, ch
 			}
 			else	// Find the single or double quote's pair (closing quote).
 			{
-				if ( *pos == opened_quote || *pos == opened_quote )
+				if ( *pos == opened_quote )
 				{
 					opened_quote = 0;
 				}
@@ -514,7 +526,6 @@ wchar_t *ParseHTMLClipboard( char *data )
 								url_buffer_length += decoded_url_length;
 
 								GlobalFree( decoded_url );
-								
 							}
 							else
 							{
@@ -728,7 +739,7 @@ HRESULT STDMETHODCALLTYPE Drop( IDropTarget *This, IDataObject *pDataObj, DWORD 
 		{
 			PVOID data = GlobalLock( stgm.hGlobal );
 
-			if ( cfFormat == CF_HTML )
+			if ( data != NULL && cfFormat == CF_HTML )
 			{
 				// Reallocate the data buffer since it doesn't include a NULL terminator. (STUPID!!!)
 				size_t data_size = GlobalSize( stgm.hGlobal );

@@ -50,6 +50,8 @@ Download Speed
 Download Speed Limit
 Downloaded
 &Edit
+Enable List &Edit Mode\tCtrl+Shift+E
+Enable List Edit Mode
 E&xit
 Exit
 &Export Download History...
@@ -127,6 +129,7 @@ Download non-200 and non-206 responses
 Drag and drop URL(s) action:
 Enable download history
 Enable quick file allocation (administrator access required)
+Enable sparse file allocation
 Exit program
 Hibernate
 Hybrid shut down
@@ -401,6 +404,7 @@ Are you sure you want to restart the selected entries?
 Do you want to accept the server's host key?
 One or more files are in use and cannot be deleted.
 One or more files were not found.
+One or more paths were not found.
 Select the default download directory.
 Select the download directory.
 Select the temporary download directory.
@@ -409,6 +413,7 @@ The file is currently in use and cannot be deleted.
 The file is currently in use and cannot be renamed.
 The file(s) could not be imported because the format is incorrect.
 The key fingerprint does not match the cached entry.\r\nDo you want to accept the server's host key?
+The specified file was not found.
 The specified file was not found.\r\n\r\nDo you want to download the file again?
 The specified host already exists.
 The specified host is invalid.

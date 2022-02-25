@@ -72,21 +72,25 @@ LRESULT CALLBACK DownloadSpeedLimitWndProc( HWND hWnd, UINT msg, WPARAM wParam, 
 			_SendMessageA( g_hWnd_speed_limit, EM_SETSEL, 0, -1 );
 
 
-			g_hWnd_speed_limit_set = _CreateWindowW( WC_BUTTON, ST_V_Set, BS_DEFPUSHBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE | WS_DISABLED, rc.right - 175, rc.bottom - 32, 80, 23, hWnd, ( HMENU )BTN_SPEED_LIMIT_SET, NULL, NULL );
-			HWND hWnd_speed_lmit_cancel = _CreateWindowW( WC_BUTTON, ST_V_Cancel, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 90, rc.bottom - 32, 80, 23, hWnd, ( HMENU )BTN_SPEED_LIMIT_CANCEL, NULL, NULL );
+			g_hWnd_speed_limit_set = _CreateWindowW( WC_BUTTON, ST_V_Set, BS_DEFPUSHBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE | WS_DISABLED, rc.right - 175, 58, 80, 23, hWnd, ( HMENU )BTN_SPEED_LIMIT_SET, NULL, NULL );
+			HWND hWnd_speed_limit_cancel = _CreateWindowW( WC_BUTTON, ST_V_Cancel, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 90, 58, 80, 23, hWnd, ( HMENU )BTN_SPEED_LIMIT_CANCEL, NULL, NULL );
 
 			_SendMessageW( hWnd_static_speed_limit, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 			_SendMessageW( g_hWnd_speed_limit, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 			_SendMessageW( g_hWnd_speed_limit_set, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( hWnd_speed_lmit_cancel, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( hWnd_speed_limit_cancel, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 
 			_SetFocus( g_hWnd_speed_limit );
+
+			// Accounts for differing title bar heights.
+			CREATESTRUCTW *cs = ( CREATESTRUCTW * )lParam;
+			int height = ( cs->cy - ( rc.bottom - rc.top ) ) + 91;	// Bottom of last window object + 10.
 
 			HMONITOR hMon = _MonitorFromWindow( g_hWnd_main, MONITOR_DEFAULTTONEAREST );
 			MONITORINFO mi;
 			mi.cbSize = sizeof( MONITORINFO );
 			_GetMonitorInfoW( hMon, &mi );
-			_SetWindowPos( hWnd, NULL, mi.rcMonitor.left + ( ( ( mi.rcMonitor.right - mi.rcMonitor.left ) - 280 ) / 2 ), mi.rcMonitor.top + ( ( ( mi.rcMonitor.bottom - mi.rcMonitor.top ) - 120 ) / 2 ), 280, 120, 0 );
+			_SetWindowPos( hWnd, NULL, mi.rcMonitor.left + ( ( ( mi.rcMonitor.right - mi.rcMonitor.left ) - 280 ) / 2 ), mi.rcMonitor.top + ( ( ( mi.rcMonitor.bottom - mi.rcMonitor.top ) - height ) / 2 ), 280, height, 0 );
 
 #ifdef ENABLE_DARK_MODE
 			if ( g_use_dark_mode )

@@ -70,9 +70,9 @@ LRESULT CALLBACK SearchWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 			g_hWnd_chk_match_whole_word = _CreateWindowW( WC_BUTTON, ST_V_Match_whole_word, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 135, 75, rc.right - 145, 20, hWnd, ( HMENU )BTN_MATCH_WHOLE_WORD, NULL, NULL );
 			g_hWnd_chk_regular_expression = _CreateWindowW( WC_BUTTON, ST_V_Regular_expression, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE | ( pcre2_state == PCRE2_STATE_RUNNING ? 0 : WS_DISABLED ), 135, 95, rc.right - 145, 20, hWnd, ( HMENU )BTN_REGULAR_EXPRESSION, NULL, NULL );
 
-			g_hWnd_btn_search_all = _CreateWindowW( WC_BUTTON, ST_V_Search_All, WS_CHILD | WS_TABSTOP | WS_VISIBLE | WS_DISABLED, rc.right - 285, rc.bottom - 32, 85, 23, hWnd, ( HMENU )BTN_SEARCH_ALL, NULL, NULL );
-			g_hWnd_btn_search = _CreateWindowW( WC_BUTTON, ST_V_Search_Next, BS_DEFPUSHBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE | WS_DISABLED, rc.right - 195, rc.bottom - 32, 100, 23, hWnd, ( HMENU )BTN_SEARCH, NULL, NULL );
-			g_hWnd_search_cancel = _CreateWindowW( WC_BUTTON, ST_V_Cancel, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 90, rc.bottom - 32, 80, 23, hWnd, ( HMENU )BTN_SEARCH_CANCEL, NULL, NULL );
+			g_hWnd_btn_search_all = _CreateWindowW( WC_BUTTON, ST_V_Search_All, WS_CHILD | WS_TABSTOP | WS_VISIBLE | WS_DISABLED, rc.right - 285, 125, 85, 23, hWnd, ( HMENU )BTN_SEARCH_ALL, NULL, NULL );
+			g_hWnd_btn_search = _CreateWindowW( WC_BUTTON, ST_V_Search_Next, BS_DEFPUSHBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE | WS_DISABLED, rc.right - 195, 125, 100, 23, hWnd, ( HMENU )BTN_SEARCH, NULL, NULL );
+			g_hWnd_search_cancel = _CreateWindowW( WC_BUTTON, ST_V_Cancel, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 90, 125, 80, 23, hWnd, ( HMENU )BTN_SEARCH_CANCEL, NULL, NULL );
 
 			_SendMessageW( g_hWnd_static_search_for, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 			_SendMessageW( g_hWnd_search_for, WM_SETFONT, ( WPARAM )g_hFont, 0 );
@@ -90,11 +90,15 @@ LRESULT CALLBACK SearchWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 
 			_SetFocus( g_hWnd_search_for );
 
+			// Accounts for differing title bar heights.
+			CREATESTRUCTW *cs = ( CREATESTRUCTW * )lParam;
+			int height = ( cs->cy - ( rc.bottom - rc.top ) ) + 158;	// Bottom of last window object + 10.
+
 			HMONITOR hMon = _MonitorFromWindow( g_hWnd_main, MONITOR_DEFAULTTONEAREST );
 			MONITORINFO mi;
 			mi.cbSize = sizeof( MONITORINFO );
 			_GetMonitorInfoW( hMon, &mi );
-			_SetWindowPos( hWnd, NULL, mi.rcMonitor.left + ( ( ( mi.rcMonitor.right - mi.rcMonitor.left ) - 400 ) / 2 ), mi.rcMonitor.top + ( ( ( mi.rcMonitor.bottom - mi.rcMonitor.top ) - 190 ) / 2 ), 400, 190, 0 );
+			_SetWindowPos( hWnd, NULL, mi.rcMonitor.left + ( ( ( mi.rcMonitor.right - mi.rcMonitor.left ) - 400 ) / 2 ), mi.rcMonitor.top + ( ( ( mi.rcMonitor.bottom - mi.rcMonitor.top ) - height ) / 2 ), 400, height, 0 );
 
 #ifdef ENABLE_DARK_MODE
 			if ( g_use_dark_mode )
@@ -123,41 +127,49 @@ LRESULT CALLBACK SearchWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 					}
 
 					SEARCH_INFO *si = ( SEARCH_INFO * )GlobalAlloc( GMEM_FIXED, sizeof( SEARCH_INFO ) );
-					si->search_all = ( LOWORD( wParam ) == BTN_SEARCH_ALL ? true : false );
-
-					if ( _SendMessageW( g_hWnd_chk_regular_expression, BM_GETCHECK, 0, 0 ) == BST_CHECKED )
+					if ( si != NULL )
 					{
-						si->search_flag = 0x04;	// Use regular expression.
-					}
-					else
-					{
-						si->search_flag = ( _SendMessageW( g_hWnd_chk_match_case, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? 0x01 : 0x00 );
-						si->search_flag |= ( _SendMessageW( g_hWnd_chk_match_whole_word, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? 0x02 : 0x00 );
-					}
+						si->search_all = ( LOWORD( wParam ) == BTN_SEARCH_ALL ? true : false );
 
-					si->type = ( _SendMessageW( g_hWnd_chk_type_url, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? 1 : 0 );
+						if ( _SendMessageW( g_hWnd_chk_regular_expression, BM_GETCHECK, 0, 0 ) == BST_CHECKED )
+						{
+							si->search_flag = 0x04;	// Use regular expression.
+						}
+						else
+						{
+							si->search_flag = ( _SendMessageW( g_hWnd_chk_match_case, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? 0x01 : 0x00 );
+							si->search_flag |= ( _SendMessageW( g_hWnd_chk_match_whole_word, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? 0x02 : 0x00 );
+						}
 
-					unsigned int text_length = ( unsigned int )_SendMessageW( g_hWnd_search_for, WM_GETTEXTLENGTH, 0, 0 ) + 1;	// Include the NULL terminator.
-					si->text = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * text_length );
-					_SendMessageW( g_hWnd_search_for, WM_GETTEXT, text_length, ( LPARAM )si->text );
+						si->type = ( _SendMessageW( g_hWnd_chk_type_url, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? 1 : 0 );
 
-					// Enabled, when our thread completes.
-					_EnableWindow( g_hWnd_btn_search_all, FALSE );
-					_EnableWindow( g_hWnd_btn_search, FALSE );
+						unsigned int text_length = ( unsigned int )_SendMessageW( g_hWnd_search_for, WM_GETTEXTLENGTH, 0, 0 ) + 1;	// Include the NULL terminator.
+						si->text = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * text_length );
+						_SendMessageW( g_hWnd_search_for, WM_GETTEXT, text_length, ( LPARAM )si->text );
 
-					// si is freed in search_list.
-					HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, search_list, ( void * )si, 0, NULL );
-					if ( thread != NULL )
-					{
-						CloseHandle( thread );
+						// Enabled, when our thread completes.
+						_EnableWindow( g_hWnd_btn_search_all, FALSE );
+						_EnableWindow( g_hWnd_btn_search, FALSE );
+
+						// si is freed in search_list.
+						HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, search_list, ( void * )si, 0, NULL );
+						if ( thread != NULL )
+						{
+							CloseHandle( thread );
+						}
+						else
+						{
+							_EnableWindow( g_hWnd_btn_search_all, TRUE );
+							_EnableWindow( g_hWnd_btn_search, TRUE );
+
+							GlobalFree( si->text );
+							GlobalFree( si );
+						}
 					}
 					else
 					{
 						_EnableWindow( g_hWnd_btn_search_all, TRUE );
 						_EnableWindow( g_hWnd_btn_search, TRUE );
-
-						GlobalFree( si->text );
-						GlobalFree( si );
 					}
 				}
 				break;

@@ -142,7 +142,7 @@ char read_site_info()
 	char ret_status = 0;
 
 	_wmemcpy_s( g_base_directory + g_base_directory_length, MAX_PATH - g_base_directory_length, L"\\site_settings\0", 15 );
-	g_base_directory[ g_base_directory_length + 14 ] = 0;	// Sanity.
+	//g_base_directory[ g_base_directory_length + 14 ] = 0;	// Sanity.
 
 	HANDLE hFile_read = CreateFile( g_base_directory, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL );
 	if ( hFile_read != INVALID_HANDLE_VALUE )
@@ -205,581 +205,617 @@ char read_site_info()
 		//
 
 		char magic_identifier[ 4 ];
-		ReadFile( hFile_read, magic_identifier, sizeof( char ) * 4, &read, NULL );
-		if ( read == 4 && _memcmp( magic_identifier, MAGIC_ID_SITES, 4 ) == 0 )
+		BOOL bRet = ReadFile( hFile_read, magic_identifier, sizeof( char ) * 4, &read, NULL );
+		if ( bRet != FALSE )
 		{
-			DWORD fz = GetFileSize( hFile_read, NULL ) - 4;
-
-			char *buf = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( 524288 + 1 ) );	// 512 KB buffer.
-
-			while ( total_read < fz )
+			if ( read == 4 && _memcmp( magic_identifier, MAGIC_ID_SITES, 4 ) == 0 )
 			{
-				ReadFile( hFile_read, buf, sizeof( char ) * 524288, &read, NULL );
-
-				buf[ read ] = 0;	// Guarantee a NULL terminated buffer.
-
-				/*// Make sure that we have at least part of the entry. This is the minimum size an entry could be.
-				// Include 2 ints for username and password lengths.
-				if ( read < ( sizeof( wchar_t ) + ( sizeof( int ) * 2 ) ) )
+				char *buf = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( 524288 + 1 ) );	// 512 KB buffer.
+				if ( buf != NULL )
 				{
-					break;
-				}*/
+					DWORD fz = GetFileSize( hFile_read, NULL ) - 4;
 
-				total_read += read;
-
-				// Prevent an infinite loop if a really really long entry causes us to jump back to the same point in the file.
-				// If it's larger than our buffer, then the file is probably invalid/corrupt.
-				if ( total_read == last_total )
-				{
-					break;
-				}
-
-				last_total = total_read;
-
-				p = buf;
-				offset = last_entry = 0;
-
-				while ( offset < read )
-				{
-					site = NULL;
-					username = NULL;
-					password = NULL;
-					w_username = NULL;
-					w_password = NULL;
-
-					download_directory = NULL;
-
-					parts = 0;
-					download_speed_limit = 0;
-
-					cookies = NULL;
-					headers = NULL;
-					data = NULL;
-
-					hostname_length = 0;
-					proxy_address_type = 0;
-					proxy_hostname = NULL;
-					proxy_ip_address = 0;
-					proxy_port = 0;
-
-					proxy_use_authentication = false;
-					proxy_resolve_domain_names = false;
-
-					proxy_auth_username = NULL;
-					proxy_auth_password = NULL;
-					w_proxy_auth_username = NULL;
-					w_proxy_auth_password = NULL;
-
-					//
-
-					// Enable/Disable entry
-					offset += sizeof( bool );
-					if ( offset >= read ) { goto CLEANUP; }
-					_memcpy_s( &enable, sizeof( bool ), p, sizeof( bool ) );
-					p += sizeof( bool );
-
-					// Site
-					int string_length = lstrlenW( ( wchar_t * )p ) + 1;
-
-					offset += ( string_length * sizeof( wchar_t ) );
-					if ( offset >= read ) { goto CLEANUP; }
-
-					site = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * string_length );
-					_wmemcpy_s( site, string_length, p, string_length );
-					*( site + ( string_length - 1 ) ) = 0;	// Sanity
-
-					p += ( string_length * sizeof( wchar_t ) );
-
-					// General Tab
-
-					// Use Download Directory
-					offset += sizeof( bool );
-					if ( offset >= read ) { goto CLEANUP; }
-					_memcpy_s( &use_download_directory, sizeof( bool ), p, sizeof( bool ) );
-					p += sizeof( bool );
-
-					if ( use_download_directory )
+					while ( total_read < fz )
 					{
-						// Download Directory
-						string_length = lstrlenW( ( wchar_t * )p ) + 1;
-
-						offset += ( string_length * sizeof( wchar_t ) );
-						if ( offset >= read ) { goto CLEANUP; }
-
-						download_directory = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * string_length );
-						_wmemcpy_s( download_directory, string_length, p, string_length );
-						*( download_directory + ( string_length - 1 ) ) = 0;	// Sanity
-
-						p += ( string_length * sizeof( wchar_t ) );
-					}
-
-					// Use Parts
-					offset += sizeof( bool );
-					if ( offset >= read ) { goto CLEANUP; }
-					_memcpy_s( &use_parts, sizeof( bool ), p, sizeof( bool ) );
-					p += sizeof( bool );
-
-					if ( use_parts )
-					{
-						// Parts
-						offset += sizeof( unsigned char );
-						if ( offset >= read ) { goto CLEANUP; }
-						_memcpy_s( &parts, sizeof( unsigned char ), p, sizeof( unsigned char ) );
-						p += sizeof( unsigned char );
-					}
-
-					// Use Download Speed Limit
-					offset += sizeof( bool );
-					if ( offset >= read ) { goto CLEANUP; }
-					_memcpy_s( &use_download_speed_limit, sizeof( bool ), p, sizeof( bool ) );
-					p += sizeof( bool );
-
-					if ( use_download_speed_limit )
-					{
-						// Download Speed Limit
-						offset += sizeof( unsigned long long );
-						if ( offset >= read ) { goto CLEANUP; }
-						_memcpy_s( &download_speed_limit, sizeof( unsigned long long ), p, sizeof( unsigned long long ) );
-						p += sizeof( unsigned long long );
-					}
-
-					// SSL Version
-					offset += sizeof( char );
-					if ( offset >= read ) { goto CLEANUP; }
-					_memcpy_s( &ssl_version, sizeof( char ), p, sizeof( char ) );
-					p += sizeof( char );
-
-					// Username
-					offset += sizeof( int );
-					if ( offset >= read ) { goto CLEANUP; }
-
-					// Length of the string - not including the NULL character.
-					_memcpy_s( &string_length, sizeof( int ), p, sizeof( int ) );
-					p += sizeof( int );
-
-					offset += string_length;
-					if ( offset >= read ) { goto CLEANUP; }
-					if ( string_length > 0 )
-					{
-						// string_length does not contain the NULL character of the string.
-						username = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( string_length + 1 ) );
-						_memcpy_s( username, string_length, p, string_length );
-						username[ string_length ] = 0; // Sanity;
-
-						decode_cipher( username, string_length );
-
-						w_username = UTF8StringToWideString( username, string_length + 1 );
-
-						p += string_length;
-					}
-
-					// Password
-					offset += sizeof( int );
-					if ( offset >= read ) { goto CLEANUP; }
-
-					// Length of the string - not including the NULL character.
-					_memcpy_s( &string_length, sizeof( int ), p, sizeof( int ) );
-					p += sizeof( int );
-
-					offset += string_length;
-					if ( offset >= read ) { goto CLEANUP; }
-					if ( string_length > 0 )
-					{
-						// string_length does not contain the NULL character of the string.
-						password = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( string_length + 1 ) );
-						_memcpy_s( password, string_length, p, string_length );
-						password[ string_length ] = 0; // Sanity;
-
-						decode_cipher( password, string_length );
-
-						w_password = UTF8StringToWideString( password, string_length + 1 );
-
-						p += string_length;
-					}
-
-					// Download Operations
-					offset += sizeof( unsigned char );
-					if ( offset >= read ) { goto CLEANUP; }
-					_memcpy_s( &download_operations, sizeof( unsigned char ), p, sizeof( unsigned char ) );
-					p += sizeof( unsigned char );
-
-					// Cookies, Headers, POST Data Tabs
-
-					// Cookies
-					string_length = lstrlenA( ( char * )p ) + 1;
-
-					offset += string_length;
-					if ( offset >= read ) { goto CLEANUP; }
-
-					// Let's not allocate an empty string.
-					if ( string_length > 1 )
-					{
-						cookies = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * string_length );
-						_memcpy_s( cookies, string_length, p, string_length );
-						*( cookies + ( string_length - 1 ) ) = 0;	// Sanity
-					}
-
-					p += string_length;
-
-					// Headers
-					string_length = lstrlenA( ( char * )p ) + 1;
-
-					offset += string_length;
-					if ( offset >= read ) { goto CLEANUP; }
-
-					// Let's not allocate an empty string.
-					if ( string_length > 1 )
-					{
-						headers = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * string_length );
-						_memcpy_s( headers, string_length, p, string_length );
-						*( headers + ( string_length - 1 ) ) = 0;	// Sanity
-					}
-
-					p += string_length;
-
-					// Method
-					offset += sizeof( unsigned char );
-					if ( offset >= read ) { goto CLEANUP; }
-					_memcpy_s( &method, sizeof( unsigned char ), p, sizeof( unsigned char ) );
-					p += sizeof( unsigned char );
-
-					if ( method == METHOD_POST )
-					{
-						// Data
-						string_length = lstrlenA( ( char * )p ) + 1;
-
-						offset += string_length;
-						if ( offset >= read ) { goto CLEANUP; }
-
-						// Let's not allocate an empty string.
-						if ( string_length > 1 )
+						bRet = ReadFile( hFile_read, buf, sizeof( char ) * 524288, &read, NULL );
+						if ( bRet == FALSE )
 						{
-							data = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * string_length );
-							_memcpy_s( data, string_length, p, string_length );
-							*( data + ( string_length - 1 ) ) = 0;	// Sanity
+							break;
 						}
 
-						p += string_length;
-					}
+						buf[ read ] = 0;	// Guarantee a NULL terminated buffer.
 
-					// Proxy Tab
-
-					// Proxy Type
-					offset += sizeof( unsigned char );
-					if ( offset > read ) { goto CLEANUP; }
-					_memcpy_s( &proxy_type, sizeof( unsigned char ), p, sizeof( unsigned char ) );
-					p += sizeof( unsigned char );
-
-					if ( proxy_type != 0 )
-					{
-						// Proxy Address Type
-						offset += sizeof( unsigned char );
-						if ( offset >= read ) { goto CLEANUP; }
-						_memcpy_s( &proxy_address_type, sizeof( unsigned char ), p, sizeof( unsigned char ) );
-						p += sizeof( unsigned char );
-
-						if ( proxy_address_type == 0 )
+						/*// Make sure that we have at least part of the entry. This is the minimum size an entry could be.
+						// Include 2 ints for username and password lengths.
+						if ( read < ( sizeof( wchar_t ) + ( sizeof( int ) * 2 ) ) )
 						{
-							// Proxy Hostname
-							hostname_length = lstrlenW( ( wchar_t * )p );
+							break;
+						}*/
 
-							string_length = hostname_length + 1;
+						total_read += read;
+
+						// Prevent an infinite loop if a really really long entry causes us to jump back to the same point in the file.
+						// If it's larger than our buffer, then the file is probably invalid/corrupt.
+						if ( total_read == last_total )
+						{
+							break;
+						}
+
+						last_total = total_read;
+
+						p = buf;
+						offset = last_entry = 0;
+
+						while ( offset < read )
+						{
+							site = NULL;
+							username = NULL;
+							password = NULL;
+							w_username = NULL;
+							w_password = NULL;
+
+							download_directory = NULL;
+
+							parts = 0;
+							download_speed_limit = 0;
+
+							cookies = NULL;
+							headers = NULL;
+							data = NULL;
+
+							hostname_length = 0;
+							proxy_address_type = 0;
+							proxy_hostname = NULL;
+							proxy_ip_address = 0;
+							proxy_port = 0;
+
+							proxy_use_authentication = false;
+							proxy_resolve_domain_names = false;
+
+							proxy_auth_username = NULL;
+							proxy_auth_password = NULL;
+							w_proxy_auth_username = NULL;
+							w_proxy_auth_password = NULL;
+
+							//
+
+							// Enable/Disable entry
+							offset += sizeof( bool );
+							if ( offset >= read ) { goto CLEANUP; }
+							_memcpy_s( &enable, sizeof( bool ), p, sizeof( bool ) );
+							p += sizeof( bool );
+
+							// Site
+							int string_length = lstrlenW( ( wchar_t * )p ) + 1;
 
 							offset += ( string_length * sizeof( wchar_t ) );
 							if ( offset >= read ) { goto CLEANUP; }
 
-							proxy_hostname = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * string_length );
-							_wmemcpy_s( proxy_hostname, string_length, p, string_length );
-							*( proxy_hostname + ( string_length - 1 ) ) = 0;	// Sanity
+							site = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * string_length );
+							_wmemcpy_s( site, string_length, p, string_length );
+							*( site + ( string_length - 1 ) ) = 0;	// Sanity
 
 							p += ( string_length * sizeof( wchar_t ) );
-						}
-						else// if ( proxy_address_type == 1 )
-						{
-							// Proxy IP Address
-							offset += sizeof( unsigned long );
-							if ( offset >= read ) { goto CLEANUP; }
-							_memcpy_s( &proxy_ip_address, sizeof( unsigned long ), p, sizeof( unsigned long ) );
-							p += sizeof( unsigned long );
-						}
 
-						// Proxy Port
-						offset += sizeof( unsigned short );
-						if ( offset >= read ) { goto CLEANUP; }
-						_memcpy_s( &proxy_port, sizeof( unsigned short ), p, sizeof( unsigned short ) );
-						p += sizeof( unsigned short );
+							// General Tab
 
-						if ( proxy_type == 1 || proxy_type == 2 )	// HTTP and HTTPS
-						{
-							// Proxy Username
-							offset += sizeof( unsigned short );
-							if ( offset >= read ) { goto CLEANUP; }
-
-							// Length of the string - not including the NULL character.
-							_memcpy_s( &string_length, sizeof( unsigned short ), p, sizeof( unsigned short ) );
-							p += sizeof( unsigned short );
-
-							offset += string_length;
-							if ( offset >= read ) { goto CLEANUP; }
-							if ( string_length > 0 )
-							{
-								// string_length does not contain the NULL character of the string.
-								proxy_auth_username = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( string_length + 1 ) );
-								_memcpy_s( proxy_auth_username, string_length, p, string_length );
-								proxy_auth_username[ string_length ] = 0; // Sanity;
-
-								decode_cipher( proxy_auth_username, string_length );
-
-								w_proxy_auth_username = UTF8StringToWideString( proxy_auth_username, string_length + 1 );
-
-								p += string_length;
-							}
-
-							// Proxy Password
-							offset += sizeof( unsigned short );
-							if ( offset > read ) { goto CLEANUP; }
-
-							// Length of the string - not including the NULL character.
-							_memcpy_s( &string_length, sizeof( unsigned short ), p, sizeof( unsigned short ) );
-							p += sizeof( unsigned short );
-
-							offset += string_length;
-							if ( offset > read ) { goto CLEANUP; }
-							if ( string_length > 0 )
-							{
-								// string_length does not contain the NULL character of the string.
-								proxy_auth_password = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( string_length + 1 ) );
-								_memcpy_s( proxy_auth_password, string_length, p, string_length );
-								proxy_auth_password[ string_length ] = 0; // Sanity;
-
-								decode_cipher( proxy_auth_password, string_length );
-
-								w_proxy_auth_password = UTF8StringToWideString( proxy_auth_password, string_length + 1 );
-
-								p += string_length;
-							}
-						}
-						else if ( proxy_type == 3 )	// SOCKS v4
-						{
-							// Resolve Domain Names
+							// Use Download Directory
 							offset += sizeof( bool );
 							if ( offset >= read ) { goto CLEANUP; }
-							_memcpy_s( &proxy_resolve_domain_names, sizeof( bool ), p, sizeof( bool ) );
+							_memcpy_s( &use_download_directory, sizeof( bool ), p, sizeof( bool ) );
 							p += sizeof( bool );
 
-							// Proxy Username
-							offset += sizeof( unsigned short );
-							if ( offset > read ) { goto CLEANUP; }
-
-							// Length of the string - not including the NULL character.
-							_memcpy_s( &string_length, sizeof( unsigned short ), p, sizeof( unsigned short ) );
-							p += sizeof( unsigned short );
-
-							offset += string_length;
-							if ( offset > read ) { goto CLEANUP; }
-							if ( string_length > 0 )
+							if ( use_download_directory )
 							{
-								// string_length does not contain the NULL character of the string.
-								proxy_auth_username = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( string_length + 1 ) );
-								_memcpy_s( proxy_auth_username, string_length, p, string_length );
-								proxy_auth_username[ string_length ] = 0; // Sanity;
+								// Download Directory
+								string_length = lstrlenW( ( wchar_t * )p ) + 1;
 
-								decode_cipher( proxy_auth_username, string_length );
-
-								w_proxy_auth_username = UTF8StringToWideString( proxy_auth_username, string_length + 1 );
-
-								p += string_length;
-							}
-						}
-						else if ( proxy_type == 4 )	// SOCKS v5
-						{
-							// Resolve Domain Names
-							offset += sizeof( bool );
-							if ( offset >= read ) { goto CLEANUP; }
-							_memcpy_s( &proxy_resolve_domain_names, sizeof( bool ), p, sizeof( bool ) );
-							p += sizeof( bool );
-
-							// Use Authentication
-							offset += sizeof( bool );
-							if ( offset >= read ) { goto CLEANUP; }
-							_memcpy_s( &proxy_use_authentication, sizeof( bool ), p, sizeof( bool ) );
-							p += sizeof( bool );
-
-							if ( proxy_use_authentication )
-							{
-								// Proxy Username
-								offset += sizeof( unsigned short );
+								offset += ( string_length * sizeof( wchar_t ) );
 								if ( offset >= read ) { goto CLEANUP; }
 
-								// Length of the string - not including the NULL character.
-								_memcpy_s( &string_length, sizeof( unsigned short ), p, sizeof( unsigned short ) );
-								p += sizeof( unsigned short );
+								download_directory = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * string_length );
+								_wmemcpy_s( download_directory, string_length, p, string_length );
+								*( download_directory + ( string_length - 1 ) ) = 0;	// Sanity
+
+								p += ( string_length * sizeof( wchar_t ) );
+							}
+
+							// Use Parts
+							offset += sizeof( bool );
+							if ( offset >= read ) { goto CLEANUP; }
+							_memcpy_s( &use_parts, sizeof( bool ), p, sizeof( bool ) );
+							p += sizeof( bool );
+
+							if ( use_parts )
+							{
+								// Parts
+								offset += sizeof( unsigned char );
+								if ( offset >= read ) { goto CLEANUP; }
+								_memcpy_s( &parts, sizeof( unsigned char ), p, sizeof( unsigned char ) );
+								p += sizeof( unsigned char );
+							}
+
+							// Use Download Speed Limit
+							offset += sizeof( bool );
+							if ( offset >= read ) { goto CLEANUP; }
+							_memcpy_s( &use_download_speed_limit, sizeof( bool ), p, sizeof( bool ) );
+							p += sizeof( bool );
+
+							if ( use_download_speed_limit )
+							{
+								// Download Speed Limit
+								offset += sizeof( unsigned long long );
+								if ( offset >= read ) { goto CLEANUP; }
+								_memcpy_s( &download_speed_limit, sizeof( unsigned long long ), p, sizeof( unsigned long long ) );
+								p += sizeof( unsigned long long );
+							}
+
+							// SSL Version
+							offset += sizeof( char );
+							if ( offset >= read ) { goto CLEANUP; }
+							_memcpy_s( &ssl_version, sizeof( char ), p, sizeof( char ) );
+							p += sizeof( char );
+
+							// Username
+							offset += sizeof( int );
+							if ( offset >= read ) { goto CLEANUP; }
+
+							// Length of the string - not including the NULL character.
+							_memcpy_s( &string_length, sizeof( int ), p, sizeof( int ) );
+							p += sizeof( int );
+
+							offset += string_length;
+							if ( offset >= read ) { goto CLEANUP; }
+							if ( string_length > 0 )
+							{
+								// string_length does not contain the NULL character of the string.
+								username = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( string_length + 1 ) );
+								_memcpy_s( username, string_length, p, string_length );
+								username[ string_length ] = 0; // Sanity;
+
+								decode_cipher( username, string_length );
+
+								w_username = UTF8StringToWideString( username, string_length + 1 );
+
+								p += string_length;
+							}
+
+							// Password
+							offset += sizeof( int );
+							if ( offset >= read ) { goto CLEANUP; }
+
+							// Length of the string - not including the NULL character.
+							_memcpy_s( &string_length, sizeof( int ), p, sizeof( int ) );
+							p += sizeof( int );
+
+							offset += string_length;
+							if ( offset >= read ) { goto CLEANUP; }
+							if ( string_length > 0 )
+							{
+								// string_length does not contain the NULL character of the string.
+								password = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( string_length + 1 ) );
+								_memcpy_s( password, string_length, p, string_length );
+								password[ string_length ] = 0; // Sanity;
+
+								decode_cipher( password, string_length );
+
+								w_password = UTF8StringToWideString( password, string_length + 1 );
+
+								p += string_length;
+							}
+
+							// Download Operations
+							offset += sizeof( unsigned char );
+							if ( offset >= read ) { goto CLEANUP; }
+							_memcpy_s( &download_operations, sizeof( unsigned char ), p, sizeof( unsigned char ) );
+							p += sizeof( unsigned char );
+
+							// Cookies, Headers, POST Data Tabs
+
+							// Cookies
+							string_length = lstrlenA( ( char * )p ) + 1;
+
+							offset += string_length;
+							if ( offset >= read ) { goto CLEANUP; }
+
+							// Let's not allocate an empty string.
+							if ( string_length > 1 )
+							{
+								cookies = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * string_length );
+								_memcpy_s( cookies, string_length, p, string_length );
+								*( cookies + ( string_length - 1 ) ) = 0;	// Sanity
+							}
+
+							p += string_length;
+
+							// Headers
+							string_length = lstrlenA( ( char * )p ) + 1;
+
+							offset += string_length;
+							if ( offset >= read ) { goto CLEANUP; }
+
+							// Let's not allocate an empty string.
+							if ( string_length > 1 )
+							{
+								headers = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * string_length );
+								_memcpy_s( headers, string_length, p, string_length );
+								*( headers + ( string_length - 1 ) ) = 0;	// Sanity
+							}
+
+							p += string_length;
+
+							// Method
+							offset += sizeof( unsigned char );
+							if ( offset >= read ) { goto CLEANUP; }
+							_memcpy_s( &method, sizeof( unsigned char ), p, sizeof( unsigned char ) );
+							p += sizeof( unsigned char );
+
+							if ( method == METHOD_POST )
+							{
+								// Data
+								string_length = lstrlenA( ( char * )p ) + 1;
 
 								offset += string_length;
 								if ( offset >= read ) { goto CLEANUP; }
-								if ( string_length > 0 )
+
+								// Let's not allocate an empty string.
+								if ( string_length > 1 )
 								{
-									// string_length does not contain the NULL character of the string.
-									proxy_auth_username = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( string_length + 1 ) );
-									_memcpy_s( proxy_auth_username, string_length, p, string_length );
-									proxy_auth_username[ string_length ] = 0; // Sanity;
-
-									decode_cipher( proxy_auth_username, string_length );
-
-									w_proxy_auth_username = UTF8StringToWideString( proxy_auth_username, string_length + 1 );
-
-									p += string_length;
+									data = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * string_length );
+									_memcpy_s( data, string_length, p, string_length );
+									*( data + ( string_length - 1 ) ) = 0;	// Sanity
 								}
 
-								// Proxy Password
-								offset += sizeof( unsigned short );
-								if ( offset > read ) { goto CLEANUP; }
+								p += string_length;
+							}
 
-								// Length of the string - not including the NULL character.
-								_memcpy_s( &string_length, sizeof( unsigned short ), p, sizeof( unsigned short ) );
+							// Proxy Tab
+
+							// Proxy Type
+							offset += sizeof( unsigned char );
+							if ( offset > read ) { goto CLEANUP; }
+							_memcpy_s( &proxy_type, sizeof( unsigned char ), p, sizeof( unsigned char ) );
+							p += sizeof( unsigned char );
+
+							if ( proxy_type != 0 )
+							{
+								// Proxy Address Type
+								offset += sizeof( unsigned char );
+								if ( offset >= read ) { goto CLEANUP; }
+								_memcpy_s( &proxy_address_type, sizeof( unsigned char ), p, sizeof( unsigned char ) );
+								p += sizeof( unsigned char );
+
+								if ( proxy_address_type == 0 )
+								{
+									// Proxy Hostname
+									hostname_length = lstrlenW( ( wchar_t * )p );
+
+									string_length = hostname_length + 1;
+
+									offset += ( string_length * sizeof( wchar_t ) );
+									if ( offset >= read ) { goto CLEANUP; }
+
+									proxy_hostname = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * string_length );
+									_wmemcpy_s( proxy_hostname, string_length, p, string_length );
+									*( proxy_hostname + ( string_length - 1 ) ) = 0;	// Sanity
+
+									p += ( string_length * sizeof( wchar_t ) );
+								}
+								else// if ( proxy_address_type == 1 )
+								{
+									// Proxy IP Address
+									offset += sizeof( unsigned long );
+									if ( offset >= read ) { goto CLEANUP; }
+									_memcpy_s( &proxy_ip_address, sizeof( unsigned long ), p, sizeof( unsigned long ) );
+									p += sizeof( unsigned long );
+								}
+
+								// Proxy Port
+								offset += sizeof( unsigned short );
+								if ( offset >= read ) { goto CLEANUP; }
+								_memcpy_s( &proxy_port, sizeof( unsigned short ), p, sizeof( unsigned short ) );
 								p += sizeof( unsigned short );
 
-								offset += string_length;
-								if ( offset > read ) { goto CLEANUP; }
-								if ( string_length > 0 )
+								if ( proxy_type == 1 || proxy_type == 2 )	// HTTP and HTTPS
 								{
-									// string_length does not contain the NULL character of the string.
-									proxy_auth_password = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( string_length + 1 ) );
-									_memcpy_s( proxy_auth_password, string_length, p, string_length );
-									proxy_auth_password[ string_length ] = 0; // Sanity;
+									// Proxy Username
+									offset += sizeof( unsigned short );
+									if ( offset >= read ) { goto CLEANUP; }
 
-									decode_cipher( proxy_auth_password, string_length );
+									// Length of the string - not including the NULL character.
+									_memcpy_s( &string_length, sizeof( unsigned short ), p, sizeof( unsigned short ) );
+									p += sizeof( unsigned short );
 
-									w_proxy_auth_password = UTF8StringToWideString( proxy_auth_password, string_length + 1 );
+									offset += string_length;
+									if ( offset >= read ) { goto CLEANUP; }
+									if ( string_length > 0 )
+									{
+										// string_length does not contain the NULL character of the string.
+										proxy_auth_username = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( string_length + 1 ) );
+										_memcpy_s( proxy_auth_username, string_length, p, string_length );
+										proxy_auth_username[ string_length ] = 0; // Sanity;
 
-									p += string_length;
+										decode_cipher( proxy_auth_username, string_length );
+
+										w_proxy_auth_username = UTF8StringToWideString( proxy_auth_username, string_length + 1 );
+
+										p += string_length;
+									}
+
+									// Proxy Password
+									offset += sizeof( unsigned short );
+									if ( offset > read ) { goto CLEANUP; }
+
+									// Length of the string - not including the NULL character.
+									_memcpy_s( &string_length, sizeof( unsigned short ), p, sizeof( unsigned short ) );
+									p += sizeof( unsigned short );
+
+									offset += string_length;
+									if ( offset > read ) { goto CLEANUP; }
+									if ( string_length > 0 )
+									{
+										// string_length does not contain the NULL character of the string.
+										proxy_auth_password = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( string_length + 1 ) );
+										_memcpy_s( proxy_auth_password, string_length, p, string_length );
+										proxy_auth_password[ string_length ] = 0; // Sanity;
+
+										decode_cipher( proxy_auth_password, string_length );
+
+										w_proxy_auth_password = UTF8StringToWideString( proxy_auth_password, string_length + 1 );
+
+										p += string_length;
+									}
+								}
+								else if ( proxy_type == 3 )	// SOCKS v4
+								{
+									// Resolve Domain Names
+									offset += sizeof( bool );
+									if ( offset >= read ) { goto CLEANUP; }
+									_memcpy_s( &proxy_resolve_domain_names, sizeof( bool ), p, sizeof( bool ) );
+									p += sizeof( bool );
+
+									// Proxy Username
+									offset += sizeof( unsigned short );
+									if ( offset > read ) { goto CLEANUP; }
+
+									// Length of the string - not including the NULL character.
+									_memcpy_s( &string_length, sizeof( unsigned short ), p, sizeof( unsigned short ) );
+									p += sizeof( unsigned short );
+
+									offset += string_length;
+									if ( offset > read ) { goto CLEANUP; }
+									if ( string_length > 0 )
+									{
+										// string_length does not contain the NULL character of the string.
+										proxy_auth_username = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( string_length + 1 ) );
+										_memcpy_s( proxy_auth_username, string_length, p, string_length );
+										proxy_auth_username[ string_length ] = 0; // Sanity;
+
+										decode_cipher( proxy_auth_username, string_length );
+
+										w_proxy_auth_username = UTF8StringToWideString( proxy_auth_username, string_length + 1 );
+
+										p += string_length;
+									}
+								}
+								else if ( proxy_type == 4 )	// SOCKS v5
+								{
+									// Resolve Domain Names
+									offset += sizeof( bool );
+									if ( offset >= read ) { goto CLEANUP; }
+									_memcpy_s( &proxy_resolve_domain_names, sizeof( bool ), p, sizeof( bool ) );
+									p += sizeof( bool );
+
+									// Use Authentication
+									offset += sizeof( bool );
+									if ( offset >= read ) { goto CLEANUP; }
+									_memcpy_s( &proxy_use_authentication, sizeof( bool ), p, sizeof( bool ) );
+									p += sizeof( bool );
+
+									if ( proxy_use_authentication )
+									{
+										// Proxy Username
+										offset += sizeof( unsigned short );
+										if ( offset >= read ) { goto CLEANUP; }
+
+										// Length of the string - not including the NULL character.
+										_memcpy_s( &string_length, sizeof( unsigned short ), p, sizeof( unsigned short ) );
+										p += sizeof( unsigned short );
+
+										offset += string_length;
+										if ( offset >= read ) { goto CLEANUP; }
+										if ( string_length > 0 )
+										{
+											// string_length does not contain the NULL character of the string.
+											proxy_auth_username = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( string_length + 1 ) );
+											_memcpy_s( proxy_auth_username, string_length, p, string_length );
+											proxy_auth_username[ string_length ] = 0; // Sanity;
+
+											decode_cipher( proxy_auth_username, string_length );
+
+											w_proxy_auth_username = UTF8StringToWideString( proxy_auth_username, string_length + 1 );
+
+											p += string_length;
+										}
+
+										// Proxy Password
+										offset += sizeof( unsigned short );
+										if ( offset > read ) { goto CLEANUP; }
+
+										// Length of the string - not including the NULL character.
+										_memcpy_s( &string_length, sizeof( unsigned short ), p, sizeof( unsigned short ) );
+										p += sizeof( unsigned short );
+
+										offset += string_length;
+										if ( offset > read ) { goto CLEANUP; }
+										if ( string_length > 0 )
+										{
+											// string_length does not contain the NULL character of the string.
+											proxy_auth_password = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( string_length + 1 ) );
+											_memcpy_s( proxy_auth_password, string_length, p, string_length );
+											proxy_auth_password[ string_length ] = 0; // Sanity;
+
+											decode_cipher( proxy_auth_password, string_length );
+
+											w_proxy_auth_password = UTF8StringToWideString( proxy_auth_password, string_length + 1 );
+
+											p += string_length;
+										}
+									}
 								}
 							}
-						}
-					}
 
-					//
+							//
 
-					last_entry = offset;	// This value is the ending offset of the last valid entry.
+							last_entry = offset;	// This value is the ending offset of the last valid entry.
 
-					unsigned int host_length = 0;
-					unsigned int resource_length = 0;
+							unsigned int host_length = 0;
+							unsigned int resource_length = 0;
 
-					wchar_t *resource = NULL;
+							wchar_t *resource = NULL;
 
-					SITE_INFO *si = ( SITE_INFO * )GlobalAlloc( GPTR, sizeof( SITE_INFO ) );
-
-					ParseURL_W( site, NULL, si->protocol, &si->host, host_length, si->port, &resource, resource_length, NULL, NULL, NULL, NULL );
-					GlobalFree( resource );
-
-					si->enable = enable;
-
-					si->w_host = site;
-
-					//
-
-					si->use_download_directory = use_download_directory;
-					si->download_directory = download_directory;
-
-					si->use_parts = use_parts;
-					si->parts = parts;
-
-					si->use_download_speed_limit = use_download_speed_limit;
-					si->download_speed_limit = download_speed_limit;
-
-					si->ssl_version = ssl_version;
-
-					si->username = username;
-					si->password = password;
-					si->w_username = w_username;
-					si->w_password = w_password;
-
-					si->download_operations = download_operations;
-
-					//
-
-					si->utf8_cookies = cookies;
-					si->utf8_headers = headers;
-					si->method = method;
-					si->utf8_data = data;
-
-					//
-
-					si->proxy_info.type = proxy_type;
-					si->proxy_info.address_type = proxy_address_type;
-
-					si->proxy_info.hostname = proxy_hostname;
-					si->proxy_info.ip_address = proxy_ip_address;
-
-					si->proxy_info.port = proxy_port;
-
-					si->proxy_info.resolve_domain_names = proxy_resolve_domain_names;
-					si->proxy_info.use_authentication = proxy_use_authentication;
-
-					si->proxy_info.username = proxy_auth_username;
-					si->proxy_info.password = proxy_auth_password;
-					si->proxy_info.w_username = w_proxy_auth_username;
-					si->proxy_info.w_password = w_proxy_auth_password;
-
-					//
-
-					if ( si->proxy_info.hostname != NULL )
-					{
-						if ( normaliz_state == NORMALIZ_STATE_RUNNING )
-						{
-							int punycode_length = _IdnToAscii( 0, si->proxy_info.hostname, hostname_length, NULL, 0 );
-
-							if ( punycode_length > ( int )hostname_length )
+							SITE_INFO *si = ( SITE_INFO * )GlobalAlloc( GPTR, sizeof( SITE_INFO ) );
+							if ( si != NULL )
 							{
-								si->proxy_info.punycode_hostname = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * punycode_length );
-								_IdnToAscii( 0, si->proxy_info.hostname, hostname_length, si->proxy_info.punycode_hostname, punycode_length );
+								ParseURL_W( site, NULL, si->protocol, &si->host, host_length, si->port, &resource, resource_length, NULL, NULL, NULL, NULL );
+								GlobalFree( resource );
+
+								si->enable = enable;
+
+								si->w_host = site;
+
+								//
+
+								si->use_download_directory = use_download_directory;
+								si->download_directory = download_directory;
+
+								si->use_parts = use_parts;
+								si->parts = parts;
+
+								si->use_download_speed_limit = use_download_speed_limit;
+								si->download_speed_limit = download_speed_limit;
+
+								si->ssl_version = ssl_version;
+
+								si->username = username;
+								si->password = password;
+								si->w_username = w_username;
+								si->w_password = w_password;
+
+								si->download_operations = download_operations;
+
+								//
+
+								si->utf8_cookies = cookies;
+								si->utf8_headers = headers;
+								si->method = method;
+								si->utf8_data = data;
+
+								//
+
+								si->proxy_info.type = proxy_type;
+								si->proxy_info.address_type = proxy_address_type;
+
+								si->proxy_info.hostname = proxy_hostname;
+								si->proxy_info.ip_address = proxy_ip_address;
+
+								si->proxy_info.port = proxy_port;
+
+								si->proxy_info.resolve_domain_names = proxy_resolve_domain_names;
+								si->proxy_info.use_authentication = proxy_use_authentication;
+
+								si->proxy_info.username = proxy_auth_username;
+								si->proxy_info.password = proxy_auth_password;
+								si->proxy_info.w_username = w_proxy_auth_username;
+								si->proxy_info.w_password = w_proxy_auth_password;
+
+								//
+
+								if ( si->proxy_info.hostname != NULL )
+								{
+									if ( normaliz_state == NORMALIZ_STATE_RUNNING )
+									{
+										int punycode_length = _IdnToAscii( 0, si->proxy_info.hostname, hostname_length, NULL, 0 );
+
+										if ( punycode_length > ( int )hostname_length )
+										{
+											si->proxy_info.punycode_hostname = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * punycode_length );
+											_IdnToAscii( 0, si->proxy_info.hostname, hostname_length, si->proxy_info.punycode_hostname, punycode_length );
+										}
+									}
+								}
+
+								if ( dllrbt_insert( g_site_info, ( void * )si, ( void * )si ) != DLLRBT_STATUS_OK )
+								{
+									FreeSiteInfo( &si );
+								}
 							}
+							else
+							{
+								GlobalFree( site );
+								GlobalFree( username );
+								GlobalFree( password );
+								GlobalFree( w_username );
+								GlobalFree( w_password );
+
+								GlobalFree( download_directory );
+
+								GlobalFree( cookies );
+								GlobalFree( headers );
+								GlobalFree( data );
+
+								GlobalFree( proxy_hostname );
+
+								GlobalFree( proxy_auth_username );
+								GlobalFree( proxy_auth_password );
+								GlobalFree( w_proxy_auth_username );
+								GlobalFree( w_proxy_auth_password );
+							}
+
+							continue;
+
+			CLEANUP:
+							GlobalFree( site );
+							GlobalFree( username );
+							GlobalFree( password );
+							GlobalFree( w_username );
+							GlobalFree( w_password );
+
+							GlobalFree( download_directory );
+
+							GlobalFree( cookies );
+							GlobalFree( headers );
+							GlobalFree( data );
+
+							GlobalFree( proxy_hostname );
+
+							GlobalFree( proxy_auth_username );
+							GlobalFree( proxy_auth_password );
+							GlobalFree( w_proxy_auth_username );
+							GlobalFree( w_proxy_auth_password );
+
+							// Go back to the last valid entry.
+							if ( total_read < fz )
+							{
+								total_read -= ( read - last_entry );
+								SetFilePointer( hFile_read, total_read + 4, NULL, FILE_BEGIN );	// Offset past the magic identifier.
+							}
+
+							break;
 						}
 					}
 
-					if ( dllrbt_insert( g_site_info, ( void * )si, ( void * )si ) != DLLRBT_STATUS_OK )
-					{
-						FreeSiteInfo( &si );
-					}
-
-					continue;
-
-	CLEANUP:
-					GlobalFree( site );
-					GlobalFree( username );
-					GlobalFree( password );
-					GlobalFree( w_username );
-					GlobalFree( w_password );
-
-					GlobalFree( download_directory );
-
-					GlobalFree( cookies );
-					GlobalFree( headers );
-					GlobalFree( data );
-
-					GlobalFree( proxy_hostname );
-
-					GlobalFree( proxy_auth_username );
-					GlobalFree( proxy_auth_password );
-					GlobalFree( w_proxy_auth_username );
-					GlobalFree( w_proxy_auth_password );
-
-					// Go back to the last valid entry.
-					if ( total_read < fz )
-					{
-						total_read -= ( read - last_entry );
-						SetFilePointer( hFile_read, total_read + 4, NULL, FILE_BEGIN );	// Offset past the magic identifier.
-					}
-
-					break;
+					GlobalFree( buf );
 				}
 			}
-
-			GlobalFree( buf );
+			else
+			{
+				ret_status = -2;	// Bad file format.
+			}
 		}
 		else
 		{
-			ret_status = -2;	// Bad file format.
+			ret_status = -1;	// Can't open file for reading.
 		}
 
 		CloseHandle( hFile_read );	
@@ -797,7 +833,7 @@ char save_site_info()
 	char ret_status = 0;
 
 	_wmemcpy_s( g_base_directory + g_base_directory_length, MAX_PATH - g_base_directory_length, L"\\site_settings\0", 15 );
-	g_base_directory[ g_base_directory_length + 14 ] = 0;	// Sanity.
+	//g_base_directory[ g_base_directory_length + 14 ] = 0;	// Sanity.
 
 	HANDLE hFile = CreateFile( g_base_directory, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL );
 	if ( hFile != INVALID_HANDLE_VALUE )
@@ -1337,63 +1373,68 @@ THREAD_RETURN handle_site_list( void *pArguments )
 				_SendMessageW( g_hWnd_site_list, LVM_ENSUREVISIBLE, 0, FALSE );
 
 				index_array = ( int * )GlobalAlloc( GMEM_FIXED, sizeof( int ) * sel_count );
-
-				lvi.iItem = -1;	// Set this to -1 so that the LVM_GETNEXTITEM call can go through the list correctly.
-
-				_EnableWindow( g_hWnd_site_list, FALSE );	// Prevent any interaction with the listview while we're processing.
-
-				// Create an index list of selected items (in reverse order).
-				for ( int i = 0; i < sel_count; ++i )
+				if ( index_array != NULL )
 				{
-					lvi.iItem = index_array[ sel_count - 1 - i ] = ( int )_SendMessageW( g_hWnd_site_list, LVM_GETNEXTITEM, lvi.iItem, LVNI_SELECTED );
-				}
+					lvi.iItem = -1;	// Set this to -1 so that the LVM_GETNEXTITEM call can go through the list correctly.
 
-				_EnableWindow( g_hWnd_site_list, TRUE );	// Allow the listview to be interactive.
+					_EnableWindow( g_hWnd_site_list, FALSE );	// Prevent any interaction with the listview while we're processing.
+
+					// Create an index list of selected items (in reverse order).
+					for ( int i = 0; i < sel_count; ++i )
+					{
+						lvi.iItem = index_array[ sel_count - 1 - i ] = ( int )_SendMessageW( g_hWnd_site_list, LVM_GETNEXTITEM, lvi.iItem, LVNI_SELECTED );
+					}
+
+					_EnableWindow( g_hWnd_site_list, TRUE );	// Allow the listview to be interactive.
+				}
 
 				item_count = sel_count;
 			}
 
-			// Go through each item, and free their lParam values.
-			for ( int i = 0; i < item_count; ++i )
+			if ( handle_all || index_array != NULL )
 			{
-				// Stop processing and exit the thread.
-				if ( kill_worker_thread_flag )
+				// Go through each item, and free their lParam values.
+				for ( int i = 0; i < item_count; ++i )
 				{
-					break;
-				}
-
-				if ( handle_all )
-				{
-					lvi.iItem = i;
-				}
-				else
-				{
-					lvi.iItem = index_array[ i ];
-				}
-
-				_SendMessageW( g_hWnd_site_list, LVM_GETITEM, 0, ( LPARAM )&lvi );
-
-				SITE_INFO *si = ( SITE_INFO * )lvi.lParam;
-
-				if ( !handle_all )
-				{
-					_SendMessageW( g_hWnd_site_list, LVM_DELETEITEM, index_array[ i ], 0 );
-				}
-				else if ( i >= ( item_count - 1 ) )
-				{
-					_SendMessageW( g_hWnd_site_list, LVM_DELETEALLITEMS, 0, 0 );
-				}
-
-				if ( si != NULL )
-				{
-					// Find the site info
-					dllrbt_iterator *itr = dllrbt_find( g_site_info, ( void * )si, false );
-					if ( itr != NULL )
+					// Stop processing and exit the thread.
+					if ( kill_worker_thread_flag )
 					{
-						dllrbt_remove( g_site_info, itr );
+						break;
 					}
 
-					FreeSiteInfo( &si );
+					if ( handle_all )
+					{
+						lvi.iItem = i;
+					}
+					else
+					{
+						lvi.iItem = index_array[ i ];
+					}
+
+					_SendMessageW( g_hWnd_site_list, LVM_GETITEM, 0, ( LPARAM )&lvi );
+
+					SITE_INFO *si = ( SITE_INFO * )lvi.lParam;
+
+					if ( !handle_all )
+					{
+						_SendMessageW( g_hWnd_site_list, LVM_DELETEITEM, index_array[ i ], 0 );
+					}
+					else if ( i >= ( item_count - 1 ) )
+					{
+						_SendMessageW( g_hWnd_site_list, LVM_DELETEALLITEMS, 0, 0 );
+					}
+
+					if ( si != NULL )
+					{
+						// Find the site info
+						dllrbt_iterator *itr = dllrbt_find( g_site_info, ( void * )si, false );
+						if ( itr != NULL )
+						{
+							dllrbt_remove( g_site_info, itr );
+						}
+
+						FreeSiteInfo( &si );
+					}
 				}
 			}
 

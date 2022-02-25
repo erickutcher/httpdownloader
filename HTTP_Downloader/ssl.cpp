@@ -1439,78 +1439,92 @@ PCCERT_CONTEXT LoadPublicPrivateKeyPair( wchar_t *cer, wchar_t *key )
 		dwBufferLen = GetFileSize( hFile_cfg, NULL );
 
 		szPemPrivKey = ( BYTE * )GlobalAlloc( GMEM_FIXED, sizeof( BYTE ) * dwBufferLen );
-
-		ReadFile( hFile_cfg, szPemPrivKey, sizeof( char ) * dwBufferLen, &dwBufferLen, NULL );
-
-		CloseHandle( hFile_cfg );
-
-		// Let's assume the key is also in the same format.
-		if ( dwFormatType == CERT_QUERY_FORMAT_BASE64_ENCODED )	// PEM format.
+		if ( szPemPrivKey != NULL )
 		{
-			if ( _CryptStringToBinaryA( ( LPCSTR )szPemPrivKey, 0, CRYPT_STRING_BASE64HEADER, NULL, &dwBufferLen, NULL, NULL ) == FALSE )
+			BOOL bRet = ReadFile( hFile_cfg, szPemPrivKey, sizeof( char ) * dwBufferLen, &dwBufferLen, NULL );
+			if ( bRet != FALSE )
+			{
+				// Let's assume the key is also in the same format.
+				if ( dwFormatType == CERT_QUERY_FORMAT_BASE64_ENCODED )	// PEM format.
+				{
+					if ( _CryptStringToBinaryA( ( LPCSTR )szPemPrivKey, 0, CRYPT_STRING_BASE64HEADER, NULL, &dwBufferLen, NULL, NULL ) == FALSE )
+					{
+						failed = true;
+						goto CLEANUP;
+					}
+
+					pbBuffer = ( LPBYTE )GlobalAlloc( GMEM_FIXED, dwBufferLen );
+					if ( _CryptStringToBinaryA( ( LPCSTR )szPemPrivKey, 0, CRYPT_STRING_BASE64HEADER, pbBuffer, &dwBufferLen, NULL, NULL ) == FALSE )
+					{
+						failed = true;
+						goto CLEANUP;
+					}
+				}
+				else	// DER format.
+				{
+					pbBuffer = szPemPrivKey;
+					szPemPrivKey = NULL;
+				}
+
+				if ( _CryptDecodeObjectEx( dwMsgAndCertEncodingType, PKCS_RSA_PRIVATE_KEY, pbBuffer, dwBufferLen, 0, NULL, NULL, &cbKeyBlob ) == FALSE )
+				{
+					failed = true;
+					goto CLEANUP;
+				}
+
+				pbKeyBlob = ( LPBYTE )GlobalAlloc( GMEM_FIXED, cbKeyBlob );
+				if ( _CryptDecodeObjectEx( dwMsgAndCertEncodingType, PKCS_RSA_PRIVATE_KEY, pbBuffer, dwBufferLen, 0, NULL, pbKeyBlob, &cbKeyBlob ) == FALSE )
+				{
+					failed = true;
+					goto CLEANUP;
+				}
+
+				UUID uuid;
+				_UuidCreate( &uuid );
+				_UuidToStringW( &uuid, ( RPC_WSTR * )&pwszUuid );
+
+				if ( _CryptAcquireContextW( &hProv, pwszUuid, MS_ENHANCED_PROV, PROV_RSA_FULL, CRYPT_NEWKEYSET ) == FALSE )
+				{
+					failed = true;
+					goto CLEANUP;
+				}
+
+				if ( _CryptImportKey( hProv, pbKeyBlob, cbKeyBlob, NULL, 0, &hKey ) == FALSE )
+				{
+					failed = true;
+					goto CLEANUP;
+				}
+
+				CRYPT_KEY_PROV_INFO privateKeyData;
+				_memzero( &privateKeyData, sizeof( CRYPT_KEY_PROV_INFO ) );
+				privateKeyData.pwszContainerName = pwszUuid;
+				privateKeyData.pwszProvName = MS_ENHANCED_PROV;
+				privateKeyData.dwProvType = PROV_RSA_FULL;
+				privateKeyData.dwFlags = 0;
+				privateKeyData.dwKeySpec = AT_KEYEXCHANGE;
+
+				if ( _CertSetCertificateContextProperty( pCertContext, CERT_KEY_PROV_INFO_PROP_ID, 0, &privateKeyData ) == FALSE )
+				{
+					failed = true;
+				}
+			}
+			else
 			{
 				failed = true;
-				goto CLEANUP;
-			}
-
-			pbBuffer = ( LPBYTE )GlobalAlloc( GMEM_FIXED, dwBufferLen );
-			if ( _CryptStringToBinaryA( ( LPCSTR )szPemPrivKey, 0, CRYPT_STRING_BASE64HEADER, pbBuffer, &dwBufferLen, NULL, NULL ) == FALSE )
-			{
-				failed = true;
-				goto CLEANUP;
 			}
 		}
-		else	// DER format.
-		{
-			pbBuffer = szPemPrivKey;
-			szPemPrivKey = NULL;
-		}
-
-		if ( _CryptDecodeObjectEx( dwMsgAndCertEncodingType, PKCS_RSA_PRIVATE_KEY, pbBuffer, dwBufferLen, 0, NULL, NULL, &cbKeyBlob ) == FALSE )
+		else
 		{
 			failed = true;
-			goto CLEANUP;
-		}
-
-		pbKeyBlob = ( LPBYTE )GlobalAlloc( GMEM_FIXED, cbKeyBlob );
-		if ( _CryptDecodeObjectEx( dwMsgAndCertEncodingType, PKCS_RSA_PRIVATE_KEY, pbBuffer, dwBufferLen, 0, NULL, pbKeyBlob, &cbKeyBlob ) == FALSE )
-		{
-			failed = true;
-			goto CLEANUP;
-		}
-
-		UUID uuid;
-		_UuidCreate( &uuid );
-		_UuidToStringW( &uuid, ( RPC_WSTR * )&pwszUuid );
-
-		if ( _CryptAcquireContextW( &hProv, pwszUuid, MS_ENHANCED_PROV, PROV_RSA_FULL, CRYPT_NEWKEYSET ) == FALSE )
-		{
-			failed = true;
-			goto CLEANUP;
-		}
-
-		if ( _CryptImportKey( hProv, pbKeyBlob, cbKeyBlob, NULL, 0, &hKey ) == FALSE )
-		{
-			failed = true;
-			goto CLEANUP;
-		}
-
-		CRYPT_KEY_PROV_INFO privateKeyData;
-		_memzero( &privateKeyData, sizeof( CRYPT_KEY_PROV_INFO ) );
-		privateKeyData.pwszContainerName = pwszUuid;
-		privateKeyData.pwszProvName = MS_ENHANCED_PROV;
-		privateKeyData.dwProvType = PROV_RSA_FULL;
-		privateKeyData.dwFlags = 0;
-		privateKeyData.dwKeySpec = AT_KEYEXCHANGE;
-
-		if ( _CertSetCertificateContextProperty( pCertContext, CERT_KEY_PROV_INFO_PROP_ID, 0, &privateKeyData ) == FALSE )
-		{
-			failed = true;
-			goto CLEANUP;
 		}
 	}
 
 CLEANUP:
+
+	if ( hFile_cfg != INVALID_HANDLE_VALUE )
+	{
+		CloseHandle( hFile_cfg );
+	}
 
 	if ( pwszUuid != NULL )
 	{
@@ -1567,32 +1581,32 @@ PCCERT_CONTEXT LoadPKCS12( wchar_t *p12_file, wchar_t *password )
 	HANDLE hFile_cfg = CreateFile( p12_file, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL );
 	if ( hFile_cfg != INVALID_HANDLE_VALUE )
 	{
+		HCERTSTORE hMyCertStore = NULL;
+
 		CRYPT_DATA_BLOB cdb;
 		DWORD read = 0;
 		DWORD fz = GetFileSize( hFile_cfg, NULL );
 
 		cdb.cbData = fz;
 		cdb.pbData = ( BYTE * )GlobalAlloc( GMEM_FIXED, sizeof( BYTE ) * fz );
-
-		ReadFile( hFile_cfg, cdb.pbData, sizeof( char ) * fz, &read, NULL );
-
-		CloseHandle( hFile_cfg );
-
-		HCERTSTORE hMyCertStore = _PFXImportCertStore( &cdb, password, 0 );
-
-		GlobalFree( cdb.pbData );
-
-		int err = GetLastError();
-		if ( hMyCertStore == NULL || err != 0 )
+		if ( cdb.pbData != NULL )
 		{
-			_CertCloseStore( hMyCertStore, 0 );
+			BOOL bRet = ReadFile( hFile_cfg, cdb.pbData, sizeof( char ) * fz, &read, NULL );
+			if ( bRet != FALSE )
+			{
+				hMyCertStore = _PFXImportCertStore( &cdb, password, 0 );
+				if ( hMyCertStore != NULL )
+				{
+					pCertContext = _CertFindCertificateInStore( hMyCertStore, X509_ASN_ENCODING | PKCS_7_ASN_ENCODING, 0, CERT_FIND_ANY, NULL, NULL );
 
-			return NULL;
+					_CertCloseStore( hMyCertStore, 0 );
+				}
+			}
+
+			GlobalFree( cdb.pbData );
 		}
 
-		pCertContext = _CertFindCertificateInStore( hMyCertStore, X509_ASN_ENCODING | PKCS_7_ASN_ENCODING, 0, CERT_FIND_ANY, NULL, NULL );
-
-		_CertCloseStore( hMyCertStore, 0 );
+		CloseHandle( hFile_cfg );
 	}
 
 	return pCertContext;

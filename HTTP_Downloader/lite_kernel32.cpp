@@ -23,6 +23,7 @@
 
 	pSetFileInformationByHandle		_SetFileInformationByHandle;
 	pGetUserDefaultLocaleName		_GetUserDefaultLocaleName;
+	//pGetQueuedCompletionStatusEx	_GetQueuedCompletionStatusEx;
 
 	HMODULE hModule_kernel32 = NULL;
 
@@ -42,9 +43,10 @@
 			return false;
 		}
 
-		// Both of these functions are for Windows Vista and newer.
+		// These functions are for Windows Vista and newer.
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_kernel32, ( void ** )&_SetFileInformationByHandle, "SetFileInformationByHandle" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_kernel32, ( void ** )&_GetUserDefaultLocaleName, "GetUserDefaultLocaleName" ) )
+		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_kernel32, ( void ** )&_GetQueuedCompletionStatusEx, "GetQueuedCompletionStatusEx" ) )
 
 		kernel32_state = KERNEL32_STATE_RUNNING;
 

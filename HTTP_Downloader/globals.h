@@ -109,7 +109,7 @@
 #define CURRENT_VERSION_A	1
 #define CURRENT_VERSION_B	0
 #define CURRENT_VERSION_C	4
-#define CURRENT_VERSION_D	8
+#define CURRENT_VERSION_D	9
 
 #define CURRENT_VERSION		( ( CURRENT_VERSION_A << 24 ) | \
 							  ( CURRENT_VERSION_B << 16 ) | \
@@ -365,6 +365,7 @@ extern bool cfg_always_on_top;
 extern bool cfg_check_for_updates;
 extern bool cfg_enable_download_history;
 extern bool cfg_enable_quick_allocation;
+extern bool cfg_enable_sparse_file_allocation;
 extern bool cfg_set_filetime;
 extern bool cfg_update_redirected;
 extern bool cfg_download_non_200_206;

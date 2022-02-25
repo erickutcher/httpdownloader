@@ -251,6 +251,7 @@ extern HWND g_hWnd_chk_show_drop_window_progress;
 // Advanced Tab
 extern HWND g_hWnd_chk_download_history;
 extern HWND g_hWnd_chk_quick_allocation;
+extern HWND g_hWnd_chk_sparse_file_allocation;
 extern HWND g_hWnd_chk_set_filetime;
 extern HWND g_hWnd_chk_update_redirected;
 extern HWND g_hWnd_chk_download_non_200_206;

@@ -128,7 +128,8 @@ void UpdateMenus( bool enable )
 			// Allow queue menu if item is queued.
 			if ( is_group &&
 				 di != NULL &&
-				 IS_STATUS( di->status, STATUS_QUEUED ) )
+				 IS_STATUS( di->status, STATUS_QUEUED ) &&
+				 !g_in_list_edit_mode )
 			{
 				_EnableMenuItem( g_hMenuSub_queue, MENU_QUEUE_TOP, MF_ENABLED );
 				_EnableMenuItem( g_hMenuSub_queue, MENU_QUEUE_UP, MF_ENABLED );
@@ -642,59 +643,65 @@ void CreateMenus()
 	mii.fType = MFT_SEPARATOR;
 	_InsertMenuItemW( g_hMenuSub_download, 11, TRUE, &mii );
 
+	mii.fType = MFT_STRING;
+	mii.dwTypeData = ST_V_Enable_List_Edit_Mode;
+	mii.cch = ST_L_Enable_List_Edit_Mode;
+	mii.wID = MENU_LIST_EDIT_MODE;
+	_InsertMenuItemW( g_hMenuSub_download, 12, TRUE, &mii );
+
 	mii.fMask = MIIM_TYPE | MIIM_SUBMENU;
 	mii.fType = MFT_STRING;
 	mii.dwTypeData = ST_V_Queue;
 	mii.cch = ST_L_Queue;
 	mii.hSubMenu = g_hMenuSub_queue;
-	_InsertMenuItemW( g_hMenuSub_download, 12, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_download, 13, TRUE, &mii );
 
 	mii.fMask = MIIM_TYPE | MIIM_ID | MIIM_STATE;
 	mii.fType = MFT_SEPARATOR;
-	_InsertMenuItemW( g_hMenuSub_download, 13, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_download, 14, TRUE, &mii );
 
 	mii.fType = MFT_STRING;
 	mii.dwTypeData = ST_V_Remove;
 	mii.cch = ST_L_Remove;
 	mii.wID = MENU_REMOVE;
-	_InsertMenuItemW( g_hMenuSub_download, 14, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_download, 15, TRUE, &mii );
 
 	mii.dwTypeData = ST_V_Remove_and_Delete;
 	mii.cch = ST_L_Remove_and_Delete;
 	mii.wID = MENU_REMOVE_AND_DELETE;
-	_InsertMenuItemW( g_hMenuSub_download, 15, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_download, 16, TRUE, &mii );
 
 	mii.fType = MFT_SEPARATOR;
-	_InsertMenuItemW( g_hMenuSub_download, 16, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_download, 17, TRUE, &mii );
 
 	mii.fType = MFT_STRING;
 	mii.dwTypeData = ST_V_Delete;
 	mii.cch = ST_L_Delete;
 	mii.wID = MENU_DELETE;
-	_InsertMenuItemW( g_hMenuSub_download, 17, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_download, 18, TRUE, &mii );
 
 	mii.dwTypeData = ST_V_Rename;
 	mii.cch = ST_L_Rename;
 	mii.wID = MENU_RENAME;
-	_InsertMenuItemW( g_hMenuSub_download, 18, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_download, 19, TRUE, &mii );
 
 	mii.fType = MFT_SEPARATOR;
-	_InsertMenuItemW( g_hMenuSub_download, 19, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_download, 20, TRUE, &mii );
 
 	mii.fType = MFT_STRING;
 	mii.dwTypeData = ST_V_Copy_URL_s_;
 	mii.cch = ST_L_Copy_URL_s_;
 	mii.wID = MENU_COPY_URLS;
-	_InsertMenuItemW( g_hMenuSub_download, 20, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_download, 21, TRUE, &mii );
 
 	mii.fType = MFT_SEPARATOR;
-	_InsertMenuItemW( g_hMenuSub_download, 21, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_download, 22, TRUE, &mii );
 
 	mii.fType = MFT_STRING;
 	mii.dwTypeData = ST_V_Select_All;
 	mii.cch = ST_L_Select_All;
 	mii.wID = MENU_SELECT_ALL;
-	_InsertMenuItemW( g_hMenuSub_download, 22, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_download, 23, TRUE, &mii );
 
 	//
 
@@ -1009,64 +1016,69 @@ void CreateMenus()
 	mii.fType = MFT_SEPARATOR;
 	_InsertMenuItemW( g_hMenuSub_edit, 10, TRUE, &mii );
 
-	mii.fMask = MIIM_TYPE | MIIM_SUBMENU;
 	mii.fType = MFT_STRING;
+	mii.dwTypeData = ST_V_Enable_List__Edit_Mode;
+	mii.cch = ST_L_Enable_List__Edit_Mode;
+	mii.wID = MENU_LIST_EDIT_MODE;
+	_InsertMenuItemW( g_hMenuSub_edit, 11, TRUE, &mii );
+
+	mii.fMask = MIIM_TYPE | MIIM_SUBMENU;
 	mii.dwTypeData = ST_V_Queue;
 	mii.cch = ST_L_Queue;
 	mii.hSubMenu = g_hMenuSub_queue;
-	_InsertMenuItemW( g_hMenuSub_edit, 11, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_edit, 12, TRUE, &mii );
 
 	mii.fMask = MIIM_TYPE | MIIM_ID | MIIM_STATE;
 	mii.fType = MFT_SEPARATOR;
-	_InsertMenuItemW( g_hMenuSub_edit, 12, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_edit, 13, TRUE, &mii );
 
 	mii.fType = MFT_STRING;
 	mii.dwTypeData = ST_V__Remove_;
 	mii.cch = ST_L__Remove_;
 	mii.wID = MENU_REMOVE;
-	_InsertMenuItemW( g_hMenuSub_edit, 13, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_edit, 14, TRUE, &mii );
 
 	mii.dwTypeData = ST_V_Remove_Completed;
 	mii.cch = ST_L_Remove_Completed;
 	mii.wID = MENU_REMOVE_COMPLETED;
-	_InsertMenuItemW( g_hMenuSub_edit, 14, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_edit, 15, TRUE, &mii );
 
 	mii.dwTypeData = ST_V_Remove_and_Delete_;
 	mii.cch = ST_L_Remove_and_Delete_;
 	mii.wID = MENU_REMOVE_AND_DELETE;
-	_InsertMenuItemW( g_hMenuSub_edit, 15, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_edit, 16, TRUE, &mii );
 
 	mii.fType = MFT_SEPARATOR;
-	_InsertMenuItemW( g_hMenuSub_edit, 16, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_edit, 17, TRUE, &mii );
 
 	mii.fType = MFT_STRING;
 	mii.dwTypeData = ST_V__Delete_;
 	mii.cch = ST_L__Delete_;
 	mii.wID = MENU_DELETE;
-	_InsertMenuItemW( g_hMenuSub_edit, 17, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_edit, 18, TRUE, &mii );
 
 	mii.dwTypeData = ST_V_Rename_;
 	mii.cch = ST_L_Rename_;
 	mii.wID = MENU_RENAME;
-	_InsertMenuItemW( g_hMenuSub_edit, 18, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_edit, 19, TRUE, &mii );
 
 	mii.fType = MFT_SEPARATOR;
-	_InsertMenuItemW( g_hMenuSub_edit, 19, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_edit, 20, TRUE, &mii );
 
 	mii.fType = MFT_STRING;
 	mii.dwTypeData = ST_V__Copy_URL_s_;
 	mii.cch = ST_L__Copy_URL_s_;
 	mii.wID = MENU_COPY_URLS;
-	_InsertMenuItemW( g_hMenuSub_edit, 20, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_edit, 21, TRUE, &mii );
 
 	mii.fType = MFT_SEPARATOR;
-	_InsertMenuItemW( g_hMenuSub_edit, 21, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_edit, 22, TRUE, &mii );
 
 	mii.fType = MFT_STRING;
 	mii.dwTypeData = ST_V__Select_All_;
 	mii.cch = ST_L__Select_All_;
 	mii.wID = MENU_SELECT_ALL;
-	_InsertMenuItemW( g_hMenuSub_edit, 22, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_edit, 23, TRUE, &mii );
 
 
 	// VIEW MENU
@@ -1182,7 +1194,7 @@ void UpdateColumns( WORD menu_id )
 	int arr[ NUM_COLUMNS ];
 	unsigned char menu_index = ( unsigned char )( menu_id - COLUMN_MENU_OFFSET );
 
-	if ( menu_index >= 0 && menu_index <= NUM_COLUMNS )
+	if ( menu_index >= 0 && menu_index < NUM_COLUMNS )
 	{
 		int offset = 0;
 		int index = 0;
@@ -1424,7 +1436,12 @@ void HandleCommand( HWND hWnd, WORD command )
 					{
 						if ( CMessageBoxW( hWnd, ST_V_PROMPT_The_specified_file_was_not_found, PROGRAM_CAPTION, /*CMB_APPLMODAL |*/ CMB_ICONWARNING | CMB_YESNO ) == CMBIDYES )
 						{
-							CloseHandle( ( HANDLE )_CreateThread( NULL, 0, handle_download_list, ( void * )3, 0, NULL ) );	// Restart download (from the beginning).
+							// Restart download (from the beginning).
+							HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, handle_download_list, ( void * )3, 0, NULL );
+							if ( thread != NULL )
+							{
+								CloseHandle( thread );
+							}
 						}
 					}
 				}
@@ -1517,20 +1534,27 @@ void HandleCommand( HWND hWnd, WORD command )
 			if ( _GetOpenFileNameW( &ofn ) )
 			{
 				importexportinfo *iei = ( importexportinfo * )GlobalAlloc( GMEM_FIXED, sizeof( importexportinfo ) );
-				iei->type = 1;	// Import from menu.
-				iei->file_paths = file_name;
-				iei->file_offset = ofn.nFileOffset;
-
-				// iei will be freed in the import_list thread.
-				HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, import_list, ( void * )iei, 0, NULL );
-				if ( thread != NULL )
+				if ( iei != NULL )
 				{
-					CloseHandle( thread );
+					iei->type = 1;	// Import from menu.
+					iei->file_paths = file_name;
+					iei->file_offset = ofn.nFileOffset;
+
+					// iei will be freed in the import_list thread.
+					HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, import_list, ( void * )iei, 0, NULL );
+					if ( thread != NULL )
+					{
+						CloseHandle( thread );
+					}
+					else
+					{
+						GlobalFree( iei->file_paths );
+						GlobalFree( iei );
+					}
 				}
 				else
 				{
-					GlobalFree( iei->file_paths );
-					GlobalFree( iei );
+					GlobalFree( file_name );
 				}
 			}
 			else
@@ -1558,18 +1582,25 @@ void HandleCommand( HWND hWnd, WORD command )
 			if ( _GetSaveFileNameW( &ofn ) )
 			{
 				importexportinfo *iei = ( importexportinfo * )GlobalAlloc( GMEM_FIXED, sizeof( importexportinfo ) );
-				iei->file_paths = file_name;
-
-				// iei will be freed in the export_list thread.
-				HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, export_list, ( void * )iei, 0, NULL );
-				if ( thread != NULL )
+				if ( iei != NULL )
 				{
-					CloseHandle( thread );
+					iei->file_paths = file_name;
+
+					// iei will be freed in the export_list thread.
+					HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, export_list, ( void * )iei, 0, NULL );
+					if ( thread != NULL )
+					{
+						CloseHandle( thread );
+					}
+					else
+					{
+						GlobalFree( iei->file_paths );
+						GlobalFree( iei );
+					}
 				}
 				else
 				{
-					GlobalFree( iei->file_paths );
-					GlobalFree( iei );
+					GlobalFree( file_name );
 				}
 			}
 			else
@@ -1581,19 +1612,31 @@ void HandleCommand( HWND hWnd, WORD command )
 
 		case MENU_START:
 		{
-			CloseHandle( ( HANDLE )_CreateThread( NULL, 0, handle_connection, ( void * )STATUS_DOWNLOADING, 0, NULL ) );
+			HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, handle_connection, ( void * )STATUS_DOWNLOADING, 0, NULL );
+			if ( thread != NULL )
+			{
+				CloseHandle( thread );
+			}
 		}
 		break;
 
 		case MENU_PAUSE:
 		{
-			CloseHandle( ( HANDLE )_CreateThread( NULL, 0, handle_connection, ( void * )STATUS_PAUSED, 0, NULL ) );
+			HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, handle_connection, ( void * )STATUS_PAUSED, 0, NULL );
+			if ( thread != NULL )
+			{
+				CloseHandle( thread );
+			}
 		}
 		break;
 
 		case MENU_STOP:
 		{
-			CloseHandle( ( HANDLE )_CreateThread( NULL, 0, handle_connection, ( void * )STATUS_STOPPED, 0, NULL ) );
+			HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, handle_connection, ( void * )STATUS_STOPPED, 0, NULL );
+			if ( thread != NULL )
+			{
+				CloseHandle( thread );
+			}
 		}
 		break;
 
@@ -1601,26 +1644,42 @@ void HandleCommand( HWND hWnd, WORD command )
 		{
 			if ( CMessageBoxW( hWnd, ST_V_PROMPT_restart_selected_entries, PROGRAM_CAPTION, /*CMB_APPLMODAL |*/ CMB_ICONWARNING | CMB_YESNO ) == CMBIDYES )
 			{
-				CloseHandle( ( HANDLE )_CreateThread( NULL, 0, handle_connection, ( void * )STATUS_RESTART, 0, NULL ) );
+				HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, handle_connection, ( void * )STATUS_RESTART, 0, NULL );
+				if ( thread != NULL )
+				{
+					CloseHandle( thread );
+				}
 			}
 		}
 		break;
 
 		case MENU_START_INACTIVE:
 		{
-			CloseHandle( ( HANDLE )_CreateThread( NULL, 0, handle_connection, ( void * )UINT_MAX, 0, NULL ) );
+			HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, handle_connection, ( void * )UINT_MAX, 0, NULL );
+			if ( thread != NULL )
+			{
+				CloseHandle( thread );
+			}
 		}
 		break;
 
 		case MENU_PAUSE_ACTIVE:
 		{
-			CloseHandle( ( HANDLE )_CreateThread( NULL, 0, handle_download_list, ( void * )0, 0, NULL ) );
+			HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, handle_download_list, ( void * )0, 0, NULL );
+			if ( thread != NULL )
+			{
+				CloseHandle( thread );
+			}
 		}
 		break;
 
 		case MENU_STOP_ALL:
 		{
-			CloseHandle( ( HANDLE )_CreateThread( NULL, 0, handle_download_list, ( void * )1, 0, NULL ) );
+			HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, handle_download_list, ( void * )1, 0, NULL );
+			if ( thread != NULL )
+			{
+				CloseHandle( thread );
+			}
 		}
 		break;
 
@@ -1657,6 +1716,53 @@ void HandleCommand( HWND hWnd, WORD command )
 		}
 		break;
 
+		case MENU_LIST_EDIT_MODE:
+		{
+			if ( g_in_list_edit_mode )
+			{
+				HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, handle_download_queue, ( void * )4, 0, NULL );
+				if ( thread != NULL )
+				{
+					CloseHandle( thread );
+				}
+			}
+
+			g_in_list_edit_mode = !g_in_list_edit_mode;
+
+			if ( g_in_list_edit_mode )
+			{
+				HDITEM hdi;
+				_memzero( &hdi, sizeof( HDITEM ) );
+				hdi.mask = HDI_FORMAT | HDI_ORDER;
+
+				if ( cfg_sorted_column_index != 0 )
+				{
+					cfg_sorted_column_index = 0;
+
+					g_download_history_changed = true;
+				}
+
+				// Remove the sort format for all columns.
+				for ( unsigned char i = 1; _SendMessageW( g_hWnd_tlv_header, HDM_GETITEM, i, ( LPARAM )&hdi ) == TRUE; ++i )
+				{
+					// Remove sort up and sort down
+					hdi.fmt = hdi.fmt & ( ~HDF_SORTUP ) & ( ~HDF_SORTDOWN );
+					_SendMessageW( g_hWnd_tlv_header, HDM_SETITEM, i, ( LPARAM )&hdi );
+				}
+
+				cfg_sorted_direction = 0;
+
+				_CheckMenuItem( g_hMenuSub_edit, MENU_LIST_EDIT_MODE, MF_CHECKED );
+				_CheckMenuItem( g_hMenuSub_download, MENU_LIST_EDIT_MODE, MF_CHECKED );
+			}
+			else
+			{
+				_CheckMenuItem( g_hMenuSub_edit, MENU_LIST_EDIT_MODE, MF_UNCHECKED );
+				_CheckMenuItem( g_hMenuSub_download, MENU_LIST_EDIT_MODE, MF_UNCHECKED );
+			}
+		}
+		break;
+
 		case MENU_QUEUE_TOP:
 		case MENU_QUEUE_UP:
 		case MENU_QUEUE_DOWN:
@@ -1672,7 +1778,11 @@ void HandleCommand( HWND hWnd, WORD command )
 				case MENU_QUEUE_BOTTOM: { handle_type = 3; } break;
 			}
 
-			CloseHandle( ( HANDLE )_CreateThread( NULL, 0, handle_download_queue, ( void * )handle_type, 0, NULL ) );
+			HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, handle_download_queue, ( void * )handle_type, 0, NULL );
+			if ( thread != NULL )
+			{
+				CloseHandle( thread );
+			}
 		}
 		break;
 
@@ -1680,7 +1790,11 @@ void HandleCommand( HWND hWnd, WORD command )
 		{
 			if ( CMessageBoxW( hWnd, ST_V_PROMPT_remove_selected_entries, PROGRAM_CAPTION, /*CMB_APPLMODAL |*/ CMB_ICONWARNING | CMB_YESNO ) == CMBIDYES )
 			{
-				CloseHandle( ( HANDLE )_CreateThread( NULL, 0, remove_items, ( void * )0, 0, NULL ) );
+				HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, remove_items, ( void * )0, 0, NULL );
+				if ( thread != NULL )
+				{
+					CloseHandle( thread );
+				}
 			}
 		}
 		break;
@@ -1689,7 +1803,11 @@ void HandleCommand( HWND hWnd, WORD command )
 		{
 			if ( CMessageBoxW( hWnd, ST_V_PROMPT_remove_completed_entries, PROGRAM_CAPTION, /*CMB_APPLMODAL |*/ CMB_ICONWARNING | CMB_YESNO ) == CMBIDYES )
 			{
-				CloseHandle( ( HANDLE )_CreateThread( NULL, 0, handle_download_list, ( void * )2, 0, NULL ) );
+				HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, handle_download_list, ( void * )2, 0, NULL );
+				if ( thread != NULL )
+				{
+					CloseHandle( thread );
+				}
 			}
 		}
 		break;
@@ -1698,14 +1816,22 @@ void HandleCommand( HWND hWnd, WORD command )
 		{
 			if ( CMessageBoxW( hWnd, ST_V_PROMPT_remove_and_delete_selected_entries, PROGRAM_CAPTION, /*CMB_APPLMODAL |*/ CMB_ICONWARNING | CMB_YESNO ) == CMBIDYES )
 			{
-				CloseHandle( ( HANDLE )_CreateThread( NULL, 0, remove_items, ( void * )1, 0, NULL ) );
+				HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, remove_items, ( void * )1, 0, NULL );
+				if ( thread != NULL )
+				{
+					CloseHandle( thread );
+				}
 			}
 		}
 		break;
 
 		case MENU_COPY_URLS:
 		{
-			CloseHandle( ( HANDLE )_CreateThread( NULL, 0, copy_urls, ( void * )NULL, 0, NULL ) );
+			HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, copy_urls, ( void * )NULL, 0, NULL );
+			if ( thread != NULL )
+			{
+				CloseHandle( thread );
+			}
 		}
 		break;
 
@@ -1713,7 +1839,11 @@ void HandleCommand( HWND hWnd, WORD command )
 		{
 			if ( CMessageBoxW( hWnd, ST_V_PROMPT_delete_selected_files, PROGRAM_CAPTION, /*CMB_APPLMODAL |*/ CMB_ICONWARNING | CMB_YESNO ) == CMBIDYES )
 			{
-				CloseHandle( ( HANDLE )_CreateThread( NULL, 0, delete_files, ( void * )NULL, 0, NULL ) );
+				HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, delete_files, ( void * )NULL, 0, NULL );
+				if ( thread != NULL )
+				{
+					CloseHandle( thread );
+				}
 			}
 		}
 		break;
@@ -1899,7 +2029,11 @@ void HandleCommand( HWND hWnd, WORD command )
 			{
 				g_hWnd_check_for_updates = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"class_check_for_updates", L"Check For Updates", WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU, CW_USEDEFAULT, 0, 400, 135, NULL, NULL, NULL, NULL );
 
-				CloseHandle( ( HANDLE )_CreateThread( NULL, 0, CheckForUpdates, NULL, 0, NULL ) );
+				HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, CheckForUpdates, NULL, 0, NULL );
+				if ( thread != NULL )
+				{
+					CloseHandle( thread );
+				}
 			}
 
 			_SendMessageW( g_hWnd_check_for_updates, WM_PROPAGATE, 0, 0 );

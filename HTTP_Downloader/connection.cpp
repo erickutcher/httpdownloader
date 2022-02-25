@@ -19,6 +19,7 @@
 #include "globals.h"
 #include "connection.h"
 
+//#include "lite_kernel32.h"
 #include "lite_comdlg32.h"
 #include "lite_ole32.h"
 #include "lite_shell32.h"
@@ -42,6 +43,11 @@
 #include "doublylinkedlist.h"
 
 #include "dark_mode.h"
+
+#pragma warning( push )
+#pragma warning( disable : 4201 )	// nonstandard extension used: nameless struct/union
+#include <winioctl.h>
+#pragma warning( pop )
 
 HANDLE g_hIOCP = NULL;
 
@@ -114,7 +120,7 @@ DoublyLinkedList *active_download_list = NULL;		// List of active DOWNLOAD_INFO 
 DoublyLinkedList *file_size_prompt_list = NULL;		// List of downloads that need to be prompted to continue.
 DoublyLinkedList *rename_file_prompt_list = NULL;	// List of downloads that need to be prompted to continue.
 DoublyLinkedList *last_modified_prompt_list = NULL;	// List of downloads that need to be prompted to continue.
-DoublyLinkedList *fingerprint_prompt_list;	// List of downloads that need to be prompted to continue.
+DoublyLinkedList *fingerprint_prompt_list = NULL;	// List of downloads that need to be prompted to continue.
 
 DoublyLinkedList *move_file_queue = NULL;			// List of downloads that need to be moved to a new folder.
 
@@ -563,6 +569,11 @@ THREAD_RETURN IOCPDownloader( void * /*pArguments*/ )
 	}
 
 	g_ThreadHandles = ( HANDLE * )GlobalAlloc( GMEM_FIXED, sizeof( HANDLE ) * dwThreadCount );
+	if ( g_ThreadHandles == NULL )
+	{
+		goto HARD_CLEANUP;
+	}
+
 	for ( unsigned int i = 0; i < dwThreadCount; ++i )
 	{
 		g_ThreadHandles[ i ] = INVALID_HANDLE_VALUE;
@@ -586,12 +597,12 @@ THREAD_RETURN IOCPDownloader( void * /*pArguments*/ )
 
 	_WSAResetEvent( g_cleanup_event[ 0 ] );
 
+	HANDLE hThread;
+	DWORD dwThreadId;
+
 	// Spawn our IOCP worker threads.
 	for ( DWORD dwCPU = 0; dwCPU < dwThreadCount; ++dwCPU )
 	{
-		HANDLE hThread;
-		DWORD dwThreadId;
-
 		// Create worker threads to service the overlapped I/O requests.
 		hThread = _CreateThread( NULL, 0, IOCPConnection, g_hIOCP, 0, &dwThreadId );
 		if ( hThread == NULL )
@@ -600,7 +611,6 @@ THREAD_RETURN IOCPDownloader( void * /*pArguments*/ )
 		}
 
 		g_ThreadHandles[ dwCPU ] = hThread;
-		hThread = INVALID_HANDLE_VALUE;
 	}
 
 	if ( cfg_enable_server )
@@ -615,10 +625,12 @@ THREAD_RETURN IOCPDownloader( void * /*pArguments*/ )
 
 	g_timeout_semaphore = CreateSemaphore( NULL, 0, 1, NULL );
 
-	//CloseHandle( _CreateThread( NULL, 0, Timeout, NULL, 0, NULL ) );
 	HANDLE timeout_handle = _CreateThread( NULL, 0, Timeout, NULL, 0, NULL );
-	SetThreadPriority( timeout_handle, THREAD_PRIORITY_LOWEST );
-	CloseHandle( timeout_handle );
+	if ( timeout_handle != NULL )
+	{
+		SetThreadPriority( timeout_handle, THREAD_PRIORITY_LOWEST );
+		CloseHandle( timeout_handle );
+	}
 
 #ifdef ENABLE_LOGGING
 	WriteLog( LOG_INFO, "Waiting on IOCP threads" );
@@ -873,10 +885,13 @@ SOCKET CreateListenSocket()
 			{
 				int g_server_domain_length = lstrlenA( g_server_domain );
 				char *new_g_server_domain = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( g_server_domain_length + 3 ) );	// 2 brackets and the NULL character.
-				new_g_server_domain[ 0 ] = '[';
-				_memcpy_s( new_g_server_domain + 1, g_server_domain_length + 2, g_server_domain, g_server_domain_length );
-				new_g_server_domain[ g_server_domain_length + 1 ] = ']';
-				new_g_server_domain[ g_server_domain_length + 2 ] = 0;	// Sanity.
+				if ( new_g_server_domain != NULL )
+				{
+					new_g_server_domain[ 0 ] = '[';
+					_memcpy_s( new_g_server_domain + 1, g_server_domain_length + 2, g_server_domain, g_server_domain_length );
+					new_g_server_domain[ g_server_domain_length + 1 ] = ']';
+					new_g_server_domain[ g_server_domain_length + 2 ] = 0;	// Sanity.
+				}
 
 				GlobalFree( g_server_domain );
 				g_server_domain = new_g_server_domain;
@@ -2901,6 +2916,11 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 							scRet = DecryptRecv( context, bytes_decrypted );
 						}
 					}
+					else if ( *next_operation == IO_SparseFileAllocate )
+					{
+						*next_operation = IO_GetRequest;
+						bytes_decrypted = 1;	// Allows us into the block below, but isn't used.
+					}
 
 					if ( bytes_decrypted > 0 )
 					{
@@ -3039,6 +3059,77 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 								PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
 							}
 						}
+					}
+				}
+				else if ( context->cleanup == 2 )	// If we've forced the cleanup, then allow it to continue its steps.
+				{
+					context->cleanup = 1;	// Auto cleanup.
+				}
+				else	// We've already shutdown and/or closed the connection.
+				{
+					InterlockedIncrement( &context->pending_operations );
+					*current_operation = IO_Close;
+					PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
+				}
+
+				LeaveCriticalSection( &context->context_cs );
+			}
+			break;
+
+			case IO_SparseFileAllocate:
+			{
+				EnterCriticalSection( &context->context_cs );
+
+				if ( context->cleanup == 0 )
+				{
+					FILE_ZERO_DATA_INFORMATION fzdi;
+					fzdi.FileOffset.QuadPart = 0;
+					fzdi.BeyondFinalZero.QuadPart = context->header_info.range_info->content_length;	// This will be greater than 0.
+
+					InterlockedIncrement( &context->pending_operations );
+
+					*current_operation = *next_operation;		// Will either be IO_ResumeGetContent or IO_SFTPResumeReadContent.
+					*next_operation = IO_SparseFileAllocate;	// Lets IO_ResumeGetContent know that we want to resume even though io_size will be 0 after the DeviceIoControl call.
+
+					EnterCriticalSection( &context->download_info->shared_info->di_cs );
+					// We don't need to write a byte at the end of the file to allocate all the space.
+					BOOL bRet = DeviceIoControl( context->download_info->shared_info->hFile, FSCTL_SET_ZERO_DATA, &fzdi, sizeof( FILE_ZERO_DATA_INFORMATION ), NULL, 0, NULL, ( WSAOVERLAPPED * )overlapped );
+					if ( bRet == FALSE && ( GetLastError() != ERROR_IO_PENDING ) )
+					{
+						if ( GetLastError() == ERROR_DISK_FULL )
+						{
+							context->download_info->status = STATUS_INSUFFICIENT_DISK_SPACE;
+							context->status = STATUS_INSUFFICIENT_DISK_SPACE;
+						}
+						else
+						{
+							context->download_info->status = STATUS_FILE_IO_ERROR;
+							context->status = STATUS_FILE_IO_ERROR;
+						}
+
+						LeaveCriticalSection( &context->download_info->shared_info->di_cs );
+
+						context->is_allocated = false;
+
+						if ( context->ssh != NULL )
+						{
+							InterlockedDecrement( &context->pending_operations );
+
+							context->overlapped_close.current_operation = IO_SFTPCleanup;
+
+							*current_operation = IO_SFTPReadContent;
+
+							SFTP_HandleContent( context, IO_SFTPReadContent, 0 );	// Causes the download or backend to get closed.
+						}
+						else
+						{
+							*current_operation = ( use_ssl ? IO_Shutdown : IO_Close );
+							PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
+						}
+					}
+					else
+					{
+						LeaveCriticalSection( &context->download_info->shared_info->di_cs );
 					}
 				}
 				else if ( context->cleanup == 2 )	// If we've forced the cleanup, then allow it to continue its steps.
@@ -3810,18 +3901,20 @@ void UpdateRangeList( DOWNLOAD_INFO *di )
 			// Check if our range still needs to download.
 			if ( ri != NULL && ( ri->content_offset < ( ( ri->range_end - ri->range_start ) + 1 ) ) )
 			{
-				++range_info_count;
+				ri_copy = ( RANGE_INFO * )GlobalAlloc( GMEM_FIXED, sizeof( RANGE_INFO ) );
+				if ( ri_copy != NULL )
+				{
+					++range_info_count;
 
-				RANGE_INFO *ri_copy = ( RANGE_INFO * )GlobalAlloc( GMEM_FIXED, sizeof( RANGE_INFO ) );
+					ri_copy->content_length = ri->content_length;
+					ri_copy->content_offset = ri->content_offset;
+					ri_copy->file_write_offset = ri->file_write_offset;
+					ri_copy->range_end = ri->range_end;
+					ri_copy->range_start = ri->range_start;
 
-				ri_copy->content_length = ri->content_length;
-				ri_copy->content_offset = ri->content_offset;
-				ri_copy->file_write_offset = ri->file_write_offset;
-				ri_copy->range_end = ri->range_end;
-				ri_copy->range_start = ri->range_start;
-
-				DoublyLinkedList *new_range_node = DLL_CreateNode( ( void * )ri_copy );
-				DLL_AddNode( &active_range_list, new_range_node, -1 );
+					DoublyLinkedList *new_range_node = DLL_CreateNode( ( void * )ri_copy );
+					DLL_AddNode( &active_range_list, new_range_node, -1 );
+				}
 			}
 
 			range_node = range_node->next;
@@ -3861,47 +3954,59 @@ void UpdateRangeList( DOWNLOAD_INFO *di )
 				unsigned long long range_offset = ri_copy->range_start + ri_copy->content_offset;
 				unsigned long long range_end = ri_copy->range_end;
 
-				for ( unsigned short i = 1; i <= t_parts; ++i )
+				for ( unsigned short part = 1; part <= t_parts; ++part )
 				{
 					// Download was restarted before a range list was created.
 					if ( range_node == NULL )
 					{
-						ri = ( RANGE_INFO * )GlobalAlloc( GPTR, sizeof( RANGE_INFO ) );
+						ri = ( RANGE_INFO * )GlobalAlloc( GMEM_FIXED/*GPTR*/, sizeof( RANGE_INFO ) );
+						if ( ri != NULL )
+						{
+							range_node = DLL_CreateNode( ( void * )ri );
+							DLL_AddNode( &di->range_list, range_node, -1 );
+						}
 
-						range_node = DLL_CreateNode( ( void * )ri );
-						DLL_AddNode( &di->range_list, range_node, -1 );
+						range_node = NULL;
 					}
 					else
 					{
 						ri = ( RANGE_INFO * )range_node->data;
+
+						range_node = range_node->next;
 					}
 
-					// Reuse this range info.
-					ri->content_length = 0;
-					ri->content_offset = 0;
-
-					if ( i == 1 )
+					if ( ri != NULL )
 					{
-						ri->range_start = range_offset;
+						// Reuse this range info.
+						ri->content_length = 0;
+						ri->content_offset = 0;
+
+						if ( part == 1 )
+						{
+							ri->range_start = range_offset;
+						}
+						else
+						{
+							ri->range_start = range_offset + 1;
+						}
+
+						if ( part < t_parts )
+						{
+							range_offset += range_size;
+							ri->range_end = range_offset;
+						}
+						else	// Make sure we have an accurate range end for the last part.
+						{
+							ri->range_end = range_end;
+						}
+
+						ri->file_write_offset = ri->range_start;
 					}
 					else
 					{
-						ri->range_start = range_offset + 1;
+						--part;
+						--t_parts;
 					}
-
-					if ( i < t_parts )
-					{
-						range_offset += range_size;
-						ri->range_end = range_offset;
-					}
-					else	// Make sure we have an accurate range end for the last part.
-					{
-						ri->range_end = range_end;
-					}
-
-					ri->file_write_offset = ri->range_start;
-
-					range_node = range_node->next;
 				}
 
 				range_node_copy = range_node_copy->next;
@@ -4002,40 +4107,55 @@ void ResetDownload( DOWNLOAD_INFO *di, unsigned char reset_type, bool reset_prog
 					range_offset = 0;
 				}
 
-				for ( unsigned char part = 1; part <= di->parts; ++part )
+				unsigned short t_parts = di->parts;
+
+				for ( unsigned short part = 1; part <= t_parts; ++part )
 				{
 					if ( range_node != NULL )
 					{
 						ri = ( RANGE_INFO * )range_node->data;
-						ri->content_length = 0;
-						ri->content_offset = 0;
-						ri->file_write_offset = 0;
-						ri->range_start = 0;
-						ri->range_end = 0;
 
 						range_node = range_node->next;
 					}
 					else
 					{
-						ri = ( RANGE_INFO * )GlobalAlloc( GPTR, sizeof( RANGE_INFO ) );
+						ri = ( RANGE_INFO * )GlobalAlloc( GMEM_FIXED/*GPTR*/, sizeof( RANGE_INFO ) );
+						if ( ri != NULL )
+						{
+							range_node = DLL_CreateNode( ( void * )ri );
+							DLL_AddNode( &di->range_list, range_node, -1 );
+						}
 
-						DoublyLinkedList *range_node = DLL_CreateNode( ( void * )ri );
-						DLL_AddNode( &di->range_list, range_node, -1 );
+						range_node = NULL;
 					}
 
-					ri->range_start = range_offset;
-
-					if ( part < di->parts )
+					if ( ri != NULL )
 					{
-						range_offset += range_size;
-						ri->range_end = range_offset - 1;
-					}
-					else	// Make sure we have an accurate range end for the last part.
-					{
-						ri->range_end = content_length - 1;
-					}
+						ri->content_length = 0;
+						ri->content_offset = 0;
+						//ri->file_write_offset = 0;
+						//ri->range_start = 0;
+						//ri->range_end = 0;
 
-					ri->file_write_offset = ri->range_start;
+						ri->range_start = range_offset;
+
+						if ( part < t_parts )
+						{
+							range_offset += range_size;
+							ri->range_end = range_offset - 1;
+						}
+						else	// Make sure we have an accurate range end for the last part.
+						{
+							ri->range_end = content_length - 1;
+						}
+
+						ri->file_write_offset = ri->range_start;
+					}
+					else
+					{
+						--part;
+						--t_parts;
+					}
 				}
 
 				// Extra range nodes were allocated. Remove them.
@@ -4089,7 +4209,10 @@ void ResetDownload( DOWNLOAD_INFO *di, unsigned char reset_type, bool reset_prog
 
 		EnterCriticalSection( &di->shared_info->di_cs );
 
-		di->shared_info->start_time.QuadPart = 0;
+		if ( di->shared_info->active_hosts == 0 )
+		{
+			di->shared_info->start_time.QuadPart = 0;
+		}
 
 		// If we manually start a download that was added remotely, then allow the prompts to display.
 		di->shared_info->download_operations &= ~DOWNLOAD_OPERATION_OVERRIDE_PROMPTS;
@@ -4439,14 +4562,17 @@ void StartDownload( DOWNLOAD_INFO *di, unsigned char start_type, unsigned char s
 					if ( IS_GROUP( di ) )
 					{
 						EnterCriticalSection( &di->shared_info->di_cs );
-						if ( di->shared_info->start_time.QuadPart == 0 )
+						if ( di->shared_info->active_hosts == 0 )
 						{
-							GetSystemTimeAsFileTime( &ft );
-							di->shared_info->start_time.LowPart = ft.dwLowDateTime;
-							di->shared_info->start_time.HighPart = ft.dwHighDateTime;
-						}
+							if ( di->shared_info->start_time.QuadPart == 0 )
+							{
+								GetSystemTimeAsFileTime( &ft );
+								di->shared_info->start_time.LowPart = ft.dwLowDateTime;
+								di->shared_info->start_time.HighPart = ft.dwHighDateTime;
+							}
 
-						di->shared_info->status = STATUS_CONNECTING;
+							di->shared_info->status = STATUS_CONNECTING;
+						}
 						LeaveCriticalSection( &di->shared_info->di_cs );
 					}
 
@@ -4543,7 +4669,10 @@ void StartDownload( DOWNLOAD_INFO *di, unsigned char start_type, unsigned char s
 			{
 				EnterCriticalSection( &di->shared_info->di_cs );
 
-				di->shared_info->last_downloaded = di->shared_info->downloaded;
+				if ( di->shared_info->active_hosts <= 1 && add_state == 1 )	// Include the host we're starting.
+				{
+					di->shared_info->last_downloaded = di->shared_info->downloaded;
+				}
 
 				LeaveCriticalSection( &di->shared_info->di_cs );
 			}
@@ -4871,18 +5000,20 @@ ICON_INFO *CacheIcon( DOWNLOAD_INFO *di, SHFILEINFO *sfi )
 			}
 
 			ii = ( ICON_INFO * )GlobalAlloc( GMEM_FIXED, sizeof( DOWNLOAD_INFO ) );
-
-			ii->file_extension = GlobalStrDupW( di->file_path + di->file_extension_offset );
-			ii->icon = sfi->hIcon;
-
-			ii->count = 1;
-
-			if ( dllrbt_insert( g_icon_handles, ( void * )ii->file_extension, ( void * )ii ) != DLLRBT_STATUS_OK )
+			if ( ii != NULL )
 			{
-				DestroyIcon( ii->icon );
-				GlobalFree( ii->file_extension );
-				GlobalFree( ii );
-				ii = NULL;
+				ii->file_extension = GlobalStrDupW( di->file_path + di->file_extension_offset );
+				ii->icon = sfi->hIcon;
+
+				ii->count = 1;
+
+				if ( dllrbt_insert( g_icon_handles, ( void * )ii->file_extension, ( void * )ii ) != DLLRBT_STATUS_OK )
+				{
+					DestroyIcon( ii->icon );
+					GlobalFree( ii->file_extension );
+					GlobalFree( ii );
+					ii = NULL;
+				}
 			}
 		}
 		else
@@ -5169,42 +5300,47 @@ wchar_t *ParseURLSettings( wchar_t *url_list, ADD_INFO *ai )
 				}
 				else if ( param_name_length == 16 && _StrCmpNIW( param_name_start, L"proxy-ip-address", 16 ) == 0 )	// Proxy IP address.
 				{
-					unsigned int proxy_ip_address = 0;
-
-					wchar_t *ipaddr = param_value_start;
-
-					for ( char i = 3; i >= 0; --i )
+					if ( param_value_start != NULL )
 					{
-						wchar_t *ptr = ipaddr;
-						while ( ptr != NULL && *ptr != NULL )
-						{
-							if ( *ptr == L'.' )
-							{
-								*ptr = 0;
-								++ptr;
+						unsigned int proxy_ip_address = 0;
 
+						wchar_t *ipaddr = param_value_start;
+
+						for ( char i = 3; i >= 0; --i )
+						{
+							wchar_t *ptr = ipaddr;
+							while ( ptr != NULL && *ptr != NULL )
+							{
+								if ( *ptr == L'.' )
+								{
+									*ptr = 0;
+									++ptr;
+
+									break;
+								}
+
+								++ptr;
+							}
+
+							if ( *ptr == NULL && i > 0 )
+							{
 								break;
 							}
 
-							++ptr;
-						}
+							proxy_ip_address |= ( ( unsigned int )_wcstoul( ipaddr, NULL, 10 ) << ( 8 * i ) );
 
-						if ( *ptr == NULL && i > 0 )
-						{
-							break;
-						}
-
-						proxy_ip_address |= ( ( unsigned int )_wcstoul( ipaddr, NULL, 10 ) << ( 8 * i ) );
-
-						if ( *ptr == NULL && i == 0 )
-						{
-							ai->proxy_info.ip_address = proxy_ip_address;
-						}
-						else
-						{
-							ipaddr = ptr;
+							if ( *ptr == NULL && i == 0 )
+							{
+								ai->proxy_info.ip_address = proxy_ip_address;
+							}
+							else
+							{
+								ipaddr = ptr;
+							}
 						}
 					}
+
+					ai->proxy_info.address_type = 1;
 				}
 				else if ( param_name_length == 10 && _StrCmpNIW( param_name_start, L"proxy-port", 10 ) == 0 )	// Proxy port.
 				{
@@ -6708,15 +6844,16 @@ DWORD WINAPI AddURL( void *add_info )
 		TLV_SetFirstVisibleIndex( 0 );
 	}
 
-	if ( cfg_sort_added_and_updating_items &&
+	if ( !g_in_list_edit_mode &&
+		 cfg_sort_added_and_updating_items &&
 		 cfg_sorted_column_index != COLUMN_NUM )	// #
 	{
-		SORT_INFO si;
-		si.column = GetColumnIndexFromVirtualIndex( cfg_sorted_column_index, download_columns, NUM_COLUMNS );
-		si.hWnd = g_hWnd_tlv_files;
-		si.direction = cfg_sorted_direction;
+		SORT_INFO sort_info;
+		sort_info.column = cfg_sorted_column_index;
+		sort_info.hWnd = g_hWnd_tlv_files;
+		sort_info.direction = cfg_sorted_direction;
 
-		_SendMessageW( g_hWnd_tlv_files, TLVM_SORT_ITEMS, NULL, ( LPARAM )&si );
+		_SendMessageW( g_hWnd_tlv_files, TLVM_SORT_ITEMS, NULL, ( LPARAM )&sort_info );
 	}
 
 	UpdateSBItemCount();
@@ -6819,17 +6956,25 @@ void StartQueuedItem()
 				DLL_RemoveNode( &download_queue, &di->queue_node );
 				di->queue_node.data = NULL;
 
+				DoublyLinkedList *host_node = di->shared_info->host_list;
+				DOWNLOAD_INFO *driver_di = NULL;
+
 				LeaveCriticalSection( &download_queue_cs );
 
-				bool is_group = IS_GROUP( ( ( DOWNLOAD_INFO * )di->shared_info->host_list->data ) ) && !di->shared_info->processed_header;
+				bool is_group;
 
-				DoublyLinkedList *host_node;
-				DOWNLOAD_INFO *driver_di = NULL;
+				if ( host_node != NULL && host_node->data != NULL )
+				{
+					is_group = IS_GROUP( ( ( DOWNLOAD_INFO * )host_node->data ) ) && !di->shared_info->processed_header;
+				}
+				else
+				{
+					is_group = false;
+				}
 
 				if ( is_group )
 				{
 					// Find the first host that can act as a driver.
-					host_node = di->shared_info->host_list;
 					while ( host_node != NULL )
 					{
 						DOWNLOAD_INFO *host_di = ( DOWNLOAD_INFO * )host_node->data;
@@ -7244,208 +7389,215 @@ void ReallocateParts( SOCKET_CONTEXT *context )
 
 			// Save the request information, the header information (if we got any), and create a new connection.
 			SOCKET_CONTEXT *new_context = CreateSocketContext();
-
-			new_context->processed_header = true;
-
-			new_context->part = reallocated_context->part + 1;
-			new_context->parts = reallocated_context->parts;
-
-			new_context->got_filename = reallocated_context->got_filename;	// No need to rename it again.
-			new_context->got_last_modified = reallocated_context->got_last_modified;	// No need to get the date/time again.
-			new_context->show_file_size_prompt = reallocated_context->show_file_size_prompt;	// No need to prompt again.
-
-			new_context->request_info.host = GlobalStrDupA( reallocated_context->request_info.host );
-			new_context->request_info.port = reallocated_context->request_info.port;
-			new_context->request_info.resource = GlobalStrDupA( reallocated_context->request_info.resource );
-			new_context->request_info.protocol = reallocated_context->request_info.protocol;
-
-			if ( reallocated_context->request_info.protocol == PROTOCOL_FTP ||
-				 reallocated_context->request_info.protocol == PROTOCOL_FTPS ||
-				 reallocated_context->request_info.protocol == PROTOCOL_FTPES )
+			if ( new_context != NULL )
 			{
-				new_context->ftp_connection_type = FTP_CONNECTION_TYPE_CONTROL;
+				new_context->processed_header = true;
 
-				new_context->request_info.redirect_count = reallocated_context->request_info.redirect_count;	// This is being used to determine whether we've switched modes (fallback mode).
-				new_context->header_info.connection = reallocated_context->header_info.connection;				// This is being used as our mode value. (cfg_ftp_mode_type)
-			}
-			else if ( reallocated_context->request_info.protocol == PROTOCOL_HTTP ||
-					  reallocated_context->request_info.protocol == PROTOCOL_HTTPS )
-			{
-				new_context->request_info.auth_info.username = GlobalStrDupA( reallocated_context->request_info.auth_info.username );
-				new_context->request_info.auth_info.password = GlobalStrDupA( reallocated_context->request_info.auth_info.password );
+				new_context->part = reallocated_context->part + 1;
+				new_context->parts = reallocated_context->parts;
 
-				new_context->header_info.cookie_tree = CopyCookieTree( reallocated_context->header_info.cookie_tree );
-				new_context->header_info.cookies = GlobalStrDupA( reallocated_context->header_info.cookies );
+				new_context->got_filename = reallocated_context->got_filename;	// No need to rename it again.
+				new_context->got_last_modified = reallocated_context->got_last_modified;	// No need to get the date/time again.
+				new_context->show_file_size_prompt = reallocated_context->show_file_size_prompt;	// No need to prompt again.
 
-				// We can copy the digest info so that we don't have to make any extra requests to 401 and 407 responses.
-				if ( reallocated_context->header_info.digest_info != NULL )
+				new_context->request_info.host = GlobalStrDupA( reallocated_context->request_info.host );
+				new_context->request_info.port = reallocated_context->request_info.port;
+				new_context->request_info.resource = GlobalStrDupA( reallocated_context->request_info.resource );
+				new_context->request_info.protocol = reallocated_context->request_info.protocol;
+
+				if ( reallocated_context->request_info.protocol == PROTOCOL_FTP ||
+					 reallocated_context->request_info.protocol == PROTOCOL_FTPS ||
+					 reallocated_context->request_info.protocol == PROTOCOL_FTPES )
 				{
-					new_context->header_info.digest_info = ( AUTH_INFO * )GlobalAlloc( GPTR, sizeof( AUTH_INFO ) );
+					new_context->ftp_connection_type = FTP_CONNECTION_TYPE_CONTROL;
 
-					new_context->header_info.digest_info->algorithm = reallocated_context->header_info.digest_info->algorithm;
-					new_context->header_info.digest_info->auth_type = reallocated_context->header_info.digest_info->auth_type;
-					new_context->header_info.digest_info->qop_type = reallocated_context->header_info.digest_info->qop_type;
-
-					new_context->header_info.digest_info->domain = GlobalStrDupA( reallocated_context->header_info.digest_info->domain );
-					new_context->header_info.digest_info->nonce = GlobalStrDupA( reallocated_context->header_info.digest_info->nonce );
-					new_context->header_info.digest_info->opaque = GlobalStrDupA( reallocated_context->header_info.digest_info->opaque );
-					new_context->header_info.digest_info->qop = GlobalStrDupA( reallocated_context->header_info.digest_info->qop );
-					new_context->header_info.digest_info->realm = GlobalStrDupA( reallocated_context->header_info.digest_info->realm );
+					new_context->request_info.redirect_count = reallocated_context->request_info.redirect_count;	// This is being used to determine whether we've switched modes (fallback mode).
+					new_context->header_info.connection = reallocated_context->header_info.connection;				// This is being used as our mode value. (cfg_ftp_mode_type)
 				}
-
-				if ( reallocated_context->header_info.proxy_digest_info != NULL )
+				else if ( reallocated_context->request_info.protocol == PROTOCOL_HTTP ||
+						  reallocated_context->request_info.protocol == PROTOCOL_HTTPS )
 				{
-					new_context->header_info.proxy_digest_info = ( AUTH_INFO * )GlobalAlloc( GPTR, sizeof( AUTH_INFO ) );
+					new_context->request_info.auth_info.username = GlobalStrDupA( reallocated_context->request_info.auth_info.username );
+					new_context->request_info.auth_info.password = GlobalStrDupA( reallocated_context->request_info.auth_info.password );
 
-					new_context->header_info.proxy_digest_info->algorithm = reallocated_context->header_info.proxy_digest_info->algorithm;
-					new_context->header_info.proxy_digest_info->auth_type = reallocated_context->header_info.proxy_digest_info->auth_type;
-					new_context->header_info.proxy_digest_info->qop_type = reallocated_context->header_info.proxy_digest_info->qop_type;
+					new_context->header_info.cookie_tree = CopyCookieTree( reallocated_context->header_info.cookie_tree );
+					new_context->header_info.cookies = GlobalStrDupA( reallocated_context->header_info.cookies );
 
-					new_context->header_info.proxy_digest_info->domain = GlobalStrDupA( reallocated_context->header_info.proxy_digest_info->domain );
-					new_context->header_info.proxy_digest_info->nonce = GlobalStrDupA( reallocated_context->header_info.proxy_digest_info->nonce );
-					new_context->header_info.proxy_digest_info->opaque = GlobalStrDupA( reallocated_context->header_info.proxy_digest_info->opaque );
-					new_context->header_info.proxy_digest_info->qop = GlobalStrDupA( reallocated_context->header_info.proxy_digest_info->qop );
-					new_context->header_info.proxy_digest_info->realm = GlobalStrDupA( reallocated_context->header_info.proxy_digest_info->realm );
-				}
-			}
-
-			// Reuse the completed range_node from the current context.
-			DoublyLinkedList *range_node = di->range_list;
-			while ( range_node != NULL && range_node->data != context->header_info.range_info )
-			{
-				range_node = range_node->next;
-			}
-
-			RANGE_INFO *ri;
-
-			// The completed range_node's next sibling needs to have its values adjusted.
-			// Its start value will become the completed range_node's start value.
-			// Its content offset will include everything between it and the completed range_node's start value.
-			if ( range_node != NULL && range_node->next != NULL )
-			{
-				RANGE_INFO *completed_range_info = ( RANGE_INFO * )range_node->data;
-				RANGE_INFO *next_range_info = ( RANGE_INFO * )range_node->next->data;
-
-				next_range_info->content_offset += ( next_range_info->range_start - completed_range_info->range_start );
-				next_range_info->range_start = completed_range_info->range_start;
-
-				DLL_RemoveNode( &di->range_list, range_node );
-
-				di->print_range_list = di->range_list;
-
-				// We'll reuse the existing range node.
-				ri = ( RANGE_INFO * )range_node->data;
-
-				ri->content_length = 0;
-				ri->content_offset = 0;
-			}
-			else	// We can't apply the adjustments above to the last node since it has no next sibling, so we'll just create one.
-			{
-				ri = ( RANGE_INFO * )GlobalAlloc( GPTR, sizeof( RANGE_INFO ) );
-
-				range_node = DLL_CreateNode( ( void * )ri );
-			}
-
-			// Split the reallocated context's range_info.
-			ri->range_end = reallocated_context->header_info.range_info->range_end;
-			reallocated_context->header_info.range_info->range_end -= ( remaining_size / 2 );
-			ri->range_start = reallocated_context->header_info.range_info->range_end + 1;
-			ri->file_write_offset = ri->range_start;
-
-			if ( reallocated_context->request_info.protocol != PROTOCOL_HTTP &&
-				 reallocated_context->request_info.protocol != PROTOCOL_HTTPS )
-			{
-				ri->content_length = reallocated_context->header_info.range_info->content_length;
-			}
-
-			new_context->header_info.range_info = ri;
-
-			//
-
-			new_context->context_node.data = new_context;
-
-			EnterCriticalSection( &context_list_cs );
-
-			DLL_AddNode( &g_context_list, &new_context->context_node, 0 );
-
-			LeaveCriticalSection( &context_list_cs );
-
-			// Add to the parts list.
-			if ( reallocated_context->download_info != NULL )
-			{
-				EnterCriticalSection( &reallocated_context->download_info->di_cs );
-
-				new_context->download_info = reallocated_context->download_info;
-
-				++( new_context->download_info->active_parts );
-
-				// Find the reallocated context's range_info node.
-				DoublyLinkedList *reallocated_range_node = reallocated_context->download_info->range_list;
-				while ( reallocated_range_node != NULL && reallocated_range_node->data != reallocated_context->header_info.range_info )
-				{
-					reallocated_range_node = reallocated_range_node->next;
-				}
-
-				// Insert the new range_node into the range_list.
-				if ( reallocated_range_node != NULL )
-				{
-					range_node->next = reallocated_range_node->next;
-					if ( reallocated_range_node->next != NULL )
+					// We can copy the digest info so that we don't have to make any extra requests to 401 and 407 responses.
+					if ( reallocated_context->header_info.digest_info != NULL )
 					{
-						reallocated_range_node->next->prev = range_node;
+						new_context->header_info.digest_info = ( AUTH_INFO * )GlobalAlloc( GPTR, sizeof( AUTH_INFO ) );
+
+						new_context->header_info.digest_info->algorithm = reallocated_context->header_info.digest_info->algorithm;
+						new_context->header_info.digest_info->auth_type = reallocated_context->header_info.digest_info->auth_type;
+						new_context->header_info.digest_info->qop_type = reallocated_context->header_info.digest_info->qop_type;
+
+						new_context->header_info.digest_info->domain = GlobalStrDupA( reallocated_context->header_info.digest_info->domain );
+						new_context->header_info.digest_info->nonce = GlobalStrDupA( reallocated_context->header_info.digest_info->nonce );
+						new_context->header_info.digest_info->opaque = GlobalStrDupA( reallocated_context->header_info.digest_info->opaque );
+						new_context->header_info.digest_info->qop = GlobalStrDupA( reallocated_context->header_info.digest_info->qop );
+						new_context->header_info.digest_info->realm = GlobalStrDupA( reallocated_context->header_info.digest_info->realm );
 					}
-					else
+
+					if ( reallocated_context->header_info.proxy_digest_info != NULL )
 					{
-						new_context->download_info->range_list->prev = range_node;
+						new_context->header_info.proxy_digest_info = ( AUTH_INFO * )GlobalAlloc( GPTR, sizeof( AUTH_INFO ) );
+
+						new_context->header_info.proxy_digest_info->algorithm = reallocated_context->header_info.proxy_digest_info->algorithm;
+						new_context->header_info.proxy_digest_info->auth_type = reallocated_context->header_info.proxy_digest_info->auth_type;
+						new_context->header_info.proxy_digest_info->qop_type = reallocated_context->header_info.proxy_digest_info->qop_type;
+
+						new_context->header_info.proxy_digest_info->domain = GlobalStrDupA( reallocated_context->header_info.proxy_digest_info->domain );
+						new_context->header_info.proxy_digest_info->nonce = GlobalStrDupA( reallocated_context->header_info.proxy_digest_info->nonce );
+						new_context->header_info.proxy_digest_info->opaque = GlobalStrDupA( reallocated_context->header_info.proxy_digest_info->opaque );
+						new_context->header_info.proxy_digest_info->qop = GlobalStrDupA( reallocated_context->header_info.proxy_digest_info->qop );
+						new_context->header_info.proxy_digest_info->realm = GlobalStrDupA( reallocated_context->header_info.proxy_digest_info->realm );
 					}
-					range_node->prev = reallocated_range_node;
-					reallocated_range_node->next = range_node;
 				}
-				else	// Shouldn't happen.
+
+				// Reuse the completed range_node from the current context.
+				DoublyLinkedList *range_node = di->range_list;
+				while ( range_node != NULL && range_node->data != context->header_info.range_info )
 				{
-					GlobalFree( range_node->data );
-					GlobalFree( range_node );
+					range_node = range_node->next;
 				}
 
-				new_context->parts_node.data = new_context;
+				RANGE_INFO *ri;
 
-				// Insert the new context into the parts_list.
-				new_context->parts_node.next = reallocated_context->parts_node.next;
-				if ( reallocated_context->parts_node.next != NULL )
+				// The completed range_node's next sibling needs to have its values adjusted.
+				// Its start value will become the completed range_node's start value.
+				// Its content offset will include everything between it and the completed range_node's start value.
+				if ( range_node != NULL && range_node->next != NULL )
 				{
-					reallocated_context->parts_node.next->prev = &new_context->parts_node;
+					RANGE_INFO *completed_range_info = ( RANGE_INFO * )range_node->data;
+					RANGE_INFO *next_range_info = ( RANGE_INFO * )range_node->next->data;
+
+					next_range_info->content_offset += ( next_range_info->range_start - completed_range_info->range_start );
+					next_range_info->range_start = completed_range_info->range_start;
+
+					DLL_RemoveNode( &di->range_list, range_node );
+
+					di->print_range_list = di->range_list;
+
+					// We'll reuse the existing range node.
+					ri = ( RANGE_INFO * )range_node->data;
 				}
-				else
+				else	// We can't apply the adjustments above to the last node since it has no next sibling, so we'll just create one.
 				{
-					new_context->download_info->parts_list->prev = &new_context->parts_node;
+					ri = ( RANGE_INFO * )GlobalAlloc( GMEM_FIXED/*GPTR*/, sizeof( RANGE_INFO ) );
+					if ( ri != NULL )
+					{
+						range_node = DLL_CreateNode( ( void * )ri );
+					}
 				}
-				new_context->parts_node.prev = &reallocated_context->parts_node;
-				reallocated_context->parts_node.next = &new_context->parts_node;
 
-				LeaveCriticalSection( &reallocated_context->download_info->di_cs );
-
-				EnterCriticalSection( &reallocated_context->download_info->shared_info->di_cs );
-
-				// For groups.
-				if ( IS_GROUP( reallocated_context->download_info ) )
+				if ( ri != NULL )
 				{
-					++( reallocated_context->download_info->shared_info->active_parts );
+					ri->content_length = 0;
+					ri->content_offset = 0;
+
+					// Split the reallocated context's range_info.
+					ri->range_end = reallocated_context->header_info.range_info->range_end;
+					reallocated_context->header_info.range_info->range_end -= ( remaining_size / 2 );
+					ri->range_start = reallocated_context->header_info.range_info->range_end + 1;
+					ri->file_write_offset = ri->range_start;
+
+					if ( reallocated_context->request_info.protocol != PROTOCOL_HTTP &&
+						 reallocated_context->request_info.protocol != PROTOCOL_HTTPS )
+					{
+						ri->content_length = reallocated_context->header_info.range_info->content_length;
+					}
+
+					new_context->header_info.range_info = ri;
+
+					//
+
+					new_context->context_node.data = new_context;
+
+					EnterCriticalSection( &context_list_cs );
+
+					DLL_AddNode( &g_context_list, &new_context->context_node, 0 );
+
+					LeaveCriticalSection( &context_list_cs );
+
+					// Add to the parts list.
+					if ( reallocated_context->download_info != NULL )
+					{
+						EnterCriticalSection( &reallocated_context->download_info->di_cs );
+
+						new_context->download_info = reallocated_context->download_info;
+
+						++( new_context->download_info->active_parts );
+
+						// Find the reallocated context's range_info node.
+						DoublyLinkedList *reallocated_range_node = reallocated_context->download_info->range_list;
+						while ( reallocated_range_node != NULL && reallocated_range_node->data != reallocated_context->header_info.range_info )
+						{
+							reallocated_range_node = reallocated_range_node->next;
+						}
+
+						// Insert the new range_node into the range_list.
+						if ( reallocated_range_node != NULL )
+						{
+							range_node->next = reallocated_range_node->next;
+							if ( reallocated_range_node->next != NULL )
+							{
+								reallocated_range_node->next->prev = range_node;
+							}
+							else
+							{
+								new_context->download_info->range_list->prev = range_node;
+							}
+							range_node->prev = reallocated_range_node;
+							reallocated_range_node->next = range_node;
+						}
+						else	// Shouldn't happen.
+						{
+							GlobalFree( range_node->data );
+							GlobalFree( range_node );
+						}
+
+						new_context->parts_node.data = new_context;
+
+						// Insert the new context into the parts_list.
+						new_context->parts_node.next = reallocated_context->parts_node.next;
+						if ( reallocated_context->parts_node.next != NULL )
+						{
+							reallocated_context->parts_node.next->prev = &new_context->parts_node;
+						}
+						else
+						{
+							new_context->download_info->parts_list->prev = &new_context->parts_node;
+						}
+						new_context->parts_node.prev = &reallocated_context->parts_node;
+						reallocated_context->parts_node.next = &new_context->parts_node;
+
+						LeaveCriticalSection( &reallocated_context->download_info->di_cs );
+
+						EnterCriticalSection( &reallocated_context->download_info->shared_info->di_cs );
+
+						// For groups.
+						if ( IS_GROUP( reallocated_context->download_info ) )
+						{
+							++( reallocated_context->download_info->shared_info->active_parts );
+						}
+
+						LeaveCriticalSection( &reallocated_context->download_info->shared_info->di_cs );
+					}
+
+					new_context->status = STATUS_CONNECTING;
+
+					if ( !CreateConnection( new_context, new_context->request_info.host, new_context->request_info.port ) )
+					{
+						new_context->status = STATUS_FAILED;
+
+						InterlockedIncrement( &new_context->pending_operations );
+
+						new_context->overlapped.current_operation = IO_Close;
+
+						PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )new_context, ( OVERLAPPED * )&new_context->overlapped );
+					}
 				}
-
-				LeaveCriticalSection( &reallocated_context->download_info->shared_info->di_cs );
-			}
-
-			new_context->status = STATUS_CONNECTING;
-
-			if ( !CreateConnection( new_context, new_context->request_info.host, new_context->request_info.port ) )
-			{
-				new_context->status = STATUS_FAILED;
-
-				InterlockedIncrement( &new_context->pending_operations );
-
-				new_context->overlapped.current_operation = IO_Close;
-
-				PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )new_context, ( OVERLAPPED * )&new_context->overlapped );
 			}
 		}
 	}
@@ -7947,7 +8099,7 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 								// Safe to free this here since the listview item will have been removed.
 								while ( di->range_list != NULL )
 								{
-									DoublyLinkedList *range_node = di->range_list;
+									range_node = di->range_list;
 									di->range_list = di->range_list->next;
 
 									GlobalFree( range_node->data );
@@ -8075,12 +8227,6 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 
 									shared_info->time_remaining = 0;
 									shared_info->speed = 0;
-
-									FILETIME ft;
-									GetSystemTimeAsFileTime( &ft );
-									ULARGE_INTEGER current_time;
-									current_time.HighPart = ft.dwHighDateTime;
-									current_time.LowPart = ft.dwLowDateTime;
 
 									shared_info->time_elapsed = ( current_time.QuadPart - shared_info->start_time.QuadPart ) / FILETIME_TICKS_PER_SECOND;
 								}

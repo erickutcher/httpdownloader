@@ -118,87 +118,90 @@ int CMessageBoxW( HWND hWnd, LPCWSTR lpText, LPCWSTR lpCaption, UINT uType )
 
 	// This struct is created for each instance of a messagebox window.
 	CMSGBOX_INFO *cmb_info = ( CMSGBOX_INFO * )GlobalAlloc( GMEM_FIXED, sizeof( CMSGBOX_INFO ) );
-	cmb_info->cmsgbox_message = GlobalStrDupW( lpText );
-	cmb_info->type = uType;
-	cmb_info->hWnd_checkbox = NULL;
-
-	bool use_theme = true;
-
-	#ifndef UXTHEME_USE_STATIC_LIB
-	if ( uxtheme_state == UXTHEME_STATE_SHUTDOWN )
+	if ( cmb_info != NULL )
 	{
-		use_theme = InitializeUXTheme();
-	}
-	#endif
+		cmb_info->cmsgbox_message = GlobalStrDupW( lpText );
+		cmb_info->type = uType;
+		cmb_info->hWnd_checkbox = NULL;
 
-	cmb_info->use_theme = use_theme && ( _IsThemeActive() == TRUE ? true : false );
+		bool use_theme = true;
 
-	HWND hWnd_cmsgbox = _CreateWindowExW( WS_EX_DLGMODALFRAME, ( ( ( uType & 0x0F ) == CMB_YESNO ||
-																   ( uType & 0x0F ) == CMB_YESNOALL ||
-																   ( uType & 0x0F ) == CMB_RENAMEOVERWRITESKIPALL ||
-																   ( uType & 0x0F ) == CMB_CONTINUERESTARTSKIPALL ||
-																   ( uType & 0x0F ) == CMB_OKALL ) ? L"class_cmessageboxdc" : L"class_cmessagebox" ), lpCaption, WS_POPUP | WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_CLIPCHILDREN, CW_USEDEFAULT, 0, 100, 100, hWnd, NULL, NULL, ( LPVOID )cmb_info );
-	if ( hWnd_cmsgbox != NULL )
-	{
-		EnterCriticalSection( &cmessagebox_prompt_cs );
-
-		if ( cmessagebox_prompt_count == 0 )
+		#ifndef UXTHEME_USE_STATIC_LIB
+		if ( uxtheme_state == UXTHEME_STATE_SHUTDOWN )
 		{
-			//_EnableMenuItem( g_hMenuSub_tray, MENU_RESTORE, MF_GRAYED );
-			_EnableMenuItem( g_hMenuSub_tray, MENU_OPTIONS, MF_GRAYED );
-			_EnableMenuItem( g_hMenuSub_tray, MENU_ADD_URLS, MF_GRAYED );
-			_EnableMenuItem( g_hMenuSub_tray, MENU_EXIT, MF_GRAYED );
+			use_theme = InitializeUXTheme();
 		}
+		#endif
 
-		++cmessagebox_prompt_count;
+		cmb_info->use_theme = use_theme && ( _IsThemeActive() == TRUE ? true : false );
 
-		LeaveCriticalSection( &cmessagebox_prompt_cs );
-
-		// Pass our messagebox info to the window.
-		_SetWindowLongPtrW( hWnd_cmsgbox, 0, ( LONG_PTR )cmb_info );
-
-		// Force the window to be painted.
-		_ShowWindow( hWnd_cmsgbox, SW_SHOW );
-
-		// CMessageBox message loop:
-		MSG msg;
-		while ( _GetMessageW( &msg, NULL, 0, 0 ) > 0 )
+		HWND hWnd_cmsgbox = _CreateWindowExW( WS_EX_DLGMODALFRAME, ( ( ( uType & 0x0F ) == CMB_YESNO ||
+																	   ( uType & 0x0F ) == CMB_YESNOALL ||
+																	   ( uType & 0x0F ) == CMB_RENAMEOVERWRITESKIPALL ||
+																	   ( uType & 0x0F ) == CMB_CONTINUERESTARTSKIPALL ||
+																	   ( uType & 0x0F ) == CMB_OKALL ) ? L"class_cmessageboxdc" : L"class_cmessagebox" ), lpCaption, WS_POPUP | WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_CLIPCHILDREN, CW_USEDEFAULT, 0, 100, 100, hWnd, NULL, NULL, ( LPVOID )cmb_info );
+		if ( hWnd_cmsgbox != NULL )
 		{
-			// Destroy the window and exit the loop.
-			if ( msg.message == WM_DESTROY_CMSGBOX )
+			EnterCriticalSection( &cmessagebox_prompt_cs );
+
+			if ( cmessagebox_prompt_count == 0 )
 			{
-				ret = ( int )msg.wParam;	// The messagebox's return value before being destroyed.
-
-				_DestroyWindow( msg.hwnd );
-
-				break;
+				//_EnableMenuItem( g_hMenuSub_tray, MENU_RESTORE, MF_GRAYED );
+				_EnableMenuItem( g_hMenuSub_tray, MENU_OPTIONS, MF_GRAYED );
+				_EnableMenuItem( g_hMenuSub_tray, MENU_ADD_URLS, MF_GRAYED );
+				_EnableMenuItem( g_hMenuSub_tray, MENU_EXIT, MF_GRAYED );
 			}
 
-			if ( g_hWnd_active == NULL || !_IsDialogMessageW( g_hWnd_active, &msg ) )	// Checks tab stops.
+			++cmessagebox_prompt_count;
+
+			LeaveCriticalSection( &cmessagebox_prompt_cs );
+
+			// Pass our messagebox info to the window.
+			_SetWindowLongPtrW( hWnd_cmsgbox, 0, ( LONG_PTR )cmb_info );
+
+			// Force the window to be painted.
+			_ShowWindow( hWnd_cmsgbox, SW_SHOW );
+
+			// CMessageBox message loop:
+			MSG msg;
+			while ( _GetMessageW( &msg, NULL, 0, 0 ) > 0 )
 			{
-				_TranslateMessage( &msg );
-				_DispatchMessageW( &msg );
+				// Destroy the window and exit the loop.
+				if ( msg.message == WM_DESTROY_CMSGBOX )
+				{
+					ret = ( int )msg.wParam;	// The messagebox's return value before being destroyed.
+
+					_DestroyWindow( msg.hwnd );
+
+					break;
+				}
+
+				if ( g_hWnd_active == NULL || !_IsDialogMessageW( g_hWnd_active, &msg ) )	// Checks tab stops.
+				{
+					_TranslateMessage( &msg );
+					_DispatchMessageW( &msg );
+				}
 			}
+
+			EnterCriticalSection( &cmessagebox_prompt_cs );
+
+			--cmessagebox_prompt_count;
+
+			if ( cmessagebox_prompt_count == 0 )
+			{
+				//_EnableMenuItem( g_hMenuSub_tray, MENU_RESTORE, MF_ENABLED );
+				_EnableMenuItem( g_hMenuSub_tray, MENU_OPTIONS, MF_ENABLED );
+				_EnableMenuItem( g_hMenuSub_tray, MENU_ADD_URLS, MF_ENABLED );
+				_EnableMenuItem( g_hMenuSub_tray, MENU_EXIT, MF_ENABLED );
+			}
+
+			LeaveCriticalSection( &cmessagebox_prompt_cs );
 		}
-
-		EnterCriticalSection( &cmessagebox_prompt_cs );
-
-		--cmessagebox_prompt_count;
-
-		if ( cmessagebox_prompt_count == 0 )
+		else
 		{
-			//_EnableMenuItem( g_hMenuSub_tray, MENU_RESTORE, MF_ENABLED );
-			_EnableMenuItem( g_hMenuSub_tray, MENU_OPTIONS, MF_ENABLED );
-			_EnableMenuItem( g_hMenuSub_tray, MENU_ADD_URLS, MF_ENABLED );
-			_EnableMenuItem( g_hMenuSub_tray, MENU_EXIT, MF_ENABLED );
+			GlobalFree( cmb_info->cmsgbox_message );
+			GlobalFree( cmb_info );
 		}
-
-		LeaveCriticalSection( &cmessagebox_prompt_cs );
-	}
-	else
-	{
-		GlobalFree( cmb_info->cmsgbox_message );
-		GlobalFree( cmb_info );
 	}
 
 	return ret;
@@ -210,73 +213,76 @@ int CPromptW( HWND hWnd, LPCWSTR lpText, LPCWSTR lpCaption, UINT uType, void *da
 
 	// This struct is created for each instance of a messagebox window.
 	CPROMPT_INFO *cp_info = ( CPROMPT_INFO * )GlobalAlloc( GMEM_FIXED, sizeof( CPROMPT_INFO ) );
-	cp_info->cp_message = GlobalStrDupW( lpText );
-	cp_info->type = uType;
-	cp_info->hWnd_checkbox = NULL;
-	cp_info->data = data;
-
-	HWND hWnd_cmsgbox = _CreateWindowExW( WS_EX_DLGMODALFRAME, L"class_fingerprint_prompt", lpCaption, WS_POPUP | WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_CLIPCHILDREN, CW_USEDEFAULT, 0, 600, 253, hWnd, NULL, NULL, ( LPVOID )cp_info );
-	if ( hWnd_cmsgbox != NULL )
+	if ( cp_info != NULL )
 	{
-		EnterCriticalSection( &cmessagebox_prompt_cs );
+		cp_info->cp_message = GlobalStrDupW( lpText );
+		cp_info->type = uType;
+		cp_info->hWnd_checkbox = NULL;
+		cp_info->data = data;
 
-		if ( cmessagebox_prompt_count == 0 )
+		HWND hWnd_cmsgbox = _CreateWindowExW( WS_EX_DLGMODALFRAME, L"class_fingerprint_prompt", lpCaption, WS_POPUP | WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_CLIPCHILDREN, CW_USEDEFAULT, 0, 600, 253, hWnd, NULL, NULL, ( LPVOID )cp_info );
+		if ( hWnd_cmsgbox != NULL )
 		{
-			//_EnableMenuItem( g_hMenuSub_tray, MENU_RESTORE, MF_GRAYED );
-			_EnableMenuItem( g_hMenuSub_tray, MENU_OPTIONS, MF_GRAYED );
-			_EnableMenuItem( g_hMenuSub_tray, MENU_ADD_URLS, MF_GRAYED );
-			_EnableMenuItem( g_hMenuSub_tray, MENU_EXIT, MF_GRAYED );
-		}
+			EnterCriticalSection( &cmessagebox_prompt_cs );
 
-		++cmessagebox_prompt_count;
-
-		LeaveCriticalSection( &cmessagebox_prompt_cs );
-
-		// Pass our messagebox info to the window.
-		_SetWindowLongPtrW( hWnd_cmsgbox, 0, ( LONG_PTR )cp_info );
-
-		// Force the window to be painted.
-		_ShowWindow( hWnd_cmsgbox, SW_SHOW );
-
-		// CMessageBox message loop:
-		MSG msg;
-		while ( _GetMessageW( &msg, NULL, 0, 0 ) > 0 )
-		{
-			// Destroy the window and exit the loop.
-			if ( msg.message == WM_DESTROY_CMSGBOX )
+			if ( cmessagebox_prompt_count == 0 )
 			{
-				ret = ( int )msg.wParam;	// The messagebox's return value before being destroyed.
-
-				_DestroyWindow( msg.hwnd );
-
-				break;
+				//_EnableMenuItem( g_hMenuSub_tray, MENU_RESTORE, MF_GRAYED );
+				_EnableMenuItem( g_hMenuSub_tray, MENU_OPTIONS, MF_GRAYED );
+				_EnableMenuItem( g_hMenuSub_tray, MENU_ADD_URLS, MF_GRAYED );
+				_EnableMenuItem( g_hMenuSub_tray, MENU_EXIT, MF_GRAYED );
 			}
 
-			if ( g_hWnd_active == NULL || !_IsDialogMessageW( g_hWnd_active, &msg ) )	// Checks tab stops.
+			++cmessagebox_prompt_count;
+
+			LeaveCriticalSection( &cmessagebox_prompt_cs );
+
+			// Pass our messagebox info to the window.
+			_SetWindowLongPtrW( hWnd_cmsgbox, 0, ( LONG_PTR )cp_info );
+
+			// Force the window to be painted.
+			_ShowWindow( hWnd_cmsgbox, SW_SHOW );
+
+			// CMessageBox message loop:
+			MSG msg;
+			while ( _GetMessageW( &msg, NULL, 0, 0 ) > 0 )
 			{
-				_TranslateMessage( &msg );
-				_DispatchMessageW( &msg );
+				// Destroy the window and exit the loop.
+				if ( msg.message == WM_DESTROY_CMSGBOX )
+				{
+					ret = ( int )msg.wParam;	// The messagebox's return value before being destroyed.
+
+					_DestroyWindow( msg.hwnd );
+
+					break;
+				}
+
+				if ( g_hWnd_active == NULL || !_IsDialogMessageW( g_hWnd_active, &msg ) )	// Checks tab stops.
+				{
+					_TranslateMessage( &msg );
+					_DispatchMessageW( &msg );
+				}
 			}
+
+			EnterCriticalSection( &cmessagebox_prompt_cs );
+
+			--cmessagebox_prompt_count;
+
+			if ( cmessagebox_prompt_count == 0 )
+			{
+				//_EnableMenuItem( g_hMenuSub_tray, MENU_RESTORE, MF_ENABLED );
+				_EnableMenuItem( g_hMenuSub_tray, MENU_OPTIONS, MF_ENABLED );
+				_EnableMenuItem( g_hMenuSub_tray, MENU_ADD_URLS, MF_ENABLED );
+				_EnableMenuItem( g_hMenuSub_tray, MENU_EXIT, MF_ENABLED );
+			}
+
+			LeaveCriticalSection( &cmessagebox_prompt_cs );
 		}
-
-		EnterCriticalSection( &cmessagebox_prompt_cs );
-
-		--cmessagebox_prompt_count;
-
-		if ( cmessagebox_prompt_count == 0 )
+		else
 		{
-			//_EnableMenuItem( g_hMenuSub_tray, MENU_RESTORE, MF_ENABLED );
-			_EnableMenuItem( g_hMenuSub_tray, MENU_OPTIONS, MF_ENABLED );
-			_EnableMenuItem( g_hMenuSub_tray, MENU_ADD_URLS, MF_ENABLED );
-			_EnableMenuItem( g_hMenuSub_tray, MENU_EXIT, MF_ENABLED );
+			GlobalFree( cp_info->cp_message );
+			GlobalFree( cp_info );
 		}
-
-		LeaveCriticalSection( &cmessagebox_prompt_cs );
-	}
-	else
-	{
-		GlobalFree( cp_info->cp_message );
-		GlobalFree( cp_info );
 	}
 
 	return ret;

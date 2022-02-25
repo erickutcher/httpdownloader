@@ -399,24 +399,33 @@ LRESULT CALLBACK WebServerTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 			{
 				certificate_pkcs_file_name_length = lstrlenW( cfg_certificate_pkcs_file_name );
 				certificate_pkcs_file_name = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t * ) * ( certificate_pkcs_file_name_length + 1 ) );
-				_wmemcpy_s( certificate_pkcs_file_name, certificate_pkcs_file_name_length, cfg_certificate_pkcs_file_name, certificate_pkcs_file_name_length );
-				certificate_pkcs_file_name[ certificate_pkcs_file_name_length ] = 0;	// Sanity.
+				if ( certificate_pkcs_file_name != NULL )
+				{
+					_wmemcpy_s( certificate_pkcs_file_name, certificate_pkcs_file_name_length, cfg_certificate_pkcs_file_name, certificate_pkcs_file_name_length );
+					certificate_pkcs_file_name[ certificate_pkcs_file_name_length ] = 0;	// Sanity.
+				}
 			}
 
 			if ( cfg_certificate_cer_file_name != NULL )
 			{
 				certificate_cer_file_name_length = lstrlenW( cfg_certificate_cer_file_name );
 				certificate_cer_file_name = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t * ) * ( certificate_cer_file_name_length + 1 ) );
-				_wmemcpy_s( certificate_cer_file_name, certificate_cer_file_name_length, cfg_certificate_cer_file_name, certificate_cer_file_name_length );
-				certificate_cer_file_name[ certificate_cer_file_name_length ] = 0;	// Sanity.
+				if ( certificate_cer_file_name != NULL )
+				{
+					_wmemcpy_s( certificate_cer_file_name, certificate_cer_file_name_length, cfg_certificate_cer_file_name, certificate_cer_file_name_length );
+					certificate_cer_file_name[ certificate_cer_file_name_length ] = 0;	// Sanity.
+				}
 			}
 
 			if ( cfg_certificate_key_file_name != NULL )
 			{
 				certificate_key_file_name_length = lstrlenW( cfg_certificate_key_file_name );
 				certificate_key_file_name = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t * ) * ( certificate_key_file_name_length + 1 ) );
-				_wmemcpy_s( certificate_key_file_name, certificate_key_file_name_length, cfg_certificate_key_file_name, certificate_key_file_name_length );
-				certificate_key_file_name[ certificate_key_file_name_length ] = 0;	// Sanity.
+				if ( certificate_key_file_name != NULL )
+				{
+					_wmemcpy_s( certificate_key_file_name, certificate_key_file_name_length, cfg_certificate_key_file_name, certificate_key_file_name_length );
+					certificate_key_file_name[ certificate_key_file_name_length ] = 0;	// Sanity.
+				}
 			}
 
 			Set_Window_Settings();
@@ -651,41 +660,43 @@ LRESULT CALLBACK WebServerTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 				case BTN_CERTIFICATE_PKCS:
 				{
 					wchar_t *file_name = ( wchar_t * )GlobalAlloc( GPTR, sizeof( wchar_t ) * MAX_PATH );
-
-					if ( certificate_pkcs_file_name != NULL )
-					{
-						_wcsncpy_s( file_name, MAX_PATH, certificate_pkcs_file_name, MAX_PATH );
-						file_name[ MAX_PATH - 1 ] = 0;	// Sanity.
-					}
-
-					OPENFILENAME ofn;
-					_memzero( &ofn, sizeof( OPENFILENAME ) );
-					ofn.lStructSize = sizeof( OPENFILENAME );
-					ofn.hwndOwner = hWnd;
-					ofn.lpstrFilter = L"Personal Information Exchange (*.pfx;*.p12)\0*.pfx;*.p12\0All Files (*.*)\0*.*\0";
-					ofn.lpstrTitle = ST_V_Load_PKCS_NUM12_File;
-					ofn.lpstrFile = file_name;
-					ofn.nMaxFile = MAX_PATH;
-					ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_READONLY;
-
-					if ( _GetOpenFileNameW( &ofn ) )
+					if ( file_name != NULL )
 					{
 						if ( certificate_pkcs_file_name != NULL )
 						{
-							GlobalFree( certificate_pkcs_file_name );
+							_wcsncpy_s( file_name, MAX_PATH, certificate_pkcs_file_name, MAX_PATH );
+							file_name[ MAX_PATH - 1 ] = 0;	// Sanity.
 						}
 
-						certificate_pkcs_file_name = file_name;
-						certificate_pkcs_file_name_length = lstrlenW( certificate_pkcs_file_name );
+						OPENFILENAME ofn;
+						_memzero( &ofn, sizeof( OPENFILENAME ) );
+						ofn.lStructSize = sizeof( OPENFILENAME );
+						ofn.hwndOwner = hWnd;
+						ofn.lpstrFilter = L"Personal Information Exchange (*.pfx;*.p12)\0*.pfx;*.p12\0All Files (*.*)\0*.*\0";
+						ofn.lpstrTitle = ST_V_Load_PKCS_NUM12_File;
+						ofn.lpstrFile = file_name;
+						ofn.nMaxFile = MAX_PATH;
+						ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_READONLY;
 
-						_SendMessageW( g_hWnd_certificate_pkcs_location, WM_SETTEXT, 0, ( LPARAM )certificate_pkcs_file_name );
+						if ( _GetOpenFileNameW( &ofn ) )
+						{
+							if ( certificate_pkcs_file_name != NULL )
+							{
+								GlobalFree( certificate_pkcs_file_name );
+							}
 
-						options_state_changed = true;
-						_EnableWindow( g_hWnd_options_apply, TRUE );
-					}
-					else
-					{
-						GlobalFree( file_name );
+							certificate_pkcs_file_name = file_name;
+							certificate_pkcs_file_name_length = ( certificate_pkcs_file_name != NULL ? lstrlenW( certificate_pkcs_file_name ) : 0 );
+
+							_SendMessageW( g_hWnd_certificate_pkcs_location, WM_SETTEXT, 0, ( LPARAM )certificate_pkcs_file_name );
+
+							options_state_changed = true;
+							_EnableWindow( g_hWnd_options_apply, TRUE );
+						}
+						else
+						{
+							GlobalFree( file_name );
+						}
 					}
 				}
 				break;
@@ -693,41 +704,43 @@ LRESULT CALLBACK WebServerTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 				case BTN_CERTIFICATE_CER:
 				{
 					wchar_t *file_name = ( wchar_t * )GlobalAlloc( GPTR, sizeof( wchar_t ) * MAX_PATH );
-
-					if ( certificate_cer_file_name != NULL )
-					{
-						_wcsncpy_s( file_name, MAX_PATH, certificate_cer_file_name, MAX_PATH );
-						file_name[ MAX_PATH - 1 ] = 0;	// Sanity.
-					}
-
-					OPENFILENAME ofn;
-					_memzero( &ofn, sizeof( OPENFILENAME ) );
-					ofn.lStructSize = sizeof( OPENFILENAME );
-					ofn.hwndOwner = hWnd;
-					ofn.lpstrFilter = L"X.509 Certificate (*.cer;*.crt)\0*.cer;*.crt\0All Files (*.*)\0*.*\0";
-					ofn.lpstrTitle = ST_V_Load_X_509_Certificate_File;
-					ofn.lpstrFile = file_name;
-					ofn.nMaxFile = MAX_PATH;
-					ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_READONLY;
-
-					if ( _GetOpenFileNameW( &ofn ) )
+					if ( file_name != NULL )
 					{
 						if ( certificate_cer_file_name != NULL )
 						{
-							GlobalFree( certificate_cer_file_name );
+							_wcsncpy_s( file_name, MAX_PATH, certificate_cer_file_name, MAX_PATH );
+							file_name[ MAX_PATH - 1 ] = 0;	// Sanity.
 						}
 
-						certificate_cer_file_name = file_name;
-						certificate_cer_file_name_length = lstrlenW( certificate_cer_file_name );
+						OPENFILENAME ofn;
+						_memzero( &ofn, sizeof( OPENFILENAME ) );
+						ofn.lStructSize = sizeof( OPENFILENAME );
+						ofn.hwndOwner = hWnd;
+						ofn.lpstrFilter = L"X.509 Certificate (*.cer;*.crt)\0*.cer;*.crt\0All Files (*.*)\0*.*\0";
+						ofn.lpstrTitle = ST_V_Load_X_509_Certificate_File;
+						ofn.lpstrFile = file_name;
+						ofn.nMaxFile = MAX_PATH;
+						ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_READONLY;
 
-						_SendMessageW( g_hWnd_certificate_cer_location, WM_SETTEXT, 0, ( LPARAM )certificate_cer_file_name );
+						if ( _GetOpenFileNameW( &ofn ) )
+						{
+							if ( certificate_cer_file_name != NULL )
+							{
+								GlobalFree( certificate_cer_file_name );
+							}
 
-						options_state_changed = true;
-						_EnableWindow( g_hWnd_options_apply, TRUE );
-					}
-					else
-					{
-						GlobalFree( file_name );
+							certificate_cer_file_name = file_name;
+							certificate_cer_file_name_length = ( certificate_cer_file_name != NULL ? lstrlenW( certificate_cer_file_name ) : 0 );
+
+							_SendMessageW( g_hWnd_certificate_cer_location, WM_SETTEXT, 0, ( LPARAM )certificate_cer_file_name );
+
+							options_state_changed = true;
+							_EnableWindow( g_hWnd_options_apply, TRUE );
+						}
+						else
+						{
+							GlobalFree( file_name );
+						}
 					}
 				}
 				break;
@@ -735,41 +748,43 @@ LRESULT CALLBACK WebServerTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 				case BTN_CERTIFICATE_KEY:
 				{
 					wchar_t *file_name = ( wchar_t * )GlobalAlloc( GPTR, sizeof( wchar_t ) * MAX_PATH );
-
-					if ( certificate_key_file_name != NULL )
-					{
-						_wcsncpy_s( file_name, MAX_PATH, certificate_key_file_name, MAX_PATH );
-						file_name[ MAX_PATH - 1 ] = 0;	// Sanity.
-					}
-
-					OPENFILENAME ofn;
-					_memzero( &ofn, sizeof( OPENFILENAME ) );
-					ofn.lStructSize = sizeof( OPENFILENAME );
-					ofn.hwndOwner = hWnd;
-					ofn.lpstrFilter = L"Private Key (*.key)\0*.key\0All Files (*.*)\0*.*\0";
-					ofn.lpstrTitle = ST_V_Load_Private_Key_File;
-					ofn.lpstrFile = file_name;
-					ofn.nMaxFile = MAX_PATH;
-					ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_READONLY;
-
-					if ( _GetOpenFileNameW( &ofn ) )
+					if ( file_name != NULL )
 					{
 						if ( certificate_key_file_name != NULL )
 						{
-							GlobalFree( certificate_key_file_name );
+							_wcsncpy_s( file_name, MAX_PATH, certificate_key_file_name, MAX_PATH );
+							file_name[ MAX_PATH - 1 ] = 0;	// Sanity.
 						}
 
-						certificate_key_file_name = file_name;
-						certificate_key_file_name_length = lstrlenW( certificate_key_file_name );
+						OPENFILENAME ofn;
+						_memzero( &ofn, sizeof( OPENFILENAME ) );
+						ofn.lStructSize = sizeof( OPENFILENAME );
+						ofn.hwndOwner = hWnd;
+						ofn.lpstrFilter = L"Private Key (*.key)\0*.key\0All Files (*.*)\0*.*\0";
+						ofn.lpstrTitle = ST_V_Load_Private_Key_File;
+						ofn.lpstrFile = file_name;
+						ofn.nMaxFile = MAX_PATH;
+						ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_READONLY;
 
-						_SendMessageW( g_hWnd_certificate_key_location, WM_SETTEXT, 0, ( LPARAM )certificate_key_file_name );
+						if ( _GetOpenFileNameW( &ofn ) )
+						{
+							if ( certificate_key_file_name != NULL )
+							{
+								GlobalFree( certificate_key_file_name );
+							}
 
-						options_state_changed = true;
-						_EnableWindow( g_hWnd_options_apply, TRUE );
-					}
-					else
-					{
-						GlobalFree( file_name );
+							certificate_key_file_name = file_name;
+							certificate_key_file_name_length = ( certificate_key_file_name != NULL ? lstrlenW( certificate_key_file_name ) : 0 );
+
+							_SendMessageW( g_hWnd_certificate_key_location, WM_SETTEXT, 0, ( LPARAM )certificate_key_file_name );
+
+							options_state_changed = true;
+							_EnableWindow( g_hWnd_options_apply, TRUE );
+						}
+						else
+						{
+							GlobalFree( file_name );
+						}
 					}
 				}
 				break;

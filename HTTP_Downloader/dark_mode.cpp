@@ -387,7 +387,7 @@ LRESULT CALLBACK DMStaticSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPa
 				_SetBkMode( hdcMem, TRANSPARENT );
 
 				unsigned int align;
-				DWORD style = ( DWORD )_GetWindowLongPtrW( hWnd, GWL_STYLE );
+				//DWORD style = ( DWORD )_GetWindowLongPtrW( hWnd, GWL_STYLE );
 				if ( ( style & 0x0000000F ) == SS_RIGHT )
 				{
 					align = DT_RIGHT;
@@ -413,13 +413,16 @@ LRESULT CALLBACK DMStaticSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPa
 					buf = tbuf;
 				}
 
-				len = ( int )_SendMessageW( hWnd, WM_GETTEXT, len, ( LPARAM )buf );
-
-				_DrawTextW( hdcMem, buf, len, &client_rc, DT_NOPREFIX | align );
-
-				if ( buf != tbuf )
+				if ( buf != NULL )
 				{
-					GlobalFree( buf );
+					len = ( int )_SendMessageW( hWnd, WM_GETTEXT, len, ( LPARAM )buf );
+
+					_DrawTextW( hdcMem, buf, len, &client_rc, DT_NOPREFIX | align );
+
+					if ( buf != tbuf )
+					{
+						GlobalFree( buf );
+					}
 				}
 
 				_SelectObject( hdcMem, ohf );
@@ -635,11 +638,20 @@ LRESULT CALLBACK DMCBRBSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 
 		case WM_MOUSELEAVE:
 		{
-			DWORD state = ( DWORD )_GetPropW( hWnd, L"STATE" );
+			DWORD state;
 
-			state &= ~0x04;		// Unset the hovered state.
+			if ( _IsWindowVisible( hWnd ) == FALSE )	// We've tabbed away. Reset to the default state.
+			{
+				state = 0;
+			}
+			else
+			{
+				state = ( DWORD )_GetPropW( hWnd, L"STATE" );
 
-			state &= ~0x80;		// Not in bounds.
+				state &= ~0x04;		// Unset the hovered state.
+
+				state &= ~0x80;		// Not in bounds.
+			}
 
 			_SetPropW( hWnd, L"STATE", ( HANDLE )( state | 0x100 ) );
 
@@ -660,6 +672,7 @@ LRESULT CALLBACK DMCBRBSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 		}
 		break;
 
+		case WM_CAPTURECHANGED:
 		case WM_LBUTTONUP:
 		{
 			DWORD state = ( DWORD )_GetPropW( hWnd, L"STATE" );
@@ -1219,19 +1232,28 @@ LRESULT CALLBACK DMUDSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam,
 
 		case WM_MOUSELEAVE:
 		{
-			DWORD state = ( DWORD )_GetPropW( hWnd, L"STATE" );
+			DWORD state;
 
-			state &= ~0x04;			// Unset the hovered state.
-
-			state &= ~0x40;			// Unset the hovered state.
-
-			if ( !( state & 0x100 ) )
+			if ( _IsWindowVisible( hWnd ) == FALSE )	// We've tabbed away. Reset to the default state.
 			{
-				state |= 0x200;		// Was in bounds.
+				state = 0;
 			}
 			else
 			{
-				state &= ~0x100;	// Not in bounds.
+				state = ( DWORD )_GetPropW( hWnd, L"STATE" );
+
+				state &= ~0x04;			// Unset the hovered state.
+
+				state &= ~0x40;			// Unset the hovered state.
+
+				if ( !( state & 0x100 ) )
+				{
+					state |= 0x200;		// Was in bounds.
+				}
+				else
+				{
+					state &= ~0x100;	// Not in bounds.
+				}
 			}
 
 			_SetPropW( hWnd, L"STATE", ( HANDLE )( state | 0x1000 ) );
@@ -1694,10 +1716,10 @@ void ComboBoxPaint( HWND hWnd, HDC hDC, COLORREF text_color, COLORREF arrow_colo
 				LOGBRUSH lb;
 				lb.lbColor = dm_color_focus_rectangle;
 				lb.lbStyle = PS_SOLID;
-				HPEN hPen = _ExtCreatePen( PS_COSMETIC | PS_ALTERNATE, 1, &lb, 0, NULL );
-				HPEN old_color = ( HPEN )_SelectObject( hdcMem, hPen );
+				hPen = _ExtCreatePen( PS_COSMETIC | PS_ALTERNATE, 1, &lb, 0, NULL );
+				old_color = ( HPEN )_SelectObject( hdcMem, hPen );
 				_DeleteObject( old_color );
-				HBRUSH old_brush = ( HBRUSH )_SelectObject( hdcMem, _GetStockObject( NULL_BRUSH ) );
+				old_brush = ( HBRUSH )_SelectObject( hdcMem, _GetStockObject( NULL_BRUSH ) );
 				_DeleteObject( old_brush );
 				_Rectangle( hdcMem, rc.left, rc.top, rc.right, rc.bottom );
 				_DeleteObject( hPen );
@@ -1867,6 +1889,10 @@ LRESULT CALLBACK DMComboBoxSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 				_SetPropW( hWnd, L"STATE", ( HANDLE )( state | 0x100 ) );
 
 				_InvalidateRect( hWnd, NULL, TRUE );
+			}
+			else if ( _IsWindowVisible( hWnd ) == FALSE )	// We've tabbed away. Reset to the default state.
+			{
+				_SetPropW( hWnd, L"STATE", ( HANDLE )0x100 );
 			}
 		}
 		break;
@@ -3579,10 +3605,10 @@ LRESULT CALLBACK DMTabControlSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 					LOGBRUSH lb;
 					lb.lbColor = dm_color_focus_rectangle;
 					lb.lbStyle = PS_SOLID;
-					HPEN hPen = _ExtCreatePen( PS_COSMETIC | PS_ALTERNATE, 1, &lb, 0, NULL );
-					HPEN old_color = ( HPEN )_SelectObject( hdcMem, hPen );
+					hPen = _ExtCreatePen( PS_COSMETIC | PS_ALTERNATE, 1, &lb, 0, NULL );
+					old_color = ( HPEN )_SelectObject( hdcMem, hPen );
 					_DeleteObject( old_color );
-					HBRUSH old_brush = ( HBRUSH )_SelectObject( hdcMem, _GetStockObject( NULL_BRUSH ) );
+					old_brush = ( HBRUSH )_SelectObject( hdcMem, _GetStockObject( NULL_BRUSH ) );
 					_DeleteObject( old_brush );
 					_Rectangle( hdcMem, rc_tab.left, rc_tab.top, rc_tab.right, rc_tab.bottom );
 					_DeleteObject( hPen );

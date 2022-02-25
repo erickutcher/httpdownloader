@@ -28,6 +28,11 @@
 
 #include "cmessagebox.h"
 
+#pragma warning( push )
+#pragma warning( disable : 4201 )	// nonstandard extension used: nameless struct/union
+#include <winioctl.h>
+#pragma warning( pop )
+
 // This basically skips past an expression string when searching for a particular character.
 // end is set if the end of the string is reached and the character is not found.
 char *FindCharExcludeExpression( char *start, char **end, char character )
@@ -55,7 +60,7 @@ char *FindCharExcludeExpression( char *start, char **end, char character )
 			}
 			else	// Find the single or double quote's pair (closing quote).
 			{
-				if ( *pos == opened_quote || *pos == opened_quote )
+				if ( *pos == opened_quote )
 				{
 					opened_quote = 0;
 				}
@@ -284,24 +289,32 @@ dllrbt_tree *CopyCookieTree( dllrbt_tree *cookie_tree )
 			}
 
 			COOKIE_CONTAINER *new_cc = ( COOKIE_CONTAINER * )GlobalAlloc( GMEM_FIXED, sizeof( COOKIE_CONTAINER ) );
-
-			new_cc->name_length = cc->name_length;
-			new_cc->value_length = cc->value_length;
-
-			new_cc->cookie_name = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( new_cc->name_length + 1 ) );
-			_memcpy_s( new_cc->cookie_name, new_cc->name_length + 1, cc->cookie_name, new_cc->name_length );
-			new_cc->cookie_name[ new_cc->name_length ] = 0;	// Sanity.
-
-			new_cc->cookie_value = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( new_cc->value_length + 1 ) );
-			_memcpy_s( new_cc->cookie_value, new_cc->value_length + 1, cc->cookie_value, new_cc->value_length );
-			new_cc->cookie_value[ new_cc->value_length ] = 0;	// Sanity.
-
-			// If anything other than OK or duplicate was returned, then free the cookie container.
-			if ( dllrbt_insert( new_cookie_tree, ( void * )new_cc->cookie_name, ( void * )new_cc ) != DLLRBT_STATUS_OK )
+			if ( new_cc != NULL )
 			{
-				GlobalFree( new_cc->cookie_name );
-				GlobalFree( new_cc->cookie_value );
-				GlobalFree( new_cc );
+				new_cc->name_length = cc->name_length;
+				new_cc->value_length = cc->value_length;
+
+				new_cc->cookie_name = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( new_cc->name_length + 1 ) );
+				if ( new_cc->cookie_name != NULL )
+				{
+					_memcpy_s( new_cc->cookie_name, new_cc->name_length + 1, cc->cookie_name, new_cc->name_length );
+					new_cc->cookie_name[ new_cc->name_length ] = 0;	// Sanity.
+				}
+
+				new_cc->cookie_value = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( new_cc->value_length + 1 ) );
+				if ( new_cc->cookie_value != NULL )
+				{
+					_memcpy_s( new_cc->cookie_value, new_cc->value_length + 1, cc->cookie_value, new_cc->value_length );
+					new_cc->cookie_value[ new_cc->value_length ] = 0;	// Sanity.
+				}
+
+				// If anything other than OK or duplicate was returned, then free the cookie container.
+				if ( dllrbt_insert( new_cookie_tree, ( void * )new_cc->cookie_name, ( void * )new_cc ) != DLLRBT_STATUS_OK )
+				{
+					GlobalFree( new_cc->cookie_name );
+					GlobalFree( new_cc->cookie_value );
+					GlobalFree( new_cc );
+				}
 			}
 		}
 
@@ -335,38 +348,40 @@ void ConstructCookie( dllrbt_tree *cookie_tree, char **cookies )
 	}
 
 	*cookies = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( total_cookie_length + 1 ) );
-
-	int cookie_length = 0;
-	int count = 0;
-
-	// Construct the cookie string.
-	node = dllrbt_get_head( cookie_tree );
-	while ( node != NULL )
+	if ( *cookies != NULL )
 	{
-		COOKIE_CONTAINER *cc = ( COOKIE_CONTAINER * )node->val;
+		int cookie_length = 0;
+		int count = 0;
 
-		if ( cc != NULL )
+		// Construct the cookie string.
+		node = dllrbt_get_head( cookie_tree );
+		while ( node != NULL )
 		{
-			// Add "; " at the end of the cookie string (before the current cookie).
-			if ( count > 0 )
+			COOKIE_CONTAINER *cc = ( COOKIE_CONTAINER * )node->val;
+
+			if ( cc != NULL )
 			{
-				*( *cookies + cookie_length++ ) = ';';
-				*( *cookies + cookie_length++ ) = ' ';
+				// Add "; " at the end of the cookie string (before the current cookie).
+				if ( count > 0 )
+				{
+					*( *cookies + cookie_length++ ) = ';';
+					*( *cookies + cookie_length++ ) = ' ';
+				}
+
+				++count;
+
+				_memcpy_s( *cookies + cookie_length, total_cookie_length  - cookie_length, cc->cookie_name, cc->name_length );
+				cookie_length += cc->name_length;
+
+				_memcpy_s( *cookies + cookie_length, total_cookie_length  - cookie_length, cc->cookie_value, cc->value_length );
+				cookie_length += cc->value_length;
 			}
 
-			++count;
-
-			_memcpy_s( *cookies + cookie_length, total_cookie_length  - cookie_length, cc->cookie_name, cc->name_length );
-			cookie_length += cc->name_length;
-
-			_memcpy_s( *cookies + cookie_length, total_cookie_length  - cookie_length, cc->cookie_value, cc->value_length );
-			cookie_length += cc->value_length;
+			node = node->next;
 		}
 
-		node = node->next;
+		*( *cookies + cookie_length ) = 0;	// Sanity
 	}
-
-	*( *cookies + cookie_length ) = 0;	// Sanity
 }
 
 bool ParseCookieValues( char *cookie_list, dllrbt_tree **cookie_tree, char **cookies )
@@ -453,64 +468,70 @@ bool ParseCookieValues( char *cookie_list, dllrbt_tree **cookie_tree, char **coo
 			}
 
 			COOKIE_CONTAINER *cc = ( COOKIE_CONTAINER * )GlobalAlloc( GMEM_FIXED, sizeof( COOKIE_CONTAINER ) );
-
-			cc->name_length = ( int )( cookie_name_end - cookie_search );
-			cc->cookie_name = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( cc->name_length + 1 ) );
-
-			_memcpy_s( cc->cookie_name, cc->name_length + 1, cookie_search, cc->name_length );
-			cc->cookie_name[ cc->name_length ] = 0;	// Sanity.
-
-			// See if the cookie has attributes after it.
-			char *cookie_attributes = strnchr( cookie_name_end, ';', ( int )( cookie_value_end - cookie_name_end ) );
-			if ( cookie_attributes != NULL && cookie_attributes < cookie_value_end )
+			if ( cc != NULL )
 			{
-				cookie_search = cookie_attributes;
-			}
-			else
-			{
-				cookie_search = cookie_value_end;
-			}
-
-			cc->value_length = ( int )( cookie_search - cookie_name_end );
-			cc->cookie_value = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( cc->value_length + 1 ) );
-
-			_memcpy_s( cc->cookie_value, cc->value_length + 1, cookie_name_end, cc->value_length );
-			cc->cookie_value[ cc->value_length ] = 0;	// Sanity.
-
-			// Attempt to add the container to the tree.
-			dllrbt_status status = dllrbt_insert( *cookie_tree, ( void * )cc->cookie_name, ( void * )cc );
-			if ( status == DLLRBT_STATUS_DUPLICATE_KEY )
-			{
-				// If there's a duplicate, find it.
-				dllrbt_iterator *itr = dllrbt_find( *cookie_tree, ( void * )cc->cookie_name, false );
-
-				// Free its values and remove it from the tree.
-				if ( itr != NULL )
+				cc->name_length = ( int )( cookie_name_end - cookie_search );
+				cc->cookie_name = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( cc->name_length + 1 ) );
+				if ( cc->cookie_name != NULL )
 				{
-					COOKIE_CONTAINER *occ = ( COOKIE_CONTAINER * )( ( node_type * )itr )->val;
-					if ( occ != NULL )
-					{
-						GlobalFree( occ->cookie_name );
-						GlobalFree( occ->cookie_value );
-						GlobalFree( occ );
-					}
-
-					dllrbt_remove( *cookie_tree, itr );
+					_memcpy_s( cc->cookie_name, cc->name_length + 1, cookie_search, cc->name_length );
+					cc->cookie_name[ cc->name_length ] = 0;	// Sanity.
 				}
 
-				// Try adding the new cc again. If it fails, then just free it.
-				if ( dllrbt_insert( *cookie_tree, ( void * )cc->cookie_name, ( void * )cc ) != DLLRBT_STATUS_OK )
+				// See if the cookie has attributes after it.
+				char *cookie_attributes = strnchr( cookie_name_end, ';', ( int )( cookie_value_end - cookie_name_end ) );
+				if ( cookie_attributes != NULL && cookie_attributes < cookie_value_end )
+				{
+					cookie_search = cookie_attributes;
+				}
+				else
+				{
+					cookie_search = cookie_value_end;
+				}
+
+				cc->value_length = ( int )( cookie_search - cookie_name_end );
+				cc->cookie_value = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( cc->value_length + 1 ) );
+				if ( cc->cookie_value != NULL )
+				{
+					_memcpy_s( cc->cookie_value, cc->value_length + 1, cookie_name_end, cc->value_length );
+					cc->cookie_value[ cc->value_length ] = 0;	// Sanity.
+				}
+
+				// Attempt to add the container to the tree.
+				dllrbt_status status = dllrbt_insert( *cookie_tree, ( void * )cc->cookie_name, ( void * )cc );
+				if ( status == DLLRBT_STATUS_DUPLICATE_KEY )
+				{
+					// If there's a duplicate, find it.
+					dllrbt_iterator *itr = dllrbt_find( *cookie_tree, ( void * )cc->cookie_name, false );
+
+					// Free its values and remove it from the tree.
+					if ( itr != NULL )
+					{
+						COOKIE_CONTAINER *occ = ( COOKIE_CONTAINER * )( ( node_type * )itr )->val;
+						if ( occ != NULL )
+						{
+							GlobalFree( occ->cookie_name );
+							GlobalFree( occ->cookie_value );
+							GlobalFree( occ );
+						}
+
+						dllrbt_remove( *cookie_tree, itr );
+					}
+
+					// Try adding the new cc again. If it fails, then just free it.
+					if ( dllrbt_insert( *cookie_tree, ( void * )cc->cookie_name, ( void * )cc ) != DLLRBT_STATUS_OK )
+					{
+						GlobalFree( cc->cookie_name );
+						GlobalFree( cc->cookie_value );
+						GlobalFree( cc );
+					}
+				}
+				else if ( status != DLLRBT_STATUS_OK )	// If anything other than OK or duplicate was returned, then free the cookie container.
 				{
 					GlobalFree( cc->cookie_name );
 					GlobalFree( cc->cookie_value );
 					GlobalFree( cc );
 				}
-			}
-			else if ( status != DLLRBT_STATUS_OK )	// If anything other than OK or duplicate was returned, then free the cookie container.
-			{
-				GlobalFree( cc->cookie_name );
-				GlobalFree( cc->cookie_value );
-				GlobalFree( cc );
 			}
 		}
 
@@ -554,64 +575,70 @@ bool ParseCookies( char *header, dllrbt_tree **cookie_tree, char **cookies )
 			}
 
 			COOKIE_CONTAINER *cc = ( COOKIE_CONTAINER * )GlobalAlloc( GMEM_FIXED, sizeof( COOKIE_CONTAINER ) );
-
-			cc->name_length = ( int )( cookie_name_end - set_cookie_header );
-			cc->cookie_name = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( cc->name_length + 1 ) );
-
-			_memcpy_s( cc->cookie_name, cc->name_length + 1, set_cookie_header, cc->name_length );
-			cc->cookie_name[ cc->name_length ] = 0;	// Sanity.
-
-			// See if the cookie has attributes after it.
-			char *cookie_attributes = strnchr( cookie_name_end, ';', ( int )( set_cookie_header_end - cookie_name_end ) );
-			if ( cookie_attributes != NULL && cookie_attributes < set_cookie_header_end )
+			if ( cc != NULL )
 			{
-				set_cookie_header = cookie_attributes;
-			}
-			else
-			{
-				set_cookie_header = set_cookie_header_end;
-			}
-
-			cc->value_length = ( int )( set_cookie_header - cookie_name_end );
-			cc->cookie_value = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( cc->value_length + 1 ) );
-
-			_memcpy_s( cc->cookie_value, cc->value_length + 1, cookie_name_end, cc->value_length );
-			cc->cookie_value[ cc->value_length ] = 0;	// Sanity.
-
-			// Attempt to add the container to the tree.
-			dllrbt_status status = dllrbt_insert( *cookie_tree, ( void * )cc->cookie_name, ( void * )cc );
-			if ( status == DLLRBT_STATUS_DUPLICATE_KEY )
-			{
-				// If there's a duplicate, find it.
-				dllrbt_iterator *itr = dllrbt_find( *cookie_tree, ( void * )cc->cookie_name, false );
-
-				// Free its values and remove it from the tree.
-				if ( itr != NULL )
+				cc->name_length = ( int )( cookie_name_end - set_cookie_header );
+				cc->cookie_name = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( cc->name_length + 1 ) );
+				if ( cc->cookie_name != NULL )
 				{
-					COOKIE_CONTAINER *occ = ( COOKIE_CONTAINER * )( ( node_type * )itr )->val;
-					if ( occ != NULL )
-					{
-						GlobalFree( occ->cookie_name );
-						GlobalFree( occ->cookie_value );
-						GlobalFree( occ );
-					}
-
-					dllrbt_remove( *cookie_tree, itr );
+					_memcpy_s( cc->cookie_name, cc->name_length + 1, set_cookie_header, cc->name_length );
+					cc->cookie_name[ cc->name_length ] = 0;	// Sanity.
 				}
 
-				// Try adding the new cc again. If it fails, then just free it.
-				if ( dllrbt_insert( *cookie_tree, ( void * )cc->cookie_name, ( void * )cc ) != DLLRBT_STATUS_OK )
+				// See if the cookie has attributes after it.
+				char *cookie_attributes = strnchr( cookie_name_end, ';', ( int )( set_cookie_header_end - cookie_name_end ) );
+				if ( cookie_attributes != NULL && cookie_attributes < set_cookie_header_end )
+				{
+					set_cookie_header = cookie_attributes;
+				}
+				else
+				{
+					set_cookie_header = set_cookie_header_end;
+				}
+
+				cc->value_length = ( int )( set_cookie_header - cookie_name_end );
+				cc->cookie_value = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( cc->value_length + 1 ) );
+				if ( cc->cookie_value != NULL )
+				{
+					_memcpy_s( cc->cookie_value, cc->value_length + 1, cookie_name_end, cc->value_length );
+					cc->cookie_value[ cc->value_length ] = 0;	// Sanity.
+				}
+
+				// Attempt to add the container to the tree.
+				dllrbt_status status = dllrbt_insert( *cookie_tree, ( void * )cc->cookie_name, ( void * )cc );
+				if ( status == DLLRBT_STATUS_DUPLICATE_KEY )
+				{
+					// If there's a duplicate, find it.
+					dllrbt_iterator *itr = dllrbt_find( *cookie_tree, ( void * )cc->cookie_name, false );
+
+					// Free its values and remove it from the tree.
+					if ( itr != NULL )
+					{
+						COOKIE_CONTAINER *occ = ( COOKIE_CONTAINER * )( ( node_type * )itr )->val;
+						if ( occ != NULL )
+						{
+							GlobalFree( occ->cookie_name );
+							GlobalFree( occ->cookie_value );
+							GlobalFree( occ );
+						}
+
+						dllrbt_remove( *cookie_tree, itr );
+					}
+
+					// Try adding the new cc again. If it fails, then just free it.
+					if ( dllrbt_insert( *cookie_tree, ( void * )cc->cookie_name, ( void * )cc ) != DLLRBT_STATUS_OK )
+					{
+						GlobalFree( cc->cookie_name );
+						GlobalFree( cc->cookie_value );
+						GlobalFree( cc );
+					}
+				}
+				else if ( status != DLLRBT_STATUS_OK )	// If anything other than OK or duplicate was returned, then free the cookie container.
 				{
 					GlobalFree( cc->cookie_name );
 					GlobalFree( cc->cookie_value );
 					GlobalFree( cc );
 				}
-			}
-			else if ( status != DLLRBT_STATUS_OK )	// If anything other than OK or duplicate was returned, then free the cookie container.
-			{
-				GlobalFree( cc->cookie_name );
-				GlobalFree( cc->cookie_value );
-				GlobalFree( cc );
 			}
 		}
 
@@ -662,8 +689,11 @@ bool ParseURL_A( char *url, char *original_resource,
 			resource_length = lstrlenA( str_pos_end );
 
 			*resource = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( resource_length + 1 ) );
-			_memcpy_s( *resource, resource_length + 1, str_pos_end, resource_length );
-			*( *resource + resource_length ) = 0;	// Sanity.
+			if ( *resource != NULL )
+			{
+				_memcpy_s( *resource, resource_length + 1, str_pos_end, resource_length );
+				*( *resource + resource_length ) = 0;	// Sanity.
+			}
 		}
 		else
 		{
@@ -673,10 +703,13 @@ bool ParseURL_A( char *url, char *original_resource,
 			{
 				resource_length = lstrlenA( str_pos_end ) + 1;	// Include the starting /.
 
-				*resource = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( resource_length + 1 ) );	
-				*( *resource ) = '/';
-				_memcpy_s( *resource + 1, resource_length, str_pos_end, resource_length );
-				*( *resource + resource_length ) = 0;	// Sanity.
+				*resource = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( resource_length + 1 ) );
+				if ( *resource != NULL )
+				{
+					*( *resource ) = '/';
+					_memcpy_s( *resource + 1, resource_length, str_pos_end, resource_length );
+					*( *resource + resource_length ) = 0;	// Sanity.
+				}
 			}
 			else
 			{
@@ -686,8 +719,11 @@ bool ParseURL_A( char *url, char *original_resource,
 
 				// Include the / as the resource.
 				*resource = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * 2 );
-				*( *resource ) = '/';
-				*( *resource + 1 ) = 0;	// Sanity.
+				if ( *resource != NULL )
+				{
+					*( *resource ) = '/';
+					*( *resource + 1 ) = 0;	// Sanity.
+				}
 			}
 		}
 
@@ -708,8 +744,11 @@ bool ParseURL_A( char *url, char *original_resource,
 
 					// Save the username.
 					*username = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( *username_length + 1 ) );
-					_memcpy_s( *username, *username_length + 1, str_pos_start, *username_length );
-					*( *username + *username_length ) = 0;	// Sanity
+					if ( *username != NULL )
+					{
+						_memcpy_s( *username, *username_length + 1, str_pos_start, *username_length );
+						*( *username + *username_length ) = 0;	// Sanity
+					}
 				}
 
 				if ( unpw_token != NULL )
@@ -722,8 +761,11 @@ bool ParseURL_A( char *url, char *original_resource,
 
 						// Save the password.
 						*password = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( *password_length + 1 ) );
-						_memcpy_s( *password, *password_length + 1, unpw_token, *password_length );
-						*( *password + *password_length ) = 0;	// Sanity
+						if ( *password != NULL )
+						{
+							_memcpy_s( *password, *password_length + 1, unpw_token, *password_length );
+							*( *password + *password_length ) = 0;	// Sanity
+						}
 					}
 				}
 
@@ -766,8 +808,11 @@ bool ParseURL_A( char *url, char *original_resource,
 
 		// Save the host.
 		*host = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( host_length + 1 ) );
-		_memcpy_s( *host, host_length + 1, str_pos_start, host_length );
-		*( *host + host_length ) = 0;	// Sanity
+		if ( *host != NULL )
+		{
+			_memcpy_s( *host, host_length + 1, str_pos_start, host_length );
+			*( *host + host_length ) = 0;	// Sanity
+		}
 	}
 	else if ( url[ 0 ] == '/' )	// Resource is a relative URI that starts with a L'/' and is relative to the root (host).
 	{
@@ -775,8 +820,11 @@ bool ParseURL_A( char *url, char *original_resource,
 		resource_length = lstrlenA( url );
 
 		*resource = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( resource_length + 1 ) );
-		_memcpy_s( *resource, resource_length + 1, url, resource_length );
-		*( *resource + resource_length ) = 0;	// Sanity.
+		if ( *resource != NULL )
+		{
+			_memcpy_s( *resource, resource_length + 1, url, resource_length );
+			*( *resource + resource_length ) = 0;	// Sanity.
+		}
 	}
 	else	// Resource is a relative URI that does not start with a L'/' and is relative to the current directory.
 	{
@@ -809,19 +857,25 @@ bool ParseURL_A( char *url, char *original_resource,
 			resource_length = lstrlenA( url );
 
 			*resource = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( o_resource_length + resource_length + 1 ) );
-			_memcpy_s( *resource, o_resource_length + resource_length + 1, original_resource, o_resource_length );
-			_memcpy_s( *resource + o_resource_length, resource_length + 1, url, resource_length );
-			resource_length += o_resource_length;
-			*( *resource + resource_length ) = 0;	// Sanity.
+			if ( *resource != NULL )
+			{
+				_memcpy_s( *resource, o_resource_length + resource_length + 1, original_resource, o_resource_length );
+				_memcpy_s( *resource + o_resource_length, resource_length + 1, url, resource_length );
+				resource_length += o_resource_length;
+				*( *resource + resource_length ) = 0;	// Sanity.
+			}
 		}
 		else
 		{
 			resource_length = lstrlenA( url ) + 1;	// Include the L'/'
 
 			*resource = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( resource_length + 1 ) );
-			*resource[ 0 ] = '/';
-			_memcpy_s( *resource + 1, resource_length, url, resource_length );
-			*( *resource + resource_length ) = 0;	// Sanity.
+			if ( *resource != NULL )
+			{
+				*resource[ 0 ] = '/';
+				_memcpy_s( *resource + 1, resource_length, url, resource_length );
+				*( *resource + resource_length ) = 0;	// Sanity.
+			}
 		}
 	}
 
@@ -887,8 +941,11 @@ bool ParseURL_W( wchar_t *url, wchar_t *original_resource,
 			resource_length = lstrlenW( str_pos_end );
 
 			*resource = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( resource_length + 1 ) );
-			_wmemcpy_s( *resource, resource_length + 1, str_pos_end, resource_length );
-			*( *resource + resource_length ) = 0;	// Sanity.
+			if ( *resource != NULL )
+			{
+				_wmemcpy_s( *resource, resource_length + 1, str_pos_end, resource_length );
+				*( *resource + resource_length ) = 0;	// Sanity.
+			}
 		}
 		else
 		{
@@ -904,10 +961,13 @@ bool ParseURL_W( wchar_t *url, wchar_t *original_resource,
 			{
 				resource_length = lstrlenW( str_pos_end ) + 1;	// Include the starting /.
 
-				*resource = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( resource_length + 1 ) );	
-				*( *resource ) = L'/';
-				_wmemcpy_s( *resource + 1, resource_length, str_pos_end, resource_length );
-				*( *resource + resource_length ) = 0;	// Sanity.
+				*resource = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( resource_length + 1 ) );
+				if ( *resource != NULL )
+				{
+					*( *resource ) = L'/';
+					_wmemcpy_s( *resource + 1, resource_length, str_pos_end, resource_length );
+					*( *resource + resource_length ) = 0;	// Sanity.
+				}
 			}
 			else
 			{
@@ -917,8 +977,11 @@ bool ParseURL_W( wchar_t *url, wchar_t *original_resource,
 
 				// Include the / as the resource.
 				*resource = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * 2 );
-				*( *resource ) = L'/';
-				*( *resource + 1 ) = 0;	// Sanity.
+				if ( *resource != NULL )
+				{
+					*( *resource ) = L'/';
+					*( *resource + 1 ) = 0;	// Sanity.
+				}
 			}
 		}
 
@@ -939,8 +1002,11 @@ bool ParseURL_W( wchar_t *url, wchar_t *original_resource,
 
 					// Save the username.
 					*username = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( *username_length + 1 ) );
-					_wmemcpy_s( *username, *username_length + 1, str_pos_start, *username_length );
-					*( *username + *username_length ) = 0;	// Sanity
+					if ( *username != NULL )
+					{
+						_wmemcpy_s( *username, *username_length + 1, str_pos_start, *username_length );
+						*( *username + *username_length ) = 0;	// Sanity
+					}
 				}
 
 				if ( unpw_token != NULL )
@@ -953,8 +1019,11 @@ bool ParseURL_W( wchar_t *url, wchar_t *original_resource,
 
 						// Save the password.
 						*password = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( *password_length + 1 ) );
-						_wmemcpy_s( *password, *password_length + 1, unpw_token, *password_length );
-						*( *password + *password_length ) = 0;	// Sanity
+						if ( *password != NULL )
+						{
+							_wmemcpy_s( *password, *password_length + 1, unpw_token, *password_length );
+							*( *password + *password_length ) = 0;	// Sanity
+						}
 					}
 				}
 
@@ -997,8 +1066,11 @@ bool ParseURL_W( wchar_t *url, wchar_t *original_resource,
 
 		// Save the host.
 		*host = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( host_length + 1 ) );
-		_wmemcpy_s( *host, host_length + 1, str_pos_start, host_length );
-		*( *host + host_length ) = 0;	// Sanity
+		if ( *host != NULL )
+		{
+			_wmemcpy_s( *host, host_length + 1, str_pos_start, host_length );
+			*( *host + host_length ) = 0;	// Sanity
+		}
 	}
 	else if ( url[ 0 ] == L'/' )	// Resource is a relative URI that starts with a L'/' and is relative to the root (host).
 	{
@@ -1006,8 +1078,11 @@ bool ParseURL_W( wchar_t *url, wchar_t *original_resource,
 		resource_length = lstrlenW( url );
 
 		*resource = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( resource_length + 1 ) );
-		_wmemcpy_s( *resource, resource_length + 1, url, resource_length );
-		*( *resource + resource_length ) = 0;	// Sanity.
+		if ( *resource != NULL )
+		{
+			_wmemcpy_s( *resource, resource_length + 1, url, resource_length );
+			*( *resource + resource_length ) = 0;	// Sanity.
+		}
 	}
 	else	// Resource is a relative URI that does not start with a L'/' and is relative to the current directory.
 	{
@@ -1040,19 +1115,25 @@ bool ParseURL_W( wchar_t *url, wchar_t *original_resource,
 			resource_length = lstrlenW( url );
 
 			*resource = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( o_resource_length + resource_length + 1 ) );
-			_wmemcpy_s( *resource, o_resource_length + resource_length + 1, original_resource, o_resource_length );
-			_wmemcpy_s( *resource + o_resource_length, resource_length + 1, url, resource_length );
-			resource_length += o_resource_length;
-			*( *resource + resource_length ) = 0;	// Sanity.
+			if ( *resource != NULL )
+			{
+				_wmemcpy_s( *resource, o_resource_length + resource_length + 1, original_resource, o_resource_length );
+				_wmemcpy_s( *resource + o_resource_length, resource_length + 1, url, resource_length );
+				resource_length += o_resource_length;
+				*( *resource + resource_length ) = 0;	// Sanity.
+			}
 		}
 		else
 		{
 			resource_length = lstrlenW( url ) + 1;	// Include the L'/'
 
 			*resource = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( resource_length + 1 ) );
-			*resource[ 0 ] = L'/';
-			_wmemcpy_s( *resource + 1, resource_length, url, resource_length );
-			*( *resource + resource_length ) = 0;	// Sanity.
+			if ( *resource != NULL )
+			{
+				*resource[ 0 ] = L'/';
+				_wmemcpy_s( *resource + 1, resource_length, url, resource_length );
+				*( *resource + resource_length ) = 0;	// Sanity.
+			}
 		}
 	}
 
@@ -1064,80 +1145,82 @@ unsigned int DecompressStream( SOCKET_CONTEXT *context, char *buffer, unsigned i
 	int stream_ret = Z_OK;
 	unsigned int total_data_length = 0;
 
-	if ( context->decompressed_buf == NULL )
+	if ( context != NULL )
 	{
-		context->decompressed_buf_size = ZLIB_CHUNK;
-		context->decompressed_buf = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * context->decompressed_buf_size );	// Allocate 16 kilobytes.
-
-		_memzero( &context->stream, sizeof( z_stream ) );
-		context->stream.zalloc = zGlobalAlloc;
-		context->stream.zfree = zGlobalFree;
-
-		// -MAX_WBITS		= deflate
-		// MAX_WBITS		= zlib
-		// MAX_WBITS + 16	= gzip
-		// MAX_WBITS + 32	= Detects gzip or zlib
-		stream_ret = _inflateInit2( &context->stream, ( context->header_info.content_encoding == CONTENT_ENCODING_GZIP ? MAX_WBITS + 16 : ( context->header_info.content_encoding == CONTENT_ENCODING_DEFLATE ? -MAX_WBITS : MAX_WBITS ) ) );	// 1 = gzip, 2 = deflate, everything else = default
-	}
-
-	context->stream.next_in = ( Bytef * )buffer;
-	context->stream.avail_in = buffer_size;
-	if ( context->stream.avail_in == 0 )
-	{
-		stream_ret = Z_DATA_ERROR;
-	}
-
-	bool retry = false;
-
-	while ( stream_ret == Z_OK && context->stream.avail_in > 0 )
-	{
-		context->stream.next_out = ( Bytef * )context->decompressed_buf + total_data_length;
-		context->stream.avail_out = context->decompressed_buf_size - total_data_length;
-
-		stream_ret = _inflate( &context->stream, Z_NO_FLUSH );
-		if ( stream_ret == Z_NEED_DICT )
+		if ( context->decompressed_buf == NULL )
 		{
-			stream_ret = Z_DATA_ERROR;
-		}
-		else if ( stream_ret == Z_DATA_ERROR )
-		{
-			if ( retry )
-			{
-				break;
-			}
-			
+			context->decompressed_buf_size = ZLIB_CHUNK;
+			context->decompressed_buf = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * context->decompressed_buf_size );	// Allocate 16 kilobytes.
+
 			_memzero( &context->stream, sizeof( z_stream ) );
 			context->stream.zalloc = zGlobalAlloc;
 			context->stream.zfree = zGlobalFree;
 
-			context->stream.next_in = ( Bytef * )buffer;
-			context->stream.avail_in = buffer_size;
-
-			// See if it's a zlib wrapped compression.
-			stream_ret = _inflateInit2( &context->stream, MAX_WBITS );
-
-			retry = true;
-
-			continue;
+			// -MAX_WBITS		= deflate
+			// MAX_WBITS		= zlib
+			// MAX_WBITS + 16	= gzip
+			// MAX_WBITS + 32	= Detects gzip or zlib
+			stream_ret = _inflateInit2( &context->stream, ( context->header_info.content_encoding == CONTENT_ENCODING_GZIP ? MAX_WBITS + 16 : ( context->header_info.content_encoding == CONTENT_ENCODING_DEFLATE ? -MAX_WBITS : MAX_WBITS ) ) );	// 1 = gzip, 2 = deflate, everything else = default
 		}
 
-		total_data_length = ( context->decompressed_buf_size - context->stream.avail_out );
-
-		// Allocate more memory if we have any remaining data in our buffer to decompress.
-		if ( stream_ret == Z_OK && context->stream.avail_in > 0 )
+		context->stream.next_in = ( Bytef * )buffer;
+		context->stream.avail_in = buffer_size;
+		if ( context->stream.avail_in == 0 )
 		{
-			context->decompressed_buf_size += ZLIB_CHUNK;
-			char *realloc_buffer = ( char * )GlobalReAlloc( context->decompressed_buf, sizeof( char ) * context->decompressed_buf_size, GMEM_MOVEABLE );
-			if ( realloc_buffer != NULL )
+			stream_ret = Z_DATA_ERROR;
+		}
+
+		bool retry = false;
+
+		while ( stream_ret == Z_OK && context->stream.avail_in > 0 )
+		{
+			context->stream.next_out = ( Bytef * )context->decompressed_buf + total_data_length;
+			context->stream.avail_out = context->decompressed_buf_size - total_data_length;
+
+			stream_ret = _inflate( &context->stream, Z_NO_FLUSH );
+			if ( stream_ret == Z_NEED_DICT )
 			{
-				context->decompressed_buf = realloc_buffer;
+				stream_ret = Z_DATA_ERROR;
+			}
+			else if ( stream_ret == Z_DATA_ERROR )
+			{
+				if ( retry )
+				{
+					break;
+				}
+				
+				_memzero( &context->stream, sizeof( z_stream ) );
+				context->stream.zalloc = zGlobalAlloc;
+				context->stream.zfree = zGlobalFree;
+
+				context->stream.next_in = ( Bytef * )buffer;
+				context->stream.avail_in = buffer_size;
+
+				// See if it's a zlib wrapped compression.
+				stream_ret = _inflateInit2( &context->stream, MAX_WBITS );
+
+				retry = true;
+
+				continue;
+			}
+
+			total_data_length = ( context->decompressed_buf_size - context->stream.avail_out );
+
+			// Allocate more memory if we have any remaining data in our buffer to decompress.
+			if ( stream_ret == Z_OK && context->stream.avail_in > 0 && context->decompressed_buf != NULL )
+			{
+				context->decompressed_buf_size += ZLIB_CHUNK;
+				char *realloc_buffer = ( char * )GlobalReAlloc( context->decompressed_buf, sizeof( char ) * context->decompressed_buf_size, GMEM_MOVEABLE );
+				if ( realloc_buffer != NULL )
+				{
+					context->decompressed_buf = realloc_buffer;
+				}
 			}
 		}
 	}
 
 	return total_data_length;
 }
-
 
 //
 //
@@ -1348,7 +1431,6 @@ void GetContentRange( char *header, RANGE_INFO *range_info )
 						--content_range_value_end;
 					}
 
-					char clength[ 21 ];
 					_memzero( clength, 21 );
 					_memcpy_s( clength, 21, content_range_value, ( ( content_range_value_end - content_range_value ) > 20 ? 20 : ( content_range_value_end - content_range_value ) ) );
 					clength[ 20 ] = 0;	// Sanity
@@ -1372,7 +1454,6 @@ void GetContentRange( char *header, RANGE_INFO *range_info )
 						++content_range_value;
 					}
 
-					clength[ 21 ];
 					_memzero( clength, 21 );
 					_memcpy_s( clength, 21, content_range_value, ( ( content_range_header_end - content_range_value ) > 20 ? 20 : ( content_range_header_end - content_range_value ) ) );
 					clength[ 20 ] = 0;	// Sanity
@@ -1601,8 +1682,11 @@ void GetAuthorization( char *header, AUTH_INFO *auth_info )
 
 			// We'll just use the digest's nonce value to store the key. No need to introduce any extra memory.
 			auth_info->nonce = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( basic_value_length + 1 ) );
-			_memcpy_s( auth_info->nonce, basic_value_length + 1, authorization_header, basic_value_length );
-			auth_info->nonce[ basic_value_length ] = 0;	// Sanity
+			if ( auth_info->nonce != NULL )
+			{
+				_memcpy_s( auth_info->nonce, basic_value_length + 1, authorization_header, basic_value_length );
+				auth_info->nonce[ basic_value_length ] = 0;	// Sanity
+			}
 		}
 		else if ( _StrStrIA( authorization_header, "Digest " ) != NULL )	// The protocol doesn't specify whether "Digest" is case-sensitive or not. Note that the protocol requires a single space (SP) after "Digest".
 		{
@@ -1630,8 +1714,11 @@ void GetAuthorization( char *header, AUTH_INFO *auth_info )
 				int digest_value_length = ( int )( digest_value_end - digest_value );
 
 				auth_info->username = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( digest_value_length + 1 ) );
-				_memcpy_s( auth_info->username, digest_value_length + 1, digest_value, digest_value_length );
-				auth_info->username[ digest_value_length ] = 0;	// Sanity
+				if ( auth_info->username != NULL )
+				{
+					_memcpy_s( auth_info->username, digest_value_length + 1, digest_value, digest_value_length );
+					auth_info->username[ digest_value_length ] = 0;	// Sanity
+				}
 			}
 
 			if ( GetDigestValue( authorization_header, "realm", 5, &digest_value, &digest_value_end ) != NULL )
@@ -1650,8 +1737,11 @@ void GetAuthorization( char *header, AUTH_INFO *auth_info )
 				int digest_value_length = ( int )( digest_value_end - digest_value );
 
 				auth_info->realm = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( digest_value_length + 1 ) );
-				_memcpy_s( auth_info->realm, digest_value_length + 1, digest_value, digest_value_length );
-				auth_info->realm[ digest_value_length ] = 0;	// Sanity
+				if ( auth_info->realm != NULL )
+				{
+					_memcpy_s( auth_info->realm, digest_value_length + 1, digest_value, digest_value_length );
+					auth_info->realm[ digest_value_length ] = 0;	// Sanity
+				}
 			}
 
 			if ( GetDigestValue( authorization_header, "nonce", 5, &digest_value, &digest_value_end ) != NULL )
@@ -1670,8 +1760,11 @@ void GetAuthorization( char *header, AUTH_INFO *auth_info )
 				int digest_value_length = ( int )( digest_value_end - digest_value );
 
 				auth_info->nonce = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( digest_value_length + 1 ) );
-				_memcpy_s( auth_info->nonce, digest_value_length + 1, digest_value, digest_value_length );
-				auth_info->nonce[ digest_value_length ] = 0;	// Sanity
+				if ( auth_info->nonce != NULL )
+				{
+					_memcpy_s( auth_info->nonce, digest_value_length + 1, digest_value, digest_value_length );
+					auth_info->nonce[ digest_value_length ] = 0;	// Sanity
+				}
 			}
 
 			if ( GetDigestValue( authorization_header, "uri", 3, &digest_value, &digest_value_end ) != NULL )
@@ -1690,8 +1783,11 @@ void GetAuthorization( char *header, AUTH_INFO *auth_info )
 				int digest_value_length = ( int )( digest_value_end - digest_value );
 
 				auth_info->uri = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( digest_value_length + 1 ) );
-				_memcpy_s( auth_info->uri, digest_value_length + 1, digest_value, digest_value_length );
-				auth_info->uri[ digest_value_length ] = 0;	// Sanity
+				if ( auth_info->uri != NULL )
+				{
+					_memcpy_s( auth_info->uri, digest_value_length + 1, digest_value, digest_value_length );
+					auth_info->uri[ digest_value_length ] = 0;	// Sanity
+				}
 			}
 
 			if ( GetDigestValue( authorization_header, "algorithm", 9, &digest_value, &digest_value_end ) != NULL )
@@ -1737,8 +1833,11 @@ void GetAuthorization( char *header, AUTH_INFO *auth_info )
 				int digest_value_length = ( int )( digest_value_end - digest_value );
 
 				auth_info->response = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( digest_value_length + 1 ) );
-				_memcpy_s( auth_info->response, digest_value_length + 1, digest_value, digest_value_length );
-				auth_info->response[ digest_value_length ] = 0;	// Sanity
+				if ( auth_info->response != NULL )
+				{
+					_memcpy_s( auth_info->response, digest_value_length + 1, digest_value, digest_value_length );
+					auth_info->response[ digest_value_length ] = 0;	// Sanity
+				}
 			}
 
 			/*if ( GetDigestValue( authorization_header, "domain", 6, &digest_value, &digest_value_end ) != NULL )
@@ -1757,8 +1856,11 @@ void GetAuthorization( char *header, AUTH_INFO *auth_info )
 				int digest_value_length = ( int )( digest_value_end - digest_value );
 
 				auth_info->domain = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( digest_value_length + 1 ) );
-				_memcpy_s( auth_info->domain, digest_value_length + 1, digest_value, digest_value_length );
-				auth_info->domain[ digest_value_length ] = 0;	// Sanity
+				if ( auth_info->domain != NULL )
+				{
+					_memcpy_s( auth_info->domain, digest_value_length + 1, digest_value, digest_value_length );
+					auth_info->domain[ digest_value_length ] = 0;	// Sanity
+				}
 			}*/
 
 			if ( GetDigestValue( authorization_header, "opaque", 6, &digest_value, &digest_value_end ) != NULL )
@@ -1777,8 +1879,11 @@ void GetAuthorization( char *header, AUTH_INFO *auth_info )
 				int digest_value_length = ( int )( digest_value_end - digest_value );
 
 				auth_info->opaque = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( digest_value_length + 1 ) );
-				_memcpy_s( auth_info->opaque, digest_value_length + 1, digest_value, digest_value_length );
-				auth_info->opaque[ digest_value_length ] = 0;	// Sanity
+				if ( auth_info->opaque != NULL )
+				{
+					_memcpy_s( auth_info->opaque, digest_value_length + 1, digest_value, digest_value_length );
+					auth_info->opaque[ digest_value_length ] = 0;	// Sanity
+				}
 			}
 
 			if ( GetDigestValue( authorization_header, "qop", 3, &digest_value, &digest_value_end ) != NULL )
@@ -1797,10 +1902,13 @@ void GetAuthorization( char *header, AUTH_INFO *auth_info )
 				int digest_value_length = ( int )( digest_value_end - digest_value );
 
 				auth_info->qop = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( digest_value_length + 1 ) );
-				_memcpy_s( auth_info->qop, digest_value_length + 1, digest_value, digest_value_length );
-				auth_info->qop[ digest_value_length ] = 0;	// Sanity
+				if ( auth_info->qop != NULL )
+				{
+					_memcpy_s( auth_info->qop, digest_value_length + 1, digest_value, digest_value_length );
+					auth_info->qop[ digest_value_length ] = 0;	// Sanity
+				}
 
-				char tmp_end = *digest_value_end;
+				char tmp_end2 = *digest_value_end;
 				*digest_value_end = 0;	// Sanity
 
 				// We need to search for this because there might be additional values for the field.
@@ -1834,7 +1942,7 @@ void GetAuthorization( char *header, AUTH_INFO *auth_info )
 				}
 				while ( qop_type_search != NULL );
 
-				*digest_value_end = tmp_end;	// Restore.
+				*digest_value_end = tmp_end2;	// Restore.
 			}
 
 			if ( GetDigestValue( authorization_header, "nc", 2, &digest_value, &digest_value_end ) != NULL )
@@ -1874,8 +1982,11 @@ void GetAuthorization( char *header, AUTH_INFO *auth_info )
 				int digest_value_length = ( int )( digest_value_end - digest_value );
 
 				auth_info->cnonce = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( digest_value_length + 1 ) );
-				_memcpy_s( auth_info->cnonce, digest_value_length + 1, digest_value, digest_value_length );
-				auth_info->cnonce[ digest_value_length ] = 0;	// Sanity
+				if ( auth_info->cnonce != NULL )
+				{
+					_memcpy_s( auth_info->cnonce, digest_value_length + 1, digest_value, digest_value_length );
+					auth_info->cnonce[ digest_value_length ] = 0;	// Sanity
+				}
 			}
 
 			*authorization_header_end = tmp_end;	// Restore.
@@ -1933,8 +2044,11 @@ void GetAuthenticate( char *header, unsigned char auth_header_type, AUTH_INFO *a
 				int digest_value_length = ( int )( digest_value_end - digest_value );
 
 				auth_info->realm = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( digest_value_length + 1 ) );
-				_memcpy_s( auth_info->realm, digest_value_length + 1, digest_value, digest_value_length );
-				auth_info->realm[ digest_value_length ] = 0;	// Sanity
+				if ( auth_info->realm != NULL )
+				{
+					_memcpy_s( auth_info->realm, digest_value_length + 1, digest_value, digest_value_length );
+					auth_info->realm[ digest_value_length ] = 0;	// Sanity
+				}
 			}
 
 			if ( GetDigestValue( authenticate_header, "nonce", 5, &digest_value, &digest_value_end ) != NULL )
@@ -1953,8 +2067,11 @@ void GetAuthenticate( char *header, unsigned char auth_header_type, AUTH_INFO *a
 				int digest_value_length = ( int )( digest_value_end - digest_value );
 
 				auth_info->nonce = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( digest_value_length + 1 ) );
-				_memcpy_s( auth_info->nonce, digest_value_length + 1, digest_value, digest_value_length );
-				auth_info->nonce[ digest_value_length ] = 0;	// Sanity
+				if ( auth_info->nonce != NULL )
+				{
+					_memcpy_s( auth_info->nonce, digest_value_length + 1, digest_value, digest_value_length );
+					auth_info->nonce[ digest_value_length ] = 0;	// Sanity
+				}
 			}
 
 			if ( GetDigestValue( authenticate_header, "algorithm", 9, &digest_value, &digest_value_end ) != NULL )
@@ -2000,8 +2117,11 @@ void GetAuthenticate( char *header, unsigned char auth_header_type, AUTH_INFO *a
 				int digest_value_length = ( int )( digest_value_end - digest_value );
 
 				auth_info->domain = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( digest_value_length + 1 ) );
-				_memcpy_s( auth_info->domain, digest_value_length + 1, digest_value, digest_value_length );
-				auth_info->domain[ digest_value_length ] = 0;	// Sanity
+				if ( auth_info->domain != NULL )
+				{
+					_memcpy_s( auth_info->domain, digest_value_length + 1, digest_value, digest_value_length );
+					auth_info->domain[ digest_value_length ] = 0;	// Sanity
+				}
 			}
 
 			if ( GetDigestValue( authenticate_header, "opaque", 6, &digest_value, &digest_value_end ) != NULL )
@@ -2020,8 +2140,11 @@ void GetAuthenticate( char *header, unsigned char auth_header_type, AUTH_INFO *a
 				int digest_value_length = ( int )( digest_value_end - digest_value );
 
 				auth_info->opaque = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( digest_value_length + 1 ) );
-				_memcpy_s( auth_info->opaque, digest_value_length + 1, digest_value, digest_value_length );
-				auth_info->opaque[ digest_value_length ] = 0;	// Sanity
+				if ( auth_info->opaque != NULL )
+				{
+					_memcpy_s( auth_info->opaque, digest_value_length + 1, digest_value, digest_value_length );
+					auth_info->opaque[ digest_value_length ] = 0;	// Sanity
+				}
 			}
 
 			if ( GetDigestValue( authenticate_header, "qop", 3, &digest_value, &digest_value_end ) != NULL )
@@ -2040,10 +2163,13 @@ void GetAuthenticate( char *header, unsigned char auth_header_type, AUTH_INFO *a
 				int digest_value_length = ( int )( digest_value_end - digest_value );
 
 				auth_info->qop = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( digest_value_length + 1 ) );
-				_memcpy_s( auth_info->qop, digest_value_length + 1, digest_value, digest_value_length );
-				auth_info->qop[ digest_value_length ] = 0;	// Sanity
+				if ( auth_info->qop != NULL )
+				{
+					_memcpy_s( auth_info->qop, digest_value_length + 1, digest_value, digest_value_length );
+					auth_info->qop[ digest_value_length ] = 0;	// Sanity
+				}
 
-				char tmp_end = *digest_value_end;
+				char tmp_end2 = *digest_value_end;
 				*digest_value_end = 0;	// Sanity
 
 				// We need to search for this because there might be additional values for the field.
@@ -2077,7 +2203,7 @@ void GetAuthenticate( char *header, unsigned char auth_header_type, AUTH_INFO *a
 				}
 				while ( qop_type_search != NULL );
 
-				*digest_value_end = tmp_end;	// Restore.
+				*digest_value_end = tmp_end2;	// Restore.
 			}
 
 			*authenticate_header_end = tmp_end;	// Restore.
@@ -2239,7 +2365,7 @@ bool GetLastModified( char *header, SYSTEMTIME &date_time )
 						// The time should only be eight characters in length.
 						if ( last_modified_header + 8 <= last_modified_header_end )
 						{
-							char tmp_end2 = *( last_modified_header + 8 );
+							tmp_end2 = *( last_modified_header + 8 );
 							*( last_modified_header + 8 ) = 0;	// Sanity
 
 							// HOURS
@@ -2268,7 +2394,7 @@ bool GetLastModified( char *header, SYSTEMTIME &date_time )
 							// The year should only be four characters in length.
 							if ( last_modified_header + 4 <= last_modified_header_end )
 							{
-								char tmp_end2 = *( last_modified_header + 4 );
+								tmp_end2 = *( last_modified_header + 4 );
 								*( last_modified_header + 4 ) = 0;	// Sanity
 
 								date_time.wYear = ( unsigned short )_strtoul( last_modified_header, NULL, 10 );
@@ -2337,7 +2463,7 @@ bool GetLastModified( char *header, SYSTEMTIME &date_time )
 						// The year should only be two or four characters in length.
 						if ( last_modified_header + year_length <= last_modified_header_end )
 						{
-							char tmp_end2 = *( last_modified_header + year_length );
+							tmp_end2 = *( last_modified_header + year_length );
 							*( last_modified_header + year_length ) = 0;	// Sanity
 
 							date_time.wYear = ( unsigned short )_strtoul( last_modified_header, NULL, 10 );
@@ -2354,7 +2480,7 @@ bool GetLastModified( char *header, SYSTEMTIME &date_time )
 							// The time should only be eight characters in length.
 							if ( last_modified_header + 8 <= last_modified_header_end )
 							{
-								char tmp_end2 = *( last_modified_header + 8 );
+								tmp_end2 = *( last_modified_header + 8 );
 								*( last_modified_header + 8 ) = 0;	// Sanity
 
 								// HOURS
@@ -2403,8 +2529,11 @@ char *GetETag( char *header )
 
 		// Save the etag.
 		char *etag = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( etag_length + 1 ) );
-		_memcpy_s( etag, etag_length + 1, etag_header, etag_length );
-		etag[ etag_length ] = 0;	// Sanity
+		if ( etag != NULL )
+		{
+			_memcpy_s( etag, etag_length + 1, etag_header, etag_length );
+			etag[ etag_length ] = 0;	// Sanity
+		}
 
 		return etag;
 	}
@@ -3292,20 +3421,23 @@ char GetHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int h
 				{
 					// Make sure the (group) host's content_length is no more than our shared_info->file_size.
 					// We'll have set the download_info->file_size in MakeRangeRequest().
-					if ( context->download_info != NULL && IS_GROUP( context->download_info ) )
+					if ( context->download_info != NULL )
 					{
-						if ( context->header_info.range_info->content_length == context->download_info->shared_info->file_size )
+						if ( IS_GROUP( context->download_info ) )
 						{
-							context->header_info.range_info->content_length = context->download_info->file_size;
+							if ( context->header_info.range_info->content_length == context->download_info->shared_info->file_size )
+							{
+								context->header_info.range_info->content_length = context->download_info->file_size;
+							}
+							else
+							{
+								return CONTENT_STATUS_FAILED;
+							}
 						}
-						else
+						else if ( context->header_info.range_info->content_length != context->download_info->shared_info->file_size )
 						{
 							return CONTENT_STATUS_FAILED;
 						}
-					}
-					else if ( context->header_info.range_info->content_length != context->download_info->shared_info->file_size )
-					{
-						return CONTENT_STATUS_FAILED;
 					}
 
 					return CONTENT_STATUS_GET_CONTENT;
@@ -3760,33 +3892,40 @@ void MakeHostRanges( SOCKET_CONTEXT *context )
 						if ( di->range_list != NULL )
 						{
 							ri = ( RANGE_INFO * )di->range_list->data;
-							ri->content_offset = 0;
 						}
 						else
 						{
 							ri = ( RANGE_INFO * )GlobalAlloc( GPTR, sizeof( RANGE_INFO ) );
-							DoublyLinkedList *range_node = DLL_CreateNode( ( void * )ri );
-							DLL_AddNode( &di->range_list, range_node, -1 );
+							if ( ri != NULL )
+							{
+								DoublyLinkedList *range_node = DLL_CreateNode( ( void * )ri );
+								DLL_AddNode( &di->range_list, range_node, -1 );
+							}
 						}
 
-						ri->range_start = host_offset;
-
-						if ( host < host_count )
+						if ( ri != NULL )
 						{
-							host_offset += host_size;
+							ri->content_offset = 0;
 
-							ri->range_end = host_offset - 1;
-							//ri->content_length = host_size;
-							di->file_size = host_size;
-						}
-						else	// Make sure we have an accurate range end for the last host.
-						{
-							ri->range_end = content_length - 1;
-							//ri->content_length = content_length - host_offset;
-							di->file_size = content_length - host_offset;
-						}
+							ri->range_start = host_offset;
 
-						ri->file_write_offset = ri->range_start;
+							if ( host < host_count )
+							{
+								host_offset += host_size;
+
+								ri->range_end = host_offset - 1;
+								//ri->content_length = host_size;
+								di->file_size = host_size;
+							}
+							else	// Make sure we have an accurate range end for the last host.
+							{
+								ri->range_end = content_length - 1;
+								//ri->content_length = content_length - host_offset;
+								di->file_size = content_length - host_offset;
+							}
+
+							ri->file_write_offset = ri->range_start;
+						}
 					}
 					else
 					{
@@ -3929,28 +4068,30 @@ char MakeRangeRequest( SOCKET_CONTEXT *context )
 					if ( context->download_info->parts_limit > 0 && part > context->download_info->parts_limit )
 					{
 						RANGE_INFO *ri = ( RANGE_INFO * )GlobalAlloc( GPTR, sizeof( RANGE_INFO ) );
-
-						ri->range_start = range_offset + 1;
-
-						if ( part < context->parts )
+						if ( ri != NULL )
 						{
-							range_offset += range_size;
-							ri->range_end = range_offset;
-						}
-						else	// Make sure we have an accurate range end for the last part.
-						{
-							ri->range_end = content_length - 1;
-						}
+							ri->range_start = range_offset + 1;
 
-						//ri->content_length = content_length;
-						ri->file_write_offset = ri->range_start;
+							if ( part < context->parts )
+							{
+								range_offset += range_size;
+								ri->range_end = range_offset;
+							}
+							else	// Make sure we have an accurate range end for the last part.
+							{
+								ri->range_end = content_length - 1;
+							}
 
-						DoublyLinkedList *range_node = DLL_CreateNode( ( void * )ri );
-						DLL_AddNode( &context->download_info->range_list, range_node, -1 );
+							//ri->content_length = content_length;
+							ri->file_write_offset = ri->range_start;
 
-						if ( context->download_info->range_queue == NULL )
-						{
-							context->download_info->range_queue = range_node;
+							DoublyLinkedList *range_node = DLL_CreateNode( ( void * )ri );
+							DLL_AddNode( &context->download_info->range_list, range_node, -1 );
+
+							if ( context->download_info->range_queue == NULL )
+							{
+								context->download_info->range_queue = range_node;
+							}
 						}
 
 						skip_context_creation = true;
@@ -3966,126 +4107,134 @@ char MakeRangeRequest( SOCKET_CONTEXT *context )
 
 				// Save the request information, the header information (if we got any), and create a new connection.
 				SOCKET_CONTEXT *new_context = CreateSocketContext();
-
-				new_context->processed_header = true;
-
-				new_context->part = part;
-				new_context->parts = context->parts;
-
-				new_context->got_filename = context->got_filename;	// No need to rename it again.
-				new_context->got_last_modified = context->got_last_modified;	// No need to get the date/time again.
-				new_context->show_file_size_prompt = context->show_file_size_prompt;	// No need to prompt again.
-
-				new_context->request_info.host = GlobalStrDupA( context->request_info.host );
-				new_context->request_info.port = context->request_info.port;
-				new_context->request_info.resource = GlobalStrDupA( context->request_info.resource );
-				new_context->request_info.protocol = context->request_info.protocol;
-
-				new_context->request_info.auth_info.username = GlobalStrDupA( context->request_info.auth_info.username );
-				new_context->request_info.auth_info.password = GlobalStrDupA( context->request_info.auth_info.password );
-
-				new_context->header_info.cookie_tree = CopyCookieTree( context->header_info.cookie_tree );
-				new_context->header_info.cookies = GlobalStrDupA( context->header_info.cookies );
-
-				// We can copy the digest info so that we don't have to make any extra requests to 401 and 407 responses.
-				if ( context->header_info.digest_info != NULL )
+				if ( new_context != NULL )
 				{
-					new_context->header_info.digest_info = ( AUTH_INFO * )GlobalAlloc( GPTR, sizeof( AUTH_INFO ) );
+					new_context->processed_header = true;
 
-					new_context->header_info.digest_info->algorithm = context->header_info.digest_info->algorithm;
-					new_context->header_info.digest_info->auth_type = context->header_info.digest_info->auth_type;
-					new_context->header_info.digest_info->qop_type = context->header_info.digest_info->qop_type;
+					new_context->part = part;
+					new_context->parts = context->parts;
 
-					new_context->header_info.digest_info->domain = GlobalStrDupA( context->header_info.digest_info->domain );
-					new_context->header_info.digest_info->nonce = GlobalStrDupA( context->header_info.digest_info->nonce );
-					new_context->header_info.digest_info->opaque = GlobalStrDupA( context->header_info.digest_info->opaque );
-					new_context->header_info.digest_info->qop = GlobalStrDupA( context->header_info.digest_info->qop );
-					new_context->header_info.digest_info->realm = GlobalStrDupA( context->header_info.digest_info->realm );
-				}
+					new_context->got_filename = context->got_filename;	// No need to rename it again.
+					new_context->got_last_modified = context->got_last_modified;	// No need to get the date/time again.
+					new_context->show_file_size_prompt = context->show_file_size_prompt;	// No need to prompt again.
 
-				if ( context->header_info.proxy_digest_info != NULL )
-				{
-					new_context->header_info.proxy_digest_info = ( AUTH_INFO * )GlobalAlloc( GPTR, sizeof( AUTH_INFO ) );
+					new_context->request_info.host = GlobalStrDupA( context->request_info.host );
+					new_context->request_info.port = context->request_info.port;
+					new_context->request_info.resource = GlobalStrDupA( context->request_info.resource );
+					new_context->request_info.protocol = context->request_info.protocol;
 
-					new_context->header_info.proxy_digest_info->algorithm = context->header_info.proxy_digest_info->algorithm;
-					new_context->header_info.proxy_digest_info->auth_type = context->header_info.proxy_digest_info->auth_type;
-					new_context->header_info.proxy_digest_info->qop_type = context->header_info.proxy_digest_info->qop_type;
+					new_context->request_info.auth_info.username = GlobalStrDupA( context->request_info.auth_info.username );
+					new_context->request_info.auth_info.password = GlobalStrDupA( context->request_info.auth_info.password );
 
-					new_context->header_info.proxy_digest_info->domain = GlobalStrDupA( context->header_info.proxy_digest_info->domain );
-					new_context->header_info.proxy_digest_info->nonce = GlobalStrDupA( context->header_info.proxy_digest_info->nonce );
-					new_context->header_info.proxy_digest_info->opaque = GlobalStrDupA( context->header_info.proxy_digest_info->opaque );
-					new_context->header_info.proxy_digest_info->qop = GlobalStrDupA( context->header_info.proxy_digest_info->qop );
-					new_context->header_info.proxy_digest_info->realm = GlobalStrDupA( context->header_info.proxy_digest_info->realm );
-				}
+					new_context->header_info.cookie_tree = CopyCookieTree( context->header_info.cookie_tree );
+					new_context->header_info.cookies = GlobalStrDupA( context->header_info.cookies );
 
-				RANGE_INFO *ri = ( RANGE_INFO * )GlobalAlloc( GPTR, sizeof( RANGE_INFO ) );
-
-				new_context->header_info.range_info = ri;
-
-				new_context->header_info.range_info->range_start = range_offset + 1;
-
-				if ( new_context->part < context->parts )
-				{
-					range_offset += range_size;
-					new_context->header_info.range_info->range_end = range_offset;
-				}
-				else	// Make sure we have an accurate range end for the last part.
-				{
-					new_context->header_info.range_info->range_end = content_length - 1;
-				}
-
-				//new_context->header_info.range_info->content_length = content_length;
-				new_context->header_info.range_info->file_write_offset = new_context->header_info.range_info->range_start;
-
-				//
-
-				new_context->context_node.data = new_context;
-
-				EnterCriticalSection( &context_list_cs );
-
-				DLL_AddNode( &g_context_list, &new_context->context_node, 0 );
-
-				LeaveCriticalSection( &context_list_cs );
-
-				// Add to the parts list.
-				if ( context->download_info != NULL )
-				{
-					EnterCriticalSection( &context->download_info->di_cs );
-
-					new_context->download_info = context->download_info;
-
-					++( new_context->download_info->active_parts );
-
-					DoublyLinkedList *range_node = DLL_CreateNode( ( void * )ri );
-					DLL_AddNode( &new_context->download_info->range_list, range_node, -1 );
-
-					new_context->parts_node.data = new_context;
-					DLL_AddNode( &new_context->download_info->parts_list, &new_context->parts_node, -1 );
-
-					LeaveCriticalSection( &context->download_info->di_cs );
-
-					EnterCriticalSection( &context->download_info->shared_info->di_cs );
-
-					// For groups.
-					if ( IS_GROUP( context->download_info ) )
+					// We can copy the digest info so that we don't have to make any extra requests to 401 and 407 responses.
+					if ( context->header_info.digest_info != NULL )
 					{
-						++( context->download_info->shared_info->active_parts );
+						new_context->header_info.digest_info = ( AUTH_INFO * )GlobalAlloc( GPTR, sizeof( AUTH_INFO ) );
+						if ( new_context->header_info.digest_info != NULL )
+						{
+							new_context->header_info.digest_info->algorithm = context->header_info.digest_info->algorithm;
+							new_context->header_info.digest_info->auth_type = context->header_info.digest_info->auth_type;
+							new_context->header_info.digest_info->qop_type = context->header_info.digest_info->qop_type;
+
+							new_context->header_info.digest_info->domain = GlobalStrDupA( context->header_info.digest_info->domain );
+							new_context->header_info.digest_info->nonce = GlobalStrDupA( context->header_info.digest_info->nonce );
+							new_context->header_info.digest_info->opaque = GlobalStrDupA( context->header_info.digest_info->opaque );
+							new_context->header_info.digest_info->qop = GlobalStrDupA( context->header_info.digest_info->qop );
+							new_context->header_info.digest_info->realm = GlobalStrDupA( context->header_info.digest_info->realm );
+						}
 					}
 
-					LeaveCriticalSection( &context->download_info->shared_info->di_cs );
-				}
+					if ( context->header_info.proxy_digest_info != NULL )
+					{
+						new_context->header_info.proxy_digest_info = ( AUTH_INFO * )GlobalAlloc( GPTR, sizeof( AUTH_INFO ) );
+						if ( new_context->header_info.proxy_digest_info != NULL )
+						{
+							new_context->header_info.proxy_digest_info->algorithm = context->header_info.proxy_digest_info->algorithm;
+							new_context->header_info.proxy_digest_info->auth_type = context->header_info.proxy_digest_info->auth_type;
+							new_context->header_info.proxy_digest_info->qop_type = context->header_info.proxy_digest_info->qop_type;
 
-				new_context->status = STATUS_CONNECTING;
+							new_context->header_info.proxy_digest_info->domain = GlobalStrDupA( context->header_info.proxy_digest_info->domain );
+							new_context->header_info.proxy_digest_info->nonce = GlobalStrDupA( context->header_info.proxy_digest_info->nonce );
+							new_context->header_info.proxy_digest_info->opaque = GlobalStrDupA( context->header_info.proxy_digest_info->opaque );
+							new_context->header_info.proxy_digest_info->qop = GlobalStrDupA( context->header_info.proxy_digest_info->qop );
+							new_context->header_info.proxy_digest_info->realm = GlobalStrDupA( context->header_info.proxy_digest_info->realm );
+						}
+					}
 
-				if ( !CreateConnection( new_context, new_context->request_info.host, new_context->request_info.port ) )
-				{
-					new_context->status = STATUS_FAILED;
+					RANGE_INFO *ri = ( RANGE_INFO * )GlobalAlloc( GPTR, sizeof( RANGE_INFO ) );
+					if ( ri != NULL )
+					{
+						new_context->header_info.range_info = ri;
 
-					InterlockedIncrement( &new_context->pending_operations );
+						new_context->header_info.range_info->range_start = range_offset + 1;
 
-					new_context->overlapped.current_operation = IO_Close;
+						if ( new_context->part < context->parts )
+						{
+							range_offset += range_size;
+							new_context->header_info.range_info->range_end = range_offset;
+						}
+						else	// Make sure we have an accurate range end for the last part.
+						{
+							new_context->header_info.range_info->range_end = content_length - 1;
+						}
 
-					PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )new_context, ( OVERLAPPED * )&new_context->overlapped );
+						//new_context->header_info.range_info->content_length = content_length;
+						new_context->header_info.range_info->file_write_offset = new_context->header_info.range_info->range_start;
+
+						//
+
+						new_context->context_node.data = new_context;
+
+						EnterCriticalSection( &context_list_cs );
+
+						DLL_AddNode( &g_context_list, &new_context->context_node, 0 );
+
+						LeaveCriticalSection( &context_list_cs );
+
+						// Add to the parts list.
+						if ( context->download_info != NULL )
+						{
+							EnterCriticalSection( &context->download_info->di_cs );
+
+							new_context->download_info = context->download_info;
+
+							++( new_context->download_info->active_parts );
+
+							DoublyLinkedList *range_node = DLL_CreateNode( ( void * )ri );
+							DLL_AddNode( &new_context->download_info->range_list, range_node, -1 );
+
+							new_context->parts_node.data = new_context;
+							DLL_AddNode( &new_context->download_info->parts_list, &new_context->parts_node, -1 );
+
+							LeaveCriticalSection( &context->download_info->di_cs );
+
+							EnterCriticalSection( &context->download_info->shared_info->di_cs );
+
+							// For groups.
+							if ( IS_GROUP( context->download_info ) )
+							{
+								++( context->download_info->shared_info->active_parts );
+							}
+
+							LeaveCriticalSection( &context->download_info->shared_info->di_cs );
+						}
+
+						new_context->status = STATUS_CONNECTING;
+
+						if ( !CreateConnection( new_context, new_context->request_info.host, new_context->request_info.port ) )
+						{
+							new_context->status = STATUS_FAILED;
+
+							InterlockedIncrement( &new_context->pending_operations );
+
+							new_context->overlapped.current_operation = IO_Close;
+
+							PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )new_context, ( OVERLAPPED * )&new_context->overlapped );
+						}
+					}
 				}
 			}
 		}
@@ -4517,12 +4666,10 @@ char AllocateFile( SOCKET_CONTEXT *context, IO_OPERATION current_operation )
 										context->download_info->shared_info->hFile = INVALID_HANDLE_VALUE;
 									}
 								}
-								else	// Trigger the system to allocate the file on disk. Sloooow.
+								else	// Trigger the system to allocate the file on disk. Sloooow (if not a sparse file).
 								{
 									if ( li.QuadPart > 0 )
 									{
-										--li.QuadPart;	// Adjust the offset back 1.
-
 										file_status = 1;
 
 										context->download_info->status = STATUS_ALLOCATING_FILE;
@@ -4536,25 +4683,41 @@ char AllocateFile( SOCKET_CONTEXT *context, IO_OPERATION current_operation )
 
 										InterlockedIncrement( &context->pending_operations );
 
-										context->overlapped.current_operation = current_operation;
+										context->overlapped.current_operation = IO_SparseFileAllocate;
+										context->overlapped.next_operation = current_operation;
 
-										context->overlapped.overlapped.hEvent = NULL;
-										context->overlapped.overlapped.Internal = NULL;
-										context->overlapped.overlapped.InternalHigh = NULL;
-										//context->overlapped.overlapped.Pointer = NULL; // union
-										context->overlapped.overlapped.Offset = li.LowPart;
-										context->overlapped.overlapped.OffsetHigh = li.HighPart;
+										BOOL bRet = FALSE;
 
-										// Write a non-NULL character to the end of the file to zero it out.
-										BOOL bRet = WriteFile( context->download_info->shared_info->hFile, "\x03", 1, NULL, ( OVERLAPPED * )&context->overlapped );
-										if ( bRet == FALSE && ( GetLastError() != ERROR_IO_PENDING ) )
+										// If this fails, then we'll fall back to the slow allocation.
+										if ( cfg_enable_sparse_file_allocation )
 										{
-											InterlockedDecrement( &context->pending_operations );
+											bRet = DeviceIoControl( context->download_info->shared_info->hFile, FSCTL_SET_SPARSE, NULL, 0, NULL, 0, NULL, ( OVERLAPPED * )&context->overlapped );
+										}
 
-											file_status = 0;
+										if ( !cfg_enable_sparse_file_allocation || ( bRet == FALSE && ( GetLastError() != ERROR_IO_PENDING ) ) )
+										{
+											--li.QuadPart;	// Adjust the offset back 1.
 
-											CloseHandle( context->download_info->shared_info->hFile );
-											context->download_info->shared_info->hFile = INVALID_HANDLE_VALUE;
+											context->overlapped.current_operation = current_operation;
+
+											context->overlapped.overlapped.hEvent = NULL;
+											context->overlapped.overlapped.Internal = NULL;
+											context->overlapped.overlapped.InternalHigh = NULL;
+											//context->overlapped.overlapped.Pointer = NULL; // union
+											context->overlapped.overlapped.Offset = li.LowPart;
+											context->overlapped.overlapped.OffsetHigh = li.HighPart;
+
+											// Write a non-NULL character to the end of the file to zero it out.
+											bRet = WriteFile( context->download_info->shared_info->hFile, "\x03", 1, NULL, ( OVERLAPPED * )&context->overlapped );
+											if ( bRet == FALSE && ( GetLastError() != ERROR_IO_PENDING ) )
+											{
+												InterlockedDecrement( &context->pending_operations );
+
+												file_status = 0;
+
+												CloseHandle( context->download_info->shared_info->hFile );
+												context->download_info->shared_info->hFile = INVALID_HANDLE_VALUE;
+											}
 										}
 									}
 									else
@@ -5491,8 +5654,11 @@ char GetHTTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, uns
 					}
 
 					g_new_version_url = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( new_version_url_length + 1 ) );
-					_memcpy_s( g_new_version_url, new_version_url_length + 1, verion_end_ptr, new_version_url_length );
-					g_new_version_url[ new_version_url_length ] = 0;	// Sanity.
+					if ( g_new_version_url != NULL )
+					{
+						_memcpy_s( g_new_version_url, new_version_url_length + 1, verion_end_ptr, new_version_url_length );
+						g_new_version_url[ new_version_url_length ] = 0;	// Sanity.
+					}
 				}
 			}
 
@@ -5542,9 +5708,12 @@ char GetPOSTValue( char *post_data, unsigned int post_data_length, unsigned int 
 				*value = ( char * )GlobalAlloc( GMEM_FIXED, data_length + 1 );
 			}
 
-			_memcpy_s( *value + value_length, data_length + 1, post_data, data_length );
-			value_length += data_length;
-			*( *value + value_length ) = 0;	// Sanity.
+			if ( *value != NULL )
+			{
+				_memcpy_s( *value + value_length, data_length + 1, post_data, data_length );
+				value_length += data_length;
+				*( *value + value_length ) = 0;	// Sanity.
+			}
 		}
 
 		post_data_offset = data_length + 1;
@@ -5568,9 +5737,12 @@ char GetPOSTValue( char *post_data, unsigned int post_data_length, unsigned int 
 			*value = ( char * )GlobalAlloc( GMEM_FIXED, post_data_length + 1 );
 		}
 
-		_memcpy_s( *value + value_length, post_data_length + 1, post_data, post_data_length );
-		value_length += post_data_length;
-		*( *value + value_length ) = 0;	// Sanity.
+		if ( *value != NULL )
+		{
+			_memcpy_s( *value + value_length, post_data_length + 1, post_data, post_data_length );
+			value_length += post_data_length;
+			*( *value + value_length ) = 0;	// Sanity.
+		}
 	}
 
 	return CONTENT_STATUS_READ_MORE_CONTENT;
@@ -5595,57 +5767,61 @@ char ParsePOSTData( SOCKET_CONTEXT *context, char *post_data, unsigned int post_
 	}
 
 	char **value_buf[ 19 ];
-	value_buf[ 0 ] = &context->post_info->method;
-	value_buf[ 1 ] = &context->post_info->urls;
-	value_buf[ 2 ] = &context->post_info->directory;
-	value_buf[ 3 ] = &context->post_info->parts;
-	value_buf[ 4 ] = &context->post_info->ssl_tls_version;
-	value_buf[ 5 ] = &context->post_info->username;
-	value_buf[ 6 ] = &context->post_info->password;
-	value_buf[ 7 ] = &context->post_info->download_speed_limit;
-	value_buf[ 8 ] = &context->post_info->download_operations;
-	value_buf[ 9 ] = &context->post_info->cookies;
-	value_buf[ 10 ] = &context->post_info->headers;
-	value_buf[ 11 ] = &context->post_info->data;
-	value_buf[ 12 ] = &context->post_info->proxy_type;
-	value_buf[ 13 ] = &context->post_info->proxy_hostname_ip;
-	value_buf[ 14 ] = &context->post_info->proxy_port;
-	value_buf[ 15 ] = &context->post_info->proxy_username;
-	value_buf[ 16 ] = &context->post_info->proxy_password;
-	value_buf[ 17 ] = &context->post_info->proxy_resolve_domain_names;
-	value_buf[ 18 ] = &context->post_info->proxy_use_authentication;
 
-	for ( unsigned char i = 0; i < 19; ++i )
+	if ( context->post_info != NULL )
 	{
-		if ( *value_buf[ i ] == NULL )
+		value_buf[ 0 ] = &context->post_info->method;
+		value_buf[ 1 ] = &context->post_info->urls;
+		value_buf[ 2 ] = &context->post_info->directory;
+		value_buf[ 3 ] = &context->post_info->parts;
+		value_buf[ 4 ] = &context->post_info->ssl_tls_version;
+		value_buf[ 5 ] = &context->post_info->username;
+		value_buf[ 6 ] = &context->post_info->password;
+		value_buf[ 7 ] = &context->post_info->download_speed_limit;
+		value_buf[ 8 ] = &context->post_info->download_operations;
+		value_buf[ 9 ] = &context->post_info->cookies;
+		value_buf[ 10 ] = &context->post_info->headers;
+		value_buf[ 11 ] = &context->post_info->data;
+		value_buf[ 12 ] = &context->post_info->proxy_type;
+		value_buf[ 13 ] = &context->post_info->proxy_hostname_ip;
+		value_buf[ 14 ] = &context->post_info->proxy_port;
+		value_buf[ 15 ] = &context->post_info->proxy_username;
+		value_buf[ 16 ] = &context->post_info->proxy_password;
+		value_buf[ 17 ] = &context->post_info->proxy_resolve_domain_names;
+		value_buf[ 18 ] = &context->post_info->proxy_use_authentication;
+
+		for ( unsigned char i = 0; i < 19; ++i )
 		{
-			value_length = ( unsigned int )context->header_info.chunk_length;
-
-			offset = 0;
-
-			// We'll use chunk_buffer to store any partial values.
-			status = GetPOSTValue( post_data + post_data_offset, post_data_length - post_data_offset, offset, &context->header_info.chunk_buffer, value_length );
-			if ( status != CONTENT_STATUS_NONE )
+			if ( *value_buf[ i ] == NULL )
 			{
-				context->header_info.chunk_length = value_length;
+				value_length = ( unsigned int )context->header_info.chunk_length;
 
-				return status;
+				offset = 0;
+
+				// We'll use chunk_buffer to store any partial values.
+				status = GetPOSTValue( post_data + post_data_offset, post_data_length - post_data_offset, offset, &context->header_info.chunk_buffer, value_length );
+				if ( status != CONTENT_STATUS_NONE )
+				{
+					context->header_info.chunk_length = value_length;
+
+					return status;
+				}
+
+				if ( value_length > 0 )
+				{
+					*value_buf[ i ] = context->header_info.chunk_buffer;
+				}
+				else if ( context->header_info.chunk_buffer != NULL )
+				{
+					GlobalFree( context->header_info.chunk_buffer );
+				}
+
+				// Reset.
+				context->header_info.chunk_buffer = NULL;
+				context->header_info.chunk_length = value_length = 0;
+
+				post_data_offset += offset;
 			}
-
-			if ( value_length > 0 )
-			{
-				*value_buf[ i ] = context->header_info.chunk_buffer;
-			}
-			else if ( context->header_info.chunk_buffer != NULL )
-			{
-				GlobalFree( context->header_info.chunk_buffer );
-			}
-
-			// Reset.
-			context->header_info.chunk_buffer = NULL;
-			context->header_info.chunk_length = value_length = 0;
-
-			post_data_offset += offset;
 		}
 	}
 
@@ -5752,7 +5928,20 @@ char GetHTTPRequestContent( SOCKET_CONTEXT *context, char *request_buffer, unsig
 					}
 					else if ( cfg_authentication_type == AUTH_TYPE_DIGEST && context->header_info.digest_info->auth_type == AUTH_TYPE_DIGEST )
 					{
-						if ( !VerifyDigestAuthorization( g_authentication_username, g_authentication_username_length, g_authentication_password, g_authentication_password_length, g_nonce, g_nonce_length, g_opaque, g_opaque_length, "GET", 3, context->header_info.digest_info ) )
+						char *method;
+						unsigned int method_length;
+						if ( context->header_info.http_method == METHOD_POST )
+						{
+							method = "POST";
+							method_length = 4;
+						}
+						else
+						{
+							method = "GET";
+							method_length = 3;
+						}
+
+						if ( !VerifyDigestAuthorization( g_authentication_username, g_authentication_username_length, g_authentication_password, g_authentication_password_length, g_nonce, g_nonce_length, g_opaque, g_opaque_length, method, method_length, context->header_info.digest_info ) )
 						{
 							// Reset our info so we can get new values from the client.
 							FreeAuthInfo( &context->header_info.digest_info );
@@ -6029,48 +6218,51 @@ char GetHTTPRequestContent( SOCKET_CONTEXT *context, char *request_buffer, unsig
 				context->header_info.http_status = 200;	// Let our MakeResponse() know that we want to send an HTTP 200 back.
 
 				ADD_INFO *ai = ( ADD_INFO * )GlobalAlloc( GPTR, sizeof( ADD_INFO ) );
-				ai->method = method;
-				ai->urls = urls;
-				ai->use_download_directory = use_download_directory;
-				ai->download_directory = download_directory;
-				ai->use_parts = use_parts;
-				ai->parts = parts;
-				ai->ssl_version = ssl_version;
-				ai->auth_info.username = context->post_info->username;
-				ai->auth_info.password = context->post_info->password;
-				ai->use_download_speed_limit = use_download_speed_limit;
-				ai->download_speed_limit = download_speed_limit;
-				ai->download_operations = download_operations;
-				ai->utf8_cookies = context->post_info->cookies;
-				ai->utf8_headers = context->post_info->headers;
-				ai->utf8_data = context->post_info->data;
-				ai->proxy_info.type = proxy_type;
-				ai->proxy_info.hostname = proxy_hostname;
-				ai->proxy_info.punycode_hostname = proxy_punycode_hostname;
-				ai->proxy_info.w_username = w_proxy_username;
-				ai->proxy_info.w_password = w_proxy_password;
-				ai->proxy_info.username = proxy_username;
-				ai->proxy_info.password = proxy_password;
-				ai->proxy_info.port = proxy_port;
-				ai->proxy_info.use_authentication = proxy_use_authentication;
-				ai->proxy_info.resolve_domain_names = proxy_resolve_domain_names;
-
-				// These aren't needed.
-				context->post_info->username = NULL;
-				context->post_info->password = NULL;
-				context->post_info->cookies = NULL;
-				context->post_info->headers = NULL;
-				context->post_info->data = NULL;
-
-				// ai is freed in AddURL.
-				HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, AddURL, ( void * )ai, 0, NULL );
-				if ( thread != NULL )
+				if ( ai != NULL )
 				{
-					CloseHandle( thread );
-				}
-				else
-				{
-					FreeAddInfo( &ai );
+					ai->method = method;
+					ai->urls = urls;
+					ai->use_download_directory = use_download_directory;
+					ai->download_directory = download_directory;
+					ai->use_parts = use_parts;
+					ai->parts = parts;
+					ai->ssl_version = ssl_version;
+					ai->auth_info.username = context->post_info->username;
+					ai->auth_info.password = context->post_info->password;
+					ai->use_download_speed_limit = use_download_speed_limit;
+					ai->download_speed_limit = download_speed_limit;
+					ai->download_operations = download_operations;
+					ai->utf8_cookies = context->post_info->cookies;
+					ai->utf8_headers = context->post_info->headers;
+					ai->utf8_data = context->post_info->data;
+					ai->proxy_info.type = proxy_type;
+					ai->proxy_info.hostname = proxy_hostname;
+					ai->proxy_info.punycode_hostname = proxy_punycode_hostname;
+					ai->proxy_info.w_username = w_proxy_username;
+					ai->proxy_info.w_password = w_proxy_password;
+					ai->proxy_info.username = proxy_username;
+					ai->proxy_info.password = proxy_password;
+					ai->proxy_info.port = proxy_port;
+					ai->proxy_info.use_authentication = proxy_use_authentication;
+					ai->proxy_info.resolve_domain_names = proxy_resolve_domain_names;
+
+					// These aren't needed.
+					context->post_info->username = NULL;
+					context->post_info->password = NULL;
+					context->post_info->cookies = NULL;
+					context->post_info->headers = NULL;
+					context->post_info->data = NULL;
+
+					// ai is freed in AddURL.
+					HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, AddURL, ( void * )ai, 0, NULL );
+					if ( thread != NULL )
+					{
+						CloseHandle( thread );
+					}
+					else
+					{
+						FreeAddInfo( &ai );
+					}
 				}
 			}
 

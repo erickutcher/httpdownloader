@@ -94,6 +94,7 @@ bool cfg_always_on_top = false;
 bool cfg_check_for_updates = false;
 bool cfg_enable_download_history = true;
 bool cfg_enable_quick_allocation = false;
+bool cfg_enable_sparse_file_allocation = false;
 bool cfg_set_filetime = true;
 bool cfg_update_redirected = false;
 bool cfg_download_non_200_206 = false;
@@ -598,35 +599,37 @@ void CheckColumnOrders( char *column_arr[], unsigned char num_columns )
 
 	// Look for duplicates, or values that are out of range.
 	unsigned char *is_set = ( unsigned char * )GlobalAlloc( GPTR, sizeof( unsigned char ) * num_columns );
-
-	// Check every other column.
-	for ( int i = 1; i < num_columns; ++i )
+	if ( is_set != NULL )
 	{
-		if ( *column_arr[ i ] != -1 )
+		// Check every other column.
+		for ( int i = 1; i < num_columns; ++i )
 		{
-			if ( *column_arr[ i ] < num_columns )
+			if ( *column_arr[ i ] != -1 )
 			{
-				if ( is_set[ *column_arr[ i ] ] == 0 )
+				if ( *column_arr[ i ] < num_columns )
 				{
-					is_set[ *column_arr[ i ] ] = 1;
+					if ( is_set[ *column_arr[ i ] ] == 0 )
+					{
+						is_set[ *column_arr[ i ] ] = 1;
+					}
+					else	// Revert duplicate values.
+					{
+						SetDefaultColumnOrder();
+
+						break;
+					}
 				}
-				else	// Revert duplicate values.
+				else	// Revert out of range values.
 				{
 					SetDefaultColumnOrder();
 
 					break;
 				}
 			}
-			else	// Revert out of range values.
-			{
-				SetDefaultColumnOrder();
-
-				break;
-			}
 		}
-	}
 
-	GlobalFree( is_set );
+		GlobalFree( is_set );
+	}
 }
 
 void CheckColumnWidths()
@@ -1153,22 +1156,24 @@ char *escape_csv( const char *string )
 	}
 
 	q = escaped_string = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( c + 1 ) );
-
-	for ( p = string; *p != NULL; ++p ) 
+	if ( q != NULL )
 	{
-		if ( *p != '\"' )
+		for ( p = string; *p != NULL; ++p ) 
 		{
-			*q = *p;
-			++q;
+			if ( *p != '\"' )
+			{
+				*q = *p;
+				++q;
+			}
+			else
+			{
+				*q++ = '\"';
+				*q++ = '\"';
+			}
 		}
-		else
-		{
-			*q++ = '\"';
-			*q++ = '\"';
-		}
-	}
 
-	*q = 0;	// Sanity.
+		*q = 0;	// Sanity.
+	}
 
 	return escaped_string;
 }
@@ -1250,59 +1255,62 @@ char *url_encode_a( char *str, unsigned int str_len, unsigned int *enc_len )
 	char *buf = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( ( str_len * 3 ) + 1 ) );
 	char *pbuf = buf;
 
-	while ( pstr < ( str + str_len ) )
+	if ( pbuf != NULL )
 	{
-		/*if ( _IsCharAlphaNumericA( *pstr ) )
+		while ( pstr < ( str + str_len ) )
 		{
-			*pbuf++ = *pstr;
-		}
-		else if ( *pstr == ' ' )
-		{
-			*pbuf++ = '%';
-			*pbuf++ = '2';
-			*pbuf++ = '0';
-		}
-		else
-		{
-			*pbuf++ = '%';
-			*pbuf++ = to_hex_a( *pstr >> 4 );
-			*pbuf++ = to_hex_a( *pstr & 15 );
-		}*/
+			/*if ( _IsCharAlphaNumericA( *pstr ) )
+			{
+				*pbuf++ = *pstr;
+			}
+			else if ( *pstr == ' ' )
+			{
+				*pbuf++ = '%';
+				*pbuf++ = '2';
+				*pbuf++ = '0';
+			}
+			else
+			{
+				*pbuf++ = '%';
+				*pbuf++ = to_hex_a( *pstr >> 4 );
+				*pbuf++ = to_hex_a( *pstr & 15 );
+			}*/
 
-		if ( *pstr == ' ' ||
-			 *pstr == '<' ||
-			 *pstr == '>' ||
-			 *pstr == '#' ||
-			 *pstr == '%' ||
-			 *pstr == '\"' ||
-			 *pstr == '{' ||
-			 *pstr == '}' ||
-			 *pstr == '|' ||
-			 *pstr == '\\' ||
-			 *pstr == '^' ||
-			 *pstr == '[' ||
-			 *pstr == ']' ||
-			 *pstr == '`' ||
-			 *pstr == 0x7F ||
-			 ( *pstr >= 0x00 && *pstr <= 0x1F ) )
-		{
-			*pbuf++ = L'%';
-			*pbuf++ = to_hex_a( *pstr >> 4 );
-			*pbuf++ = to_hex_a( *pstr & 15 );
+			if ( *pstr == ' ' ||
+				 *pstr == '<' ||
+				 *pstr == '>' ||
+				 *pstr == '#' ||
+				 *pstr == '%' ||
+				 *pstr == '\"' ||
+				 *pstr == '{' ||
+				 *pstr == '}' ||
+				 *pstr == '|' ||
+				 *pstr == '\\' ||
+				 *pstr == '^' ||
+				 *pstr == '[' ||
+				 *pstr == ']' ||
+				 *pstr == '`' ||
+				 *pstr == 0x7F ||
+				 ( *pstr >= 0x00 && *pstr <= 0x1F ) )
+			{
+				*pbuf++ = L'%';
+				*pbuf++ = to_hex_a( *pstr >> 4 );
+				*pbuf++ = to_hex_a( *pstr & 15 );
+			}
+			else
+			{
+				*pbuf++ = *pstr;
+			}
+
+			++pstr;
 		}
-		else
+
+		*pbuf = '\0';
+
+		if ( enc_len != NULL )
 		{
-			*pbuf++ = *pstr;
+			*enc_len = ( unsigned int )( pbuf - buf );
 		}
-
-		++pstr;
-	}
-
-	*pbuf = '\0';
-
-	if ( enc_len != NULL )
-	{
-		*enc_len = ( unsigned int )( pbuf - buf );
 	}
 
 	return buf;
@@ -1314,59 +1322,62 @@ wchar_t *url_encode_w( wchar_t *str, unsigned int str_len, unsigned int *enc_len
 	wchar_t *buf = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( ( str_len * 3 ) + 1 ) );
 	wchar_t *pbuf = buf;
 
-	while ( pstr < ( str + str_len ) )
+	if ( pbuf != NULL )
 	{
-		/*if ( _IsCharAlphaNumericW( *pstr ) )
+		while ( pstr < ( str + str_len ) )
 		{
-			*pbuf++ = *pstr;
-		}
-		else if ( *pstr == L' ' )
-		{
-			*pbuf++ = L'%';
-			*pbuf++ = L'2';
-			*pbuf++ = L'0';
-		}
-		else
-		{
-			*pbuf++ = L'%';
-			*pbuf++ = to_hex_w( *pstr >> 4 );
-			*pbuf++ = to_hex_w( *pstr & 15 );
-		}*/
+			/*if ( _IsCharAlphaNumericW( *pstr ) )
+			{
+				*pbuf++ = *pstr;
+			}
+			else if ( *pstr == L' ' )
+			{
+				*pbuf++ = L'%';
+				*pbuf++ = L'2';
+				*pbuf++ = L'0';
+			}
+			else
+			{
+				*pbuf++ = L'%';
+				*pbuf++ = to_hex_w( *pstr >> 4 );
+				*pbuf++ = to_hex_w( *pstr & 15 );
+			}*/
 
-		if ( *pstr == L' ' ||
-			 *pstr == L'<' ||
-			 *pstr == L'>' ||
-			 *pstr == L'#' ||
-			 *pstr == L'%' ||
-			 *pstr == L'\"' ||
-			 *pstr == L'{' ||
-			 *pstr == L'}' ||
-			 *pstr == L'|' ||
-			 *pstr == L'\\' ||
-			 *pstr == L'^' ||
-			 *pstr == L'[' ||
-			 *pstr == L']' ||
-			 *pstr == L'`' ||
-			 *pstr == 0x7F ||
-			 ( *pstr >= 0x00 && *pstr <= 0x1F ) )
-		{
-			*pbuf++ = L'%';
-			*pbuf++ = to_hex_w( ( char )( *pstr >> 4 ) );
-			*pbuf++ = to_hex_w( *pstr & 15 );
+			if ( *pstr == L' ' ||
+				 *pstr == L'<' ||
+				 *pstr == L'>' ||
+				 *pstr == L'#' ||
+				 *pstr == L'%' ||
+				 *pstr == L'\"' ||
+				 *pstr == L'{' ||
+				 *pstr == L'}' ||
+				 *pstr == L'|' ||
+				 *pstr == L'\\' ||
+				 *pstr == L'^' ||
+				 *pstr == L'[' ||
+				 *pstr == L']' ||
+				 *pstr == L'`' ||
+				 *pstr == 0x7F ||
+				 ( *pstr >= 0x00 && *pstr <= 0x1F ) )
+			{
+				*pbuf++ = L'%';
+				*pbuf++ = to_hex_w( ( char )( *pstr >> 4 ) );
+				*pbuf++ = to_hex_w( *pstr & 15 );
+			}
+			else
+			{
+				*pbuf++ = *pstr;
+			}
+
+			++pstr;
 		}
-		else
+
+		*pbuf = L'\0';
+
+		if ( enc_len != NULL )
 		{
-			*pbuf++ = *pstr;
+			*enc_len = ( unsigned int )( pbuf - buf );
 		}
-
-		++pstr;
-	}
-
-	*pbuf = L'\0';
-
-	if ( enc_len != NULL )
-	{
-		*enc_len = ( unsigned int )( pbuf - buf );
 	}
 
 	return buf;
@@ -1378,47 +1389,50 @@ char *url_decode_a( char *str, unsigned int str_len, unsigned int *dec_len )
 	char *buf = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( str_len + 1 ) );
 	char *pbuf = buf;
 
-	while ( pstr < ( str + str_len ) )
+	if ( pbuf != NULL )
 	{
-		if ( *pstr == '%' )
+		while ( pstr < ( str + str_len ) )
 		{
-			// Look at the next two characters.
-			if ( ( ( pstr + 3 ) <= ( str + str_len ) ) )
+			if ( *pstr == '%' )
 			{
-				// See if they're both hex values.
-				if ( ( pstr[ 1 ] != NULL && is_hex_a( pstr[ 1 ] ) ) &&
-					 ( pstr[ 2 ] != NULL && is_hex_a( pstr[ 2 ] ) ) )
+				// Look at the next two characters.
+				if ( ( ( pstr + 3 ) <= ( str + str_len ) ) )
 				{
-					*pbuf++ = from_hex_a( pstr[ 1 ] ) << 4 | from_hex_a( pstr[ 2 ] );
-					pstr += 2;
+					// See if they're both hex values.
+					if ( ( pstr[ 1 ] != NULL && is_hex_a( pstr[ 1 ] ) ) &&
+						 ( pstr[ 2 ] != NULL && is_hex_a( pstr[ 2 ] ) ) )
+					{
+						*pbuf++ = from_hex_a( pstr[ 1 ] ) << 4 | from_hex_a( pstr[ 2 ] );
+						pstr += 2;
+					}
+					else
+					{
+						*pbuf++ = *pstr;
+					}
 				}
 				else
 				{
 					*pbuf++ = *pstr;
 				}
 			}
+			/*else if ( *pstr == '+' )
+			{ 
+				*pbuf++ = ' ';
+			}*/
 			else
 			{
 				*pbuf++ = *pstr;
 			}
+
+			++pstr;
 		}
-		/*else if ( *pstr == '+' )
-		{ 
-			*pbuf++ = ' ';
-		}*/
-		else
+
+		*pbuf = '\0';
+
+		if ( dec_len != NULL )
 		{
-			*pbuf++ = *pstr;
+			*dec_len = ( unsigned int )( pbuf - buf );
 		}
-
-		++pstr;
-	}
-
-	*pbuf = '\0';
-
-	if ( dec_len != NULL )
-	{
-		*dec_len = ( unsigned int )( pbuf - buf );
 	}
 
 	return buf;
@@ -1430,47 +1444,50 @@ wchar_t *url_decode_w( wchar_t *str, unsigned int str_len, unsigned int *dec_len
 	wchar_t *buf = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( str_len + 1 ) );
 	wchar_t *pbuf = buf;
 
-	while ( pstr < ( str + str_len ) )
+	if ( pbuf != NULL )
 	{
-		if ( *pstr == L'%' )
+		while ( pstr < ( str + str_len ) )
 		{
-			// Look at the next two characters.
-			if ( ( ( pstr + 3 ) <= ( str + str_len ) ) )
+			if ( *pstr == L'%' )
 			{
-				// See if they're both hex values.
-				if ( ( pstr[ 1 ] != NULL && is_hex_w( pstr[ 1 ] ) ) &&
-					 ( pstr[ 2 ] != NULL && is_hex_w( pstr[ 2 ] ) ) )
+				// Look at the next two characters.
+				if ( ( ( pstr + 3 ) <= ( str + str_len ) ) )
 				{
-					*pbuf++ = from_hex_w( pstr[ 1 ] ) << 4 | from_hex_w( pstr[ 2 ] );
-					pstr += 2;
+					// See if they're both hex values.
+					if ( ( pstr[ 1 ] != NULL && is_hex_w( pstr[ 1 ] ) ) &&
+						 ( pstr[ 2 ] != NULL && is_hex_w( pstr[ 2 ] ) ) )
+					{
+						*pbuf++ = from_hex_w( pstr[ 1 ] ) << 4 | from_hex_w( pstr[ 2 ] );
+						pstr += 2;
+					}
+					else
+					{
+						*pbuf++ = *pstr;
+					}
 				}
 				else
 				{
 					*pbuf++ = *pstr;
 				}
 			}
+			/*else if ( *pstr == L'+' )
+			{ 
+				*pbuf++ = L' ';
+			}*/
 			else
 			{
 				*pbuf++ = *pstr;
 			}
+
+			++pstr;
 		}
-		/*else if ( *pstr == L'+' )
-		{ 
-			*pbuf++ = L' ';
-		}*/
-		else
+
+		*pbuf = L'\0';
+
+		if ( dec_len != NULL )
 		{
-			*pbuf++ = *pstr;
+			*dec_len = ( unsigned int )( pbuf - buf );
 		}
-
-		++pstr;
-	}
-
-	*pbuf = L'\0';
-
-	if ( dec_len != NULL )
-	{
-		*dec_len = ( unsigned int )( pbuf - buf );
 	}
 
 	return buf;
@@ -1482,49 +1499,52 @@ char *html_entity_decode_a( char *str, unsigned int str_len, unsigned int *dec_l
 	char *buf = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( str_len + 1 ) );
 	char *pbuf = buf;
 
-	while ( pstr < ( str + str_len ) )
+	if ( pbuf != NULL )
 	{
-		if ( *pstr == '&' )
+		while ( pstr < ( str + str_len ) )
 		{
-			// Look at the next two characters.
-			if ( ( ( pstr + 5 ) <= ( str + str_len ) ) )
+			if ( *pstr == '&' )
 			{
-				// See if they're both hex values.
-				if ( ( pstr[ 1 ] != NULL && pstr[ 1 ] == 'a' ) &&
-					 ( pstr[ 2 ] != NULL && pstr[ 2 ] == 'm' ) &&
-					 ( pstr[ 3 ] != NULL && pstr[ 3 ] == 'p' ) &&
-					 ( pstr[ 4 ] != NULL && pstr[ 4 ] == ';' ) )
+				// Look at the next two characters.
+				if ( ( ( pstr + 5 ) <= ( str + str_len ) ) )
 				{
-					*pbuf++ = '&';
-					pstr += 4;
+					// See if they're both hex values.
+					if ( ( pstr[ 1 ] != NULL && pstr[ 1 ] == 'a' ) &&
+						 ( pstr[ 2 ] != NULL && pstr[ 2 ] == 'm' ) &&
+						 ( pstr[ 3 ] != NULL && pstr[ 3 ] == 'p' ) &&
+						 ( pstr[ 4 ] != NULL && pstr[ 4 ] == ';' ) )
+					{
+						*pbuf++ = '&';
+						pstr += 4;
+					}
+					else
+					{
+						*pbuf++ = *pstr;
+					}
 				}
 				else
 				{
 					*pbuf++ = *pstr;
 				}
 			}
+			/*else if ( *pstr == '+' )
+			{ 
+				*pbuf++ = ' ';
+			}*/
 			else
 			{
 				*pbuf++ = *pstr;
 			}
+
+			++pstr;
 		}
-		else if ( *pstr == '+' )
-		{ 
-			*pbuf++ = ' ';
-		}
-		else
+
+		*pbuf = '\0';
+
+		if ( dec_len != NULL )
 		{
-			*pbuf++ = *pstr;
+			*dec_len = ( unsigned int )( pbuf - buf );
 		}
-
-		++pstr;
-	}
-
-	*pbuf = '\0';
-
-	if ( dec_len != NULL )
-	{
-		*dec_len = ( unsigned int )( pbuf - buf );
 	}
 
 	return buf;
@@ -1600,13 +1620,15 @@ char *CreateMD5( BYTE *input, DWORD input_len )
 				{
 					DWORD md5_length = cbHash * 2;
 					md5 = ( char * )GlobalAlloc( GPTR, sizeof( char ) * ( md5_length + 1 ) );
-
-					CHAR digits[] = "0123456789abcdef";
-					for ( DWORD i = 0; i < cbHash; ++i )
+					if ( md5 != NULL )
 					{
-						__snprintf( md5 + ( 2 * i ), md5_length - ( 2 * i ), "%c%c", digits[ Hash[ i ] >> 4 ], digits[ Hash[ i ] & 0xF ] );
+						CHAR digits[] = "0123456789abcdef";
+						for ( DWORD i = 0; i < cbHash; ++i )
+						{
+							__snprintf( md5 + ( 2 * i ), md5_length - ( 2 * i ), "%c%c", digits[ Hash[ i ] >> 4 ], digits[ Hash[ i ] & 0xF ] );
+						}
+						md5[ md5_length ] = 0;	// Sanity.
 					}
-					md5[ md5_length ] = 0;	// Sanity.
 				}
 			}
 		}
@@ -1639,15 +1661,18 @@ void CreateCNonce( char **cnonce, DWORD *cnonce_length )
 
 		if ( _CryptGenRandom( hProvider, 8, ( BYTE * )&rbuffer ) )
 		{
-			*cnonce_length = 16;
-			*cnonce = ( char * )GlobalAlloc( GPTR, sizeof( char ) * ( *cnonce_length + 1 ) );
-
-			CHAR digits[] = "0123456789abcdef";
-			for ( DWORD i = 0; i < 8; ++i )
+			*cnonce = ( char * )GlobalAlloc( GPTR, sizeof( char ) * ( 16 + 1 ) );
+			if ( *cnonce != NULL )
 			{
-				__snprintf( *cnonce + ( 2 * i ), *cnonce_length - ( 2 * i ), "%c%c", digits[ rbuffer[ i ] >> 4 ], digits[ rbuffer[ i ] & 0xF ] );
+				*cnonce_length = 16;
+
+				CHAR digits[] = "0123456789abcdef";
+				for ( DWORD i = 0; i < 8; ++i )
+				{
+					__snprintf( *cnonce + ( 2 * i ), *cnonce_length - ( 2 * i ), "%c%c", digits[ rbuffer[ i ] >> 4 ], digits[ rbuffer[ i ] & 0xF ] );
+				}
+				*( *cnonce + *cnonce_length ) = 0;	// Sanity.
 			}
-			*( *cnonce + *cnonce_length ) = 0;	// Sanity.
 		}
 	}
 
@@ -1667,15 +1692,18 @@ void GetMD5String( HCRYPTHASH *hHash, char **md5, DWORD *md5_length )
 
 	if ( _CryptGetHashParam( *hHash, HP_HASHVAL, Hash, &cbHash, 0 ) )
 	{
-		*md5_length = cbHash * 2;
-		*md5 = ( char * )GlobalAlloc( GPTR, sizeof( char ) * ( *md5_length + 1 ) );
-
-		CHAR digits[] = "0123456789abcdef";
-		for ( DWORD i = 0; i < cbHash; ++i )
+		*md5 = ( char * )GlobalAlloc( GPTR, sizeof( char ) * ( ( cbHash * 2 ) + 1 ) );
+		if ( *md5 != NULL )
 		{
-			__snprintf( *md5 + ( 2 * i ), *md5_length - ( 2 * i ), "%c%c", digits[ Hash[ i ] >> 4 ], digits[ Hash[ i ] & 0xF ] );
+			*md5_length = cbHash * 2;
+
+			CHAR digits[] = "0123456789abcdef";
+			for ( DWORD i = 0; i < cbHash; ++i )
+			{
+				__snprintf( *md5 + ( 2 * i ), *md5_length - ( 2 * i ), "%c%c", digits[ Hash[ i ] >> 4 ], digits[ Hash[ i ] & 0xF ] );
+			}
+			*( *md5 + *md5_length ) = 0;	// Sanity.
 		}
-		*( *md5 + *md5_length ) = 0;	// Sanity.
 	}
 }
 
@@ -1961,18 +1989,24 @@ void CreateBasicAuthorizationKey( char *username, int username_length, char *pas
 	int key_length = username_length + password_length + 1;	// Include ":".
 
 	char *key = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( key_length + 1 ) );
-	_memcpy_s( key, key_length + 1, username, username_length );
-	key[ username_length ] = ':';
-	_memcpy_s( key + username_length + 1, ( key_length + 1 ) - ( username_length + 1 ), password, password_length );
-	key[ key_length ] = 0;	// Sanity.
+	if ( key != NULL )
+	{
+		_memcpy_s( key, key_length + 1, username, username_length );
+		key[ username_length ] = ':';
+		_memcpy_s( key + username_length + 1, ( key_length + 1 ) - ( username_length + 1 ), password, password_length );
+		key[ key_length ] = 0;	// Sanity.
 
-	_CryptBinaryToStringA( ( BYTE * )key, key_length, CRYPT_STRING_BASE64 | CRYPT_STRING_NOCRLF, NULL, auth_key_length );	// auth_key_length WILL include the NULL terminator.
+		_CryptBinaryToStringA( ( BYTE * )key, key_length, CRYPT_STRING_BASE64 | CRYPT_STRING_NOCRLF, NULL, auth_key_length );	// auth_key_length WILL include the NULL terminator.
 
-	*auth_key = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( *auth_key_length ) );
-	_CryptBinaryToStringA( ( BYTE * )key, key_length, CRYPT_STRING_BASE64 | CRYPT_STRING_NOCRLF, ( LPSTR )*auth_key, auth_key_length );	// auth_key_length DOES NOT include the NULL terminator.
-	*( *auth_key + *auth_key_length ) = 0; // Sanity.
+		*auth_key = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( *auth_key_length ) );
+		if ( *auth_key != NULL )
+		{
+			_CryptBinaryToStringA( ( BYTE * )key, key_length, CRYPT_STRING_BASE64 | CRYPT_STRING_NOCRLF, ( LPSTR )*auth_key, auth_key_length );	// auth_key_length DOES NOT include the NULL terminator.
+			*( *auth_key + *auth_key_length ) = 0; // Sanity.
+		}
 
-	GlobalFree( key );
+		GlobalFree( key );
+	}
 }
 
 bool VerifyDigestAuthorization( char *username, unsigned long username_length, char *password, unsigned long password_length, char *nonce, unsigned long nonce_length, char *opaque, unsigned long opaque_length, char *method, unsigned long method_length, AUTH_INFO *auth_info )
@@ -2758,8 +2792,8 @@ void ConstructSOCKSRequest( SOCKET_CONTEXT *context, unsigned char request_type 
 		}
 		else if ( request_type == 2 )
 		{
-			unsigned char username_length = ( unsigned char )lstrlenA( proxy_auth_username );
-			unsigned char password_length = ( unsigned char )lstrlenA( proxy_auth_password );
+			unsigned char username_length = ( proxy_auth_username != NULL ? ( unsigned char )lstrlenA( proxy_auth_username ) : 0 );
+			unsigned char password_length = ( proxy_auth_password != NULL ? ( unsigned char )lstrlenA( proxy_auth_password ) : 0 );
 
 			context->wsabuf.buf[ request_length++ ] = 0x01;	// Username/Password version
 			context->wsabuf.buf[ request_length++ ] = username_length;

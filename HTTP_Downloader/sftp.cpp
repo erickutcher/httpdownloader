@@ -102,98 +102,28 @@ char SFTP_WriteContent( SOCKET_CONTEXT *context )
 
 	char content_status = SFTP_CONTENT_STATUS_NONE;
 
-	if ( context->download_info != NULL &&
-	  !( context->download_info->shared_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
+	if ( context->download_info != NULL )
 	{
-		context->wsabuf.buf = NULL;
-		context->wsabuf.len = 0;
-
-		// Spin through the data until we get something to write or there's nothing left.
-		while ( _SFTP_DownloadData( context->ssh, &context->wsabuf.buf, &context->wsabuf.len ) )
+		if ( !( context->download_info->shared_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
 		{
-			if ( context->wsabuf.len > 0 )
+			context->wsabuf.buf = NULL;
+			context->wsabuf.len = 0;
+
+			// Spin through the data until we get something to write or there's nothing left.
+			while ( _SFTP_DownloadData( context->ssh, &context->wsabuf.buf, &context->wsabuf.len ) )
 			{
-				break;
-			}
-			else
-			{
-				_SFTP_FreeDownloadData( context->wsabuf.buf );
-				context->wsabuf.buf = NULL;
-				context->wsabuf.len = 0;
-			}
-		}
-
-		unsigned int output_buffer_length = context->wsabuf.len;
-
-		// Make sure the server isn't feeding us more data than they claim.
-		if ( context->header_info.range_info->content_length > 0 &&
-		   ( ( ( context->header_info.range_info->file_write_offset - context->header_info.range_info->range_start ) + output_buffer_length ) > ( ( context->header_info.range_info->range_end - context->header_info.range_info->range_start ) + 1 ) ) )
-		{
-			output_buffer_length -= ( unsigned int )( ( ( context->header_info.range_info->file_write_offset - context->header_info.range_info->range_start ) + output_buffer_length ) - ( ( context->header_info.range_info->range_end - context->header_info.range_info->range_start ) + 1 ) );
-		}
-
-		if ( output_buffer_length > 0 )
-		{
-			if ( context->download_info->shared_info->hFile != INVALID_HANDLE_VALUE )
-			{
-				LARGE_INTEGER li;
-				li.QuadPart = context->header_info.range_info->file_write_offset;
-
-				InterlockedIncrement( &context->pending_operations );
-
-				context->overlapped.next_operation = IO_SFTPWriteContent;
-				context->overlapped.current_operation = IO_WriteFile;
-
-				context->write_wsabuf.buf = context->wsabuf.buf;
-				context->write_wsabuf.len = output_buffer_length;
-
-				context->overlapped.overlapped.hEvent = NULL;
-				context->overlapped.overlapped.Internal = NULL;
-				context->overlapped.overlapped.InternalHigh = NULL;
-				//context->overlapped.Pointer = NULL;	// union
-				context->overlapped.overlapped.Offset = li.LowPart;
-				context->overlapped.overlapped.OffsetHigh = li.HighPart;
-
-				context->content_offset = context->wsabuf.len;	// The true amount that was downloaded. Allows us to resume if we stop the download.
-
-				//context->content_status = SFTP_CONTENT_STATUS_READ_MORE_CONTENT;
-
-				content_status = SFTP_CONTENT_STATUS_READ_MORE_CONTENT;
-
-				EnterCriticalSection( &context->download_info->shared_info->di_cs );
-				BOOL bRet = WriteFile( context->download_info->shared_info->hFile, context->write_wsabuf.buf, context->write_wsabuf.len, NULL, ( OVERLAPPED * )&context->overlapped );
-				if ( bRet == FALSE && ( GetLastError() != ERROR_IO_PENDING ) )
+				if ( context->wsabuf.len > 0 )
 				{
-					InterlockedDecrement( &context->pending_operations );
-
-					context->download_info->status = STATUS_FILE_IO_ERROR;
-					context->status = STATUS_FILE_IO_ERROR;
-
-					context->content_status = SFTP_CONTENT_STATUS_FAILED;
-
-					content_status = SFTP_CONTENT_STATUS_FAILED;
-
-					context->content_offset = 0;	// The true amount that was downloaded. Allows us to resume if we stop the download.
-
-					CloseHandle( context->download_info->shared_info->hFile );
-					context->download_info->shared_info->hFile = INVALID_HANDLE_VALUE;
+					break;
 				}
-				LeaveCriticalSection( &context->download_info->shared_info->di_cs );
+				else
+				{
+					_SFTP_FreeDownloadData( context->wsabuf.buf );
+					context->wsabuf.buf = NULL;
+					context->wsabuf.len = 0;
+				}
 			}
-			else	// Shouldn't happen.
-			{
-				return SFTP_CONTENT_STATUS_FAILED;
-			}
-		}
-		/*else	// No more data, get next packet.
-		{
-			return SFTP_CONTENT_STATUS_NONE;
-		}*/
-	}
-	else	// Simulated. Spin through the data.
-	{
-		while ( _SFTP_DownloadData( context->ssh, &context->wsabuf.buf, &context->wsabuf.len ) )
-		{
+
 			unsigned int output_buffer_length = context->wsabuf.len;
 
 			// Make sure the server isn't feeding us more data than they claim.
@@ -203,35 +133,107 @@ char SFTP_WriteContent( SOCKET_CONTEXT *context )
 				output_buffer_length -= ( unsigned int )( ( ( context->header_info.range_info->file_write_offset - context->header_info.range_info->range_start ) + output_buffer_length ) - ( ( context->header_info.range_info->range_end - context->header_info.range_info->range_start ) + 1 ) );
 			}
 
-			if ( IS_GROUP( context->download_info ) )
+			if ( output_buffer_length > 0 )
 			{
-				EnterCriticalSection( &context->download_info->shared_info->di_cs );
-				context->download_info->shared_info->downloaded += output_buffer_length;					// The total amount of data (decoded) that was saved/simulated.
-				LeaveCriticalSection( &context->download_info->shared_info->di_cs );
+				if ( context->download_info->shared_info->hFile != INVALID_HANDLE_VALUE )
+				{
+					LARGE_INTEGER li;
+					li.QuadPart = context->header_info.range_info->file_write_offset;
+
+					InterlockedIncrement( &context->pending_operations );
+
+					context->overlapped.next_operation = IO_SFTPWriteContent;
+					context->overlapped.current_operation = IO_WriteFile;
+
+					context->write_wsabuf.buf = context->wsabuf.buf;
+					context->write_wsabuf.len = output_buffer_length;
+
+					context->overlapped.overlapped.hEvent = NULL;
+					context->overlapped.overlapped.Internal = NULL;
+					context->overlapped.overlapped.InternalHigh = NULL;
+					//context->overlapped.Pointer = NULL;	// union
+					context->overlapped.overlapped.Offset = li.LowPart;
+					context->overlapped.overlapped.OffsetHigh = li.HighPart;
+
+					context->content_offset = context->wsabuf.len;	// The true amount that was downloaded. Allows us to resume if we stop the download.
+
+					//context->content_status = SFTP_CONTENT_STATUS_READ_MORE_CONTENT;
+
+					content_status = SFTP_CONTENT_STATUS_READ_MORE_CONTENT;
+
+					EnterCriticalSection( &context->download_info->shared_info->di_cs );
+					BOOL bRet = WriteFile( context->download_info->shared_info->hFile, context->write_wsabuf.buf, context->write_wsabuf.len, NULL, ( OVERLAPPED * )&context->overlapped );
+					if ( bRet == FALSE && ( GetLastError() != ERROR_IO_PENDING ) )
+					{
+						InterlockedDecrement( &context->pending_operations );
+
+						context->download_info->status = STATUS_FILE_IO_ERROR;
+						context->status = STATUS_FILE_IO_ERROR;
+
+						context->content_status = SFTP_CONTENT_STATUS_FAILED;
+
+						content_status = SFTP_CONTENT_STATUS_FAILED;
+
+						context->content_offset = 0;	// The true amount that was downloaded. Allows us to resume if we stop the download.
+
+						CloseHandle( context->download_info->shared_info->hFile );
+						context->download_info->shared_info->hFile = INVALID_HANDLE_VALUE;
+					}
+					LeaveCriticalSection( &context->download_info->shared_info->di_cs );
+				}
+				else	// Shouldn't happen.
+				{
+					return SFTP_CONTENT_STATUS_FAILED;
+				}
 			}
-
-			EnterCriticalSection( &context->download_info->di_cs );
-			context->download_info->downloaded += output_buffer_length;					// The total amount of data (decoded) that was saved/simulated.
-			LeaveCriticalSection( &context->download_info->di_cs );
-
-			EnterCriticalSection( &session_totals_cs );
-			g_session_total_downloaded += output_buffer_length;
-			cfg_total_downloaded += output_buffer_length;
-			LeaveCriticalSection( &session_totals_cs );
-
-			context->header_info.range_info->file_write_offset += output_buffer_length;	// The size of the non-encoded/decoded data that we would have written to a file.
-
-			context->header_info.range_info->content_offset += output_buffer_length;	// The true amount that was downloaded. Allows us to resume if we stop the download.
-
-			_SFTP_FreeDownloadData( context->wsabuf.buf );
-			context->wsabuf.buf = NULL;
-			context->wsabuf.len = 0;
-
-			// We may need to break out of the while loop if the data buffer is larger than the amount of data we want.
-			if ( context->header_info.range_info->content_length == 0 ||
-			   ( context->header_info.range_info->content_offset >= ( ( context->header_info.range_info->range_end - context->header_info.range_info->range_start ) + 1 ) ) )
+			/*else	// No more data, get next packet.
 			{
-				return SFTP_CONTENT_STATUS_FAILED;	// We have no more data, so just close the connection.
+				return SFTP_CONTENT_STATUS_NONE;
+			}*/
+		}
+		else	// Simulated. Spin through the data.
+		{
+			while ( _SFTP_DownloadData( context->ssh, &context->wsabuf.buf, &context->wsabuf.len ) )
+			{
+				unsigned int output_buffer_length = context->wsabuf.len;
+
+				// Make sure the server isn't feeding us more data than they claim.
+				if ( context->header_info.range_info->content_length > 0 &&
+				   ( ( ( context->header_info.range_info->file_write_offset - context->header_info.range_info->range_start ) + output_buffer_length ) > ( ( context->header_info.range_info->range_end - context->header_info.range_info->range_start ) + 1 ) ) )
+				{
+					output_buffer_length -= ( unsigned int )( ( ( context->header_info.range_info->file_write_offset - context->header_info.range_info->range_start ) + output_buffer_length ) - ( ( context->header_info.range_info->range_end - context->header_info.range_info->range_start ) + 1 ) );
+				}
+
+				if ( IS_GROUP( context->download_info ) )
+				{
+					EnterCriticalSection( &context->download_info->shared_info->di_cs );
+					context->download_info->shared_info->downloaded += output_buffer_length;					// The total amount of data (decoded) that was saved/simulated.
+					LeaveCriticalSection( &context->download_info->shared_info->di_cs );
+				}
+
+				EnterCriticalSection( &context->download_info->di_cs );
+				context->download_info->downloaded += output_buffer_length;					// The total amount of data (decoded) that was saved/simulated.
+				LeaveCriticalSection( &context->download_info->di_cs );
+
+				EnterCriticalSection( &session_totals_cs );
+				g_session_total_downloaded += output_buffer_length;
+				cfg_total_downloaded += output_buffer_length;
+				LeaveCriticalSection( &session_totals_cs );
+
+				context->header_info.range_info->file_write_offset += output_buffer_length;	// The size of the non-encoded/decoded data that we would have written to a file.
+
+				context->header_info.range_info->content_offset += output_buffer_length;	// The true amount that was downloaded. Allows us to resume if we stop the download.
+
+				_SFTP_FreeDownloadData( context->wsabuf.buf );
+				context->wsabuf.buf = NULL;
+				context->wsabuf.len = 0;
+
+				// We may need to break out of the while loop if the data buffer is larger than the amount of data we want.
+				if ( context->header_info.range_info->content_length == 0 ||
+				   ( context->header_info.range_info->content_offset >= ( ( context->header_info.range_info->range_end - context->header_info.range_info->range_start ) + 1 ) ) )
+				{
+					return SFTP_CONTENT_STATUS_FAILED;	// We have no more data, so just close the connection.
+				}
 			}
 		}
 	}
@@ -609,99 +611,102 @@ PROCESS_WRITE:
 			context->status |= STATUS_INPUT_REQUIRED;
 
 			KEY_PROMPT_INFO *kpi = ( KEY_PROMPT_INFO * )GlobalAlloc( GMEM_FIXED, sizeof( KEY_PROMPT_INFO ) );
-			kpi->context = context;
-
-			char num_length = 0;
-			if ( context->request_info.port != 22 )
+			if ( kpi != NULL )
 			{
-				num_length = 1;	// Include ":".
-				unsigned short port = context->request_info.port;
+				kpi->context = context;
+
+				char num_length = 0;
+				if ( context->request_info.port != 22 )
+				{
+					num_length = 1;	// Include ":".
+					unsigned short port = context->request_info.port;
+					do
+					{
+						++num_length; 
+						port /= 10;
+					}
+					while ( port );
+				}
+
+				int mb_length = MultiByteToWideChar( CP_UTF8, 0, context->request_info.host, -1, NULL, 0 );	// Include the NULL terminator.
+				kpi->w_host = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( mb_length + num_length ) );
+				_memset( kpi->w_host, -3, sizeof( wchar_t ) * ( mb_length + num_length ) );
+				MultiByteToWideChar( CP_UTF8, 0, context->request_info.host, -1, kpi->w_host, mb_length );
+				if ( context->request_info.port != 22 )
+				{
+					__snwprintf( kpi->w_host + ( mb_length - 1 ), mb_length + num_length, L":%lu", context->request_info.port );
+				}
+
+				kpi->host = GlobalStrDupA( context->request_info.host );
+
+				mb_length = MultiByteToWideChar( CP_UTF8, 0, key_algorithm, -1, NULL, 0 );	// Include the NULL terminator.
+				kpi->w_key_algorithm = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * mb_length );
+				MultiByteToWideChar( CP_UTF8, 0, key_algorithm, -1, kpi->w_key_algorithm, mb_length );
+
+				kpi->key_algorithm = GlobalStrDupA( key_algorithm );
+
+				num_length = 6;	// Include " bits\0".
+				unsigned int t_key_size = key_size;
 				do
 				{
 					++num_length; 
-					port /= 10;
+					t_key_size /= 10;
 				}
-				while ( port );
-			}
+				while ( t_key_size );
 
-			int mb_length = MultiByteToWideChar( CP_UTF8, 0, context->request_info.host, -1, NULL, 0 );	// Include the NULL terminator.
-			kpi->w_host = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( mb_length + num_length ) );
-			_memset( kpi->w_host, -3, sizeof( wchar_t ) * ( mb_length + num_length ) );
-			MultiByteToWideChar( CP_UTF8, 0, context->request_info.host, -1, kpi->w_host, mb_length );
-			if ( context->request_info.port != 22 )
-			{
-				__snwprintf( kpi->w_host + ( mb_length - 1 ), mb_length + num_length, L":%lu", context->request_info.port );
-			}
+				kpi->w_key_size = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * num_length );
+				__snwprintf( kpi->w_key_size, num_length, L"%lu bits", key_size );
 
-			kpi->host = GlobalStrDupA( context->request_info.host );
+				mb_length = MultiByteToWideChar( CP_UTF8, 0, key_fingerprint, -1, NULL, 0 );	// Include the NULL terminator.
+				kpi->w_key_fingerprint = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * mb_length );
+				MultiByteToWideChar( CP_UTF8, 0, key_fingerprint, -1, kpi->w_key_fingerprint, mb_length );
 
-			mb_length = MultiByteToWideChar( CP_UTF8, 0, key_algorithm, -1, NULL, 0 );	// Include the NULL terminator.
-			kpi->w_key_algorithm = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * mb_length );
-			MultiByteToWideChar( CP_UTF8, 0, key_algorithm, -1, kpi->w_key_algorithm, mb_length );
+				kpi->key_fingerprint = GlobalStrDupA( key_fingerprint );
 
-			kpi->key_algorithm = GlobalStrDupA( key_algorithm );
+				int sha256_key_fingerprint_length = lstrlenA( sha256_key_fingerprint );
+				int md5_key_fingerprint_length = lstrlenA( md5_key_fingerprint );
+				kpi->w_key_fingerprints = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( sha256_key_fingerprint_length + md5_key_fingerprint_length + 3 ) );
+				__snwprintf( kpi->w_key_fingerprints, ( sha256_key_fingerprint_length + md5_key_fingerprint_length + 3 ), L"%S\r\n%S", SAFESTRA( sha256_key_fingerprint ), SAFESTRA( md5_key_fingerprint ) );
 
-			num_length = 6;	// Include " bits\0".
-			unsigned int t_key_size = key_size;
-			do
-			{
-				++num_length; 
-				t_key_size /= 10;
-			}
-			while ( t_key_size );
+				kpi->port = context->request_info.port;
 
-			kpi->w_key_size = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * num_length );
-			__snwprintf( kpi->w_key_size, num_length, L"%lu bits", key_size );
+				kpi->type = ( context->content_status == SFTP_CONTENT_STATUS_KEY_MISMATCH_1 || context->content_status == SFTP_CONTENT_STATUS_KEY_MISMATCH_2 ? 1 : 0 );
 
-			mb_length = MultiByteToWideChar( CP_UTF8, 0, key_fingerprint, -1, NULL, 0 );	// Include the NULL terminator.
-			kpi->w_key_fingerprint = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * mb_length );
-			MultiByteToWideChar( CP_UTF8, 0, key_fingerprint, -1, kpi->w_key_fingerprint, mb_length );
+				// Add item to prompt queue and continue.
+				EnterCriticalSection( &fingerprint_prompt_list_cs );
 
-			kpi->key_fingerprint = GlobalStrDupA( key_fingerprint );
+				DoublyLinkedList *context_node = DLL_CreateNode( ( void * )kpi );
+				DLL_AddNode( &fingerprint_prompt_list, context_node, -1 );
 
-			int sha256_key_fingerprint_length = lstrlenA( sha256_key_fingerprint );
-			int md5_key_fingerprint_length = lstrlenA( md5_key_fingerprint );
-			kpi->w_key_fingerprints = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( sha256_key_fingerprint_length + md5_key_fingerprint_length + 3 ) );
-			__snwprintf( kpi->w_key_fingerprints, ( sha256_key_fingerprint_length + md5_key_fingerprint_length + 3 ), L"%S\r\n%S", SAFESTRA( sha256_key_fingerprint ), SAFESTRA( md5_key_fingerprint ) );
-
-			kpi->port = context->request_info.port;
-
-			kpi->type = ( context->content_status == SFTP_CONTENT_STATUS_KEY_MISMATCH_1 || context->content_status == SFTP_CONTENT_STATUS_KEY_MISMATCH_2 ? 1 : 0 );
-
-			// Add item to prompt queue and continue.
-			EnterCriticalSection( &fingerprint_prompt_list_cs );
-
-			DoublyLinkedList *context_node = DLL_CreateNode( ( void * )kpi );
-			DLL_AddNode( &fingerprint_prompt_list, context_node, -1 );
-
-			if ( !fingerprint_prompt_active )
-			{
-				fingerprint_prompt_active = true;
-
-				// kpi is freed in FingerprintPrompt.
-				HANDLE handle_prompt = ( HANDLE )_CreateThread( NULL, 0, PromptFingerprint, ( void * )NULL, 0, NULL );
-
-				// Make sure our thread spawned.
-				if ( handle_prompt == NULL )
+				if ( !fingerprint_prompt_active )
 				{
-					GlobalFree( kpi->w_host );
-					GlobalFree( kpi->w_key_algorithm );
-					GlobalFree( kpi->w_key_size );
-					GlobalFree( kpi->w_key_fingerprint );
-					GlobalFree( kpi->w_key_fingerprints );
-					GlobalFree( kpi->host );
-					GlobalFree( kpi->key_algorithm );
-					GlobalFree( kpi->key_fingerprint );
-					GlobalFree( kpi );
+					fingerprint_prompt_active = true;
 
-					DLL_RemoveNode( &fingerprint_prompt_list, context_node );
-					GlobalFree( context_node );
+					// kpi is freed in FingerprintPrompt.
+					HANDLE handle_prompt = ( HANDLE )_CreateThread( NULL, 0, PromptFingerprint, ( void * )NULL, 0, NULL );
 
-					fingerprint_prompt_active = false;
-				}
-				else
-				{
-					CloseHandle( handle_prompt );
+					// Make sure our thread spawned.
+					if ( handle_prompt == NULL )
+					{
+						GlobalFree( kpi->w_host );
+						GlobalFree( kpi->w_key_algorithm );
+						GlobalFree( kpi->w_key_size );
+						GlobalFree( kpi->w_key_fingerprint );
+						GlobalFree( kpi->w_key_fingerprints );
+						GlobalFree( kpi->host );
+						GlobalFree( kpi->key_algorithm );
+						GlobalFree( kpi->key_fingerprint );
+						GlobalFree( kpi );
+
+						DLL_RemoveNode( &fingerprint_prompt_list, context_node );
+						GlobalFree( context_node );
+
+						fingerprint_prompt_active = false;
+					}
+					else
+					{
+						CloseHandle( handle_prompt );
+					}
 				}
 			}
 
@@ -1026,39 +1031,39 @@ RESUME_INIT:
 							context->overlapped.current_operation = IO_SFTPWriteContent;
 							goto PROCESS_WRITE;
 						}
-					}
 
-					EnterCriticalSection( &context->download_info->di_cs );
+						EnterCriticalSection( &context->download_info->di_cs );
 
-					context->download_info->processed_header = true;
+						context->download_info->processed_header = true;
 
-					LeaveCriticalSection( &context->download_info->di_cs );
+						LeaveCriticalSection( &context->download_info->di_cs );
 
-					if ( !context->processed_header )
-					{
-						if ( IS_GROUP( context->download_info ) )
+						if ( !context->processed_header )
 						{
-							context->download_info->file_size = context->header_info.range_info->content_length;
-
-							MakeHostRanges( context );
-
-							DoublyLinkedList *host_node = context->download_info->shared_info->host_list;
-							while ( host_node != NULL )
+							if ( IS_GROUP( context->download_info ) )
 							{
-								DOWNLOAD_INFO *host_di = ( DOWNLOAD_INFO * )host_node->data;
-								if ( host_di != NULL && host_di != context->download_info )
-								{
-									EnterCriticalSection( &host_di->di_cs );
+								context->download_info->file_size = context->header_info.range_info->content_length;
 
-									if ( host_di->status == STATUS_NONE )	// status might have been set to stopped when added.
+								MakeHostRanges( context );
+
+								DoublyLinkedList *host_node = context->download_info->shared_info->host_list;
+								while ( host_node != NULL )
+								{
+									DOWNLOAD_INFO *host_di = ( DOWNLOAD_INFO * )host_node->data;
+									if ( host_di != NULL && host_di != context->download_info )
 									{
-										host_di->status = STATUS_SKIPPED;
+										EnterCriticalSection( &host_di->di_cs );
+
+										if ( host_di->status == STATUS_NONE )	// status might have been set to stopped when added.
+										{
+											host_di->status = STATUS_SKIPPED;
+										}
+
+										LeaveCriticalSection( &host_di->di_cs );
 									}
 
-									LeaveCriticalSection( &host_di->di_cs );
+									host_node = host_node->next;
 								}
-
-								host_node = host_node->next;
 							}
 						}
 					}
@@ -1244,28 +1249,30 @@ char SFTP_MakeRangeRequest( SOCKET_CONTEXT *context )
 				if ( context->download_info->parts_limit > 0 && part > context->download_info->parts_limit )
 				{
 					RANGE_INFO *ri = ( RANGE_INFO * )GlobalAlloc( GPTR, sizeof( RANGE_INFO ) );
-
-					ri->range_start = range_offset;
-
-					if ( part < context->parts )
+					if ( ri != NULL )
 					{
-						range_offset += range_size;
-						ri->range_end = range_offset - 1;
-					}
-					else	// Make sure we have an accurate range end for the last part.
-					{
-						ri->range_end = content_length - 1;
-					}
+						ri->range_start = range_offset;
 
-					//ri->content_length = content_length;
-					ri->file_write_offset = ri->range_start;
+						if ( part < context->parts )
+						{
+							range_offset += range_size;
+							ri->range_end = range_offset - 1;
+						}
+						else	// Make sure we have an accurate range end for the last part.
+						{
+							ri->range_end = content_length - 1;
+						}
 
-					DoublyLinkedList *range_node = DLL_CreateNode( ( void * )ri );
-					DLL_AddNode( &context->download_info->range_list, range_node, -1 );
+						//ri->content_length = content_length;
+						ri->file_write_offset = ri->range_start;
 
-					if ( context->download_info->range_queue == NULL )
-					{
-						context->download_info->range_queue = range_node;
+						DoublyLinkedList *range_node = DLL_CreateNode( ( void * )ri );
+						DLL_AddNode( &context->download_info->range_list, range_node, -1 );
+
+						if ( context->download_info->range_queue == NULL )
+						{
+							context->download_info->range_queue = range_node;
+						}
 					}
 
 					skip_context_creation = true;
@@ -1281,91 +1288,95 @@ char SFTP_MakeRangeRequest( SOCKET_CONTEXT *context )
 
 			// Save the request information, the header information (if we got any), and create a new connection.
 			SOCKET_CONTEXT *new_context = CreateSocketContext();
-
-			new_context->processed_header = true;
-
-			new_context->part = part;
-			new_context->parts = context->parts;
-
-			new_context->got_filename = context->got_filename;						// No need to rename it again.
-			new_context->got_last_modified = context->got_last_modified;			// No need to get the date/time again.
-			new_context->show_file_size_prompt = context->show_file_size_prompt;	// No need to prompt again.
-
-			new_context->request_info.host = GlobalStrDupA( context->request_info.host );
-			new_context->request_info.port = context->request_info.port;
-			new_context->request_info.resource = GlobalStrDupA( context->request_info.resource );
-			new_context->request_info.protocol = context->request_info.protocol;
-
-			RANGE_INFO *ri = ( RANGE_INFO * )GlobalAlloc( GPTR, sizeof( RANGE_INFO ) );
-
-			new_context->header_info.range_info = ri;
-
-			new_context->header_info.range_info->range_start = range_offset;// + 1;
-
-			if ( new_context->part < context->parts )
+			if ( new_context != NULL )
 			{
-				range_offset += range_size;
-				new_context->header_info.range_info->range_end = range_offset - 1;
-			}
-			else	// Make sure we have an accurate range end for the last part.
-			{
-				new_context->header_info.range_info->range_end = content_length - 1;
-			}
+				new_context->processed_header = true;
 
-			new_context->header_info.range_info->content_length = content_length;
-			new_context->header_info.range_info->file_write_offset = new_context->header_info.range_info->range_start;
+				new_context->part = part;
+				new_context->parts = context->parts;
 
-			//new_context->request_info.redirect_count = context->request_info.redirect_count;	// This is being used to determine whether we've switched modes (fallback mode).
-			//new_context->header_info.connection = context->header_info.connection;				// This is being used as our mode value. (cfg_ftp_mode_type)
-			//
+				new_context->got_filename = context->got_filename;						// No need to rename it again.
+				new_context->got_last_modified = context->got_last_modified;			// No need to get the date/time again.
+				new_context->show_file_size_prompt = context->show_file_size_prompt;	// No need to prompt again.
 
-			new_context->context_node.data = new_context;
+				new_context->request_info.host = GlobalStrDupA( context->request_info.host );
+				new_context->request_info.port = context->request_info.port;
+				new_context->request_info.resource = GlobalStrDupA( context->request_info.resource );
+				new_context->request_info.protocol = context->request_info.protocol;
 
-			EnterCriticalSection( &context_list_cs );
-
-			DLL_AddNode( &g_context_list, &new_context->context_node, 0 );
-
-			LeaveCriticalSection( &context_list_cs );
-
-			// Add to the parts list.
-			if ( context->download_info != NULL )
-			{
-				EnterCriticalSection( &context->download_info->di_cs );
-
-				new_context->download_info = context->download_info;
-
-				++( new_context->download_info->active_parts );
-
-				DoublyLinkedList *range_node = DLL_CreateNode( ( void * )ri );
-				DLL_AddNode( &new_context->download_info->range_list, range_node, -1 );
-
-				new_context->parts_node.data = new_context;
-				DLL_AddNode( &new_context->download_info->parts_list, &new_context->parts_node, -1 );
-
-				LeaveCriticalSection( &context->download_info->di_cs );
-
-				EnterCriticalSection( &context->download_info->shared_info->di_cs );
-
-				// For groups.
-				if ( IS_GROUP( context->download_info ) )
+				RANGE_INFO *ri = ( RANGE_INFO * )GlobalAlloc( GPTR, sizeof( RANGE_INFO ) );
+				if ( ri != NULL )
 				{
-					++( context->download_info->shared_info->active_parts );
+					new_context->header_info.range_info = ri;
+
+					new_context->header_info.range_info->range_start = range_offset;// + 1;
+
+					if ( new_context->part < context->parts )
+					{
+						range_offset += range_size;
+						new_context->header_info.range_info->range_end = range_offset - 1;
+					}
+					else	// Make sure we have an accurate range end for the last part.
+					{
+						new_context->header_info.range_info->range_end = content_length - 1;
+					}
+
+					new_context->header_info.range_info->content_length = content_length;
+					new_context->header_info.range_info->file_write_offset = new_context->header_info.range_info->range_start;
+
+					//new_context->request_info.redirect_count = context->request_info.redirect_count;	// This is being used to determine whether we've switched modes (fallback mode).
+					//new_context->header_info.connection = context->header_info.connection;				// This is being used as our mode value. (cfg_ftp_mode_type)
+					//
+
+					new_context->context_node.data = new_context;
+
+					EnterCriticalSection( &context_list_cs );
+
+					DLL_AddNode( &g_context_list, &new_context->context_node, 0 );
+
+					LeaveCriticalSection( &context_list_cs );
+
+					// Add to the parts list.
+					if ( context->download_info != NULL )
+					{
+						EnterCriticalSection( &context->download_info->di_cs );
+
+						new_context->download_info = context->download_info;
+
+						++( new_context->download_info->active_parts );
+
+						DoublyLinkedList *range_node = DLL_CreateNode( ( void * )ri );
+						DLL_AddNode( &new_context->download_info->range_list, range_node, -1 );
+
+						new_context->parts_node.data = new_context;
+						DLL_AddNode( &new_context->download_info->parts_list, &new_context->parts_node, -1 );
+
+						LeaveCriticalSection( &context->download_info->di_cs );
+
+						EnterCriticalSection( &context->download_info->shared_info->di_cs );
+
+						// For groups.
+						if ( IS_GROUP( context->download_info ) )
+						{
+							++( context->download_info->shared_info->active_parts );
+						}
+
+						LeaveCriticalSection( &context->download_info->shared_info->di_cs );
+					}
+
+					new_context->status = STATUS_CONNECTING;
+
+					if ( !CreateConnection( new_context, new_context->request_info.host, new_context->request_info.port ) )
+					{
+						new_context->status = STATUS_FAILED;
+
+						InterlockedIncrement( &new_context->pending_operations );
+
+						new_context->overlapped.current_operation = IO_Close;
+
+						PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )new_context, ( OVERLAPPED * )&new_context->overlapped );
+					}
 				}
-
-				LeaveCriticalSection( &context->download_info->shared_info->di_cs );
-			}
-
-			new_context->status = STATUS_CONNECTING;
-
-			if ( !CreateConnection( new_context, new_context->request_info.host, new_context->request_info.port ) )
-			{
-				new_context->status = STATUS_FAILED;
-
-				InterlockedIncrement( &new_context->pending_operations );
-
-				new_context->overlapped.current_operation = IO_Close;
-
-				PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )new_context, ( OVERLAPPED * )&new_context->overlapped );
 			}
 		}
 
@@ -1557,8 +1568,11 @@ void ParseSFTPHost( wchar_t *w_host, char **host, unsigned short &port )
 
 		int key_fingerprint_length = WideCharToMultiByte( CP_UTF8, 0, str_pos_start, host_length, NULL, 0, NULL, NULL ) + 1;
 		*host = ( char * )GlobalAlloc( GPTR, sizeof( char ) * key_fingerprint_length ); // Size includes the NULL character.
-		key_fingerprint_length = WideCharToMultiByte( CP_UTF8, 0, str_pos_start, host_length, *host, key_fingerprint_length, NULL, NULL );
-		*( *host + key_fingerprint_length ) = 0;	// Sanity
+		if ( *host != NULL )
+		{
+			key_fingerprint_length = WideCharToMultiByte( CP_UTF8, 0, str_pos_start, host_length, *host, key_fingerprint_length, NULL, NULL );
+			*( *host + key_fingerprint_length ) = 0;	// Sanity
+		}
 
 		if ( port == 0 )
 		{
@@ -1691,7 +1705,6 @@ THREAD_RETURN PromptFingerprint( void * /*pArguments*/ )
 				{
 					bool add_to_tree = true;
 
-					SFTP_FPS_HOST_INFO tsfhi;
 					tsfhi.host = context->request_info.host;
 					tsfhi.port = context->request_info.port;
 
@@ -2093,89 +2106,94 @@ THREAD_RETURN handle_sftp_fps_host_list( void *pArguments )
 				_SendMessageW( g_hWnd_sftp_fps_host_list, LVM_ENSUREVISIBLE, 0, FALSE );
 
 				index_array = ( int * )GlobalAlloc( GMEM_FIXED, sizeof( int ) * sel_count );
-
-				lvi.iItem = -1;	// Set this to -1 so that the LVM_GETNEXTITEM call can go through the list correctly.
-
-				_EnableWindow( g_hWnd_sftp_fps_host_list, FALSE );	// Prevent any interaction with the listview while we're processing.
-
-				// Create an index list of selected items (in reverse order).
-				for ( int i = 0; i < sel_count; ++i )
+				if ( index_array != NULL )
 				{
-					lvi.iItem = index_array[ sel_count - 1 - i ] = ( int )_SendMessageW( g_hWnd_sftp_fps_host_list, LVM_GETNEXTITEM, lvi.iItem, LVNI_SELECTED );
-				}
+					lvi.iItem = -1;	// Set this to -1 so that the LVM_GETNEXTITEM call can go through the list correctly.
 
-				_EnableWindow( g_hWnd_sftp_fps_host_list, TRUE );	// Allow the listview to be interactive.
+					_EnableWindow( g_hWnd_sftp_fps_host_list, FALSE );	// Prevent any interaction with the listview while we're processing.
+
+					// Create an index list of selected items (in reverse order).
+					for ( int i = 0; i < sel_count; ++i )
+					{
+						lvi.iItem = index_array[ sel_count - 1 - i ] = ( int )_SendMessageW( g_hWnd_sftp_fps_host_list, LVM_GETNEXTITEM, lvi.iItem, LVNI_SELECTED );
+					}
+
+					_EnableWindow( g_hWnd_sftp_fps_host_list, TRUE );	// Allow the listview to be interactive.
+				}
 
 				item_count = sel_count;
 			}
 
-			// Go through each item, and free their lParam values.
-			for ( int i = 0; i < item_count; ++i )
+			if ( handle_all || index_array != NULL )
 			{
-				// Stop processing and exit the thread.
-				if ( kill_worker_thread_flag )
+				// Go through each item, and free their lParam values.
+				for ( int i = 0; i < item_count; ++i )
 				{
-					break;
-				}
-
-				if ( handle_all )
-				{
-					lvi.iItem = i;
-				}
-				else
-				{
-					lvi.iItem = index_array[ i ];
-				}
-
-				_SendMessageW( g_hWnd_sftp_fps_host_list, LVM_GETITEM, 0, ( LPARAM )&lvi );
-
-				SFTP_FPS_HOST_INFO *sfhi = ( SFTP_FPS_HOST_INFO * )lvi.lParam;
-
-				if ( !handle_all )
-				{
-					_SendMessageW( g_hWnd_sftp_fps_host_list, LVM_DELETEITEM, index_array[ i ], 0 );
-				}
-				else if ( i >= ( item_count - 1 ) )
-				{
-					_SendMessageW( g_hWnd_sftp_fps_host_list, LVM_DELETEALLITEMS, 0, 0 );
-				}
-
-				if ( sfhi != NULL )
-				{
-					// Find the host info
-					dllrbt_iterator *old_itr = dllrbt_find( g_sftp_fps_host_info, ( void * )sfhi, false );
-					if ( old_itr != NULL )
+					// Stop processing and exit the thread.
+					if ( kill_worker_thread_flag )
 					{
-						DoublyLinkedList *sfhi_node = ( DoublyLinkedList * )( ( node_type * )old_itr )->val;
-
-						DoublyLinkedList *tmp_node = sfhi_node;
-						while ( tmp_node != NULL )
-						{
-							SFTP_FPS_HOST_INFO *cached_sfhi = ( SFTP_FPS_HOST_INFO * )tmp_node->data;
-
-							if ( _StrCmpA( sfhi->key_algorithm, cached_sfhi->key_algorithm ) == 0 &&
-								 _StrCmpA( sfhi->key_fingerprint, cached_sfhi->key_fingerprint ) == 0 )
-							{
-								DLL_RemoveNode( &sfhi_node, tmp_node );
-
-								GlobalFree( tmp_node );
-
-								break;
-							}
-
-							tmp_node = tmp_node->next;
-						}
-
-						// Remove the old tree item and re-add it if there's still DoublyLinkedList nodes.
-						dllrbt_remove( g_sftp_fps_host_info, old_itr );
-
-						if ( sfhi_node != NULL )
-						{
-							dllrbt_insert( g_sftp_fps_host_info, sfhi_node->data, ( void * )sfhi_node );
-						}
+						break;
 					}
 
-					FreeSFTPFpsHostInfo( &sfhi );
+					if ( handle_all )
+					{
+						lvi.iItem = i;
+					}
+					else
+					{
+						lvi.iItem = index_array[ i ];
+					}
+
+					_SendMessageW( g_hWnd_sftp_fps_host_list, LVM_GETITEM, 0, ( LPARAM )&lvi );
+
+					SFTP_FPS_HOST_INFO *sfhi = ( SFTP_FPS_HOST_INFO * )lvi.lParam;
+
+					if ( !handle_all )
+					{
+						_SendMessageW( g_hWnd_sftp_fps_host_list, LVM_DELETEITEM, index_array[ i ], 0 );
+					}
+					else if ( i >= ( item_count - 1 ) )
+					{
+						_SendMessageW( g_hWnd_sftp_fps_host_list, LVM_DELETEALLITEMS, 0, 0 );
+					}
+
+					if ( sfhi != NULL )
+					{
+						// Find the host info
+						dllrbt_iterator *old_itr = dllrbt_find( g_sftp_fps_host_info, ( void * )sfhi, false );
+						if ( old_itr != NULL )
+						{
+							DoublyLinkedList *sfhi_node = ( DoublyLinkedList * )( ( node_type * )old_itr )->val;
+
+							DoublyLinkedList *tmp_node = sfhi_node;
+							while ( tmp_node != NULL )
+							{
+								SFTP_FPS_HOST_INFO *cached_sfhi = ( SFTP_FPS_HOST_INFO * )tmp_node->data;
+
+								if ( _StrCmpA( sfhi->key_algorithm, cached_sfhi->key_algorithm ) == 0 &&
+									 _StrCmpA( sfhi->key_fingerprint, cached_sfhi->key_fingerprint ) == 0 )
+								{
+									DLL_RemoveNode( &sfhi_node, tmp_node );
+
+									GlobalFree( tmp_node );
+
+									break;
+								}
+
+								tmp_node = tmp_node->next;
+							}
+
+							// Remove the old tree item and re-add it if there's still DoublyLinkedList nodes.
+							dllrbt_remove( g_sftp_fps_host_info, old_itr );
+
+							if ( sfhi_node != NULL )
+							{
+								dllrbt_insert( g_sftp_fps_host_info, sfhi_node->data, ( void * )sfhi_node );
+							}
+						}
+
+						FreeSFTPFpsHostInfo( &sfhi );
+					}
 				}
 			}
 
@@ -2284,21 +2302,24 @@ char *CreateKeyInfoString( DoublyLinkedList *dll_node )
 				ret = ( char * )GlobalAlloc( GMEM_FIXED, ( key_fingerprint_length + 1 + key_algorithm_length ) + 1 + sizeof( unsigned int ) );
 			}
 
-			_memcpy_s( ret + ret_length, key_algorithm_length, sfhi->key_algorithm, key_algorithm_length );
-			ret_length += key_algorithm_length;
-			ret[ ret_length++ ] = '\n';
-			_memcpy_s( ret + ret_length, key_fingerprint_length, sfhi->key_fingerprint, key_fingerprint_length );
-			ret_length += key_fingerprint_length;
-			if ( dll_node->next != NULL )
+			if ( ret != NULL )
 			{
+				_memcpy_s( ret + ret_length, key_algorithm_length, sfhi->key_algorithm, key_algorithm_length );
+				ret_length += key_algorithm_length;
 				ret[ ret_length++ ] = '\n';
-			}
-			else
-			{
-				ret[ ret_length ] = 0;	// Sanity.
-			}
+				_memcpy_s( ret + ret_length, key_fingerprint_length, sfhi->key_fingerprint, key_fingerprint_length );
+				ret_length += key_fingerprint_length;
+				if ( dll_node->next != NULL )
+				{
+					ret[ ret_length++ ] = '\n';
+				}
+				else
+				{
+					ret[ ret_length ] = 0;	// Sanity.
+				}
 
-			++info_count;
+				++info_count;
+			}
 		}
 
 		dll_node = dll_node->next;
@@ -2317,7 +2338,7 @@ char read_sftp_fps_host_info()
 	char ret_status = 0;
 
 	_wmemcpy_s( g_base_directory + g_base_directory_length, MAX_PATH - g_base_directory_length, L"\\sftp_fingerprint_settings\0", 27 );
-	g_base_directory[ g_base_directory_length + 26 ] = 0;	// Sanity.
+	//g_base_directory[ g_base_directory_length + 26 ] = 0;	// Sanity.
 
 	HANDLE hFile_read = CreateFile( g_base_directory, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL );
 	if ( hFile_read != INVALID_HANDLE_VALUE )
@@ -2333,132 +2354,153 @@ char read_sftp_fps_host_info()
 		//
 
 		char magic_identifier[ 4 ];
-		ReadFile( hFile_read, magic_identifier, sizeof( char ) * 4, &read, NULL );
-		if ( read == 4 && _memcmp( magic_identifier, MAGIC_ID_SFTP_HOSTS, 4 ) == 0 )
+		BOOL bRet = ReadFile( hFile_read, magic_identifier, sizeof( char ) * 4, &read, NULL );
+		if ( bRet != FALSE && read == 4 && _memcmp( magic_identifier, MAGIC_ID_SFTP_HOSTS, 4 ) == 0 )
 		{
-			DWORD fz = GetFileSize( hFile_read, NULL ) - 4;
-
 			char *buf = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( 524288 + 1 ) );	// 512 KB buffer.
-
-			while ( total_read < fz )
+			if ( buf != NULL )
 			{
-				ReadFile( hFile_read, buf, sizeof( char ) * 524288, &read, NULL );
+				DWORD fz = GetFileSize( hFile_read, NULL ) - 4;
 
-				buf[ read ] = 0;	// Guarantee a NULL terminated buffer.
-
-				total_read += read;
-
-				// Prevent an infinite loop if a really really long entry causes us to jump back to the same point in the file.
-				// If it's larger than our buffer, then the file is probably invalid/corrupt.
-				if ( total_read == last_total )
+				while ( total_read < fz )
 				{
-					break;
+					bRet = ReadFile( hFile_read, buf, sizeof( char ) * 524288, &read, NULL );
+					if ( bRet == FALSE )
+					{
+						break;
+					}
+
+					buf[ read ] = 0;	// Guarantee a NULL terminated buffer.
+
+					total_read += read;
+
+					// Prevent an infinite loop if a really really long entry causes us to jump back to the same point in the file.
+					// If it's larger than our buffer, then the file is probably invalid/corrupt.
+					if ( total_read == last_total )
+					{
+						break;
+					}
+
+					last_total = total_read;
+
+					p = buf;
+					offset = last_entry = 0;
+
+					while ( offset < read )
+					{
+						host = NULL;
+						key_algorithm = NULL;
+						key_fingerprint = NULL;
+
+						//
+
+						// Host
+						int string_length = lstrlenW( ( wchar_t * )p ) + 1;
+
+						offset += ( string_length * sizeof( wchar_t ) );
+						if ( offset >= read ) { goto CLEANUP; }
+
+						host = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * string_length );
+						_wmemcpy_s( host, string_length, p, string_length );
+						*( host + ( string_length - 1 ) ) = 0;	// Sanity
+
+						p += ( string_length * sizeof( wchar_t ) );
+
+						// Key Algrithm
+						string_length = lstrlenW( ( wchar_t * )p ) + 1;
+
+						offset += ( string_length * sizeof( wchar_t ) );
+						if ( offset > read ) { goto CLEANUP; }
+
+						key_algorithm = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * string_length );
+						_wmemcpy_s( key_algorithm, string_length, p, string_length );
+						*( key_algorithm + ( string_length - 1 ) ) = 0;	// Sanity
+
+						p += ( string_length * sizeof( wchar_t ) );
+
+						// Key Fingerprint
+						string_length = lstrlenW( ( wchar_t * )p ) + 1;
+
+						offset += ( string_length * sizeof( wchar_t ) );
+						if ( offset > read ) { goto CLEANUP; }
+
+						key_fingerprint = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * string_length );
+						_wmemcpy_s( key_fingerprint, string_length, p, string_length );
+						*( key_fingerprint + ( string_length - 1 ) ) = 0;	// Sanity
+
+						p += ( string_length * sizeof( wchar_t ) );
+
+						//
+
+						last_entry = offset;	// This value is the ending offset of the last valid entry.
+
+						SFTP_FPS_HOST_INFO *sfhi = ( SFTP_FPS_HOST_INFO * )GlobalAlloc( GPTR, sizeof( SFTP_FPS_HOST_INFO ) );
+						if ( sfhi != NULL )
+						{
+							sfhi->w_host = host;
+							sfhi->w_key_algorithm = key_algorithm;
+							sfhi->w_key_fingerprint = key_fingerprint;
+
+							ParseSFTPHost( sfhi->w_host, &sfhi->host, sfhi->port );
+
+							int wcs_length;
+							if ( sfhi->w_key_algorithm != NULL )
+							{
+								wcs_length = WideCharToMultiByte( CP_UTF8, 0, sfhi->w_key_algorithm, -1, NULL, 0, NULL, NULL );
+								sfhi->key_algorithm = ( char * )GlobalAlloc( GPTR, sizeof( char ) * wcs_length ); // Size includes the NULL character.
+								WideCharToMultiByte( CP_UTF8, 0, sfhi->w_key_algorithm, -1, sfhi->key_algorithm, wcs_length, NULL, NULL );
+							}
+
+							if ( sfhi->w_key_fingerprint != NULL )
+							{
+								wcs_length = WideCharToMultiByte( CP_UTF8, 0, sfhi->w_key_fingerprint, -1, NULL, 0, NULL, NULL );
+								sfhi->key_fingerprint = ( char * )GlobalAlloc( GPTR, sizeof( char ) * wcs_length ); // Size includes the NULL character.
+								WideCharToMultiByte( CP_UTF8, 0, sfhi->w_key_fingerprint, -1, sfhi->key_fingerprint, wcs_length, NULL, NULL );
+							}
+
+							//
+
+							DoublyLinkedList *sfhi_node = ( DoublyLinkedList * )dllrbt_find( g_sftp_fps_host_info, ( void * )sfhi, true );
+
+							DoublyLinkedList *new_sfhi_node = DLL_CreateNode( ( void * )sfhi );
+							if ( sfhi_node != NULL )
+							{
+								DLL_AddNode( &sfhi_node, new_sfhi_node, -1 );
+							}
+							else if ( dllrbt_insert( g_sftp_fps_host_info, ( void * )sfhi, ( void * )new_sfhi_node ) != DLLRBT_STATUS_OK )
+							{
+								GlobalFree( new_sfhi_node );
+
+								FreeSFTPFpsHostInfo( &sfhi );
+							}
+						}
+						else
+						{
+							GlobalFree( host );
+							GlobalFree( key_algorithm );
+							GlobalFree( key_fingerprint );
+						}
+
+						continue;
+
+		CLEANUP:
+						GlobalFree( host );
+						GlobalFree( key_algorithm );
+						GlobalFree( key_fingerprint );
+
+						// Go back to the last valid entry.
+						if ( total_read < fz )
+						{
+							total_read -= ( read - last_entry );
+							SetFilePointer( hFile_read, total_read + 4, NULL, FILE_BEGIN );	// Offset past the magic identifier.
+						}
+
+						break;
+					}
 				}
 
-				last_total = total_read;
-
-				p = buf;
-				offset = last_entry = 0;
-
-				while ( offset < read )
-				{
-					host = NULL;
-					key_algorithm = NULL;
-					key_fingerprint = NULL;
-
-					//
-
-					// Host
-					int string_length = lstrlenW( ( wchar_t * )p ) + 1;
-
-					offset += ( string_length * sizeof( wchar_t ) );
-					if ( offset >= read ) { goto CLEANUP; }
-
-					host = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * string_length );
-					_wmemcpy_s( host, string_length, p, string_length );
-					*( host + ( string_length - 1 ) ) = 0;	// Sanity
-
-					p += ( string_length * sizeof( wchar_t ) );
-
-					// Key Algrithm
-					string_length = lstrlenW( ( wchar_t * )p ) + 1;
-
-					offset += ( string_length * sizeof( wchar_t ) );
-					if ( offset > read ) { goto CLEANUP; }
-
-					key_algorithm = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * string_length );
-					_wmemcpy_s( key_algorithm, string_length, p, string_length );
-					*( key_algorithm + ( string_length - 1 ) ) = 0;	// Sanity
-
-					p += ( string_length * sizeof( wchar_t ) );
-
-					// Key Fingerprint
-					string_length = lstrlenW( ( wchar_t * )p ) + 1;
-
-					offset += ( string_length * sizeof( wchar_t ) );
-					if ( offset > read ) { goto CLEANUP; }
-
-					key_fingerprint = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * string_length );
-					_wmemcpy_s( key_fingerprint, string_length, p, string_length );
-					*( key_fingerprint + ( string_length - 1 ) ) = 0;	// Sanity
-
-					p += ( string_length * sizeof( wchar_t ) );
-
-					//
-
-					last_entry = offset;	// This value is the ending offset of the last valid entry.
-
-					SFTP_FPS_HOST_INFO *sfhi = ( SFTP_FPS_HOST_INFO * )GlobalAlloc( GPTR, sizeof( SFTP_FPS_HOST_INFO ) );
-
-					sfhi->w_host = host;
-					sfhi->w_key_algorithm = key_algorithm;
-					sfhi->w_key_fingerprint = key_fingerprint;
-
-					ParseSFTPHost( sfhi->w_host, &sfhi->host, sfhi->port );
-
-					int wcs_length = WideCharToMultiByte( CP_UTF8, 0, sfhi->w_key_algorithm, -1, NULL, 0, NULL, NULL );
-					sfhi->key_algorithm = ( char * )GlobalAlloc( GPTR, sizeof( char ) * wcs_length ); // Size includes the NULL character.
-					WideCharToMultiByte( CP_UTF8, 0, sfhi->w_key_algorithm, -1, sfhi->key_algorithm, wcs_length, NULL, NULL );
-
-					wcs_length = WideCharToMultiByte( CP_UTF8, 0, sfhi->w_key_fingerprint, -1, NULL, 0, NULL, NULL );
-					sfhi->key_fingerprint = ( char * )GlobalAlloc( GPTR, sizeof( char ) * wcs_length ); // Size includes the NULL character.
-					WideCharToMultiByte( CP_UTF8, 0, sfhi->w_key_fingerprint, -1, sfhi->key_fingerprint, wcs_length, NULL, NULL );
-
-					//
-
-					DoublyLinkedList *sfhi_node = ( DoublyLinkedList * )dllrbt_find( g_sftp_fps_host_info, ( void * )sfhi, true );
-
-					DoublyLinkedList *new_sfhi_node = DLL_CreateNode( ( void * )sfhi );
-					if ( sfhi_node != NULL )
-					{
-						DLL_AddNode( &sfhi_node, new_sfhi_node, -1 );
-					}
-					else if ( dllrbt_insert( g_sftp_fps_host_info, ( void * )sfhi, ( void * )new_sfhi_node ) != DLLRBT_STATUS_OK )
-					{
-						GlobalFree( new_sfhi_node );
-
-						FreeSFTPFpsHostInfo( &sfhi );
-					}
-
-					continue;
-
-	CLEANUP:
-					GlobalFree( host );
-					GlobalFree( key_algorithm );
-					GlobalFree( key_fingerprint );
-
-					// Go back to the last valid entry.
-					if ( total_read < fz )
-					{
-						total_read -= ( read - last_entry );
-						SetFilePointer( hFile_read, total_read + 4, NULL, FILE_BEGIN );	// Offset past the magic identifier.
-					}
-
-					break;
-				}
+				GlobalFree( buf );
 			}
-
-			GlobalFree( buf );
 		}
 		else
 		{
@@ -2480,7 +2522,7 @@ char save_sftp_fps_host_info()
 	char ret_status = 0;
 
 	_wmemcpy_s( g_base_directory + g_base_directory_length, MAX_PATH - g_base_directory_length, L"\\sftp_fingerprint_settings\0", 27 );
-	g_base_directory[ g_base_directory_length + 26 ] = 0;	// Sanity.
+	//g_base_directory[ g_base_directory_length + 26 ] = 0;	// Sanity.
 
 	HANDLE hFile = CreateFile( g_base_directory, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL );
 	if ( hFile != INVALID_HANDLE_VALUE )
@@ -2747,63 +2789,68 @@ THREAD_RETURN handle_sftp_keys_host_list( void *pArguments )
 				_SendMessageW( g_hWnd_sftp_keys_host_list, LVM_ENSUREVISIBLE, 0, FALSE );
 
 				index_array = ( int * )GlobalAlloc( GMEM_FIXED, sizeof( int ) * sel_count );
-
-				lvi.iItem = -1;	// Set this to -1 so that the LVM_GETNEXTITEM call can go through the list correctly.
-
-				_EnableWindow( g_hWnd_sftp_keys_host_list, FALSE );	// Prevent any interaction with the listview while we're processing.
-
-				// Create an index list of selected items (in reverse order).
-				for ( int i = 0; i < sel_count; ++i )
+				if ( index_array != NULL )
 				{
-					lvi.iItem = index_array[ sel_count - 1 - i ] = ( int )_SendMessageW( g_hWnd_sftp_keys_host_list, LVM_GETNEXTITEM, lvi.iItem, LVNI_SELECTED );
-				}
+					lvi.iItem = -1;	// Set this to -1 so that the LVM_GETNEXTITEM call can go through the list correctly.
 
-				_EnableWindow( g_hWnd_sftp_keys_host_list, TRUE );	// Allow the listview to be interactive.
+					_EnableWindow( g_hWnd_sftp_keys_host_list, FALSE );	// Prevent any interaction with the listview while we're processing.
+
+					// Create an index list of selected items (in reverse order).
+					for ( int i = 0; i < sel_count; ++i )
+					{
+						lvi.iItem = index_array[ sel_count - 1 - i ] = ( int )_SendMessageW( g_hWnd_sftp_keys_host_list, LVM_GETNEXTITEM, lvi.iItem, LVNI_SELECTED );
+					}
+
+					_EnableWindow( g_hWnd_sftp_keys_host_list, TRUE );	// Allow the listview to be interactive.
+				}
 
 				item_count = sel_count;
 			}
 
-			// Go through each item, and free their lParam values.
-			for ( int i = 0; i < item_count; ++i )
+			if ( handle_all || index_array != NULL )
 			{
-				// Stop processing and exit the thread.
-				if ( kill_worker_thread_flag )
+				// Go through each item, and free their lParam values.
+				for ( int i = 0; i < item_count; ++i )
 				{
-					break;
-				}
-
-				if ( handle_all )
-				{
-					lvi.iItem = i;
-				}
-				else
-				{
-					lvi.iItem = index_array[ i ];
-				}
-
-				_SendMessageW( g_hWnd_sftp_keys_host_list, LVM_GETITEM, 0, ( LPARAM )&lvi );
-
-				SFTP_KEYS_HOST_INFO *skhi = ( SFTP_KEYS_HOST_INFO * )lvi.lParam;
-
-				if ( !handle_all )
-				{
-					_SendMessageW( g_hWnd_sftp_keys_host_list, LVM_DELETEITEM, index_array[ i ], 0 );
-				}
-				else if ( i >= ( item_count - 1 ) )
-				{
-					_SendMessageW( g_hWnd_sftp_keys_host_list, LVM_DELETEALLITEMS, 0, 0 );
-				}
-
-				if ( skhi != NULL )
-				{
-					// Find the host info
-					dllrbt_iterator *itr = dllrbt_find( g_sftp_keys_host_info, ( void * )skhi, false );
-					if ( itr != NULL )
+					// Stop processing and exit the thread.
+					if ( kill_worker_thread_flag )
 					{
-						dllrbt_remove( g_sftp_keys_host_info, itr );
+						break;
 					}
 
-					FreeSFTPKeysHostInfo( &skhi );
+					if ( handle_all )
+					{
+						lvi.iItem = i;
+					}
+					else
+					{
+						lvi.iItem = index_array[ i ];
+					}
+
+					_SendMessageW( g_hWnd_sftp_keys_host_list, LVM_GETITEM, 0, ( LPARAM )&lvi );
+
+					SFTP_KEYS_HOST_INFO *skhi = ( SFTP_KEYS_HOST_INFO * )lvi.lParam;
+
+					if ( !handle_all )
+					{
+						_SendMessageW( g_hWnd_sftp_keys_host_list, LVM_DELETEITEM, index_array[ i ], 0 );
+					}
+					else if ( i >= ( item_count - 1 ) )
+					{
+						_SendMessageW( g_hWnd_sftp_keys_host_list, LVM_DELETEALLITEMS, 0, 0 );
+					}
+
+					if ( skhi != NULL )
+					{
+						// Find the host info
+						dllrbt_iterator *itr = dllrbt_find( g_sftp_keys_host_info, ( void * )skhi, false );
+						if ( itr != NULL )
+						{
+							dllrbt_remove( g_sftp_keys_host_info, itr );
+						}
+
+						FreeSFTPKeysHostInfo( &skhi );
+					}
 				}
 			}
 
@@ -2894,7 +2941,7 @@ char read_sftp_keys_host_info()
 	char ret_status = 0;
 
 	_wmemcpy_s( g_base_directory + g_base_directory_length, MAX_PATH - g_base_directory_length, L"\\sftp_private_key_settings\0", 27 );
-	g_base_directory[ g_base_directory_length + 26 ] = 0;	// Sanity.
+	//g_base_directory[ g_base_directory_length + 26 ] = 0;	// Sanity.
 
 	HANDLE hFile_read = CreateFile( g_base_directory, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL );
 	if ( hFile_read != INVALID_HANDLE_VALUE )
@@ -2911,129 +2958,150 @@ char read_sftp_keys_host_info()
 		//
 
 		char magic_identifier[ 4 ];
-		ReadFile( hFile_read, magic_identifier, sizeof( char ) * 4, &read, NULL );
-		if ( read == 4 && _memcmp( magic_identifier, MAGIC_ID_SFTP_KEYS, 4 ) == 0 )
+		BOOL bRet = ReadFile( hFile_read, magic_identifier, sizeof( char ) * 4, &read, NULL );
+		if ( bRet != FALSE && read == 4 && _memcmp( magic_identifier, MAGIC_ID_SFTP_KEYS, 4 ) == 0 )
 		{
-			DWORD fz = GetFileSize( hFile_read, NULL ) - 4;
-
 			char *buf = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( 524288 + 1 ) );	// 512 KB buffer.
-
-			while ( total_read < fz )
+			if ( buf != NULL )
 			{
-				ReadFile( hFile_read, buf, sizeof( char ) * 524288, &read, NULL );
+				DWORD fz = GetFileSize( hFile_read, NULL ) - 4;
 
-				buf[ read ] = 0;	// Guarantee a NULL terminated buffer.
-
-				total_read += read;
-
-				// Prevent an infinite loop if a really really long entry causes us to jump back to the same point in the file.
-				// If it's larger than our buffer, then the file is probably invalid/corrupt.
-				if ( total_read == last_total )
+				while ( total_read < fz )
 				{
-					break;
-				}
-
-				last_total = total_read;
-
-				p = buf;
-				offset = last_entry = 0;
-
-				while ( offset < read )
-				{
-					username = NULL;
-					host = NULL;
-					key_file_path = NULL;
-
-					//
-					// Enable/Disable entry
-					offset += sizeof( bool );
-					if ( offset >= read ) { goto CLEANUP; }
-					_memcpy_s( &enable, sizeof( bool ), p, sizeof( bool ) );
-					p += sizeof( bool );
-
-					// Username
-					int string_length = lstrlenW( ( wchar_t * )p ) + 1;
-
-					offset += ( string_length * sizeof( wchar_t ) );
-					if ( offset >= read ) { goto CLEANUP; }
-
-					username = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * string_length );
-					_wmemcpy_s( username, string_length, p, string_length );
-					*( username + ( string_length - 1 ) ) = 0;	// Sanity
-
-					p += ( string_length * sizeof( wchar_t ) );
-
-					// Host
-					string_length = lstrlenW( ( wchar_t * )p ) + 1;
-
-					offset += ( string_length * sizeof( wchar_t ) );
-					if ( offset >= read ) { goto CLEANUP; }
-
-					host = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * string_length );
-					_wmemcpy_s( host, string_length, p, string_length );
-					*( host + ( string_length - 1 ) ) = 0;	// Sanity
-
-					p += ( string_length * sizeof( wchar_t ) );
-
-					// Key Fingerprint
-					string_length = lstrlenW( ( wchar_t * )p ) + 1;
-
-					offset += ( string_length * sizeof( wchar_t ) );
-					if ( offset > read ) { goto CLEANUP; }
-
-					key_file_path = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * string_length );
-					_wmemcpy_s( key_file_path, string_length, p, string_length );
-					*( key_file_path + ( string_length - 1 ) ) = 0;	// Sanity
-
-					p += ( string_length * sizeof( wchar_t ) );
-
-					//
-
-					last_entry = offset;	// This value is the ending offset of the last valid entry.
-
-					SFTP_KEYS_HOST_INFO *skhi = ( SFTP_KEYS_HOST_INFO * )GlobalAlloc( GPTR, sizeof( SFTP_KEYS_HOST_INFO ) );
-
-					skhi->enable = enable;
-					skhi->w_username = username;
-					skhi->w_host = host;
-					skhi->w_key_file_path = key_file_path;
-
-					ParseSFTPHost( skhi->w_host, &skhi->host, skhi->port );
-
-					int mb_length = WideCharToMultiByte( CP_UTF8, 0, skhi->w_username, -1, NULL, 0, NULL, NULL );
-					skhi->username = ( char * )GlobalAlloc( GPTR, sizeof( char ) * mb_length ); // Size includes the NULL character.
-					WideCharToMultiByte( CP_UTF8, 0, skhi->w_username, -1, skhi->username, mb_length, NULL, NULL );
-
-					mb_length = WideCharToMultiByte( CP_UTF8, 0, skhi->w_key_file_path, -1, NULL, 0, NULL, NULL );
-					skhi->key_file_path = ( char * )GlobalAlloc( GPTR, sizeof( char ) * mb_length ); // Size includes the NULL character.
-					WideCharToMultiByte( CP_UTF8, 0, skhi->w_key_file_path, -1, skhi->key_file_path, mb_length, NULL, NULL );
-
-					//
-
-					if ( dllrbt_insert( g_sftp_keys_host_info, ( void * )skhi, ( void * )skhi ) != DLLRBT_STATUS_OK )
+					bRet = ReadFile( hFile_read, buf, sizeof( char ) * 524288, &read, NULL );
+					if ( bRet == FALSE )
 					{
-						FreeSFTPKeysHostInfo( &skhi );
+						break;
 					}
 
-					continue;
+					buf[ read ] = 0;	// Guarantee a NULL terminated buffer.
 
-	CLEANUP:
-					GlobalFree( username );
-					GlobalFree( host );
-					GlobalFree( key_file_path );
+					total_read += read;
 
-					// Go back to the last valid entry.
-					if ( total_read < fz )
+					// Prevent an infinite loop if a really really long entry causes us to jump back to the same point in the file.
+					// If it's larger than our buffer, then the file is probably invalid/corrupt.
+					if ( total_read == last_total )
 					{
-						total_read -= ( read - last_entry );
-						SetFilePointer( hFile_read, total_read + 4, NULL, FILE_BEGIN );	// Offset past the magic identifier.
+						break;
 					}
 
-					break;
+					last_total = total_read;
+
+					p = buf;
+					offset = last_entry = 0;
+
+					while ( offset < read )
+					{
+						username = NULL;
+						host = NULL;
+						key_file_path = NULL;
+
+						//
+						// Enable/Disable entry
+						offset += sizeof( bool );
+						if ( offset >= read ) { goto CLEANUP; }
+						_memcpy_s( &enable, sizeof( bool ), p, sizeof( bool ) );
+						p += sizeof( bool );
+
+						// Username
+						int string_length = lstrlenW( ( wchar_t * )p ) + 1;
+
+						offset += ( string_length * sizeof( wchar_t ) );
+						if ( offset >= read ) { goto CLEANUP; }
+
+						username = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * string_length );
+						_wmemcpy_s( username, string_length, p, string_length );
+						*( username + ( string_length - 1 ) ) = 0;	// Sanity
+
+						p += ( string_length * sizeof( wchar_t ) );
+
+						// Host
+						string_length = lstrlenW( ( wchar_t * )p ) + 1;
+
+						offset += ( string_length * sizeof( wchar_t ) );
+						if ( offset >= read ) { goto CLEANUP; }
+
+						host = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * string_length );
+						_wmemcpy_s( host, string_length, p, string_length );
+						*( host + ( string_length - 1 ) ) = 0;	// Sanity
+
+						p += ( string_length * sizeof( wchar_t ) );
+
+						// Key Fingerprint
+						string_length = lstrlenW( ( wchar_t * )p ) + 1;
+
+						offset += ( string_length * sizeof( wchar_t ) );
+						if ( offset > read ) { goto CLEANUP; }
+
+						key_file_path = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * string_length );
+						_wmemcpy_s( key_file_path, string_length, p, string_length );
+						*( key_file_path + ( string_length - 1 ) ) = 0;	// Sanity
+
+						p += ( string_length * sizeof( wchar_t ) );
+
+						//
+
+						last_entry = offset;	// This value is the ending offset of the last valid entry.
+
+						SFTP_KEYS_HOST_INFO *skhi = ( SFTP_KEYS_HOST_INFO * )GlobalAlloc( GPTR, sizeof( SFTP_KEYS_HOST_INFO ) );
+						if ( skhi != NULL )
+						{
+							skhi->enable = enable;
+							skhi->w_username = username;
+							skhi->w_host = host;
+							skhi->w_key_file_path = key_file_path;
+
+							ParseSFTPHost( skhi->w_host, &skhi->host, skhi->port );
+
+							int mb_length;
+							if ( skhi->w_username != NULL )
+							{
+								mb_length = WideCharToMultiByte( CP_UTF8, 0, skhi->w_username, -1, NULL, 0, NULL, NULL );
+								skhi->username = ( char * )GlobalAlloc( GPTR, sizeof( char ) * mb_length ); // Size includes the NULL character.
+								WideCharToMultiByte( CP_UTF8, 0, skhi->w_username, -1, skhi->username, mb_length, NULL, NULL );
+							}
+
+							if ( skhi->w_key_file_path != NULL )
+							{
+								mb_length = WideCharToMultiByte( CP_UTF8, 0, skhi->w_key_file_path, -1, NULL, 0, NULL, NULL );
+								skhi->key_file_path = ( char * )GlobalAlloc( GPTR, sizeof( char ) * mb_length ); // Size includes the NULL character.
+								WideCharToMultiByte( CP_UTF8, 0, skhi->w_key_file_path, -1, skhi->key_file_path, mb_length, NULL, NULL );
+							}
+
+							//
+
+							if ( dllrbt_insert( g_sftp_keys_host_info, ( void * )skhi, ( void * )skhi ) != DLLRBT_STATUS_OK )
+							{
+								FreeSFTPKeysHostInfo( &skhi );
+							}
+						}
+						else
+						{
+							GlobalFree( username );
+							GlobalFree( host );
+							GlobalFree( key_file_path );
+						}
+
+						continue;
+
+		CLEANUP:
+						GlobalFree( username );
+						GlobalFree( host );
+						GlobalFree( key_file_path );
+
+						// Go back to the last valid entry.
+						if ( total_read < fz )
+						{
+							total_read -= ( read - last_entry );
+							SetFilePointer( hFile_read, total_read + 4, NULL, FILE_BEGIN );	// Offset past the magic identifier.
+						}
+
+						break;
+					}
 				}
+
+				GlobalFree( buf );
 			}
-
-			GlobalFree( buf );
 		}
 		else
 		{
@@ -3055,7 +3123,7 @@ char save_sftp_keys_host_info()
 	char ret_status = 0;
 
 	_wmemcpy_s( g_base_directory + g_base_directory_length, MAX_PATH - g_base_directory_length, L"\\sftp_private_key_settings\0", 27 );
-	g_base_directory[ g_base_directory_length + 26 ] = 0;	// Sanity.
+	//g_base_directory[ g_base_directory_length + 26 ] = 0;	// Sanity.
 
 	HANDLE hFile = CreateFile( g_base_directory, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL );
 	if ( hFile != INVALID_HANDLE_VALUE )

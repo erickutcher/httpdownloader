@@ -59,6 +59,7 @@ const static wchar_t *ELLIPSISW = L"...";
 //
 
 void HandleMouseMovement( HWND hWnd );
+void HandleMouseDrag( HWND hWnd );
 
 bool g_scroll_timer_active = false;
 unsigned char g_v_scroll_direction = 0;	// 0 no scroll, 1 = down, 2 = up
@@ -77,7 +78,8 @@ int g_visible_rows = 0;
 
 int hs_step = 4;
 
-#define SCROLL_AMOUNT		3
+#define SCROLL_AMOUNT			3
+#define SCROLL_TIMER_FREQUENCY	30
 
 bool g_is_dragging = false;
 RECT g_drag_rc;
@@ -122,7 +124,7 @@ TREELISTNODE *g_first_visible_node = NULL;
 int g_first_visible_index = 0;
 int g_first_visible_root_index = 0;
 
-int g_visible_item_count = 0;				// Numbers of items that are visible in the window.
+int g_visible_item_count = 0;				// Number of items that are visible in the window.
 int g_total_item_count = 0;					// All items in the list (both expanded and contracted).
 int g_root_item_count = 0;					// Total number of parents.
 int g_expanded_item_count = 0;				// Parents + children of expanded parents.
@@ -161,6 +163,14 @@ int g_tracking_y = -1;
 
 ////////////
 
+// Dragging items.
+
+bool g_in_list_edit_mode = false;
+
+bool g_draw_drag = false;
+
+////////////
+
 void ClearDrag()
 {
 	if ( g_is_dragging )
@@ -170,6 +180,8 @@ void ClearDrag()
 		g_is_dragging = false;
 
 		g_drag_rc.bottom = g_drag_rc.left = g_drag_rc.right = g_drag_rc.top = 0;
+
+		g_draw_drag = false;
 	}
 }
 
@@ -1199,19 +1211,12 @@ void TLV_CleanupSort()
 
 int merge_compare( void *a, void *b, void *sort )
 {
-	int arr[ NUM_COLUMNS ];
-
 	SORT_INFO *si = ( SORT_INFO * )sort;
 
 	DOWNLOAD_INFO *di1 = ( DOWNLOAD_INFO * )( ( si->direction == 1 ) ? a : b );
 	DOWNLOAD_INFO *di2 = ( DOWNLOAD_INFO * )( ( si->direction == 1 ) ? b : a );
 
-	_SendMessageW( g_hWnd_tlv_header, HDM_GETORDERARRAY, g_total_columns, ( LPARAM )arr );
-
-	// Offset the virtual indices to match the actual index.
-	OffsetVirtualIndices( arr, download_columns, NUM_COLUMNS, g_total_columns );
-
-	switch ( arr[ si->column ] )
+	switch ( si->column )
 	{
 		case COLUMN_DOWNLOAD_DIRECTORY:		{ return _wcsicmp_s( di1->shared_info->file_path, di2->shared_info->file_path ); } break;
 		case COLUMN_FILE_TYPE:				{ return _wcsicmp_s( di1->shared_info->file_path + di1->shared_info->file_extension_offset, di2->shared_info->file_path + di2->shared_info->file_extension_offset ); } break;
@@ -1336,138 +1341,139 @@ int merge_compare( void *a, void *b, void *sort )
 }
 
 void TLV_MergeSort( TREELISTNODE **head, int length, int ( *compare )( void *a, void *b, void *s ), void *sort_info )
-{ 
-	if ( *head == NULL )
+{
+	if ( head != NULL && *head != NULL )
 	{
-		return;
-	}
+		TREELISTNODE *start1 = NULL, *end1 = NULL;
+		TREELISTNODE *start2 = NULL, *end2 = NULL;
+		TREELISTNODE *prevend = NULL;
 
-	TREELISTNODE *start1 = NULL, *end1 = NULL;
-	TREELISTNODE *start2 = NULL, *end2 = NULL;
-	TREELISTNODE *prevend = NULL;
-
-	for ( int sub_length = 1; sub_length < length; sub_length <<= 1 )
-	{
-		start1 = *head;
-
-		while ( start1 != NULL )
+		for ( int sub_length = 1; sub_length < length; sub_length <<= 1 )
 		{
-			// If this is first iteration
-			bool isFirstIter = ( start1 == *head ? true : false );
+			start1 = *head;
 
-			// First part for merging
-			int counter = sub_length;
-			end1 = start1;
-			while ( --counter > 0 && end1->next != NULL )
+			while ( start1 != NULL )
 			{
-				end1 = end1->next;
-			}
+				// If this is first iteration
+				bool isFirstIter = ( start1 == *head ? true : false );
 
-			// Second part for merging
-			start2 = end1->next;
-			if ( start2 == NULL )
-			{
-				break;
-			}
-
-			counter = sub_length;
-			end2 = start2;
-			while ( --counter > 0 && end2->next != NULL )
-			{
-				end2 = end2->next;
-			}
-
-			// To store for next iteration.
-			TREELISTNODE *tmp = end2->next;
-
-			// Merging two parts.
-			/////////////////////
-
-			// Make sure that first node of second list is higher.
-			TREELISTNODE *tmp2 = NULL;
-
-			if ( compare( start1->data, start2->data, sort_info ) > 0 )
-			{
-				tmp2 = start2;
-				start2 = start1;
-				start1 = tmp2;
-
-				tmp2 = end2;
-				end2 = end1;
-				end1 = tmp2;
-			}
-
-			// Merging remaining nodes.
-			TREELISTNODE *astart = start1, *aend = end1;
-			TREELISTNODE *bstart = start2;
-			TREELISTNODE *bendnext = end2->next;
-
-			while ( astart != aend && bstart != bendnext )
-			{
-				if ( compare( astart->next->data, bstart->data, sort_info ) > 0 )
+				// First part for merging
+				int counter = sub_length;
+				end1 = start1;
+				while ( --counter > 0 && end1->next != NULL )
 				{
-					tmp2 = bstart->next;
-					bstart->next = astart->next;
-					astart->next->prev = bstart;
-					astart->next = bstart;
-					bstart->prev = astart;
-					bstart = tmp2;
+					end1 = end1->next;
 				}
 
-				astart = astart->next;
-			}
-
-			if ( astart == aend )
-			{
-				astart->next = bstart;
-
-				if ( bstart != NULL )
+				// Second part for merging
+				start2 = end1->next;
+				if ( start2 == NULL )
 				{
-					bstart->prev = astart;
+					break;
 				}
-			}
-			else
-			{
-				end2 = end1;
-			}
 
-			/////////////////////
-			/////////////////////
-
-			// Update head for first iteration, else append after previous list.
-			if ( isFirstIter )
-			{
-				*head = start1;
-			}
-			else
-			{
-				if ( prevend != NULL )
+				counter = sub_length;
+				end2 = start2;
+				while ( --counter > 0 && end2->next != NULL )
 				{
-					prevend->next = start1;
+					end2 = end2->next;
+				}
 
-					if ( start1 != NULL )
+				// To store for next iteration.
+				TREELISTNODE *tmp = end2->next;
+
+				// Merging two parts.
+				/////////////////////
+
+				// Make sure that first node of second list is higher.
+				TREELISTNODE *tmp2 = NULL;
+
+				if ( compare( start1->data, start2->data, sort_info ) > 0 )
+				{
+					tmp2 = start2;
+					start2 = start1;
+					start1 = tmp2;
+
+					tmp2 = end2;
+					end2 = end1;
+					end1 = tmp2;
+				}
+
+				// Merging remaining nodes.
+				TREELISTNODE *astart = start1, *aend = end1;
+				TREELISTNODE *bstart = start2;
+				TREELISTNODE *bendnext = end2->next;
+
+				while ( astart != aend && bstart != bendnext )
+				{
+					if ( compare( astart->next->data, bstart->data, sort_info ) > 0 )
 					{
-						start1->prev = prevend;
+						tmp2 = bstart->next;
+						bstart->next = astart->next;
+						astart->next->prev = bstart;
+						astart->next = bstart;
+						bstart->prev = astart;
+						bstart = tmp2;
+					}
+
+					astart = astart->next;
+				}
+
+				if ( astart == aend )
+				{
+					astart->next = bstart;
+
+					if ( bstart != NULL )
+					{
+						bstart->prev = astart;
 					}
 				}
+				else
+				{
+					end2 = end1;
+				}
+
+				/////////////////////
+				/////////////////////
+
+				// Update head for first iteration, else append after previous list.
+				if ( isFirstIter )
+				{
+					*head = start1;
+				}
+				else
+				{
+					if ( prevend != NULL )
+					{
+						prevend->next = start1;
+
+						if ( start1 != NULL )
+						{
+							start1->prev = prevend;
+						}
+					}
+				}
+
+				prevend = end2;
+				start1 = tmp;
 			}
 
-			prevend = end2;
-			start1 = tmp;
+			if ( prevend != NULL )
+			{
+				prevend->next = start1;
+
+				if ( start1 != NULL )
+				{
+					start1->prev = prevend;
+				}
+			}
 		}
 
-		if ( prevend != NULL )
+		if ( *head != NULL )
 		{
-			prevend->next = start1;
-
-			if ( start1 != NULL )
-			{
-				start1->prev = prevend;
-			}
+			( *head )->prev = end2;
 		}
 	}
-
-	( *head )->prev = end2;
 }
 
 int Scroll( SCROLLINFO *si, unsigned char type, int scroll_amount )
@@ -1749,7 +1755,15 @@ VOID CALLBACK ScrollTimerProc( HWND hWnd, UINT /*msg*/, UINT /*idTimer*/, DWORD 
 		_SetScrollInfo( hWnd, SB_HORZ, &si, TRUE );
 	}
 
-	HandleMouseMovement( hWnd );
+	// Allow the lasso selection if we're not in the edit mode, or we've dragged from outside of the item list.
+	if ( !g_in_list_edit_mode || g_drag_start_index == -1 || g_drag_pos.x > g_header_width )
+	{
+		HandleMouseMovement( hWnd );
+	}
+	else
+	{
+		HandleMouseDrag( hWnd );
+	}
 }
 
 void HandleWindowChange( HWND hWnd, bool scroll_to_end = false, bool adjust_column = true )
@@ -2454,7 +2468,7 @@ SCROLL_WINDOW:
 		{
 			if ( g_v_scroll_direction != 0 || g_h_scroll_direction != 0 )
 			{
-				_SetTimer( hWnd, IDT_SCROLL_TIMER, 30, ( TIMERPROC )ScrollTimerProc );
+				_SetTimer( hWnd, IDT_SCROLL_TIMER, SCROLL_TIMER_FREQUENCY, ( TIMERPROC )ScrollTimerProc );
 
 				g_scroll_timer_active = true;
 			}
@@ -2557,6 +2571,215 @@ SCROLL_WINDOW:
 	}
 }
 
+void HandleMouseDrag( HWND hWnd )
+{
+	if ( g_is_dragging )
+	{
+		POINT cur_pos;
+		_GetCursorPos( &cur_pos );
+		_ScreenToClient( hWnd, &cur_pos );
+
+		// Show the drag position line.
+		if ( _abs( cur_pos.x - g_drag_pos.x ) >= 5 ||
+			 _abs( cur_pos.y - g_drag_pos.y ) >= 5 )
+		{
+			g_draw_drag = true;
+		}
+
+		// Hide the edit textbox if it's displayed and we've clicked outside the Filename column.
+		if ( g_show_edit_state != 0 )
+		{
+			_KillTimer( hWnd, IDT_EDIT_TIMER );
+
+			g_show_edit_state = 0;
+		}
+
+		int pick_index = ( cur_pos.y - g_client_rc.top ) / g_row_height;
+		if ( pick_index < 0 )
+		{
+			pick_index = 0;
+		}
+		pick_index += g_first_visible_index;
+
+		// From the first visible node, get the node that was clicked.
+		TREELISTNODE *tli_node = g_first_visible_node;
+		for ( int i = g_first_visible_index; i < pick_index && tli_node != NULL; ++i )
+		{
+			tli_node = TLV_NextNode( tli_node, false );
+		}
+
+		g_mod_key_active = false;
+
+		// We've moved over another index that isn't the currently focused index.
+		if ( pick_index != g_focused_index )
+		{
+			if ( g_base_selected_node != NULL )
+			{
+				g_base_selected_node->flag &= ~TLVS_FOCUSED;
+			}
+
+			if ( g_focused_node != NULL )
+			{
+				g_focused_node->flag &= ~TLVS_FOCUSED;
+			}
+
+			g_focused_node = tli_node;
+			g_focused_index = pick_index;
+
+			if ( g_focused_node != NULL )
+			{
+				g_focused_node->flag |= TLVS_FOCUSED;
+			}
+		}
+
+		// Determine how much to scroll up/down/left/right based on how far we've dragged from the visible area.
+		int v_scroll_index = ( cur_pos.y - g_client_rc.top ) / g_row_height;
+		if ( v_scroll_index < 0 )
+		{
+			if ( v_scroll_index < -5 )
+			{
+				g_v_scroll_line_amount = 5;
+			}
+			else
+			{
+				g_v_scroll_line_amount = ( unsigned char )-v_scroll_index;
+			}
+
+			g_v_scroll_direction = 2;
+		}
+		else if ( v_scroll_index > ( g_visible_rows - 1 ) )
+		{
+			int line_amount = v_scroll_index - ( g_visible_rows - 1 );
+			if ( line_amount < 5 )
+			{
+				g_v_scroll_line_amount = ( unsigned char )line_amount;
+			}
+			else
+			{
+				g_v_scroll_line_amount = 5;
+			}
+
+			g_v_scroll_direction = 1;
+		}
+		else
+		{
+			g_v_scroll_direction = 0;
+		}
+
+		if ( cur_pos.x < 0 )
+		{
+			if ( cur_pos.x <= -50 )
+			{
+				g_h_scroll_line_amount = 50;
+			}
+			else
+			{
+				g_h_scroll_line_amount = ( unsigned char )( 0 - cur_pos.x );
+			}
+
+			g_h_scroll_direction = 1;
+		}
+		else if ( cur_pos.x > g_client_rc.right )
+		{
+			if ( cur_pos.x >= g_client_rc.right + 50 )
+			{
+				g_h_scroll_line_amount = 50;
+			}
+			else
+			{
+				g_h_scroll_line_amount = ( unsigned char )( cur_pos.x - g_client_rc.right );
+			}
+
+			g_h_scroll_direction = 2;
+		}
+		else
+		{
+			g_h_scroll_direction = 0;
+		}
+
+		if ( !g_scroll_timer_active )
+		{
+			if ( g_v_scroll_direction != 0 || g_h_scroll_direction != 0 )
+			{
+				_SetTimer( hWnd, IDT_SCROLL_TIMER, SCROLL_TIMER_FREQUENCY, ( TIMERPROC )ScrollTimerProc );
+
+				g_scroll_timer_active = true;
+			}
+		}
+		else
+		{
+			if ( g_v_scroll_direction == 0 && g_h_scroll_direction == 0 )
+			{
+				_KillTimer( hWnd, IDT_SCROLL_TIMER );
+
+				g_scroll_timer_active = false;
+			}
+		}
+
+		_InvalidateRect( hWnd, &g_client_rc, TRUE );
+	}
+}
+
+void SetEditState( HWND hWnd, TREELISTNODE *tli_node )
+{
+	// See if we've clicked within the Filename column so that we can show the edit textbox.
+	int index = GetColumnIndexFromVirtualIndex( *download_columns[ COLUMN_FILENAME ], download_columns, NUM_COLUMNS );
+
+	// Allow the edit textbox to be shown if we've clicked within the Filename column.
+	if ( index != -1 &&
+		 *download_columns[ COLUMN_FILENAME ] != -1 &&
+		 g_drag_start_index != -1 &&
+		 g_base_selected_node == tli_node &&
+		 g_base_selected_node == g_focused_node &&
+		 g_base_selected_node->data_type & TLVDT_GROUP )
+	{
+		_SendMessageW( g_hWnd_tlv_header, HDM_GETITEMRECT, index, ( LPARAM )&g_edit_column_rc );
+
+		SCROLLINFO si;
+		_memzero( &si, sizeof( SCROLLINFO ) );
+		si.cbSize = sizeof( SCROLLINFO );
+		si.fMask = SIF_POS;
+		_GetScrollInfo( hWnd, SB_HORZ, &si );
+
+		g_edit_column_rc.left -= si.nPos;
+		g_edit_column_rc.right -= si.nPos;
+
+		if ( g_drag_pos.x >= g_edit_column_rc.left && g_drag_pos.x <= g_edit_column_rc.right )
+		{
+			if ( g_edit_column_rc.left < 0 )
+			{
+				int offset = Scroll( &si, SCROLL_TYPE_LEFT, -g_edit_column_rc.left );
+
+				g_edit_column_rc.left += offset;
+				g_edit_column_rc.right += offset;
+
+				HDWP hdwp = _BeginDeferWindowPos( 1 );
+				_DeferWindowPos( hdwp, g_hWnd_tlv_header, HWND_TOP, -si.nPos, 0, g_client_rc.right + si.nPos, g_header_height, 0 );
+				_EndDeferWindowPos( hdwp );
+
+				_SetScrollInfo( hWnd, SB_HORZ, &si, TRUE );
+			}
+
+			g_show_edit_state = ( g_show_edit_state == 2 ? 0 : 1 );	// 1 = activate the edit textbox
+		}
+		else
+		{
+			index = -1;
+		}
+	}
+
+	if ( index == -1 )
+	{
+		// Hide the edit textbox if it's displayed and we've clicked outside the Filename column.
+		if ( g_show_edit_state != 0 )
+		{
+			_KillTimer( hWnd, IDT_EDIT_TIMER );
+
+			g_show_edit_state = 0;
+		}
+	}
+}
+
 void HandleMouseClick( HWND hWnd, bool right_button )
 {
 	_GetCursorPos( &g_drag_pos );
@@ -2609,6 +2832,26 @@ void HandleMouseClick( HWND hWnd, bool right_button )
 	// See if any modifier key is pressed.
 	bool ctrl_down = ( _GetKeyState( VK_CONTROL ) & 0x8000 ) ? true : false;
 	bool shift_down = ( _GetKeyState( VK_SHIFT ) & 0x8000 ) && !ctrl_down ? true : false;
+
+	// Handle a mouse click when we're in the list edit mode.
+	if ( g_in_list_edit_mode && ( !ctrl_down && !shift_down ) &&
+		 g_drag_start_index != -1 && g_drag_pos.x <= g_header_width &&
+		 tli_node != NULL && ( tli_node->flag & TLVS_SELECTED ) )
+	{
+		if ( g_focused_node != NULL )
+		{
+			g_focused_node->flag &= ~TLVS_FOCUSED;
+		}
+
+		g_focused_node = tli_node;
+		g_focused_index = pick_index;
+
+		g_focused_node->flag |= TLVS_FOCUSED;
+
+		SetEditState( hWnd, tli_node );
+
+		goto MOUSE_CLICK_DRAG;
+	}
 
 	// Remove the selection flag for all items in the list.
 	TLV_ClearSelected( ctrl_down, shift_down );
@@ -2724,62 +2967,7 @@ void HandleMouseClick( HWND hWnd, bool right_button )
 
 				g_selected_count = 1;
 
-				// See if we've clicked within the Filename column so that we can show the edit textbox.
-				int index = GetColumnIndexFromVirtualIndex( *download_columns[ COLUMN_FILENAME ], download_columns, NUM_COLUMNS );
-
-				// Allow the edit textbox to be shown if we've clicked within the Filename column.
-				if ( index != -1 &&
-					 *download_columns[ COLUMN_FILENAME ] != -1 &&
-					 g_drag_start_index != -1 &&
-					 g_base_selected_node == tli_node &&
-					 g_base_selected_node == g_focused_node &&
-					 g_base_selected_node->data_type & TLVDT_GROUP )
-				{
-					_SendMessageW( g_hWnd_tlv_header, HDM_GETITEMRECT, index, ( LPARAM )&g_edit_column_rc );
-
-					SCROLLINFO si;
-					_memzero( &si, sizeof( SCROLLINFO ) );
-					si.cbSize = sizeof( SCROLLINFO );
-					si.fMask = SIF_POS;
-					_GetScrollInfo( hWnd, SB_HORZ, &si );
-
-					g_edit_column_rc.left -= si.nPos;
-					g_edit_column_rc.right -= si.nPos;
-
-					if ( g_drag_pos.x >= g_edit_column_rc.left && g_drag_pos.x <= g_edit_column_rc.right )
-					{
-						if ( g_edit_column_rc.left < 0 )
-						{
-							int offset = Scroll( &si, SCROLL_TYPE_LEFT, -g_edit_column_rc.left );
-
-							g_edit_column_rc.left += offset;
-							g_edit_column_rc.right += offset;
-
-							HDWP hdwp = _BeginDeferWindowPos( 1 );
-							_DeferWindowPos( hdwp, g_hWnd_tlv_header, HWND_TOP, -si.nPos, 0, g_client_rc.right + si.nPos, g_header_height, 0 );
-							_EndDeferWindowPos( hdwp );
-
-							_SetScrollInfo( hWnd, SB_HORZ, &si, TRUE );
-						}
-
-						g_show_edit_state = ( g_show_edit_state == 2 ? 0 : 1 );	// 1 = activate the edit textbox
-					}
-					else
-					{
-						index = -1;
-					}
-				}
-
-				if ( index == -1 )
-				{
-					// Hide the edit textbox if it's displayed and we've clicked outside the Filename column.
-					if ( g_show_edit_state != 0 )
-					{
-						_KillTimer( hWnd, IDT_EDIT_TIMER );
-
-						g_show_edit_state = 0;
-					}
-				}
+				SetEditState( hWnd, tli_node );
 
 				TLV_ResetSelectionBounds();
 			}
@@ -2848,6 +3036,14 @@ void HandleMouseClick( HWND hWnd, bool right_button )
 		g_mod_key_active = false;
 	}
 
+	// Prevent children and deselected items from being dragged.
+	if ( g_in_list_edit_mode && g_focused_node != NULL && ( g_focused_node->parent != NULL || !( g_focused_node->flag & TLVS_SELECTED ) ) )
+	{
+		goto MOUSE_CLICK_END;
+	}
+
+MOUSE_CLICK_DRAG:
+
 	// Assume we're dragging until we release the mouse button.
 	_SetCapture( hWnd );
 	g_is_dragging = true;
@@ -2875,21 +3071,24 @@ void HandleRename( TREELISTNODE *tln )
 			if ( di != NULL )
 			{
 				RENAME_INFO *ri = ( RENAME_INFO * )GlobalAlloc( GPTR, sizeof( RENAME_INFO ) );
-				ri->di = di;
-				ri->filename_length = filename_length;
-				ri->filename = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( ri->filename_length + 1 ) );
-				_SendMessageW( g_hWnd_edit_box, WM_GETTEXT, ri->filename_length + 1, ( LPARAM )ri->filename );
+				if ( ri != NULL )
+				{
+					ri->di = di;
+					ri->filename_length = filename_length;
+					ri->filename = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( ri->filename_length + 1 ) );
+					_SendMessageW( g_hWnd_edit_box, WM_GETTEXT, ri->filename_length + 1, ( LPARAM )ri->filename );
 
-				// ri is freed in rename_file.
-				HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, rename_file, ( void * )ri, 0, NULL );
-				if ( thread != NULL )
-				{
-					CloseHandle( thread );
-				}
-				else
-				{
-					GlobalFree( ri->filename );
-					GlobalFree( ri );
+					// ri is freed in rename_file.
+					HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, rename_file, ( void * )ri, 0, NULL );
+					if ( thread != NULL )
+					{
+						CloseHandle( thread );
+					}
+					else
+					{
+						GlobalFree( ri->filename );
+						GlobalFree( ri );
+					}
 				}
 			}
 		}
@@ -2898,12 +3097,16 @@ void HandleRename( TREELISTNODE *tln )
 
 LRESULT CALLBACK EditBoxSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
 {
+	static bool ignore_kill_focus = false;
+
 	switch ( msg )
 	{
 		case WM_KEYDOWN:
 		{
 			if ( wParam == VK_RETURN )
 			{
+				ignore_kill_focus = true;
+
 				HandleRename( g_base_selected_node );
 
 				_DestroyWindow( hWnd );
@@ -2912,6 +3115,8 @@ LRESULT CALLBACK EditBoxSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			}
 			else if ( wParam == VK_ESCAPE )
 			{
+				ignore_kill_focus = true;
+
 				_DestroyWindow( hWnd );
 
 				return 0;
@@ -2921,7 +3126,10 @@ LRESULT CALLBACK EditBoxSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 		case WM_KILLFOCUS:
 		{
-			HandleRename( g_base_selected_node );
+			if ( !ignore_kill_focus )
+			{
+				HandleRename( g_base_selected_node );
+			}
 
 			_DestroyWindow( hWnd );
 
@@ -2931,6 +3139,8 @@ LRESULT CALLBACK EditBoxSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 		case WM_DESTROY:
 		{
+			ignore_kill_focus = false;
+
 			g_hWnd_edit_box = NULL;
 
 			return 0;
@@ -3139,8 +3349,8 @@ void DrawTreeListView( HWND hWnd )
 	PAINTSTRUCT ps;
 	HDC hDC = _BeginPaint( hWnd, &ps );
 
-	//RECT rc;
-	//_GetClientRect( hWnd, &rc );	// Includes the area occupied by the header control.
+	RECT rc;
+	_GetClientRect( hWnd, &rc );	// Includes the area occupied by the header control.
 
 	// Create a memory buffer to draw to.
 	HDC hdcMem = _CreateCompatibleDC( hDC );
@@ -3157,7 +3367,7 @@ void DrawTreeListView( HWND hWnd )
 	// This is cached. We'll delete it when we destory the control.
 	if ( g_hbm == NULL )
 	{
-		g_hbm = _CreateCompatibleBitmap( hDC, ps.rcPaint.right - ps.rcPaint.left, ps.rcPaint.bottom - ps.rcPaint.top );
+		g_hbm = _CreateCompatibleBitmap( hDC, rc.right - rc.left, rc.bottom - rc.top );
 	}
 
 	HBITMAP ohbm = ( HBITMAP )_SelectObject( hdcMem, g_hbm );
@@ -3165,7 +3375,7 @@ void DrawTreeListView( HWND hWnd )
 
 	// Fill the memory background with the window color
 	HBRUSH background = _CreateSolidBrush( cfg_background_color );
-	_FillRect( hdcMem, &ps.rcPaint, background );
+	_FillRect( hdcMem, &rc, background );
 	_DeleteObject( background );
 
 	int row_count = 0;
@@ -3262,7 +3472,6 @@ void DrawTreeListView( HWND hWnd )
 			color = _CreateSolidBrush( ( node_count & 1 ? cfg_even_row_background_color : cfg_odd_row_background_color ) );
 			selected = false;
 		}
-
 		_FillRect( hdcMem, &row_bg_rc, color );
 		_DeleteObject( color );
 
@@ -3421,7 +3630,7 @@ void DrawTreeListView( HWND hWnd )
 
 					HBITMAP hbm = _CreateCompatibleBitmap( hDC, icon_width, icon_height );
 
-					HBITMAP ohbm = ( HBITMAP )_SelectObject( hdcMem2, hbm );
+					ohbm = ( HBITMAP )_SelectObject( hdcMem2, hbm );
 					_DeleteObject( ohbm );
 
 					RECT icon_color_rc;
@@ -3430,7 +3639,6 @@ void DrawTreeListView( HWND hWnd )
 					icon_color_rc.right = icon_width;
 					icon_color_rc.bottom = icon_height;
 
-					HBRUSH color;
 					if ( tln->flag & TLVS_SELECTED )
 					{
 						color = _CreateSolidBrush( ( node_count & 1 ? cfg_even_row_highlight_color : cfg_odd_row_highlight_color ) );
@@ -3488,7 +3696,7 @@ void DrawTreeListView( HWND hWnd )
 				int progress_width = progress_rc.right - progress_rc.left;
 				int progress_height = progress_rc.bottom - progress_rc.top;
 
-				HBRUSH color = _CreateSolidBrush( color_ref_background );
+				color = _CreateSolidBrush( color_ref_background );
 				_FillRect( hdcMem, &progress_rc, color );
 				_DeleteObject( color );
 
@@ -3502,10 +3710,10 @@ void DrawTreeListView( HWND hWnd )
 
 				HBITMAP hbm = _CreateCompatibleBitmap( hDC, progress_width, progress_height );
 
-				HBITMAP ohbm = ( HBITMAP )_SelectObject( hdcMem2, hbm );
+				ohbm = ( HBITMAP )_SelectObject( hdcMem2, hbm );
 				_DeleteObject( ohbm );
 
-				HFONT ohf = ( HFONT )_SelectObject( hdcMem2, ( node_count & 1 ? cfg_even_row_font_settings.font : cfg_odd_row_font_settings.font ) );
+				ohf = ( HFONT )_SelectObject( hdcMem2, ( node_count & 1 ? cfg_even_row_font_settings.font : cfg_odd_row_font_settings.font ) );
 				if ( ohf != cfg_even_row_font_settings.font && ohf != cfg_odd_row_font_settings.font )
 				{
 					_DeleteObject( ohf );
@@ -3871,91 +4079,119 @@ void DrawTreeListView( HWND hWnd )
 
 	//
 
-	// Draw the selection marquee rectangle.
+	// Draw the selection marquee rectangle or insertion line.
 	if ( g_is_dragging )
 	{
-		RECT drag_rc;
-
-		// Creates a rectangle that's slightly larger (at maximum) than our window.
-		if ( g_drag_rc.left < -10 )
+		// Draw the insertion line, but only for root items.
+		if ( g_draw_drag &&
+		   ( g_focused_node == NULL || g_focused_node->parent == NULL ) )
 		{
-			drag_rc.left = -10;
+			int focus_offset = ( g_focused_index >= g_expanded_item_count ? g_expanded_item_count : g_focused_index ) - g_first_visible_index;
+
+			HPEN line_color;
+
+#ifdef ENABLE_DARK_MODE
+			if ( g_use_dark_mode )
+			{
+				line_color = _CreatePen( PS_DOT, 1, dm_color_list_highlight );
+			}
+			else
+#endif
+			{
+				line_color = _CreatePen( PS_DOT, 1, ( COLORREF )_GetSysColor( COLOR_HOTLIGHT ) );
+			}
+
+			HPEN old_color = ( HPEN )_SelectObject( hdcMem, line_color );
+			_DeleteObject( old_color );
+			_MoveToEx( hdcMem, 0, g_client_rc.top + ( focus_offset * g_row_height ), NULL );
+			_LineTo( hdcMem, g_client_rc.right, g_client_rc.top + ( focus_offset * g_row_height ) );
+			_DeleteObject( line_color );
 		}
 		else
 		{
-			drag_rc.left = g_drag_rc.left;
-		}
+			RECT drag_rc;
 
-		if ( g_drag_rc.right > g_client_rc.right + 10 )
-		{
-			drag_rc.right = g_client_rc.right + 10;
-		}
-		else if ( g_drag_rc.right >= drag_rc.left )
-		{
-			drag_rc.right = g_drag_rc.right;
-		}
-		else
-		{
-			drag_rc.right = drag_rc.left;
-		}
+			// Creates a rectangle that's slightly larger (at maximum) than our window.
+			if ( g_drag_rc.left < -10 )
+			{
+				drag_rc.left = -10;
+			}
+			else
+			{
+				drag_rc.left = g_drag_rc.left;
+			}
 
-		if ( g_drag_rc.top < 0 )
-		{
-			drag_rc.top = 0;
-		}
-		else
-		{
-			drag_rc.top = g_drag_rc.top;
-		}
+			if ( g_drag_rc.right > g_client_rc.right + 10 )
+			{
+				drag_rc.right = g_client_rc.right + 10;
+			}
+			else if ( g_drag_rc.right >= drag_rc.left )
+			{
+				drag_rc.right = g_drag_rc.right;
+			}
+			else
+			{
+				drag_rc.right = drag_rc.left;
+			}
 
-		if ( g_drag_rc.bottom > g_client_rc.bottom + g_row_height )
-		{
-			drag_rc.bottom = g_client_rc.bottom + g_row_height;
-		}
-		else if ( g_drag_rc.bottom >= drag_rc.top )
-		{
-			drag_rc.bottom = g_drag_rc.bottom;
-		}
-		else
-		{
-			drag_rc.bottom = drag_rc.top;
-		}
+			if ( g_drag_rc.top < 0 )
+			{
+				drag_rc.top = 0;
+			}
+			else
+			{
+				drag_rc.top = g_drag_rc.top;
+			}
 
-		int height = _abs( drag_rc.bottom - drag_rc.top );
-		int width = _abs( drag_rc.right - drag_rc.left );
+			if ( g_drag_rc.bottom > g_client_rc.bottom + g_row_height )
+			{
+				drag_rc.bottom = g_client_rc.bottom + g_row_height;
+			}
+			else if ( g_drag_rc.bottom >= drag_rc.top )
+			{
+				drag_rc.bottom = g_drag_rc.bottom;
+			}
+			else
+			{
+				drag_rc.bottom = drag_rc.top;
+			}
 
-		if ( height != 0 && width != 0 )
-		{
-			HDC hdcMem2 = _CreateCompatibleDC( hDC );
-			HBITMAP hbm2 = _CreateCompatibleBitmap( hDC, 1, 1 );
-			HBITMAP ohbm2 = ( HBITMAP )_SelectObject( hdcMem2, hbm2 );
-			_DeleteObject( ohbm2 );
-			_DeleteObject( hbm2 );
+			int height = _abs( drag_rc.bottom - drag_rc.top );
+			int width = _abs( drag_rc.right - drag_rc.left );
 
-			RECT body_rc;
-			body_rc.left = 0;
-			body_rc.top = 0;
-			body_rc.right = 1;
-			body_rc.bottom = 1;
-			HBRUSH background = _CreateSolidBrush( cfg_selection_marquee_color );
-			_FillRect( hdcMem2, &body_rc, background );
+			if ( height != 0 && width != 0 )
+			{
+				HDC hdcMem2 = _CreateCompatibleDC( hDC );
+				HBITMAP hbm = _CreateCompatibleBitmap( hDC, 1, 1 );
+				ohbm = ( HBITMAP )_SelectObject( hdcMem2, hbm );
+				_DeleteObject( ohbm );
+				_DeleteObject( hbm );
 
-			// Blend the rectangle into the background to make it look transparent.
-			//BLENDFUNCTION blend = { AC_SRC_OVER, 0, 85, AC_SRC_OVER };	// 85 matches Explorer's Detail view.
-			//BLENDFUNCTION blend = { AC_SRC_OVER, 0, 70, AC_SRC_OVER };	// 70 matches a ListView control.
-			BLENDFUNCTION blend;
-			blend.BlendOp = AC_SRC_OVER;
-			blend.BlendFlags = 0;
-			blend.SourceConstantAlpha = 70;
-			blend.AlphaFormat = AC_SRC_OVER;
+				RECT body_rc;
+				body_rc.left = 0;
+				body_rc.top = 0;
+				body_rc.right = 1;
+				body_rc.bottom = 1;
+				background = _CreateSolidBrush( cfg_selection_marquee_color );
+				_FillRect( hdcMem2, &body_rc, background );
 
-			_GdiAlphaBlend( hdcMem, drag_rc.left, drag_rc.top, width, height, hdcMem2, 0, 0, 1, 1, blend );
-			_DeleteDC( hdcMem2 );
+				// Blend the rectangle into the background to make it look transparent.
+				//BLENDFUNCTION blend = { AC_SRC_OVER, 0, 85, AC_SRC_OVER };	// 85 matches Explorer's Detail view.
+				//BLENDFUNCTION blend = { AC_SRC_OVER, 0, 70, AC_SRC_OVER };	// 70 matches a ListView control.
+				BLENDFUNCTION blend;
+				blend.BlendOp = AC_SRC_OVER;
+				blend.BlendFlags = 0;
+				blend.SourceConstantAlpha = 70;
+				blend.AlphaFormat = AC_SRC_OVER;
 
-			// Draw a solid border around rectangle.
-			_FrameRect( hdcMem, &drag_rc, background );
+				_GdiAlphaBlend( hdcMem, drag_rc.left, drag_rc.top, width, height, hdcMem2, 0, 0, 1, 1, blend );
+				_DeleteDC( hdcMem2 );
 
-			_DeleteObject( background );
+				// Draw a solid border around rectangle.
+				_FrameRect( hdcMem, &drag_rc, background );
+
+				_DeleteObject( background );
+			}
 		}
 	}
 
@@ -3977,7 +4213,7 @@ void DrawTreeListView( HWND hWnd )
 	//
 
 	// Draw our memory buffer to the main device context.
-	_BitBlt( hDC, 0, 0, ps.rcPaint.right, ps.rcPaint.bottom, hdcMem, 0, 0, SRCCOPY );
+	_BitBlt( hDC, 0, 0, rc.right, rc.bottom, hdcMem, 0, 0, SRCCOPY );
 
 	_DeleteDC( hdcMem );
 	_EndPaint( hWnd, &ps );
@@ -4514,6 +4750,14 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 						}
 					}
 					break;
+				}
+
+				if ( _GetKeyState( VK_SHIFT ) & 0x8000 && wParam == 'E' )
+				{
+					if ( !in_worker_thread )
+					{
+						HandleCommand( hWnd, MENU_LIST_EDIT_MODE );
+					}
 				}
 			}
 			else
@@ -5257,9 +5501,9 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 			if ( offset != 0 )
 			{
 				_SetScrollInfo( hWnd, SB_VERT, &si, TRUE );
-
-				_InvalidateRect( hWnd, &g_client_rc, TRUE );
 			}
+
+			_InvalidateRect( hWnd, &g_client_rc, TRUE );
 
 			return 0;
 		}
@@ -5350,7 +5594,15 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 
 		case WM_MOUSEMOVE:
 		{
-			HandleMouseMovement( hWnd );
+			// Allow the lasso selection if we're not in the edit mode, or we've dragged from outside of the item list.
+			if ( !g_in_list_edit_mode || g_drag_start_index == -1 || g_drag_pos.x > g_header_width )
+			{
+				HandleMouseMovement( hWnd );
+			}
+			else
+			{
+				HandleMouseDrag( hWnd );
+			}
 
 			int tracking_x = GET_X_LPARAM( lParam );
 			int tracking_y = GET_Y_LPARAM( lParam );
@@ -5471,6 +5723,356 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 
 			if ( g_is_dragging )
 			{
+				if ( g_in_list_edit_mode )
+				{
+					if ( g_draw_drag )
+					{
+						if ( g_focused_node == NULL || g_focused_node->parent == NULL )
+						{
+							TREELISTNODE *selected_list = NULL;
+
+							int expanded_item_count = 0;
+							int focused_offset = 0;
+							int current_offset = g_first_selection_index;
+
+							int t_first_selection_index = -1;
+							int first_selection_index = -1;
+							TREELISTNODE *first_selection_node = NULL;
+							int last_selection_index = -1;
+							TREELISTNODE *last_selection_node = NULL;
+
+							int first_visible_index = g_first_visible_index;
+							int first_visible_root_index = g_first_visible_root_index;
+
+							TREELISTNODE *tmp_node = NULL;
+							TREELISTNODE *node = g_first_selection_node;
+
+							int first_static_selection_index = -1;
+							TREELISTNODE *first_static_selection_node = NULL;
+							int last_static_selection_index = -1;
+							TREELISTNODE *last_static_selection_node = NULL;
+
+							while ( node != NULL )
+							{
+								if ( node->flag & TLVS_SELECTED )
+								{
+									if ( t_first_selection_index == -1 )
+									{
+										// The true first selection.
+										// If we use a modifier key (Ctrl or Shift), then the first selection might not actually be selected.
+										g_first_selection_node = node;
+										g_first_selection_index = t_first_selection_index = current_offset;
+									}
+
+									if ( node->parent == NULL )
+									{
+										++expanded_item_count;
+
+										tmp_node = node->next;
+
+										TREELISTNODE *rem_node = node;
+
+										// Set a new focused node if we're removing the current one.
+										bool set_focused = false;
+										if ( rem_node == g_focused_node )
+										{
+											if ( rem_node == g_tree_list )
+											{
+												g_focused_node = rem_node->next;
+											}
+											else
+											{
+												g_focused_node = rem_node->prev;
+
+												set_focused = true;
+											}
+										}
+
+										TLV_RemoveNode( &g_tree_list, rem_node );
+										TLV_AddNode( &selected_list, rem_node, -1 );
+
+										if ( set_focused )
+										{
+											g_focused_node = g_focused_node->next;
+										}
+
+										// Adjust our first visible indices if we've removed items from above it.
+										if ( current_offset <= g_first_visible_index )
+										{
+											if ( first_visible_root_index > 0 )
+											{
+												--first_visible_root_index;
+											}
+
+											if ( first_visible_index > 0 )
+											{
+												--first_visible_index;
+											}
+										}
+
+										if ( current_offset < g_focused_index )
+										{
+											// Number of selected items between the first movable selected index and the focused index.
+											focused_offset = expanded_item_count;
+
+											if ( node->is_expanded )
+											{
+												focused_offset += node->child_count;
+											}
+										}
+
+										if ( first_selection_index == -1 )
+										{
+											first_selection_node = node;
+										}
+
+										// If we've dragged the item to the end of the list.
+										if ( g_focused_index > g_expanded_item_count )
+										{
+											first_selection_index = g_expanded_item_count - expanded_item_count;
+										}
+										else
+										{
+											first_selection_index = g_focused_index - focused_offset;
+										}
+
+										last_selection_node = node;
+
+										// If we've dragged the item to the end of the list.
+										if ( g_focused_index > g_expanded_item_count )
+										{
+											last_selection_index = g_expanded_item_count - expanded_item_count;
+										}
+										else
+										{
+											last_selection_index = first_selection_index + ( expanded_item_count - 1 );
+										}
+
+										// Handle the expanded children of this item if it has any.
+										if ( node->child != NULL && node->is_expanded )
+										{
+											node = node->child;
+
+											while ( node != NULL )
+											{
+												++expanded_item_count;
+
+												++current_offset;
+
+												// Adjust our first visible index if we've removed items from above it.
+												if ( current_offset <= g_first_visible_index )
+												{
+													if ( first_visible_index > 0 )
+													{
+														--first_visible_index;
+													}
+												}
+
+												if ( node->flag & TLVS_SELECTED )
+												{
+													last_selection_node = node;
+													last_selection_index = first_selection_index + ( expanded_item_count - 1 );
+												}
+
+												if ( node == g_last_selection_node )
+												{
+													rem_node = node;
+												}
+
+												node = node->next;
+											}
+										}
+
+										if ( rem_node == g_last_selection_node )
+										{
+											break;
+										}
+
+										node = tmp_node;
+
+										++current_offset;
+
+										continue;
+									}
+									else	// A child is selected, but not its parent.
+									{
+										if ( current_offset < g_focused_index && first_static_selection_index == -1 )
+										{
+											first_static_selection_node = node;
+											first_static_selection_index = current_offset - expanded_item_count;
+										}
+
+										if ( current_offset > g_focused_index )
+										{
+											last_static_selection_node = node;
+											last_static_selection_index = current_offset - expanded_item_count;	// Exclude all selected items above this index.
+										}
+									}
+								}
+
+								if ( node == g_last_selection_node )
+								{
+									break;
+								}
+
+								if ( node->parent != NULL && node->next == NULL )
+								{
+									node = node->parent->next;
+								}
+								else if ( node->child != NULL && node->is_expanded )
+								{
+									node = node->child;
+								}
+								else
+								{
+									node = node->next;
+								}
+
+								++current_offset;
+							}
+
+							// If we have unmovable items at the beginning or end of our selection, then set the first/last selection items to them.
+							if ( first_static_selection_node != NULL )
+							{
+								first_selection_node = first_static_selection_node;
+								first_selection_index = first_static_selection_index;
+							}
+
+							if ( last_static_selection_node != NULL )
+							{
+								last_selection_node = last_static_selection_node;
+								last_selection_index = last_static_selection_index + expanded_item_count;	// Adjusts the index to include the selected items below its initial index.
+							}
+
+							if ( g_tree_list == NULL && selected_list != NULL )
+							{
+								g_tree_list = selected_list;
+							}
+							else if ( g_tree_list != NULL && selected_list != NULL )
+							{
+								// Move the selected list to the bottom of the tree.
+								if ( g_focused_node == NULL )
+								{
+									TREELISTNODE *tln_last = ( g_tree_list->prev != NULL ? g_tree_list->prev : g_tree_list );	// The last item in the tree list.
+
+									tln_last->next = selected_list;
+									g_tree_list->prev = ( selected_list->prev != NULL ? selected_list->prev : selected_list );
+									selected_list->prev = tln_last;
+
+									g_focused_index = ( g_expanded_item_count - expanded_item_count );
+								}
+								else
+								{
+									node = ( selected_list->prev != NULL ? selected_list->prev : selected_list );	// The last item in the selected list.
+
+									// Move the selected list to the top of the tree.
+									if ( g_focused_node == g_tree_list )
+									{
+										node->next = g_tree_list;
+										selected_list->prev = ( g_tree_list->prev != NULL ? g_tree_list->prev : g_tree_list );
+										g_tree_list->prev = node;
+
+										g_tree_list = selected_list;
+
+										g_focused_index = 0;
+									}
+									else	// Move the selected list somewhere in the middle of the tree.
+									{
+										node->next = g_focused_node;
+										selected_list->prev = g_focused_node->prev;
+										if ( g_focused_node->prev != NULL )
+										{
+											g_focused_node->prev->next = selected_list;
+										}
+										g_focused_node->prev = node;
+
+										// Adjust the index if there were items removed before the focused index.
+										if ( g_focused_index > g_first_selection_index )
+										{
+											g_focused_index -= focused_offset;
+										}
+									}
+								}
+
+								g_focused_node = selected_list;
+
+								// Adjust our visible indices.
+								if ( g_focused_index - first_visible_index >= g_visible_item_count )
+								{
+									// If our first visible item is the last child of a parent, then increase the root index.
+									if ( g_first_visible_node->parent != NULL )
+									{
+										if ( g_first_visible_node->next == NULL )
+										{
+											++first_visible_root_index;
+										}
+									}
+									else	// If our first visible item has no children (and isn't a child), then increase the root index.
+									{
+										if ( g_first_visible_node->child_count == 0 )
+										{
+											++first_visible_root_index;
+										}
+									}
+
+									++first_visible_index;
+								}
+
+								// Iterate back from our focused node until we get the new first visible node.
+								g_first_visible_node = g_focused_node;
+								g_first_visible_index = first_visible_index;
+
+								for ( int i = g_focused_index; g_first_visible_node != g_tree_list && i > first_visible_index; --i )
+								{
+									g_first_visible_node = TLV_PrevNode( g_first_visible_node, false );
+								}
+
+								g_first_visible_root_index = first_visible_root_index;
+
+								g_base_selected_node = g_focused_node;
+								g_base_selected_index = g_focused_index;
+
+								g_first_selection_node = first_selection_node;
+								g_first_selection_index = first_selection_index;
+
+								g_last_selection_node = last_selection_node;
+								g_last_selection_index = last_selection_index;
+
+								HandleWindowChange( hWnd );
+							}
+						}
+					}
+					else
+					{
+						// Clear the selection, exception for the focused item, if we just click on it rather than drag.
+						bool ctrl_down = ( _GetKeyState( VK_CONTROL ) & 0x8000 ) ? true : false;
+						bool shift_down = ( _GetKeyState( VK_SHIFT ) & 0x8000 ) && !ctrl_down ? true : false;
+						if ( !ctrl_down && !shift_down && g_drag_start_index != -1 && g_drag_pos.x <= g_header_width && g_focused_node != NULL )
+						{
+							// Remove the selection flag for all items in the list.
+							TLV_ClearSelected( false, false );
+
+							g_selected_count = 1;
+
+							g_first_selection_node = g_focused_node;
+							g_first_selection_index = g_focused_index;
+
+							g_last_selection_node = g_focused_node;
+							g_last_selection_index = g_focused_index;
+
+							if ( g_focused_node != NULL )
+							{
+								g_focused_node->flag = ( TLVS_SELECTED | TLVS_FOCUSED );
+							}
+
+							g_drag_start_index = g_focused_index;
+
+							g_base_selected_node = g_focused_node;
+							g_base_selected_index = g_focused_index;
+						}
+					}
+				}
+
 				ClearDrag();
 
 				_InvalidateRect( hWnd, &g_client_rc, TRUE );
@@ -5715,7 +6317,7 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 						}
 
 						SORT_INFO si;
-						si.column = hdi.iOrder;
+						si.column = index;
 						si.hWnd = nmh->hdr.hwndFrom;
 
 						if ( HDF_SORTUP & hdi.fmt )	// Column is sorted upward.
@@ -6049,6 +6651,9 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 
 			if ( cfg_show_toolbar )
 			{
+				RECT rc;
+				_GetClientRect( hWnd, &rc );
+
 				HDC hDC = _GetWindowDC( hWnd );
 				HPEN line_color;
 #ifdef ENABLE_DARK_MODE
@@ -6066,7 +6671,7 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 				_DeleteObject( old_color );
 
 				_MoveToEx( hDC, 0, 0, NULL );
-				_LineTo( hDC, g_client_rc.right + _GetSystemMetrics( SM_CXVSCROLL ), 0 );
+				_LineTo( hDC, rc.right + _GetSystemMetrics( SM_CXVSCROLL ), 0 );
 				_DeleteObject( line_color );
 
 				_ReleaseDC( hWnd, hDC );

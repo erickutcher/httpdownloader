@@ -139,4 +139,10 @@ extern HWND g_hWnd_tlv_header;
 
 extern int g_header_width;
 
+//
+
+extern bool g_in_list_edit_mode;
+
+//
+
 #endif

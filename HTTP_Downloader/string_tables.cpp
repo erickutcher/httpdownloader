@@ -92,6 +92,8 @@ STRING_TABLE_DATA menu_string_table[] =
 	{ L"Download Speed Limit", 20 },
 	{ L"Downloaded", 10 },
 	{ L"&Edit", 5 },
+	{ L"Enable List &Edit Mode\tCtrl+Shift+E", 35 },
+	{ L"Enable List Edit Mode", 21 },
 	{ L"E&xit", 5 },
 	{ L"Exit", 4 },
 	{ L"&Export Download History...", 27 },
@@ -177,6 +179,7 @@ STRING_TABLE_DATA options_advanced_string_table[] =
 	{ L"Drag and drop URL(s) action:", 28 },
 	{ L"Enable download history", 23 },
 	{ L"Enable quick file allocation (administrator access required)", 60 },
+	{ L"Enable sparse file allocation", 29 },
 	{ L"Exit program", 12 },
 	{ L"Hibernate", 9 },
 	{ L"Hybrid shut down", 16 },
@@ -511,6 +514,7 @@ STRING_TABLE_DATA common_message_string_table[] =
 	{ L"Do you want to accept the server's host key?", 44 },
 	{ L"One or more files are in use and cannot be deleted.", 51 },
 	{ L"One or more files were not found.", 33 },
+	{ L"One or more paths were not found.", 33 },
 	{ L"Select the default download directory.", 38 },
 	{ L"Select the download directory.", 30 },
 	{ L"Select the temporary download directory.", 40 },
@@ -519,6 +523,7 @@ STRING_TABLE_DATA common_message_string_table[] =
 	{ L"The file is currently in use and cannot be renamed.", 51 },
 	{ L"The file(s) could not be imported because the format is incorrect.", 66 },
 	{ L"The key fingerprint does not match the cached entry.\r\nDo you want to accept the server's host key?", 98 },
+	{ L"The specified file was not found.", 33 },
 	{ L"The specified file was not found.\r\n\r\nDo you want to download the file again?", 76 },
 	{ L"The specified host already exists.", 34 },
 	{ L"The specified host is invalid.", 30 },
@@ -603,7 +608,7 @@ void InitializeLocaleValues()
 
 	// Find the default locale.
 	_wmemcpy_s( g_program_directory + g_program_directory_length, MAX_PATH - g_program_directory_length, L"\\locale\\default\0", 16 );
-	g_program_directory[ g_program_directory_length + 15 ] = 0;	// Sanity.
+	//g_program_directory[ g_program_directory_length + 15 ] = 0;	// Sanity.
 
 	if ( GetFileAttributesW( g_program_directory ) == INVALID_FILE_ATTRIBUTES )
 	{
@@ -636,20 +641,35 @@ void InitializeLocaleValues()
 			if ( fz > sizeof( wchar_t ) && fz < 131072 )
 			{
 				locale_buf = ( unsigned char * )GlobalAlloc( GMEM_FIXED, sizeof( unsigned char ) * fz + 2 );
-
-				// Look for a UTF-16 BOM (little endian or big endian) and ignore it.
-				ReadFile( hFile_locale, locale_buf, sizeof( unsigned char ) * 2, &read, NULL );
-				if ( read == 2 && ( ( locale_buf[ 0 ] == 0xFF && locale_buf[ 1 ] == 0xFE ) ||
-									( locale_buf[ 0 ] == 0xFE && locale_buf[ 1 ] == 0xFF ) ) )
+				if ( locale_buf != NULL )
 				{
-					read = 0;
-					fz -= 2;
+					// Look for a UTF-16 BOM (little endian or big endian) and ignore it.
+					BOOL bRet = ReadFile( hFile_locale, locale_buf, sizeof( unsigned char ) * 2, &read, NULL );
+					if ( bRet != FALSE )
+					{
+						if ( read == 2 && ( ( locale_buf[ 0 ] == 0xFF && locale_buf[ 1 ] == 0xFE ) ||
+											( locale_buf[ 0 ] == 0xFE && locale_buf[ 1 ] == 0xFF ) ) )
+						{
+							read = 0;
+							fz -= 2;
+						}
+						bRet = ReadFile( hFile_locale, locale_buf + read, ( sizeof( unsigned char ) * fz ) - read, &read, NULL );
+						if ( bRet != FALSE )
+						{
+							// Guarantee a NULL terminated (wide character) buffer.
+							locale_buf[ fz ] = 0;
+							locale_buf[ fz + 1 ] = 0;
+						}
+						else
+						{
+							fz = 0;
+						}
+					}
+					else
+					{
+						fz = 0;
+					}
 				}
-				ReadFile( hFile_locale, locale_buf + read, ( sizeof( unsigned char ) * fz ) - read, &read, NULL );
-
-				// Guarantee a NULL terminated (wide character) buffer.
-				locale_buf[ fz ] = 0;
-				locale_buf[ fz + 1 ] = 0;
 			}
 			else
 			{

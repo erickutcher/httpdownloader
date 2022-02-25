@@ -460,8 +460,6 @@ void ShowHideUpdateTabs( int sw_type )
 				_ShowWindow( g_hWnd_static_update_proxy_type, sw_type );
 				_ShowWindow( g_hWnd_update_proxy_type, sw_type );
 
-				int index = 0;
-
 				if ( sw_type == SW_SHOW )
 				{
 					index = ( int )_SendMessageW( g_hWnd_update_proxy_type, CB_GETCURSEL, 0, 0 );
@@ -470,6 +468,10 @@ void ShowHideUpdateTabs( int sw_type )
 					{
 						index = 0;
 					}
+				}
+				else
+				{
+					index = 0;
 				}
 	
 				ShowHideUpdateProxyWindows( index );
@@ -1125,276 +1127,278 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 					wchar_t *edit = NULL;
 
 					ADD_INFO *ai = ( ADD_INFO * )GlobalAlloc( GPTR, sizeof( ADD_INFO ) );
-
-					// URL
-					unsigned int edit_length = ( unsigned int )_SendMessageW( g_hWnd_edit_update_url, WM_GETTEXTLENGTH, 0, 0 );
-
-					// http://a.b
-					if ( edit_length >= 10 )
+					if ( ai != NULL )
 					{
-						edit = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( edit_length + 1 ) );
-						_SendMessageW( g_hWnd_edit_update_url, WM_GETTEXT, edit_length + 1, ( LPARAM )edit );
+						// URL
+						unsigned int edit_length = ( unsigned int )_SendMessageW( g_hWnd_edit_update_url, WM_GETTEXTLENGTH, 0, 0 );
 
-						if ( _memcmp( g_update_download_info->url, edit, sizeof( wchar_t ) * ( edit_length + 1 ) ) == 0 )
+						// http://a.b
+						if ( edit_length >= 10 )
 						{
+							edit = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( edit_length + 1 ) );
+							_SendMessageW( g_hWnd_edit_update_url, WM_GETTEXT, edit_length + 1, ( LPARAM )edit );
+
+							if ( _memcmp( g_update_download_info->url, edit, sizeof( wchar_t ) * ( edit_length + 1 ) ) == 0 )
+							{
+								GlobalFree( edit );
+							}
+							else
+							{
+								ai->urls = edit;
+							}
+						}
+
+						char value[ 21 ];
+						_SendMessageA( g_hWnd_update_download_parts, WM_GETTEXT, 11, ( LPARAM )value );
+						unsigned char parts_limit = ( unsigned char )_strtoul( value, NULL, 10 );
+						if ( parts_limit != current_parts_num )
+						{
+							ai->parts = parts_limit;
+						}
+
+						_SendMessageA( g_hWnd_update_speed_limit, WM_GETTEXT, 21, ( LPARAM )value );
+						ai->download_speed_limit = strtoull( value );
+
+						ai->ssl_version = ( char )_SendMessageW( g_hWnd_update_ssl_version, CB_GETCURSEL, 0, 0 );
+
+						// Username
+						edit_length = ( unsigned int )_SendMessageW( g_hWnd_edit_update_username, WM_GETTEXTLENGTH, 0, 0 );
+						if ( edit_length > 0 )
+						{
+							edit = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( edit_length + 1 ) );
+							_SendMessageW( g_hWnd_edit_update_username, WM_GETTEXT, edit_length + 1, ( LPARAM )edit );
+
+							utf8_length = WideCharToMultiByte( CP_UTF8, 0, edit, -1, NULL, 0, NULL, NULL );	// Size includes NULL character.
+							ai->auth_info.username = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * utf8_length ); // Size includes the NULL character.
+							WideCharToMultiByte( CP_UTF8, 0, edit, -1, ai->auth_info.username, utf8_length, NULL, NULL );
+
 							GlobalFree( edit );
-							ai->urls = NULL;
 						}
 						else
 						{
-							ai->urls = edit;
-						}
-					}
-					else
-					{
-						ai->urls = NULL;
-					}
-
-					char value[ 21 ];
-					_SendMessageA( g_hWnd_update_download_parts, WM_GETTEXT, 11, ( LPARAM )value );
-					unsigned char parts_limit = ( unsigned char )_strtoul( value, NULL, 10 );
-					if ( parts_limit != current_parts_num )
-					{
-						ai->parts = parts_limit;
-					}
-
-					_SendMessageA( g_hWnd_update_speed_limit, WM_GETTEXT, 21, ( LPARAM )value );
-					ai->download_speed_limit = strtoull( value );
-
-					ai->ssl_version = ( char )_SendMessageW( g_hWnd_update_ssl_version, CB_GETCURSEL, 0, 0 );
-
-					// Username
-					edit_length = ( unsigned int )_SendMessageW( g_hWnd_edit_update_username, WM_GETTEXTLENGTH, 0, 0 );
-					if ( edit_length > 0 )
-					{
-						edit = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( edit_length + 1 ) );
-						_SendMessageW( g_hWnd_edit_update_username, WM_GETTEXT, edit_length + 1, ( LPARAM )edit );
-
-						utf8_length = WideCharToMultiByte( CP_UTF8, 0, edit, -1, NULL, 0, NULL, NULL );	// Size includes NULL character.
-						ai->auth_info.username = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * utf8_length ); // Size includes the NULL character.
-						WideCharToMultiByte( CP_UTF8, 0, edit, -1, ai->auth_info.username, utf8_length, NULL, NULL );
-
-						GlobalFree( edit );
-					}
-					else
-					{
-						ai->auth_info.username = NULL;
-					}
-
-					// Password
-					edit_length = ( unsigned int )_SendMessageW( g_hWnd_edit_update_password, WM_GETTEXTLENGTH, 0, 0 );
-					if ( edit_length > 0 )
-					{
-						edit = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( edit_length + 1 ) );
-						_SendMessageW( g_hWnd_edit_update_password, WM_GETTEXT, edit_length + 1, ( LPARAM )edit );
-
-						utf8_length = WideCharToMultiByte( CP_UTF8, 0, edit, -1, NULL, 0, NULL, NULL );	// Size includes NULL character.
-						ai->auth_info.password = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * utf8_length ); // Size includes the NULL character.
-						WideCharToMultiByte( CP_UTF8, 0, edit, -1, ai->auth_info.password, utf8_length, NULL, NULL );
-
-						GlobalFree( edit );
-					}
-					else
-					{
-						ai->auth_info.password = NULL;
-					}
-
-					//
-
-					// COOKIES, HEADERS, DATA
-
-					edit_length = ( unsigned int )_SendMessageW( g_hWnd_edit_update_cookies, WM_GETTEXTLENGTH, 0, 0 );
-					if ( edit_length > 0 )
-					{
-						edit = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( edit_length + 1 ) );
-						_SendMessageW( g_hWnd_edit_update_cookies, WM_GETTEXT, edit_length + 1, ( LPARAM )edit );
-
-						utf8_length = WideCharToMultiByte( CP_UTF8, 0, edit, -1, NULL, 0, NULL, NULL );	// Size includes NULL character.
-						ai->utf8_cookies = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * utf8_length ); // Size includes the NULL character.
-						WideCharToMultiByte( CP_UTF8, 0, edit, -1, ai->utf8_cookies, utf8_length, NULL, NULL );
-
-						GlobalFree( edit );
-					}
-					else
-					{
-						ai->utf8_cookies = NULL;
-					}
-
-					// Must be at least 2 characters long. "a:" is a valid header name and value.
-					edit_length = ( unsigned int )_SendMessageW( g_hWnd_edit_update_headers, WM_GETTEXTLENGTH, 0, 0 );
-					if ( edit_length >= 2 )
-					{
-						edit = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( edit_length + 1 + 2 ) );	// Add 2 for \r\n
-						_SendMessageW( g_hWnd_edit_update_headers, WM_GETTEXT, edit_length + 1, ( LPARAM )edit );
-
-						wchar_t *edit_start = edit;
-
-						// Skip newlines that might appear before the field name.
-						while ( *edit_start == L'\r' || *edit_start == L'\n' )
-						{
-							--edit_length;
-							++edit_start;
+							ai->auth_info.username = NULL;
 						}
 
-						// Make sure the header has a colon somewhere in it and not at the very beginning.
-						if ( edit_length >= 2 && *edit_start != L':' && _StrChrW( edit_start + 1, L':' ) != NULL )
+						// Password
+						edit_length = ( unsigned int )_SendMessageW( g_hWnd_edit_update_password, WM_GETTEXTLENGTH, 0, 0 );
+						if ( edit_length > 0 )
 						{
-							// Make sure the header ends with a \r\n.
-							if ( edit_start[ edit_length - 2 ] != '\r' && edit_start[ edit_length - 1 ] != '\n' )
+							edit = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( edit_length + 1 ) );
+							_SendMessageW( g_hWnd_edit_update_password, WM_GETTEXT, edit_length + 1, ( LPARAM )edit );
+
+							utf8_length = WideCharToMultiByte( CP_UTF8, 0, edit, -1, NULL, 0, NULL, NULL );	// Size includes NULL character.
+							ai->auth_info.password = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * utf8_length ); // Size includes the NULL character.
+							WideCharToMultiByte( CP_UTF8, 0, edit, -1, ai->auth_info.password, utf8_length, NULL, NULL );
+
+							GlobalFree( edit );
+						}
+						else
+						{
+							ai->auth_info.password = NULL;
+						}
+
+						//
+
+						// COOKIES, HEADERS, DATA
+
+						edit_length = ( unsigned int )_SendMessageW( g_hWnd_edit_update_cookies, WM_GETTEXTLENGTH, 0, 0 );
+						if ( edit_length > 0 )
+						{
+							edit = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( edit_length + 1 ) );
+							_SendMessageW( g_hWnd_edit_update_cookies, WM_GETTEXT, edit_length + 1, ( LPARAM )edit );
+
+							utf8_length = WideCharToMultiByte( CP_UTF8, 0, edit, -1, NULL, 0, NULL, NULL );	// Size includes NULL character.
+							ai->utf8_cookies = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * utf8_length ); // Size includes the NULL character.
+							WideCharToMultiByte( CP_UTF8, 0, edit, -1, ai->utf8_cookies, utf8_length, NULL, NULL );
+
+							GlobalFree( edit );
+						}
+						else
+						{
+							ai->utf8_cookies = NULL;
+						}
+
+						// Must be at least 2 characters long. "a:" is a valid header name and value.
+						edit_length = ( unsigned int )_SendMessageW( g_hWnd_edit_update_headers, WM_GETTEXTLENGTH, 0, 0 );
+						if ( edit_length >= 2 )
+						{
+							edit = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( edit_length + 1 + 2 ) );	// Add 2 for \r\n
+							_SendMessageW( g_hWnd_edit_update_headers, WM_GETTEXT, edit_length + 1, ( LPARAM )edit );
+
+							wchar_t *edit_start = edit;
+
+							// Skip newlines that might appear before the field name.
+							while ( *edit_start == L'\r' || *edit_start == L'\n' )
 							{
-								edit_start[ edit_length ] = '\r';
-								edit_start[ edit_length + 1 ] = '\n';
-								edit_start[ edit_length + 2 ] = 0;	// Sanity.
+								--edit_length;
+								++edit_start;
 							}
 
-							utf8_length = WideCharToMultiByte( CP_UTF8, 0, edit_start, -1, NULL, 0, NULL, NULL );	// Size includes NULL character.
-							ai->utf8_headers = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * utf8_length ); // Size includes the NULL character.
-							WideCharToMultiByte( CP_UTF8, 0, edit_start, -1, ai->utf8_headers, utf8_length, NULL, NULL );
+							// Make sure the header has a colon somewhere in it and not at the very beginning.
+							if ( edit_length >= 2 && *edit_start != L':' && _StrChrW( edit_start + 1, L':' ) != NULL )
+							{
+								// Make sure the header ends with a \r\n.
+								if ( edit_start[ edit_length - 2 ] != '\r' && edit_start[ edit_length - 1 ] != '\n' )
+								{
+									edit_start[ edit_length ] = '\r';
+									edit_start[ edit_length + 1 ] = '\n';
+									edit_start[ edit_length + 2 ] = 0;	// Sanity.
+								}
+
+								utf8_length = WideCharToMultiByte( CP_UTF8, 0, edit_start, -1, NULL, 0, NULL, NULL );	// Size includes NULL character.
+								ai->utf8_headers = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * utf8_length ); // Size includes the NULL character.
+								WideCharToMultiByte( CP_UTF8, 0, edit_start, -1, ai->utf8_headers, utf8_length, NULL, NULL );
+							}
+
+							GlobalFree( edit );
+						}
+						else
+						{
+							ai->utf8_headers = NULL;
 						}
 
-						GlobalFree( edit );
-					}
-					else
-					{
-						ai->utf8_headers = NULL;
-					}
+						ai->method = ( _SendMessageW( g_hWnd_chk_update_send_data, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? METHOD_POST : METHOD_GET );
 
-					ai->method = ( _SendMessageW( g_hWnd_chk_update_send_data, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? METHOD_POST : METHOD_GET );
-
-					edit_length = ( unsigned int )_SendMessageW( g_hWnd_edit_update_data, WM_GETTEXTLENGTH, 0, 0 );
-					if ( edit_length > 0 )
-					{
-						edit = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( edit_length + 1 ) );
-						_SendMessageW( g_hWnd_edit_update_data, WM_GETTEXT, edit_length + 1, ( LPARAM )edit );
-
-						utf8_length = WideCharToMultiByte( CP_UTF8, 0, edit, -1, NULL, 0, NULL, NULL );	// Size includes NULL character.
-						ai->utf8_data = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * utf8_length ); // Size includes the NULL character.
-						WideCharToMultiByte( CP_UTF8, 0, edit, -1, ai->utf8_data, utf8_length, NULL, NULL );
-
-						GlobalFree( edit );
-					}
-					else
-					{
-						ai->utf8_data = NULL;
-					}
-
-					//
-
-					// PROXY
-
-					ai->proxy_info.type = ( unsigned char )_SendMessageW( g_hWnd_update_proxy_type, CB_GETCURSEL, 0, 0 );
-
-					if ( ai->proxy_info.type != 0 )
-					{
-						unsigned int hostname_length;
-
-						ai->proxy_info.address_type = ( _SendMessageW( g_hWnd_chk_update_type_ip_address_socks, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? 1 : 0 );
-
-						if ( ai->proxy_info.address_type == 0 )
+						edit_length = ( unsigned int )_SendMessageW( g_hWnd_edit_update_data, WM_GETTEXTLENGTH, 0, 0 );
+						if ( edit_length > 0 )
 						{
-							hostname_length = ( unsigned int )_SendMessageW( g_hWnd_update_hostname_socks, WM_GETTEXTLENGTH, 0, 0 ) + 1;	// Include the NULL terminator.
-							ai->proxy_info.hostname = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * hostname_length );
-							_SendMessageW( g_hWnd_update_hostname_socks, WM_GETTEXT, hostname_length, ( LPARAM )ai->proxy_info.hostname );
+							edit = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( edit_length + 1 ) );
+							_SendMessageW( g_hWnd_edit_update_data, WM_GETTEXT, edit_length + 1, ( LPARAM )edit );
 
-							if ( normaliz_state == NORMALIZ_STATE_RUNNING )
+							utf8_length = WideCharToMultiByte( CP_UTF8, 0, edit, -1, NULL, 0, NULL, NULL );	// Size includes NULL character.
+							ai->utf8_data = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * utf8_length ); // Size includes the NULL character.
+							WideCharToMultiByte( CP_UTF8, 0, edit, -1, ai->utf8_data, utf8_length, NULL, NULL );
+
+							GlobalFree( edit );
+						}
+						else
+						{
+							ai->utf8_data = NULL;
+						}
+
+						//
+
+						// PROXY
+
+						ai->proxy_info.type = ( unsigned char )_SendMessageW( g_hWnd_update_proxy_type, CB_GETCURSEL, 0, 0 );
+
+						if ( ai->proxy_info.type != 0 )
+						{
+							unsigned int hostname_length;
+
+							ai->proxy_info.address_type = ( _SendMessageW( g_hWnd_chk_update_type_ip_address_socks, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? 1 : 0 );
+
+							if ( ai->proxy_info.address_type == 0 )
 							{
-								int punycode_length = _IdnToAscii( 0, ai->proxy_info.hostname, hostname_length, NULL, 0 );
+								hostname_length = ( unsigned int )_SendMessageW( g_hWnd_update_hostname_socks, WM_GETTEXTLENGTH, 0, 0 ) + 1;	// Include the NULL terminator.
+								ai->proxy_info.hostname = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * hostname_length );
+								_SendMessageW( g_hWnd_update_hostname_socks, WM_GETTEXT, hostname_length, ( LPARAM )ai->proxy_info.hostname );
 
-								if ( punycode_length > ( int )hostname_length )
+								if ( normaliz_state == NORMALIZ_STATE_RUNNING )
 								{
-									ai->proxy_info.punycode_hostname = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * punycode_length );
-									_IdnToAscii( 0, ai->proxy_info.hostname, hostname_length, ai->proxy_info.punycode_hostname, punycode_length );
+									int punycode_length = _IdnToAscii( 0, ai->proxy_info.hostname, hostname_length, NULL, 0 );
+
+									if ( punycode_length > ( int )hostname_length )
+									{
+										ai->proxy_info.punycode_hostname = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * punycode_length );
+										_IdnToAscii( 0, ai->proxy_info.hostname, hostname_length, ai->proxy_info.punycode_hostname, punycode_length );
+									}
 								}
 							}
-						}
-						else
-						{
-							_SendMessageW( g_hWnd_update_ip_address_socks, IPM_GETADDRESS, 0, ( LPARAM )&ai->proxy_info.ip_address );
-						}
-
-						_SendMessageA( g_hWnd_update_port_socks, WM_GETTEXT, 6, ( LPARAM )value );
-						ai->proxy_info.port = ( unsigned short )_strtoul( value, NULL, 10 );
-
-						unsigned int auth_length;
-
-						if ( ai->proxy_info.type == 1 || ai->proxy_info.type == 2 )	// HTTP and HTTPS
-						{
-							auth_length = ( unsigned int )_SendMessageW( g_hWnd_edit_update_proxy_auth_username, WM_GETTEXTLENGTH, 0, 0 );
-							if ( auth_length > 0 )
+							else
 							{
-								ai->proxy_info.w_username = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( auth_length + 1 ) );
-								_SendMessageW( g_hWnd_edit_update_proxy_auth_username, WM_GETTEXT, auth_length + 1, ( LPARAM )ai->proxy_info.w_username );
+								_SendMessageW( g_hWnd_update_ip_address_socks, IPM_GETADDRESS, 0, ( LPARAM )&ai->proxy_info.ip_address );
 							}
 
-							auth_length = ( unsigned int )_SendMessageW( g_hWnd_edit_update_proxy_auth_password, WM_GETTEXTLENGTH, 0, 0 );
-							if ( auth_length > 0 )
-							{
-								ai->proxy_info.w_password = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( auth_length + 1 ) );
-								_SendMessageW( g_hWnd_edit_update_proxy_auth_password, WM_GETTEXT, auth_length + 1, ( LPARAM )ai->proxy_info.w_password );
-							}
-						}
-						else if ( ai->proxy_info.type == 3 )	// SOCKS v4
-						{
-							ai->proxy_info.resolve_domain_names = ( _SendMessageW( g_hWnd_chk_update_resolve_domain_names_v4a, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
+							_SendMessageA( g_hWnd_update_port_socks, WM_GETTEXT, 6, ( LPARAM )value );
+							ai->proxy_info.port = ( unsigned short )_strtoul( value, NULL, 10 );
 
-							auth_length = ( unsigned int )_SendMessageW( g_hWnd_update_auth_ident_username_socks, WM_GETTEXTLENGTH, 0, 0 );
-							if ( auth_length > 0 )
-							{
-								ai->proxy_info.w_username = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( auth_length + 1 ) );
-								_SendMessageW( g_hWnd_update_auth_ident_username_socks, WM_GETTEXT, auth_length + 1, ( LPARAM )ai->proxy_info.w_username );
-							}
-						}
-						else if ( ai->proxy_info.type == 4 )	// SOCKS v5
-						{
-							ai->proxy_info.resolve_domain_names = ( _SendMessageW( g_hWnd_chk_update_resolve_domain_names, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
+							unsigned int auth_length;
 
-							ai->proxy_info.use_authentication = ( _SendMessageW( g_hWnd_chk_update_use_authentication_socks, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
-
-							if ( ai->proxy_info.use_authentication )
+							if ( ai->proxy_info.type == 1 || ai->proxy_info.type == 2 )	// HTTP and HTTPS
 							{
-								auth_length = ( unsigned int )_SendMessageW( g_hWnd_update_auth_username_socks, WM_GETTEXTLENGTH, 0, 0 );
+								auth_length = ( unsigned int )_SendMessageW( g_hWnd_edit_update_proxy_auth_username, WM_GETTEXTLENGTH, 0, 0 );
 								if ( auth_length > 0 )
 								{
 									ai->proxy_info.w_username = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( auth_length + 1 ) );
-									_SendMessageW( g_hWnd_update_auth_username_socks, WM_GETTEXT, auth_length + 1, ( LPARAM )ai->proxy_info.w_username );
+									_SendMessageW( g_hWnd_edit_update_proxy_auth_username, WM_GETTEXT, auth_length + 1, ( LPARAM )ai->proxy_info.w_username );
 								}
 
-								auth_length = ( unsigned int )_SendMessageW( g_hWnd_update_auth_password_socks, WM_GETTEXTLENGTH, 0, 0 );
+								auth_length = ( unsigned int )_SendMessageW( g_hWnd_edit_update_proxy_auth_password, WM_GETTEXTLENGTH, 0, 0 );
 								if ( auth_length > 0 )
 								{
 									ai->proxy_info.w_password = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( auth_length + 1 ) );
-									_SendMessageW( g_hWnd_update_auth_password_socks, WM_GETTEXT, auth_length + 1, ( LPARAM )ai->proxy_info.w_password );
+									_SendMessageW( g_hWnd_edit_update_proxy_auth_password, WM_GETTEXT, auth_length + 1, ( LPARAM )ai->proxy_info.w_password );
 								}
+							}
+							else if ( ai->proxy_info.type == 3 )	// SOCKS v4
+							{
+								ai->proxy_info.resolve_domain_names = ( _SendMessageW( g_hWnd_chk_update_resolve_domain_names_v4a, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
+
+								auth_length = ( unsigned int )_SendMessageW( g_hWnd_update_auth_ident_username_socks, WM_GETTEXTLENGTH, 0, 0 );
+								if ( auth_length > 0 )
+								{
+									ai->proxy_info.w_username = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( auth_length + 1 ) );
+									_SendMessageW( g_hWnd_update_auth_ident_username_socks, WM_GETTEXT, auth_length + 1, ( LPARAM )ai->proxy_info.w_username );
+								}
+							}
+							else if ( ai->proxy_info.type == 4 )	// SOCKS v5
+							{
+								ai->proxy_info.resolve_domain_names = ( _SendMessageW( g_hWnd_chk_update_resolve_domain_names, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
+
+								ai->proxy_info.use_authentication = ( _SendMessageW( g_hWnd_chk_update_use_authentication_socks, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
+
+								if ( ai->proxy_info.use_authentication )
+								{
+									auth_length = ( unsigned int )_SendMessageW( g_hWnd_update_auth_username_socks, WM_GETTEXTLENGTH, 0, 0 );
+									if ( auth_length > 0 )
+									{
+										ai->proxy_info.w_username = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( auth_length + 1 ) );
+										_SendMessageW( g_hWnd_update_auth_username_socks, WM_GETTEXT, auth_length + 1, ( LPARAM )ai->proxy_info.w_username );
+									}
+
+									auth_length = ( unsigned int )_SendMessageW( g_hWnd_update_auth_password_socks, WM_GETTEXTLENGTH, 0, 0 );
+									if ( auth_length > 0 )
+									{
+										ai->proxy_info.w_password = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( auth_length + 1 ) );
+										_SendMessageW( g_hWnd_update_auth_password_socks, WM_GETTEXT, auth_length + 1, ( LPARAM )ai->proxy_info.w_password );
+									}
+								}
+							}
+
+							if ( ai->proxy_info.w_username != NULL )
+							{
+								auth_length = WideCharToMultiByte( CP_UTF8, 0, ai->proxy_info.w_username, -1, NULL, 0, NULL, NULL );
+								ai->proxy_info.username = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * auth_length ); // Size includes the null character.
+								WideCharToMultiByte( CP_UTF8, 0, ai->proxy_info.w_username, -1, ai->proxy_info.username, auth_length, NULL, NULL );
+							}
+
+							if ( ai->proxy_info.w_password != NULL )
+							{
+								auth_length = WideCharToMultiByte( CP_UTF8, 0, ai->proxy_info.w_password, -1, NULL, 0, NULL, NULL );
+								ai->proxy_info.password = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * auth_length ); // Size includes the null character.
+								WideCharToMultiByte( CP_UTF8, 0, ai->proxy_info.w_password, -1, ai->proxy_info.password, auth_length, NULL, NULL );
 							}
 						}
 
-						if ( ai->proxy_info.w_username != NULL )
+						//
+
+						// ai is freed in handle_download_update.
+						HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, handle_download_update, ( void * )ai, 0, NULL );	// Update selected download (stops and resumes the download).
+						if ( thread != NULL )
 						{
-							auth_length = WideCharToMultiByte( CP_UTF8, 0, ai->proxy_info.w_username, -1, NULL, 0, NULL, NULL );
-							ai->proxy_info.username = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * auth_length ); // Size includes the null character.
-							WideCharToMultiByte( CP_UTF8, 0, ai->proxy_info.w_username, -1, ai->proxy_info.username, auth_length, NULL, NULL );
+							CloseHandle( thread );
 						}
-
-						if ( ai->proxy_info.w_password != NULL )
+						else
 						{
-							auth_length = WideCharToMultiByte( CP_UTF8, 0, ai->proxy_info.w_password, -1, NULL, 0, NULL, NULL );
-							ai->proxy_info.password = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * auth_length ); // Size includes the null character.
-							WideCharToMultiByte( CP_UTF8, 0, ai->proxy_info.w_password, -1, ai->proxy_info.password, auth_length, NULL, NULL );
+							FreeAddInfo( &ai );
+
+							// We couldn't update this.
+							g_update_download_info = NULL;
 						}
-					}
-
-					//
-
-					// ai is freed in handle_download_update.
-					HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, handle_download_update, ( void * )ai, 0, NULL );	// Update selected download (stops and resumes the download).
-					if ( thread != NULL )
-					{
-						CloseHandle( thread );
 					}
 					else
 					{
-						FreeAddInfo( &ai );
-
 						// We couldn't update this.
 						g_update_download_info = NULL;
 					}

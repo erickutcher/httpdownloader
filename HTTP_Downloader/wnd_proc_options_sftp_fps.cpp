@@ -345,7 +345,11 @@ LRESULT CALLBACK SFTPFpsTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 
 			//
 
-			CloseHandle( ( HANDLE )_CreateThread( NULL, 0, load_sftp_fps_host_list, ( void * )NULL, 0, NULL ) );
+			HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, load_sftp_fps_host_list, ( void * )NULL, 0, NULL );
+			if ( thread != NULL )
+			{
+				CloseHandle( thread );
+			}
 
 			return 0;
 		}
@@ -409,34 +413,43 @@ LRESULT CALLBACK SFTPFpsTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 						}
 
 						SFTP_FPS_HOST_UPDATE_INFO *sfhui = ( SFTP_FPS_HOST_UPDATE_INFO * )GlobalAlloc( GMEM_FIXED, sizeof( SFTP_FPS_HOST_UPDATE_INFO ) );
-						sfhui->update_type = 0;	// Add
-						sfhui->old_sfhi = g_selected_fps_host_info;
-						sfhui->index = g_selected_fps_host_index;
-
-						sfhui->sfhi = ( SFTP_FPS_HOST_INFO * )GlobalAlloc( GPTR, sizeof( SFTP_FPS_HOST_INFO ) );
-
-						sfhui->sfhi->w_host = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( edit_length + 1 ) );	// Include the NULL terminator.
-						_SendMessageW( g_hWnd_edit_sftp_fps_host, WM_GETTEXT, edit_length + 1, ( LPARAM )sfhui->sfhi->w_host );
-
-						sfhui->sfhi->w_key_algorithm = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( edit_ka_length + 1 ) );	// Include the NULL terminator.
-						_SendMessageW( g_hWnd_cb_sftp_fps_key_algorithm, WM_GETTEXT, edit_ka_length + 1, ( LPARAM )sfhui->sfhi->w_key_algorithm );
-
-						edit_length = ( unsigned int )_SendMessageW( g_hWnd_edit_sftp_fps_fingerprint, WM_GETTEXTLENGTH, 0, 0 );
-						sfhui->sfhi->w_key_fingerprint = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( edit_length + 1 ) );	// Include the NULL terminator.
-						_SendMessageW( g_hWnd_edit_sftp_fps_fingerprint, WM_GETTEXT, edit_length + 1, ( LPARAM )sfhui->sfhi->w_key_fingerprint );
-
-						//
-
-						// sfhui is freed in handle_sftp_fps_host_list.
-						HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, handle_sftp_fps_host_list, ( void * )sfhui, 0, NULL );
-						if ( thread != NULL )
+						if ( sfhui != NULL )
 						{
-							CloseHandle( thread );
-						}
-						else
-						{
-							FreeSFTPFpsHostInfo( &sfhui->sfhi );
-							GlobalFree( sfhui );
+							sfhui->update_type = 0;	// Add
+							sfhui->old_sfhi = g_selected_fps_host_info;
+							sfhui->index = g_selected_fps_host_index;
+
+							sfhui->sfhi = ( SFTP_FPS_HOST_INFO * )GlobalAlloc( GPTR, sizeof( SFTP_FPS_HOST_INFO ) );
+							if ( sfhui->sfhi != NULL )
+							{
+								sfhui->sfhi->w_host = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( edit_length + 1 ) );	// Include the NULL terminator.
+								_SendMessageW( g_hWnd_edit_sftp_fps_host, WM_GETTEXT, edit_length + 1, ( LPARAM )sfhui->sfhi->w_host );
+
+								sfhui->sfhi->w_key_algorithm = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( edit_ka_length + 1 ) );	// Include the NULL terminator.
+								_SendMessageW( g_hWnd_cb_sftp_fps_key_algorithm, WM_GETTEXT, edit_ka_length + 1, ( LPARAM )sfhui->sfhi->w_key_algorithm );
+
+								edit_length = ( unsigned int )_SendMessageW( g_hWnd_edit_sftp_fps_fingerprint, WM_GETTEXTLENGTH, 0, 0 );
+								sfhui->sfhi->w_key_fingerprint = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( edit_length + 1 ) );	// Include the NULL terminator.
+								_SendMessageW( g_hWnd_edit_sftp_fps_fingerprint, WM_GETTEXT, edit_length + 1, ( LPARAM )sfhui->sfhi->w_key_fingerprint );
+
+								//
+
+								// sfhui is freed in handle_sftp_fps_host_list.
+								HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, handle_sftp_fps_host_list, ( void * )sfhui, 0, NULL );
+								if ( thread != NULL )
+								{
+									CloseHandle( thread );
+								}
+								else
+								{
+									FreeSFTPFpsHostInfo( &sfhui->sfhi );
+									GlobalFree( sfhui );
+								}
+							}
+							else
+							{
+								GlobalFree( sfhui );
+							}
 						}
 					}
 				}
@@ -448,18 +461,21 @@ LRESULT CALLBACK SFTPFpsTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 					if ( CMessageBoxW( hWnd, ST_V_PROMPT_remove_selected_entries, PROGRAM_CAPTION, /*CMB_APPLMODAL |*/ CMB_ICONWARNING | CMB_YESNO ) == CMBIDYES )
 					{
 						SFTP_FPS_HOST_UPDATE_INFO *sfhui = ( SFTP_FPS_HOST_UPDATE_INFO * )GlobalAlloc( GMEM_FIXED, sizeof( SFTP_FPS_HOST_UPDATE_INFO ) );
-						sfhui->update_type = 1;	// Remove
-						sfhui->sfhi = NULL;
+						if ( sfhui != NULL )
+						{
+							sfhui->update_type = 1;	// Remove
+							sfhui->sfhi = NULL;
 
-						// sfhui is freed in handle_sftp_fps_host_list.
-						HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, handle_sftp_fps_host_list, ( void * )sfhui, 0, NULL );
-						if ( thread != NULL )
-						{
-							CloseHandle( thread );
-						}
-						else
-						{
-							GlobalFree( sfhui );
+							// sfhui is freed in handle_sftp_fps_host_list.
+							HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, handle_sftp_fps_host_list, ( void * )sfhui, 0, NULL );
+							if ( thread != NULL )
+							{
+								CloseHandle( thread );
+							}
+							else
+							{
+								GlobalFree( sfhui );
+							}
 						}
 					}
 				}

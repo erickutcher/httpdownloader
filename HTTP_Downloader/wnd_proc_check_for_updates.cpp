@@ -56,10 +56,10 @@ LRESULT CALLBACK CheckForUpdatesWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPA
 			g_hWnd_static_current_version = _CreateWindowW( WC_STATIC, current_version, WS_CHILD | WS_VISIBLE, 10, 30, rc.right - 20, 15, hWnd, NULL, NULL, NULL );
 			g_hWnd_static_latest_version = _CreateWindowW( WC_STATIC, ST_V_Latest_version_, WS_CHILD | WS_VISIBLE, 10, 45, rc.right - 20, 15, hWnd, NULL, NULL, NULL );
 
-			g_hWnd_visit_home_page = _CreateWindowW( WC_BUTTON, ST_V_Visit_Home_Page, WS_CHILD | WS_TABSTOP, 10, rc.bottom - 32, 125, 23, hWnd, ( HMENU )BTN_VISIT_HOME_PAGE, NULL, NULL );
-			g_hWnd_download_update = _CreateWindowW( WC_BUTTON, ST_V_Download_Update, WS_CHILD | WS_TABSTOP, 10, rc.bottom - 32, 125, 23, hWnd, ( HMENU )BTN_DOWNLOAD_UPDATE, NULL, NULL );
-			g_hWnd_view_changelog = _CreateWindowW( WC_BUTTON, ST_V_View_Changelog, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 215, rc.bottom - 32, 120, 23, hWnd, ( HMENU )BTN_VIEW_CHANGELOG, NULL, NULL );
-			g_hWnd_check_updates_cancel = _CreateWindowW( WC_BUTTON, ST_V_Cancel, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 90, rc.bottom - 32, 80, 23, hWnd, ( HMENU )BTN_CHECK_UPDATES_CANCEL, NULL, NULL );
+			g_hWnd_visit_home_page = _CreateWindowW( WC_BUTTON, ST_V_Visit_Home_Page, WS_CHILD | WS_TABSTOP, 10, 70, 125, 23, hWnd, ( HMENU )BTN_VISIT_HOME_PAGE, NULL, NULL );
+			g_hWnd_download_update = _CreateWindowW( WC_BUTTON, ST_V_Download_Update, WS_CHILD | WS_TABSTOP, 10, 70, 125, 23, hWnd, ( HMENU )BTN_DOWNLOAD_UPDATE, NULL, NULL );
+			g_hWnd_view_changelog = _CreateWindowW( WC_BUTTON, ST_V_View_Changelog, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 215, 70, 120, 23, hWnd, ( HMENU )BTN_VIEW_CHANGELOG, NULL, NULL );
+			g_hWnd_check_updates_cancel = _CreateWindowW( WC_BUTTON, ST_V_Cancel, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 90, 70, 80, 23, hWnd, ( HMENU )BTN_CHECK_UPDATES_CANCEL, NULL, NULL );
 
 			_SendMessageW( g_hWnd_static_check_for_updates, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 			_SendMessageW( g_hWnd_static_current_version, WM_SETFONT, ( WPARAM )g_hFont, 0 );
@@ -69,11 +69,15 @@ LRESULT CALLBACK CheckForUpdatesWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPA
 			_SendMessageW( g_hWnd_view_changelog, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 			_SendMessageW( g_hWnd_check_updates_cancel, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 
+			// Accounts for differing title bar heights.
+			CREATESTRUCTW *cs = ( CREATESTRUCTW * )lParam;
+			int height = ( cs->cy - ( rc.bottom - rc.top ) ) + 103;	// Bottom of last window object + 10.
+
 			HMONITOR hMon = _MonitorFromWindow( g_hWnd_main, MONITOR_DEFAULTTONEAREST );
 			MONITORINFO mi;
 			mi.cbSize = sizeof( MONITORINFO );
 			_GetMonitorInfoW( hMon, &mi );
-			_SetWindowPos( hWnd, NULL, mi.rcMonitor.left + ( ( ( mi.rcMonitor.right - mi.rcMonitor.left ) - 400 ) / 2 ), mi.rcMonitor.top + ( ( ( mi.rcMonitor.bottom - mi.rcMonitor.top ) - 135 ) / 2 ), 400, 135, 0 );
+			_SetWindowPos( hWnd, NULL, mi.rcMonitor.left + ( ( ( mi.rcMonitor.right - mi.rcMonitor.left ) - 400 ) / 2 ), mi.rcMonitor.top + ( ( ( mi.rcMonitor.bottom - mi.rcMonitor.top ) - height ) / 2 ), 400, height, 0 );
 
 #ifdef ENABLE_DARK_MODE
 			if ( g_use_dark_mode )

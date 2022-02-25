@@ -199,7 +199,7 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 			UnInitializePSFTP();
 		}
 	#endif
-	// Loaded only for SetFileInformationByHandle and GetUserDefaultLocaleName.
+	// Loaded only for SetFileInformationByHandle, GetUserDefaultLocaleName, and GetQueuedCompletionStatusEx.
 	// If SetFileInformationByHandle doesn't exist (on Windows XP), then rename won't work when the file is in use.
 	// But at least the program will run.
 	#ifndef KERNEL32_USE_STATIC_LIB
@@ -229,11 +229,18 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 	CL_ARGS *cla = NULL;
 
 	g_base_directory = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * MAX_PATH );
+	if ( g_base_directory == NULL )
+	{
+		goto UNLOAD_DLLS;
+	}
 
 	g_program_directory = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * MAX_PATH );
-	g_program_directory_length = GetModuleFileNameW( NULL, g_program_directory, MAX_PATH );
-	while ( g_program_directory_length != 0 && g_program_directory[ --g_program_directory_length ] != L'\\' );
-	g_program_directory[ g_program_directory_length ] = 0;	// Sanity.
+	if ( g_program_directory != NULL )
+	{
+		g_program_directory_length = GetModuleFileNameW( NULL, g_program_directory, MAX_PATH );
+		while ( g_program_directory_length != 0 && g_program_directory[ --g_program_directory_length ] != L'\\' );
+		g_program_directory[ g_program_directory_length ] = 0;	// Sanity.
+	}
 
 	bool override_shutdown_action = false;
 
@@ -638,7 +645,7 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 			g_base_directory_length = lstrlenW( g_base_directory );
 			_wmemcpy_s( g_base_directory + g_base_directory_length, MAX_PATH - g_base_directory_length, L"\\HTTP Downloader\0", 17 );
 			g_base_directory_length += 16;
-			g_base_directory[ g_base_directory_length ] = 0;	// Sanity.
+			//g_base_directory[ g_base_directory_length ] = 0;	// Sanity.
 
 			// Check to see if the new path exists and create it if it doesn't.
 			if ( GetFileAttributesW( g_base_directory ) == INVALID_FILE_ATTRIBUTES )
@@ -646,10 +653,10 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 				CreateDirectoryW( g_base_directory, NULL );
 			}
 		}
-		else
+		/*else
 		{
 			g_base_directory[ g_base_directory_length ] = 0;	// Sanity.
-		}
+		}*/
 	}
 
 	// Check to see if the new path exists and create it if it doesn't.
@@ -719,7 +726,7 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 	SetDefaultAppearance();
 
 	_wmemcpy_s( g_program_directory + g_program_directory_length, MAX_PATH - g_program_directory_length, L"\\main.ico\0", 10 );
-	if ( GetFileAttributesW( g_program_directory ) != INVALID_FILE_ATTRIBUTES )
+	if ( g_program_directory != NULL && GetFileAttributesW( g_program_directory ) != INVALID_FILE_ATTRIBUTES )
 	{
 		g_clean_tray_icon = true;
 		g_default_tray_icon = ( HICON )_LoadImageW( GetModuleHandleW( NULL ), g_program_directory, IMAGE_ICON, 16, 16, LR_LOADFROMFILE );
@@ -1063,7 +1070,7 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 
 			// If successful, cleanup the current program and run the new one.
 			// A return value that's greater than 32 means it was a success.
-			if ( ( int )_ShellExecuteW( NULL, L"runas", command_line_path, tmp_command_line_path, NULL, SW_SHOWNORMAL ) > 32 )
+			if ( ( INT_PTR )_ShellExecuteW( NULL, L"runas", command_line_path, tmp_command_line_path, NULL, SW_SHOWNORMAL ) > 32 )
 			{
 				GlobalFree( command_line_path );
 
@@ -1208,12 +1215,22 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 
 	downloader_ready_semaphore = CreateSemaphore( NULL, 0, 1, NULL );
 
-	CloseHandle( _CreateThread( NULL, 0, IOCPDownloader, NULL, 0, NULL ) );
+	HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, IOCPDownloader, NULL, 0, NULL );
+	if ( thread != NULL )
+	{
+		CloseHandle( thread );
 
-	// Wait for IOCPDownloader to set up the completion port. 10 second timeout in case we miss the release.
-	WaitForSingleObject( downloader_ready_semaphore, 10000 );
-	CloseHandle( downloader_ready_semaphore );
-	downloader_ready_semaphore = NULL;
+		// Wait for IOCPDownloader to set up the completion port. 10 second timeout in case we miss the release.
+		WaitForSingleObject( downloader_ready_semaphore, 10000 );
+		CloseHandle( downloader_ready_semaphore );
+	}
+	else
+	{
+		CloseHandle( downloader_ready_semaphore );
+
+		fail_type = 3;
+		goto CLEANUP;
+	}
 
 	// Initialize our window class.
 	WNDCLASSEX wcex;
@@ -1233,7 +1250,7 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 	if ( IsWindowsVersionOrGreater( HIBYTE( _WIN32_WINNT_WIN10 ), LOBYTE( _WIN32_WINNT_WIN10 ), 0 ) )
 	{
 		_wmemcpy_s( g_base_directory + g_base_directory_length, MAX_PATH - g_base_directory_length, L"\\dark_mode\0", 11 );
-		g_base_directory[ g_base_directory_length + 10 ] = 0;	// Sanity.
+		//g_base_directory[ g_base_directory_length + 10 ] = 0;	// Sanity.
 
 		// See if the user wants to run the program with dark mode support.
 		if ( GetFileAttributesW( g_base_directory ) != INVALID_FILE_ATTRIBUTES )
@@ -1653,11 +1670,15 @@ CLEANUP:
 
 	if ( fail_type == 1 )
 	{
-		CMessageBoxW( NULL, L"Call to _RegisterClassExW failed!", PROGRAM_CAPTION, CMB_ICONWARNING );
+		_MessageBoxW( NULL, L"Call to _RegisterClassExW failed!", PROGRAM_CAPTION, MB_ICONWARNING );
 	}
 	else if ( fail_type == 2 )
 	{
-		CMessageBoxW( NULL, L"Call to _CreateWindowExW failed!", PROGRAM_CAPTION, CMB_ICONWARNING );
+		_MessageBoxW( NULL, L"Call to _CreateWindowExW failed!", PROGRAM_CAPTION, MB_ICONWARNING );
+	}
+	else if ( fail_type == 3 )
+	{
+		_MessageBoxW( NULL, L"Failed to create IOCPDownloader thread!", PROGRAM_CAPTION, MB_ICONWARNING );
 	}
 
 	UninitializeLocaleValues();

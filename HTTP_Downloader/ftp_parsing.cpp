@@ -251,44 +251,47 @@ TRY_NEW_ADDRESS:
 
 	// Get the IP address of our listening socket.
 	context->header_info.url_location.host = ( char * )GlobalAlloc( GPTR, sizeof( char ) * INET6_ADDRSTRLEN );
-	DWORD ip_length = INET6_ADDRSTRLEN;
-	_WSAAddressToStringA( supplied_addr->ai_addr, ( DWORD )supplied_addr->ai_addrlen, NULL, context->header_info.url_location.host, &ip_length );
-
-	if ( use_ipv6 )
+	if ( context->header_info.url_location.host != NULL )
 	{
-		// Exclude the brackets from the IPV6 string.
-		if ( context->header_info.url_location.host[ 0 ] == '[' )
+		DWORD ip_length = INET6_ADDRSTRLEN;
+		_WSAAddressToStringA( supplied_addr->ai_addr, ( DWORD )supplied_addr->ai_addrlen, NULL, context->header_info.url_location.host, &ip_length );
+
+		if ( use_ipv6 )
 		{
-			for ( unsigned char i = 1; i < ip_length; ++i )
+			// Exclude the brackets from the IPV6 string.
+			if ( context->header_info.url_location.host[ 0 ] == '[' )
 			{
-				if ( context->header_info.url_location.host[ i ] == ']' )
+				for ( unsigned char i = 1; i < ip_length; ++i )
 				{
-					context->header_info.url_location.host[ i - 1 ] = 0;
-					ip_length = i;
+					if ( context->header_info.url_location.host[ i ] == ']' )
+					{
+						context->header_info.url_location.host[ i - 1 ] = 0;
+						ip_length = i;
+
+						break;
+					}
+
+					context->header_info.url_location.host[ i - 1 ] = context->header_info.url_location.host[ i ];
+				}
+			}
+		}
+		else
+		{
+			while ( ip_length > 0 )
+			{
+				if ( context->header_info.url_location.host[ ip_length ] == ':' )
+				{
+					context->header_info.url_location.host[ ip_length ] = 0;	// Don't include the port.
 
 					break;
 				}
+				else if ( context->header_info.connection == FTP_MODE_ACTIVE && context->header_info.url_location.host[ ip_length ] == '.' )
+				{
+					context->header_info.url_location.host[ ip_length ] = ',';	// Replace periods with commas for Active mode.
+				}
 
-				context->header_info.url_location.host[ i - 1 ] = context->header_info.url_location.host[ i ];
+				--ip_length;
 			}
-		}
-	}
-	else
-	{
-		while ( ip_length > 0 )
-		{
-			if ( context->header_info.url_location.host[ ip_length ] == ':' )
-			{
-				context->header_info.url_location.host[ ip_length ] = 0;	// Don't include the port.
-
-				break;
-			}
-			else if ( context->header_info.connection == FTP_MODE_ACTIVE && context->header_info.url_location.host[ ip_length ] == '.' )
-			{
-				context->header_info.url_location.host[ ip_length ] = ',';	// Replace periods with commas for Active mode.
-			}
-
-			--ip_length;
 		}
 	}
 
@@ -438,28 +441,30 @@ char MakeRangeDataRequest( SOCKET_CONTEXT *context )
 				if ( context->download_info->parts_limit > 0 && part > context->download_info->parts_limit )
 				{
 					RANGE_INFO *ri = ( RANGE_INFO * )GlobalAlloc( GPTR, sizeof( RANGE_INFO ) );
-
-					ri->range_start = range_offset;
-
-					if ( part < context->parts )
+					if ( ri != NULL )
 					{
-						range_offset += range_size;
-						ri->range_end = range_offset - 1;
-					}
-					else	// Make sure we have an accurate range end for the last part.
-					{
-						ri->range_end = content_length - 1;
-					}
+						ri->range_start = range_offset;
 
-					//ri->content_length = content_length;
-					ri->file_write_offset = ri->range_start;
+						if ( part < context->parts )
+						{
+							range_offset += range_size;
+							ri->range_end = range_offset - 1;
+						}
+						else	// Make sure we have an accurate range end for the last part.
+						{
+							ri->range_end = content_length - 1;
+						}
 
-					DoublyLinkedList *range_node = DLL_CreateNode( ( void * )ri );
-					DLL_AddNode( &context->download_info->range_list, range_node, -1 );
+						//ri->content_length = content_length;
+						ri->file_write_offset = ri->range_start;
 
-					if ( context->download_info->range_queue == NULL )
-					{
-						context->download_info->range_queue = range_node;
+						DoublyLinkedList *range_node = DLL_CreateNode( ( void * )ri );
+						DLL_AddNode( &context->download_info->range_list, range_node, -1 );
+
+						if ( context->download_info->range_queue == NULL )
+						{
+							context->download_info->range_queue = range_node;
+						}
 					}
 
 					skip_context_creation = true;
@@ -475,93 +480,97 @@ char MakeRangeDataRequest( SOCKET_CONTEXT *context )
 
 			// Save the request information, the header information (if we got any), and create a new connection.
 			SOCKET_CONTEXT *new_context = CreateSocketContext();
-
-			new_context->ftp_connection_type = FTP_CONNECTION_TYPE_CONTROL;
-
-			new_context->processed_header = true;
-
-			new_context->part = part;
-			new_context->parts = context->parts;
-
-			new_context->got_filename = context->got_filename;						// No need to rename it again.
-			new_context->got_last_modified = context->got_last_modified;			// No need to get the date/time again.
-			new_context->show_file_size_prompt = context->show_file_size_prompt;	// No need to prompt again.
-
-			new_context->request_info.host = GlobalStrDupA( context->request_info.host );
-			new_context->request_info.port = context->request_info.port;
-			new_context->request_info.resource = GlobalStrDupA( context->request_info.resource );
-			new_context->request_info.protocol = context->request_info.protocol;
-
-			RANGE_INFO *ri = ( RANGE_INFO * )GlobalAlloc( GPTR, sizeof( RANGE_INFO ) );
-
-			new_context->header_info.range_info = ri;
-
-			new_context->header_info.range_info->range_start = range_offset;// + 1;
-
-			if ( new_context->part < context->parts )
+			if ( new_context != NULL )
 			{
-				range_offset += range_size;
-				new_context->header_info.range_info->range_end = range_offset - 1;
-			}
-			else	// Make sure we have an accurate range end for the last part.
-			{
-				new_context->header_info.range_info->range_end = content_length - 1;
-			}
+				new_context->ftp_connection_type = FTP_CONNECTION_TYPE_CONTROL;
 
-			new_context->header_info.range_info->content_length = content_length;
-			new_context->header_info.range_info->file_write_offset = new_context->header_info.range_info->range_start;
+				new_context->processed_header = true;
 
-			new_context->request_info.redirect_count = context->request_info.redirect_count;	// This is being used to determine whether we've switched modes (fallback mode).
-			new_context->header_info.connection = context->header_info.connection;				// This is being used as our mode value. (cfg_ftp_mode_type)
-			//
+				new_context->part = part;
+				new_context->parts = context->parts;
 
-			new_context->context_node.data = new_context;
+				new_context->got_filename = context->got_filename;						// No need to rename it again.
+				new_context->got_last_modified = context->got_last_modified;			// No need to get the date/time again.
+				new_context->show_file_size_prompt = context->show_file_size_prompt;	// No need to prompt again.
 
-			EnterCriticalSection( &context_list_cs );
+				new_context->request_info.host = GlobalStrDupA( context->request_info.host );
+				new_context->request_info.port = context->request_info.port;
+				new_context->request_info.resource = GlobalStrDupA( context->request_info.resource );
+				new_context->request_info.protocol = context->request_info.protocol;
 
-			DLL_AddNode( &g_context_list, &new_context->context_node, 0 );
-
-			LeaveCriticalSection( &context_list_cs );
-
-			// Add to the parts list.
-			if ( context->download_info != NULL )
-			{
-				EnterCriticalSection( &context->download_info->di_cs );
-
-				new_context->download_info = context->download_info;
-
-				++( new_context->download_info->active_parts );
-
-				DoublyLinkedList *range_node = DLL_CreateNode( ( void * )ri );
-				DLL_AddNode( &new_context->download_info->range_list, range_node, -1 );
-
-				new_context->parts_node.data = new_context;
-				DLL_AddNode( &new_context->download_info->parts_list, &new_context->parts_node, -1 );
-
-				LeaveCriticalSection( &context->download_info->di_cs );
-
-				EnterCriticalSection( &context->download_info->shared_info->di_cs );
-
-				// For groups.
-				if ( IS_GROUP( context->download_info ) )
+				RANGE_INFO *ri = ( RANGE_INFO * )GlobalAlloc( GPTR, sizeof( RANGE_INFO ) );
+				if ( ri != NULL )
 				{
-					++( context->download_info->shared_info->active_parts );
+					new_context->header_info.range_info = ri;
+
+					new_context->header_info.range_info->range_start = range_offset;// + 1;
+
+					if ( new_context->part < context->parts )
+					{
+						range_offset += range_size;
+						new_context->header_info.range_info->range_end = range_offset - 1;
+					}
+					else	// Make sure we have an accurate range end for the last part.
+					{
+						new_context->header_info.range_info->range_end = content_length - 1;
+					}
+
+					new_context->header_info.range_info->content_length = content_length;
+					new_context->header_info.range_info->file_write_offset = new_context->header_info.range_info->range_start;
+
+					new_context->request_info.redirect_count = context->request_info.redirect_count;	// This is being used to determine whether we've switched modes (fallback mode).
+					new_context->header_info.connection = context->header_info.connection;				// This is being used as our mode value. (cfg_ftp_mode_type)
+					//
+
+					new_context->context_node.data = new_context;
+
+					EnterCriticalSection( &context_list_cs );
+
+					DLL_AddNode( &g_context_list, &new_context->context_node, 0 );
+
+					LeaveCriticalSection( &context_list_cs );
+
+					// Add to the parts list.
+					if ( context->download_info != NULL )
+					{
+						EnterCriticalSection( &context->download_info->di_cs );
+
+						new_context->download_info = context->download_info;
+
+						++( new_context->download_info->active_parts );
+
+						DoublyLinkedList *range_node = DLL_CreateNode( ( void * )ri );
+						DLL_AddNode( &new_context->download_info->range_list, range_node, -1 );
+
+						new_context->parts_node.data = new_context;
+						DLL_AddNode( &new_context->download_info->parts_list, &new_context->parts_node, -1 );
+
+						LeaveCriticalSection( &context->download_info->di_cs );
+
+						EnterCriticalSection( &context->download_info->shared_info->di_cs );
+
+						// For groups.
+						if ( IS_GROUP( context->download_info ) )
+						{
+							++( context->download_info->shared_info->active_parts );
+						}
+
+						LeaveCriticalSection( &context->download_info->shared_info->di_cs );
+					}
+
+					new_context->status = STATUS_CONNECTING;
+
+					if ( !CreateConnection( new_context, new_context->request_info.host, new_context->request_info.port ) )
+					{
+						new_context->status = STATUS_FAILED;
+
+						InterlockedIncrement( &new_context->pending_operations );
+
+						new_context->overlapped.current_operation = IO_Close;
+
+						PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )new_context, ( OVERLAPPED * )&new_context->overlapped );
+					}
 				}
-
-				LeaveCriticalSection( &context->download_info->shared_info->di_cs );
-			}
-
-			new_context->status = STATUS_CONNECTING;
-
-			if ( !CreateConnection( new_context, new_context->request_info.host, new_context->request_info.port ) )
-			{
-				new_context->status = STATUS_FAILED;
-
-				InterlockedIncrement( &new_context->pending_operations );
-
-				new_context->overlapped.current_operation = IO_Close;
-
-				PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )new_context, ( OVERLAPPED * )&new_context->overlapped );
 			}
 		}
 

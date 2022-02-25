@@ -361,8 +361,11 @@ void SetServerSettings()
 			GlobalFree( cfg_certificate_pkcs_file_name );
 
 			cfg_certificate_pkcs_file_name = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t * ) * ( certificate_pkcs_file_name_length + 1 ) );
-			_wmemcpy_s( cfg_certificate_pkcs_file_name, certificate_pkcs_file_name_length, certificate_pkcs_file_name, certificate_pkcs_file_name_length );
-			cfg_certificate_pkcs_file_name[ certificate_pkcs_file_name_length ] = 0;	// Sanity.
+			if ( cfg_certificate_pkcs_file_name != NULL )
+			{
+				_wmemcpy_s( cfg_certificate_pkcs_file_name, certificate_pkcs_file_name_length, certificate_pkcs_file_name, certificate_pkcs_file_name_length );
+				cfg_certificate_pkcs_file_name[ certificate_pkcs_file_name_length ] = 0;	// Sanity.
+			}
 
 			ssl_info_changed = true;
 		}
@@ -370,8 +373,11 @@ void SetServerSettings()
 	else
 	{
 		cfg_certificate_pkcs_file_name = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t * ) * ( certificate_pkcs_file_name_length + 1 ) );
-		_wmemcpy_s( cfg_certificate_pkcs_file_name, certificate_pkcs_file_name_length, certificate_pkcs_file_name, certificate_pkcs_file_name_length );
-		cfg_certificate_pkcs_file_name[ certificate_pkcs_file_name_length ] = 0;	// Sanity.
+		if ( cfg_certificate_pkcs_file_name != NULL )
+		{
+			_wmemcpy_s( cfg_certificate_pkcs_file_name, certificate_pkcs_file_name_length, certificate_pkcs_file_name, certificate_pkcs_file_name_length );
+			cfg_certificate_pkcs_file_name[ certificate_pkcs_file_name_length ] = 0;	// Sanity.
+		}
 
 		ssl_info_changed = true;
 	}
@@ -413,8 +419,11 @@ void SetServerSettings()
 			GlobalFree( cfg_certificate_cer_file_name );
 
 			cfg_certificate_cer_file_name = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t * ) * ( certificate_cer_file_name_length + 1 ) );
-			_wmemcpy_s( cfg_certificate_cer_file_name, certificate_cer_file_name_length, certificate_cer_file_name, certificate_cer_file_name_length );
-			cfg_certificate_cer_file_name[ certificate_cer_file_name_length ] = 0;	// Sanity.
+			if ( cfg_certificate_cer_file_name != NULL )
+			{
+				_wmemcpy_s( cfg_certificate_cer_file_name, certificate_cer_file_name_length, certificate_cer_file_name, certificate_cer_file_name_length );
+				cfg_certificate_cer_file_name[ certificate_cer_file_name_length ] = 0;	// Sanity.
+			}
 
 			ssl_info_changed = true;
 		}
@@ -422,8 +431,11 @@ void SetServerSettings()
 	else
 	{
 		cfg_certificate_cer_file_name = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t * ) * ( certificate_cer_file_name_length + 1 ) );
-		_wmemcpy_s( cfg_certificate_cer_file_name, certificate_cer_file_name_length, certificate_cer_file_name, certificate_cer_file_name_length );
-		cfg_certificate_cer_file_name[ certificate_cer_file_name_length ] = 0;	// Sanity.
+		if ( cfg_certificate_cer_file_name != NULL )
+		{
+			_wmemcpy_s( cfg_certificate_cer_file_name, certificate_cer_file_name_length, certificate_cer_file_name, certificate_cer_file_name_length );
+			cfg_certificate_cer_file_name[ certificate_cer_file_name_length ] = 0;	// Sanity.
+		}
 
 		ssl_info_changed = true;
 	}
@@ -438,8 +450,11 @@ void SetServerSettings()
 			GlobalFree( cfg_certificate_key_file_name );
 
 			cfg_certificate_key_file_name = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t * ) * ( certificate_key_file_name_length + 1 ) );
-			_wmemcpy_s( cfg_certificate_key_file_name, certificate_key_file_name_length, certificate_key_file_name, certificate_key_file_name_length );
-			cfg_certificate_key_file_name[ certificate_key_file_name_length ] = 0;	// Sanity.
+			if ( cfg_certificate_key_file_name != NULL )
+			{
+				_wmemcpy_s( cfg_certificate_key_file_name, certificate_key_file_name_length, certificate_key_file_name, certificate_key_file_name_length );
+				cfg_certificate_key_file_name[ certificate_key_file_name_length ] = 0;	// Sanity.
+			}
 
 			ssl_info_changed = true;
 		}
@@ -447,8 +462,11 @@ void SetServerSettings()
 	else
 	{
 		cfg_certificate_key_file_name = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t * ) * ( certificate_key_file_name_length + 1 ) );
-		_wmemcpy_s( cfg_certificate_key_file_name, certificate_key_file_name_length, certificate_key_file_name, certificate_key_file_name_length );
-		cfg_certificate_key_file_name[ certificate_key_file_name_length ] = 0;	// Sanity.
+		if ( cfg_certificate_key_file_name != NULL )
+		{
+			_wmemcpy_s( cfg_certificate_key_file_name, certificate_key_file_name_length, certificate_key_file_name, certificate_key_file_name_length );
+			cfg_certificate_key_file_name[ certificate_key_file_name_length ] = 0;	// Sanity.
+		}
 
 		ssl_info_changed = true;
 	}
@@ -644,7 +662,7 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			RECT rc;
 			_GetClientRect( hWnd, &rc );
 
-			g_hWnd_options_tree = _CreateWindowExW( WS_EX_CLIENTEDGE | TVS_EX_DOUBLEBUFFER, WC_TREEVIEW, NULL, TVS_HASBUTTONS | TVS_HASLINES | TVS_DISABLEDRAGDROP | TVS_SHOWSELALWAYS | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 10, 10, 120, rc.bottom - 50, hWnd, NULL, NULL, NULL );
+			g_hWnd_options_tree = _CreateWindowExW( WS_EX_CLIENTEDGE | TVS_EX_DOUBLEBUFFER, WC_TREEVIEW, NULL, TVS_HASBUTTONS | TVS_HASLINES | TVS_DISABLEDRAGDROP | TVS_SHOWSELALWAYS | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 10, 10, 120, 420, hWnd, NULL, NULL, NULL );
 
 
 			TVINSERTSTRUCT tvis;
@@ -735,20 +753,20 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			_SendMessageW( g_hWnd_options_tree, TVM_INSERTITEM, 0, ( LPARAM )&tvis );
 
 			// WS_EX_CONTROLPARENT for tab key access.
-			g_hWnd_general_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"class_general_tab", NULL, WS_CHILD | WS_TABSTOP | WS_VISIBLE, 140, 10, rc.right - 150, rc.bottom - 50, hWnd, NULL, NULL, NULL );
-			g_hWnd_appearance_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"class_appearance_tab", NULL, WS_VSCROLL | WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, rc.bottom - 50, hWnd, NULL, NULL, NULL );
-			g_hWnd_connection_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"class_connection_tab", NULL, WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, rc.bottom - 50, hWnd, NULL, NULL, NULL );
-			g_hWnd_web_server_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"class_web_server_tab", NULL, WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, rc.bottom - 50, hWnd, NULL, NULL, NULL );
-			g_hWnd_ftp_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"class_ftp_tab", NULL, WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, rc.bottom - 50, hWnd, NULL, NULL, NULL );
-			g_hWnd_sftp_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"class_sftp_tab", NULL, WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, rc.bottom - 50, hWnd, NULL, NULL, NULL );
-			g_hWnd_sftp_fps_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"class_sftp_fps_tab", NULL, WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, rc.bottom - 50, hWnd, NULL, NULL, NULL );
-			g_hWnd_sftp_keys_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"class_sftp_keys_tab", NULL, WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, rc.bottom - 50, hWnd, NULL, NULL, NULL );
-			g_hWnd_proxy_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"class_proxy_tab", NULL, WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, rc.bottom - 50, hWnd, NULL, NULL, NULL );
-			g_hWnd_advanced_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"class_advanced_tab", NULL, WS_VSCROLL | WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, rc.bottom - 50, hWnd, NULL, NULL, NULL );
+			g_hWnd_general_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"class_general_tab", NULL, WS_CHILD | WS_TABSTOP | WS_VISIBLE, 140, 10, rc.right - 150, 420, hWnd, NULL, NULL, NULL );
+			g_hWnd_appearance_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"class_appearance_tab", NULL, WS_VSCROLL | WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, 420, hWnd, NULL, NULL, NULL );
+			g_hWnd_connection_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"class_connection_tab", NULL, WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, 420, hWnd, NULL, NULL, NULL );
+			g_hWnd_web_server_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"class_web_server_tab", NULL, WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, 420, hWnd, NULL, NULL, NULL );
+			g_hWnd_ftp_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"class_ftp_tab", NULL, WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, 420, hWnd, NULL, NULL, NULL );
+			g_hWnd_sftp_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"class_sftp_tab", NULL, WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, 420, hWnd, NULL, NULL, NULL );
+			g_hWnd_sftp_fps_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"class_sftp_fps_tab", NULL, WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, 420, hWnd, NULL, NULL, NULL );
+			g_hWnd_sftp_keys_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"class_sftp_keys_tab", NULL, WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, 420, hWnd, NULL, NULL, NULL );
+			g_hWnd_proxy_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"class_proxy_tab", NULL, WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, 420, hWnd, NULL, NULL, NULL );
+			g_hWnd_advanced_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"class_advanced_tab", NULL, WS_VSCROLL | WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, 420, hWnd, NULL, NULL, NULL );
 
-			g_hWnd_options_ok = _CreateWindowW( WC_BUTTON, ST_V_OK, BS_DEFPUSHBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 260, rc.bottom - 32, 80, 23, hWnd, ( HMENU )BTN_OK, NULL, NULL );
-			g_hWnd_options_cancel = _CreateWindowW( WC_BUTTON, ST_V_Cancel, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 175, rc.bottom - 32, 80, 23, hWnd, ( HMENU )BTN_CANCEL, NULL, NULL );
-			g_hWnd_options_apply = _CreateWindowW( WC_BUTTON, ST_V_Apply, WS_CHILD | WS_DISABLED | WS_TABSTOP | WS_VISIBLE, rc.right - 90, rc.bottom - 32, 80, 23, hWnd, ( HMENU )BTN_APPLY, NULL, NULL );
+			g_hWnd_options_ok = _CreateWindowW( WC_BUTTON, ST_V_OK, BS_DEFPUSHBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 260, 440, 80, 23, hWnd, ( HMENU )BTN_OK, NULL, NULL );
+			g_hWnd_options_cancel = _CreateWindowW( WC_BUTTON, ST_V_Cancel, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 175, 440, 80, 23, hWnd, ( HMENU )BTN_CANCEL, NULL, NULL );
+			g_hWnd_options_apply = _CreateWindowW( WC_BUTTON, ST_V_Apply, WS_CHILD | WS_DISABLED | WS_TABSTOP | WS_VISIBLE, rc.right - 90, 440, 80, 23, hWnd, ( HMENU )BTN_APPLY, NULL, NULL );
 
 			_SendMessageW( g_hWnd_options_ok, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 			_SendMessageW( g_hWnd_options_cancel, WM_SETFONT, ( WPARAM )g_hFont, 0 );
@@ -760,11 +778,15 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			options_state_changed = false;
 			_EnableWindow( g_hWnd_options_apply, FALSE );
 
+			// Accounts for differing title bar heights.
+			CREATESTRUCTW *cs = ( CREATESTRUCTW * )lParam;
+			int height = ( cs->cy - ( rc.bottom - rc.top ) ) + 473;	// Bottom of last window object + 10.
+
 			HMONITOR hMon = _MonitorFromWindow( g_hWnd_main, MONITOR_DEFAULTTONEAREST );
 			MONITORINFO mi;
 			mi.cbSize = sizeof( MONITORINFO );
 			_GetMonitorInfoW( hMon, &mi );
-			_SetWindowPos( hWnd, NULL, mi.rcMonitor.left + ( ( ( mi.rcMonitor.right - mi.rcMonitor.left ) - 720 ) / 2 ), mi.rcMonitor.top + ( ( ( mi.rcMonitor.bottom - mi.rcMonitor.top ) - 500 ) / 2 ), 720, 500, 0 );
+			_SetWindowPos( hWnd, NULL, mi.rcMonitor.left + ( ( ( mi.rcMonitor.right - mi.rcMonitor.left ) - 720 ) / 2 ), mi.rcMonitor.top + ( ( ( mi.rcMonitor.bottom - mi.rcMonitor.top ) - height ) / 2 ), 720, height, 0 );
 
 			_SetFocus( g_hWnd_options_tree );
 
@@ -961,6 +983,8 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 						display_notice = ( enable_quick_allocation ? 0x01 : 0x02 );
 					}
+
+					cfg_enable_sparse_file_allocation = ( _SendMessageW( g_hWnd_chk_sparse_file_allocation, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
 
 					cfg_set_filetime = ( _SendMessageW( g_hWnd_chk_set_filetime, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
 					cfg_update_redirected = ( _SendMessageW( g_hWnd_chk_update_redirected, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
@@ -1561,6 +1585,7 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 			return 0;
 		}
+		break;
 
 		case WM_ACTIVATE:
 		{

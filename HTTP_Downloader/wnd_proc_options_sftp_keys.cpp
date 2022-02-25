@@ -358,7 +358,11 @@ LRESULT CALLBACK SFTPKeysTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 
 			//
 
-			CloseHandle( ( HANDLE )_CreateThread( NULL, 0, load_sftp_keys_host_list, ( void * )NULL, 0, NULL ) );
+			HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, load_sftp_keys_host_list, ( void * )NULL, 0, NULL );
+			if ( thread != NULL )
+			{
+				CloseHandle( thread );
+			}
 
 			return 0;
 		}
@@ -440,37 +444,45 @@ LRESULT CALLBACK SFTPKeysTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 							}
 
 							SFTP_KEYS_HOST_UPDATE_INFO *skhui = ( SFTP_KEYS_HOST_UPDATE_INFO * )GlobalAlloc( GMEM_FIXED, sizeof( SFTP_KEYS_HOST_UPDATE_INFO ) );
-							skhui->update_type = 0;	// Add
-							skhui->old_skhi = g_selected_host_keys_info;
-							skhui->index = g_selected_host_keys_index;
-
-							skhi = ( SFTP_KEYS_HOST_INFO * )GlobalAlloc( GPTR, sizeof( SFTP_KEYS_HOST_INFO ) );
-							skhi->enable = true;
-
-							skhi->w_host = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( edit_length + 1 ) );	// Include the NULL terminator.
-							_SendMessageW( g_hWnd_edit_sftp_keys_host, WM_GETTEXT, edit_length + 1, ( LPARAM )skhi->w_host );
-
-							edit_length = ( unsigned int )_SendMessageW( g_hWnd_edit_sftp_keys_username, WM_GETTEXTLENGTH, 0, 0 );
-							skhi->w_username = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( edit_length + 1 ) );	// Include the NULL terminator.
-							_SendMessageW( g_hWnd_edit_sftp_keys_username, WM_GETTEXT, edit_length + 1, ( LPARAM )skhi->w_username );
-
-							skhi->w_key_file_path = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( key_file_length + 1 ) );	// Include the NULL terminator.
-							_SendMessageW( g_hWnd_edit_sftp_keys_key_file, WM_GETTEXT, key_file_length + 1, ( LPARAM )skhi->w_key_file_path );
-
-							//
-
-							skhui->skhi = skhi;
-
-							// skhui is freed in handle_sftp_keys_host_list.
-							HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, handle_sftp_keys_host_list, ( void * )skhui, 0, NULL );
-							if ( thread != NULL )
+							if ( skhui != NULL )
 							{
-								CloseHandle( thread );
-							}
-							else
-							{
-								FreeSFTPKeysHostInfo( &skhui->skhi );
-								GlobalFree( skhui );
+								skhui->update_type = 0;	// Add
+								skhui->old_skhi = g_selected_host_keys_info;
+								skhui->index = g_selected_host_keys_index;
+
+								skhui->skhi = ( SFTP_KEYS_HOST_INFO * )GlobalAlloc( GPTR, sizeof( SFTP_KEYS_HOST_INFO ) );
+								if ( skhui->skhi != NULL )
+								{
+									skhui->skhi->enable = true;
+
+									skhui->skhi->w_host = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( edit_length + 1 ) );	// Include the NULL terminator.
+									_SendMessageW( g_hWnd_edit_sftp_keys_host, WM_GETTEXT, edit_length + 1, ( LPARAM )skhui->skhi->w_host );
+
+									edit_length = ( unsigned int )_SendMessageW( g_hWnd_edit_sftp_keys_username, WM_GETTEXTLENGTH, 0, 0 );
+									skhui->skhi->w_username = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( edit_length + 1 ) );	// Include the NULL terminator.
+									_SendMessageW( g_hWnd_edit_sftp_keys_username, WM_GETTEXT, edit_length + 1, ( LPARAM )skhui->skhi->w_username );
+
+									skhui->skhi->w_key_file_path = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( key_file_length + 1 ) );	// Include the NULL terminator.
+									_SendMessageW( g_hWnd_edit_sftp_keys_key_file, WM_GETTEXT, key_file_length + 1, ( LPARAM )skhui->skhi->w_key_file_path );
+
+									//
+
+									// skhui is freed in handle_sftp_keys_host_list.
+									HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, handle_sftp_keys_host_list, ( void * )skhui, 0, NULL );
+									if ( thread != NULL )
+									{
+										CloseHandle( thread );
+									}
+									else
+									{
+										FreeSFTPKeysHostInfo( &skhui->skhi );
+										GlobalFree( skhui );
+									}
+								}
+								else
+								{
+									GlobalFree( skhui );
+								}
 							}
 						}
 						else
@@ -491,18 +503,22 @@ LRESULT CALLBACK SFTPKeysTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 					if ( CMessageBoxW( hWnd, ST_V_PROMPT_remove_selected_entries, PROGRAM_CAPTION, /*CMB_APPLMODAL |*/ CMB_ICONWARNING | CMB_YESNO ) == CMBIDYES )
 					{
 						SFTP_KEYS_HOST_UPDATE_INFO *skhui = ( SFTP_KEYS_HOST_UPDATE_INFO * )GlobalAlloc( GMEM_FIXED, sizeof( SFTP_KEYS_HOST_UPDATE_INFO ) );
-						skhui->update_type = 1;	// Remove
-						skhui->skhi = NULL;
+						if ( skhui != NULL )
+						{
+							skhui->update_type = 1;	// Remove
+							skhui->skhi = NULL;
 
-						// skhui is freed in handle_sftp_keys_host_list.
-						HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, handle_sftp_keys_host_list, ( void * )skhui, 0, NULL );
-						if ( thread != NULL )
-						{
-							CloseHandle( thread );
-						}
-						else
-						{
-							GlobalFree( skhui );
+							// skhui is freed in handle_sftp_keys_host_list.
+							HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, handle_sftp_keys_host_list, ( void * )skhui, 0, NULL );
+
+							if ( thread != NULL )
+							{
+								CloseHandle( thread );
+							}
+							else
+							{
+								GlobalFree( skhui );
+							}
 						}
 					}
 				}
@@ -526,27 +542,30 @@ LRESULT CALLBACK SFTPKeysTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 					if ( ( int )_SendMessageW( g_hWnd_sftp_keys_host_list, LVM_GETSELECTEDCOUNT, 0, 0 ) > 0 )
 					{
 						SFTP_KEYS_HOST_UPDATE_INFO *skhui = ( SFTP_KEYS_HOST_UPDATE_INFO * )GlobalAlloc( GMEM_FIXED, sizeof( SFTP_KEYS_HOST_UPDATE_INFO ) );
-						if ( LOWORD( wParam ) == MENU_SKH_ENABLE_SEL )
+						if ( skhui != NULL )
 						{
-							skhui->enable = true;
-						}
-						else// if ( LOWORD( wParam ) == MENU_SKH_DISABLE_SEL )
-						{
-							skhui->enable = false;
-						}
+							if ( LOWORD( wParam ) == MENU_SKH_ENABLE_SEL )
+							{
+								skhui->enable = true;
+							}
+							else// if ( LOWORD( wParam ) == MENU_SKH_DISABLE_SEL )
+							{
+								skhui->enable = false;
+							}
 
-						skhui->update_type = 2;	// Enable/Disable
-						skhui->skhi = NULL;
+							skhui->update_type = 2;	// Enable/Disable
+							skhui->skhi = NULL;
 
-						// skhui is freed in handle_sftp_keys_host_list.
-						HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, handle_sftp_keys_host_list, ( void * )skhui, 0, NULL );
-						if ( thread != NULL )
-						{
-							CloseHandle( thread );
-						}
-						else
-						{
-							GlobalFree( skhui );
+							// skhui is freed in handle_sftp_keys_host_list.
+							HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, handle_sftp_keys_host_list, ( void * )skhui, 0, NULL );
+							if ( thread != NULL )
+							{
+								CloseHandle( thread );
+							}
+							else
+							{
+								GlobalFree( skhui );
+							}
 						}
 					}
 				}

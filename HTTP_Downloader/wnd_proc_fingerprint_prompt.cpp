@@ -100,10 +100,10 @@ LRESULT CALLBACK FingerprintPromptWndProc( HWND hWnd, UINT msg, WPARAM wParam, L
 				HWND hWnd_static_fp_key_fingerprints = _CreateWindowW( WC_STATIC, ST_V_Fingerprints_, WS_CHILD | WS_VISIBLE, rc_icon.right + 20, 137, 110, 15, hWnd, NULL, NULL, NULL );
 				cp_info->hWnd_key_fingerprints = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, kpi->w_key_fingerprints, ES_AUTOHSCROLL | ES_READONLY | ES_MULTILINE | WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc_icon.right + 145, 134, rc.right - 155 - rc_icon.right, 46, hWnd, NULL, NULL, NULL );
 
-				cp_info->hWnd_checkbox = _CreateWindowW( WC_BUTTON, ST_V_Add_host_and_key_information_to_cache, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 10, rc.bottom - 32, rc.right - 190, 20, hWnd, NULL, NULL, NULL );
+				cp_info->hWnd_checkbox = _CreateWindowW( WC_BUTTON, ST_V_Add_host_and_key_information_to_cache, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 10, 190, rc.right - 190, 20, hWnd, NULL, NULL, NULL );
 
-				HWND hWnd_fp_yes = _CreateWindowW( WC_BUTTON, ST_V_Yes, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 175, rc.bottom - 32, 80, 23, hWnd, ( HMENU )BTN_FP_YES, NULL, NULL );
-				HWND hWnd_fp_no = _CreateWindowW( WC_BUTTON, ST_V_No, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 90, rc.bottom - 32, 80, 23, hWnd, ( HMENU )BTN_FP_NO, NULL, NULL );
+				HWND hWnd_fp_yes = _CreateWindowW( WC_BUTTON, ST_V_Yes, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 175, 190, 80, 23, hWnd, ( HMENU )BTN_FP_YES, NULL, NULL );
+				HWND hWnd_fp_no = _CreateWindowW( WC_BUTTON, ST_V_No, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 90, 190, 80, 23, hWnd, ( HMENU )BTN_FP_NO, NULL, NULL );
 
 				FingerprintsProc = ( WNDPROC )_GetWindowLongPtrW( cp_info->hWnd_key_fingerprints, GWLP_WNDPROC );
 				_SetWindowLongPtrW( cp_info->hWnd_key_fingerprints, GWLP_WNDPROC, ( LONG_PTR )FingerprintsSubProc );
@@ -124,11 +124,15 @@ LRESULT CALLBACK FingerprintPromptWndProc( HWND hWnd, UINT msg, WPARAM wParam, L
 				// Disable the parent window.
 				_EnableWindow( _GetParent( hWnd ), FALSE );
 
+				// Accounts for differing title bar heights.
+				CREATESTRUCTW *cs = ( CREATESTRUCTW * )lParam;
+				int height = ( cs->cy - ( rc.bottom - rc.top ) ) + 223;	// Bottom of last window object + 10.
+
 				HMONITOR hMon = _MonitorFromWindow( g_hWnd_main, MONITOR_DEFAULTTONEAREST );
 				MONITORINFO mi;
 				mi.cbSize = sizeof( MONITORINFO );
 				_GetMonitorInfoW( hMon, &mi );
-				_SetWindowPos( hWnd, NULL, mi.rcMonitor.left + ( ( ( mi.rcMonitor.right - mi.rcMonitor.left ) - 600 ) / 2 ), mi.rcMonitor.top + ( ( ( mi.rcMonitor.bottom - mi.rcMonitor.top ) - 253 ) / 2 ), 600, 253, 0 );
+				_SetWindowPos( hWnd, NULL, mi.rcMonitor.left + ( ( ( mi.rcMonitor.right - mi.rcMonitor.left ) - 600 ) / 2 ), mi.rcMonitor.top + ( ( ( mi.rcMonitor.bottom - mi.rcMonitor.top ) - height ) / 2 ), 600, height, 0 );
 
 #ifdef ENABLE_DARK_MODE
 				if ( g_use_dark_mode )

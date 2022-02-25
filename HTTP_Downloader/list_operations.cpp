@@ -369,6 +369,10 @@ THREAD_RETURN remove_items( void *pArguments )
 									{
 										error_type |= 2;
 									}
+									else if ( error == ERROR_PATH_NOT_FOUND )
+									{
+										error_type |= 4;
+									}
 								}
 							}
 							else if ( DeleteFileW( file_path_delete ) == FALSE )
@@ -383,6 +387,10 @@ THREAD_RETURN remove_items( void *pArguments )
 								else if ( error == ERROR_FILE_NOT_FOUND )
 								{
 									error_type |= 2;
+								}
+								else if ( error == ERROR_PATH_NOT_FOUND )
+								{
+									error_type |= 4;
 								}
 							}
 						}
@@ -570,6 +578,10 @@ THREAD_RETURN remove_items( void *pArguments )
 			}
 			else if ( error_type & 2 )	// File Not Found.
 			{
+				_SendNotifyMessageW( g_hWnd_main, WM_ALERT, 0, ( LPARAM )ST_V_The_specified_file_was_not_found );
+			}
+			else if ( error_type & 4 )	// Path Not Found.
+			{
 				_SendNotifyMessageW( g_hWnd_main, WM_ALERT, 0, ( LPARAM )ST_V_The_specified_path_was_not_found );
 			}
 		}
@@ -583,6 +595,11 @@ THREAD_RETURN remove_items( void *pArguments )
 			if ( error_type & 2 )	// File Not Found.
 			{
 				_SendNotifyMessageW( g_hWnd_main, WM_ALERT, 0, ( LPARAM )ST_V_One_or_more_files_were_not_found );
+			}
+
+			if ( error_type & 4 )	// Path Not Found.
+			{
+				_SendNotifyMessageW( g_hWnd_main, WM_ALERT, 0, ( LPARAM )ST_V_One_or_more_paths_were_not_found );
 			}
 		}
 	}
@@ -877,7 +894,7 @@ THREAD_RETURN handle_download_list( void *pArguments )
 						break;
 					}
 
-					DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )tln->data;
+					di = ( DOWNLOAD_INFO * )tln->data;
 					if ( di != NULL )
 					{
 						// Is our update window open and are we removing the item we want to update? Close the window if we are.
@@ -2069,110 +2086,151 @@ THREAD_RETURN handle_download_queue( void *pArguments )
 
 	ProcessingList( true );
 
-	EnterCriticalSection( &cleanup_cs );
-
-	TREELISTNODE *tln;
-	TLV_GetNextSelectedItem( NULL, 0, &tln );
-	if ( tln != NULL )
+	if ( handle_type == 4 )
 	{
-		DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )tln->data;
+		EnterCriticalSection( &download_queue_cs );
 
-		// Make sure the item is queued.
-		if ( di != NULL && IS_STATUS( di->status, STATUS_QUEUED ) )
+		if ( download_queue != NULL )
 		{
-			CRITICAL_SECTION *cs;
-			DoublyLinkedList **queue;
+			download_queue = NULL;
 
-			if ( IS_STATUS( di->status, STATUS_MOVING_FILE ) )
-			{
-				cs = &move_file_queue_cs;
-				queue = &move_file_queue;
-			}
-			else
-			{
-				cs = &download_queue_cs;
-				queue = &download_queue;
-			}
+			TREELISTNODE *tln = g_tree_list;
 
-			EnterCriticalSection( cs );
-
-			if ( di->queue_node.data != NULL )
+			while ( tln != NULL && !g_end_program )
 			{
-				if ( handle_type == 0 )			// Move to the beginning of the queue.
+				DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )tln->data;
+				if ( di != NULL && IS_STATUS( di->status, STATUS_QUEUED ) )
 				{
-					// Make sure we're not the head.
-					if ( &di->queue_node != *queue )
-					{
-						DLL_RemoveNode( queue, &di->queue_node );
-						DLL_AddNode( queue, &di->queue_node, 0 );
-					}
+					di->queue_node.next = NULL;
+					di->queue_node.prev = NULL;
+
+					DLL_AddNode( &download_queue, &di->queue_node, -1 );
 				}
-				else if ( handle_type == 1 )	// Move forward one position in the queue.
+
+				tln = tln->next;
+			}
+		}
+
+		LeaveCriticalSection( &download_queue_cs );
+
+		if ( !g_end_program )
+		{
+			// Start any items that are in our download queue.
+			if ( g_total_downloading < cfg_max_downloads )
+			{
+				StartQueuedItem();
+			}
+		}
+
+		g_download_history_changed = true;
+	}
+	else
+	{
+		EnterCriticalSection( &cleanup_cs );
+
+		TREELISTNODE *tln;
+		TLV_GetNextSelectedItem( NULL, 0, &tln );
+		if ( tln != NULL )
+		{
+			DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )tln->data;
+
+			// Make sure the item is queued.
+			if ( di != NULL && IS_STATUS( di->status, STATUS_QUEUED ) )
+			{
+				CRITICAL_SECTION *cs;
+				DoublyLinkedList **queue;
+
+				if ( IS_STATUS( di->status, STATUS_MOVING_FILE ) )
 				{
-					// Make sure we're not the head.
-					if ( &di->queue_node != *queue )
+					cs = &move_file_queue_cs;
+					queue = &move_file_queue;
+				}
+				else
+				{
+					cs = &download_queue_cs;
+					queue = &download_queue;
+				}
+
+				EnterCriticalSection( cs );
+
+				if ( di->queue_node.data != NULL )
+				{
+					if ( handle_type == 0 )			// Move to the beginning of the queue.
 					{
-						DoublyLinkedList *prev = di->queue_node.prev;
-						if ( prev != NULL )
+						// Make sure we're not the head.
+						if ( &di->queue_node != *queue )
+						{
+							DLL_RemoveNode( queue, &di->queue_node );
+							DLL_AddNode( queue, &di->queue_node, 0 );
+						}
+					}
+					else if ( handle_type == 1 )	// Move forward one position in the queue.
+					{
+						// Make sure we're not the head.
+						if ( &di->queue_node != *queue )
+						{
+							DoublyLinkedList *prev = di->queue_node.prev;
+							if ( prev != NULL )
+							{
+								DLL_RemoveNode( queue, &di->queue_node );
+
+								// If the node we're replacing is the head.
+								if ( prev == *queue )
+								{
+									DLL_AddNode( queue, &di->queue_node, 0 );
+								}
+								else
+								{
+									di->queue_node.next = prev;
+									di->queue_node.prev = prev->prev;
+
+									if ( prev->prev != NULL )
+									{
+										prev->prev->next = &di->queue_node;
+									}
+									prev->prev = &di->queue_node;
+								}
+							}
+						}
+					}
+					else if ( handle_type == 2 )	// Move back one position in the queue.
+					{
+						DoublyLinkedList *next = di->queue_node.next;
+						if ( next != NULL )
 						{
 							DLL_RemoveNode( queue, &di->queue_node );
 
-							// If the node we're replacing is the head.
-							if ( prev == *queue )
+							// If the node we're replacing is the tail.
+							if ( next->next == NULL )
 							{
-								DLL_AddNode( queue, &di->queue_node, 0 );
+								DLL_AddNode( queue, &di->queue_node, -1 );
 							}
 							else
 							{
-								di->queue_node.next = prev;
-								di->queue_node.prev = prev->prev;
+								di->queue_node.prev = next;
+								di->queue_node.next = next->next;
 
-								if ( prev->prev != NULL )
+								if ( next->next != NULL )
 								{
-									prev->prev->next = &di->queue_node;
+									next->next->prev = &di->queue_node;
 								}
-								prev->prev = &di->queue_node;
+								next->next = &di->queue_node;
 							}
 						}
 					}
-				}
-				else if ( handle_type == 2 )	// Move back one position in the queue.
-				{
-					DoublyLinkedList *next = di->queue_node.next;
-					if ( next != NULL )
+					else if ( handle_type == 3 )	// Move to the end of the queue.
 					{
 						DLL_RemoveNode( queue, &di->queue_node );
-
-						// If the node we're replacing is the tail.
-						if ( next->next == NULL )
-						{
-							DLL_AddNode( queue, &di->queue_node, -1 );
-						}
-						else
-						{
-							di->queue_node.prev = next;
-							di->queue_node.next = next->next;
-
-							if ( next->next != NULL )
-							{
-								next->next->prev = &di->queue_node;
-							}
-							next->next = &di->queue_node;
-						}
+						DLL_AddNode( queue, &di->queue_node, -1 );
 					}
 				}
-				else if ( handle_type == 3 )	// Move to the end of the queue.
-				{
-					DLL_RemoveNode( queue, &di->queue_node );
-					DLL_AddNode( queue, &di->queue_node, -1 );
-				}
+
+				LeaveCriticalSection( cs );
 			}
-
-			LeaveCriticalSection( cs );
 		}
-	}
 
-	LeaveCriticalSection( &cleanup_cs );
+		LeaveCriticalSection( &cleanup_cs );
+	}
 
 	ProcessingList( false );
 
@@ -2390,13 +2448,14 @@ THREAD_RETURN handle_download_update( void *pArguments )
 			}
 
 			// Sort only the values that can be updated.
-			if ( cfg_sort_added_and_updating_items &&
+			if ( !g_in_list_edit_mode &&
+				 cfg_sort_added_and_updating_items &&
 			   ( cfg_sorted_column_index == COLUMN_ACTIVE_PARTS ||
 				 cfg_sorted_column_index == COLUMN_SSL_TLS_VERSION ||
 				 cfg_sorted_column_index == COLUMN_URL ) )
 			{
 				SORT_INFO si;
-				si.column = GetColumnIndexFromVirtualIndex( cfg_sorted_column_index, download_columns, NUM_COLUMNS );
+				si.column = cfg_sorted_column_index;
 				si.hWnd = g_hWnd_tlv_files;
 				si.direction = cfg_sorted_direction;
 
@@ -2442,36 +2501,11 @@ THREAD_RETURN copy_urls( void * /*pArguments*/ )
 	unsigned int buffer_size = 8192;
 	unsigned int buffer_offset = 0;
 	wchar_t *copy_buffer = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * buffer_size );	// Allocate 8 kilobytes.
-
-	TREELISTNODE *tln;
-	TLV_GetNextSelectedItem( NULL, 0, &tln );
-	while ( tln != NULL )
+	if ( copy_buffer != NULL )
 	{
-		// Stop processing and exit the thread.
-		if ( kill_worker_thread_flag )
-		{
-			break;
-		}
-
-		TREELISTNODE *tln_parent = tln;
-
-		// We'll go through each child regardless of whether it's selected if a group is selected.
-		if ( tln->data_type == TLVDT_GROUP && tln->child != NULL )
-		{
-			tln = tln->child;
-
-			if ( tln->data != NULL )
-			{
-				*( copy_buffer + buffer_offset ) = L'{';
-				++buffer_offset;
-				*( copy_buffer + buffer_offset ) = L'\r';
-				++buffer_offset;
-				*( copy_buffer + buffer_offset ) = L'\n';
-				++buffer_offset;
-			}
-		}
-
-		do
+		TREELISTNODE *tln;
+		TLV_GetNextSelectedItem( NULL, 0, &tln );
+		while ( tln != NULL )
 		{
 			// Stop processing and exit the thread.
 			if ( kill_worker_thread_flag )
@@ -2479,36 +2513,89 @@ THREAD_RETURN copy_urls( void * /*pArguments*/ )
 				break;
 			}
 
-			DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )tln->data;
-			if ( di != NULL )
+			TREELISTNODE *tln_parent = tln;
+
+			// We'll go through each child regardless of whether it's selected if a group is selected.
+			if ( tln->data_type == TLVDT_GROUP && tln->child != NULL )
 			{
-				// We don't really need to do this since the URL will never change.
-				EnterCriticalSection( &di->di_cs );
+				tln = tln->child;
 
-				int value_length = lstrlenW( di->url );
-				while ( buffer_offset + value_length + 8 >= buffer_size )	// Add +8 for "\r\n", "{\r\n", and "\r\n}".
+				if ( tln->data != NULL )
 				{
-					buffer_size += 8192;
-					wchar_t *realloc_buffer = ( wchar_t * )GlobalReAlloc( copy_buffer, sizeof( wchar_t ) * buffer_size, GMEM_MOVEABLE );
-					if ( realloc_buffer == NULL )
-					{
-						LeaveCriticalSection( &di->di_cs );
-
-						goto CLEANUP;
-					}
-
-					copy_buffer = realloc_buffer;
+					*( copy_buffer + buffer_offset ) = L'{';
+					++buffer_offset;
+					*( copy_buffer + buffer_offset ) = L'\r';
+					++buffer_offset;
+					*( copy_buffer + buffer_offset ) = L'\n';
+					++buffer_offset;
 				}
-				_wmemcpy_s( copy_buffer + buffer_offset, buffer_size - buffer_offset, di->url, value_length );
-
-				LeaveCriticalSection( &di->di_cs );
-
-				buffer_offset += value_length;
 			}
 
-			tln = tln->next;
+			do
+			{
+				// Stop processing and exit the thread.
+				if ( kill_worker_thread_flag )
+				{
+					break;
+				}
 
-			if ( tln_parent->child != NULL && tln != NULL && tln->data != NULL )
+				DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )tln->data;
+				if ( di != NULL )
+				{
+					// We don't really need to do this since the URL will never change.
+					EnterCriticalSection( &di->di_cs );
+
+					int value_length = lstrlenW( di->url );
+					while ( buffer_offset + value_length + 8 >= buffer_size )	// Add +8 for "\r\n", "{\r\n", and "\r\n}".
+					{
+						buffer_size += 8192;
+						wchar_t *realloc_buffer = ( wchar_t * )GlobalReAlloc( copy_buffer, sizeof( wchar_t ) * buffer_size, GMEM_MOVEABLE );
+						if ( realloc_buffer == NULL )
+						{
+							LeaveCriticalSection( &di->di_cs );
+
+							goto CLEANUP;
+						}
+
+						copy_buffer = realloc_buffer;
+					}
+					_wmemcpy_s( copy_buffer + buffer_offset, buffer_size - buffer_offset, di->url, value_length );
+
+					LeaveCriticalSection( &di->di_cs );
+
+					buffer_offset += value_length;
+				}
+
+				tln = tln->next;
+
+				if ( tln_parent->child != NULL && tln != NULL && tln->data != NULL )
+				{
+					*( copy_buffer + buffer_offset ) = L'\r';
+					++buffer_offset;
+					*( copy_buffer + buffer_offset ) = L'\n';
+					++buffer_offset;
+				}
+			}
+			while ( tln_parent->child != NULL && tln != NULL );
+
+			tln = tln_parent;
+
+			if ( tln_parent->child != NULL && tln_parent->child->data != NULL )
+			{
+				*( copy_buffer + buffer_offset ) = L'\r';
+				++buffer_offset;
+				*( copy_buffer + buffer_offset ) = L'\n';
+				++buffer_offset;
+				*( copy_buffer + buffer_offset ) = L'}';
+				++buffer_offset;
+
+				// Set tln to the last child so that TLV_GetNextSelectedItem can get the next selected.
+				tln = ( tln_parent->child->prev != NULL ? tln_parent->child->prev : tln_parent->child );
+			}
+
+			TLV_GetNextSelectedItem( tln, 0, &tln );
+
+			if ( tln != NULL && tln->data != NULL )
 			{
 				*( copy_buffer + buffer_offset ) = L'\r';
 				++buffer_offset;
@@ -2516,66 +2603,40 @@ THREAD_RETURN copy_urls( void * /*pArguments*/ )
 				++buffer_offset;
 			}
 		}
-		while ( tln_parent->child != NULL && tln != NULL );
 
-		tln = tln_parent;
-
-		if ( tln_parent->child != NULL && tln_parent->child->data != NULL )
+		if ( _OpenClipboard( g_hWnd_tlv_files ) )
 		{
-			*( copy_buffer + buffer_offset ) = L'\r';
-			++buffer_offset;
-			*( copy_buffer + buffer_offset ) = L'\n';
-			++buffer_offset;
-			*( copy_buffer + buffer_offset ) = L'}';
-			++buffer_offset;
+			_EmptyClipboard();
 
-			// Set tln to the last child so that TLV_GetNextSelectedItem can get the next selected.
-			tln = ( tln_parent->child->prev != NULL ? tln_parent->child->prev : tln_parent->child );
-		}
+			DWORD len = buffer_offset;
 
-		TLV_GetNextSelectedItem( tln, 0, &tln );
-
-		if ( tln != NULL && tln->data != NULL )
-		{
-			*( copy_buffer + buffer_offset ) = L'\r';
-			++buffer_offset;
-			*( copy_buffer + buffer_offset ) = L'\n';
-			++buffer_offset;
-		}
-	}
-
-	if ( _OpenClipboard( g_hWnd_tlv_files ) )
-	{
-		_EmptyClipboard();
-
-		DWORD len = buffer_offset;
-
-		// Allocate a global memory object for the text.
-		HGLOBAL hglbCopy = GlobalAlloc( GMEM_MOVEABLE, sizeof( wchar_t ) * ( len + 1 ) );
-		if ( hglbCopy != NULL )
-		{
-			// Lock the handle and copy the text to the buffer. lptstrCopy doesn't get freed.
-			wchar_t *lptstrCopy = ( wchar_t * )GlobalLock( hglbCopy );
-			if ( lptstrCopy != NULL )
+			// Allocate a global memory object for the text.
+			HGLOBAL hglbCopy = GlobalAlloc( GMEM_MOVEABLE, sizeof( wchar_t ) * ( len + 1 ) );
+			if ( hglbCopy != NULL )
 			{
-				_wmemcpy_s( lptstrCopy, len + 1, copy_buffer, len );
-				lptstrCopy[ len ] = 0; // Sanity
+				// Lock the handle and copy the text to the buffer. lptstrCopy doesn't get freed.
+				wchar_t *lptstrCopy = ( wchar_t * )GlobalLock( hglbCopy );
+				if ( lptstrCopy != NULL )
+				{
+					_wmemcpy_s( lptstrCopy, len + 1, copy_buffer, len );
+					lptstrCopy[ len ] = 0; // Sanity
+				}
+
+				GlobalUnlock( hglbCopy );
+
+				if ( _SetClipboardData( CF_UNICODETEXT, hglbCopy ) == NULL )
+				{
+					GlobalFree( hglbCopy );	// Only free this Global memory if SetClipboardData fails.
+				}
+
+				_CloseClipboard();
 			}
-
-			GlobalUnlock( hglbCopy );
-
-			if ( _SetClipboardData( CF_UNICODETEXT, hglbCopy ) == NULL )
-			{
-				GlobalFree( hglbCopy );	// Only free this Global memory if SetClipboardData fails.
-			}
-
-			_CloseClipboard();
 		}
-	}
 
 CLEANUP:
 
-	GlobalFree( copy_buffer );
+		GlobalFree( copy_buffer );
+	}
 
 	ProcessingList( false );
 
@@ -2622,150 +2683,166 @@ THREAD_RETURN rename_file( void *pArguments )
 				{
 					if ( di->shared_info->filename_offset > 0 )
 					{
-						bool renamed = true;
+						unsigned int old_length = lstrlenW( di->shared_info->file_path + di->shared_info->filename_offset );
 
-						if ( !( di->shared_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
+						if ( old_length != ri->filename_length || _StrCmpNW( ri->filename, di->shared_info->file_path + di->shared_info->filename_offset, old_length ) != 0 )
 						{
-							if ( di->shared_info->hFile != INVALID_HANDLE_VALUE )
-							{
-								// Make sure SetFileInformationByHandle is available on our system.
-								if ( kernel32_state != KERNEL32_STATE_SHUTDOWN )
-								{
-									FILE_RENAME_INFO *fri = ( FILE_RENAME_INFO * )GlobalAlloc( GPTR, sizeof( FILE_RENAME_INFO ) + ( sizeof( wchar_t ) * MAX_PATH ) );
+							bool renamed = true;
 
-									if ( cfg_use_temp_download_directory && di->status != STATUS_COMPLETED )
+							wchar_t old_extension[ MAX_PATH ];
+							old_length -= di->shared_info->file_extension_offset - di->shared_info->filename_offset;
+							_wmemcpy_s( old_extension, MAX_PATH, di->shared_info->file_path + di->shared_info->file_extension_offset, old_length );
+							old_extension[ old_length ] = 0;	// Sanity.
+
+							if ( !( di->shared_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
+							{
+								if ( di->shared_info->hFile != INVALID_HANDLE_VALUE )
+								{
+									// Make sure SetFileInformationByHandle is available on our system.
+									if ( kernel32_state != KERNEL32_STATE_SHUTDOWN )
 									{
-										_wmemcpy_s( fri->FileName, MAX_PATH, cfg_temp_download_directory, g_temp_download_directory_length );
-										fri->FileName[ g_temp_download_directory_length ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
-										_wmemcpy_s( fri->FileName + ( g_temp_download_directory_length + 1 ), MAX_PATH - ( g_temp_download_directory_length - 1 ), ri->filename, ri->filename_length );
-										fri->FileName[ g_temp_download_directory_length + ri->filename_length + 1 ] = 0; // Sanity.
-										fri->FileNameLength = g_temp_download_directory_length + ri->filename_length + 1;
+										FILE_RENAME_INFO *fri = ( FILE_RENAME_INFO * )GlobalAlloc( GPTR, sizeof( FILE_RENAME_INFO ) + ( sizeof( wchar_t ) * MAX_PATH ) );
+
+										if ( cfg_use_temp_download_directory && di->status != STATUS_COMPLETED )
+										{
+											_wmemcpy_s( fri->FileName, MAX_PATH, cfg_temp_download_directory, g_temp_download_directory_length );
+											fri->FileName[ g_temp_download_directory_length ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
+											_wmemcpy_s( fri->FileName + ( g_temp_download_directory_length + 1 ), MAX_PATH - ( g_temp_download_directory_length - 1 ), ri->filename, ri->filename_length );
+											fri->FileName[ g_temp_download_directory_length + ri->filename_length + 1 ] = 0; // Sanity.
+											fri->FileNameLength = g_temp_download_directory_length + ri->filename_length + 1;
+										}
+										else
+										{
+											_wmemcpy_s( fri->FileName, MAX_PATH, di->shared_info->file_path, di->shared_info->filename_offset );
+											fri->FileName[ di->shared_info->filename_offset - 1 ] = L'\\';
+											_wmemcpy_s( fri->FileName + di->shared_info->filename_offset, MAX_PATH - di->shared_info->filename_offset, ri->filename, ri->filename_length );
+											fri->FileName[ di->shared_info->filename_offset + ri->filename_length ] = 0;	// Sanity.
+											fri->FileNameLength = di->shared_info->filename_offset + ri->filename_length;
+										}
+
+										fri->ReplaceIfExists = FALSE;
+										fri->RootDirectory = NULL;
+
+										if ( _SetFileInformationByHandle( di->shared_info->hFile, FileRenameInfo, fri, sizeof( FILE_RENAME_INFO ) + ( sizeof( wchar_t ) * MAX_PATH ) ) == FALSE )
+										{
+											renamed = false;
+										}
+
+										GlobalFree( fri );
 									}
 									else
 									{
-										_wmemcpy_s( fri->FileName, MAX_PATH, di->shared_info->file_path, di->shared_info->filename_offset );
-										fri->FileName[ di->shared_info->filename_offset - 1 ] = L'\\';
-										_wmemcpy_s( fri->FileName + di->shared_info->filename_offset, MAX_PATH - di->shared_info->filename_offset, ri->filename, ri->filename_length );
-										fri->FileName[ di->shared_info->filename_offset + ri->filename_length ] = 0;	// Sanity.
-										fri->FileNameLength = di->shared_info->filename_offset + ri->filename_length;
-									}
+										SetLastError( ERROR_ACCESS_DENIED );
 
-									fri->ReplaceIfExists = FALSE;
-									fri->RootDirectory = NULL;
-
-									if ( _SetFileInformationByHandle( di->shared_info->hFile, FileRenameInfo, fri, sizeof( FILE_RENAME_INFO ) + ( sizeof( wchar_t ) * MAX_PATH ) ) == FALSE )
-									{
 										renamed = false;
 									}
-
-									GlobalFree( fri );
 								}
 								else
 								{
-									SetLastError( ERROR_ACCESS_DENIED );
+									wchar_t old_file_path[ MAX_PATH ];
+									wchar_t new_file_path[ MAX_PATH ];
 
-									renamed = false;
+									if ( cfg_use_temp_download_directory && di->status != STATUS_COMPLETED )
+									{
+										GetTemporaryFilePath( di, old_file_path );
+
+										_wmemcpy_s( new_file_path, MAX_PATH, cfg_temp_download_directory, g_temp_download_directory_length );
+										new_file_path[ g_temp_download_directory_length ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
+										_wmemcpy_s( new_file_path + ( g_temp_download_directory_length + 1 ), MAX_PATH - ( g_temp_download_directory_length - 1 ), ri->filename, ri->filename_length );
+										new_file_path[ g_temp_download_directory_length + ri->filename_length + 1 ] = 0;	// Sanity.
+									}
+									else
+									{
+										GetDownloadFilePath( di, old_file_path );
+
+										_wmemcpy_s( new_file_path, MAX_PATH, di->shared_info->file_path, MAX_PATH - di->shared_info->filename_offset );
+										new_file_path[ di->shared_info->filename_offset - 1 ] = L'\\';
+										_wmemcpy_s( new_file_path + di->shared_info->filename_offset, MAX_PATH - di->shared_info->filename_offset, ri->filename, ri->filename_length );
+										new_file_path[ di->shared_info->filename_offset + ri->filename_length ] = 0;	// Sanity.
+									}
+
+									if ( MoveFileW( old_file_path, new_file_path ) == FALSE )
+									{
+										if ( GetLastError() != ERROR_FILE_NOT_FOUND )
+										{
+											renamed = false;
+										}
+									}
 								}
+							}
+
+							if ( renamed )
+							{
+								_wmemcpy_s( di->shared_info->file_path + di->shared_info->filename_offset, MAX_PATH - di->shared_info->filename_offset, ri->filename, ri->filename_length );
+								di->shared_info->file_path[ di->shared_info->filename_offset + ri->filename_length ] = 0;	// Sanity.
+
+								// Get the new file extension offset.
+								di->shared_info->file_extension_offset = di->shared_info->filename_offset + get_file_extension_offset( di->shared_info->file_path + di->shared_info->filename_offset, lstrlenW( di->shared_info->file_path + di->shared_info->filename_offset ) );
+
+								DoublyLinkedList *context_node;
+
+								// If we manually renamed our download, then prevent it from being set elsewhere.
+								EnterCriticalSection( &di->di_cs );
+
+								context_node = di->parts_list;
+
+								LeaveCriticalSection( &di->di_cs );
+
+								while ( context_node != NULL )
+								{
+									SOCKET_CONTEXT *context = ( SOCKET_CONTEXT * )context_node->data;
+
+									context_node = context_node->next;
+
+									if ( context != NULL )
+									{
+										EnterCriticalSection( &context->context_cs );
+
+										context->got_filename = 1;
+
+										LeaveCriticalSection( &context->context_cs );
+									}
+								}
+
+								RemoveCachedIcon( di->shared_info, old_extension );
+
+								SHFILEINFO *sfi = ( SHFILEINFO * )GlobalAlloc( GMEM_FIXED, sizeof( SHFILEINFO ) );
+
+								// Cache our file's icon.
+								ICON_INFO *ii = CacheIcon( di->shared_info, sfi );
+
+								EnterCriticalSection( &di->di_cs );
+
+								di->shared_info->download_operations &= ~DOWNLOAD_OPERATION_GET_EXTENSION;
+
+								di->shared_info->icon = ( ii != NULL ? &ii->icon : NULL );
+
+								LeaveCriticalSection( &di->di_cs );
+
+								GlobalFree( sfi );
+
+								g_download_history_changed = true;
 							}
 							else
 							{
-								wchar_t old_file_path[ MAX_PATH ];
-								wchar_t new_file_path[ MAX_PATH ];
-
-								if ( cfg_use_temp_download_directory && di->status != STATUS_COMPLETED )
+								// Alert the user, but don't hang up this thread.
+								int error = GetLastError();
+								if ( error == ERROR_ALREADY_EXISTS )
 								{
-									GetTemporaryFilePath( di, old_file_path );
-
-									_wmemcpy_s( new_file_path, MAX_PATH, cfg_temp_download_directory, g_temp_download_directory_length );
-									new_file_path[ g_temp_download_directory_length ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
-									_wmemcpy_s( new_file_path + ( g_temp_download_directory_length + 1 ), MAX_PATH - ( g_temp_download_directory_length - 1 ), ri->filename, ri->filename_length );
-									new_file_path[ g_temp_download_directory_length + ri->filename_length + 1 ] = 0;	// Sanity.
+									_SendNotifyMessageW( g_hWnd_main, WM_ALERT, 0, ( LPARAM )ST_V_There_is_already_a_file );
 								}
-								else
+								else if ( error == ERROR_FILE_NOT_FOUND )
 								{
-									GetDownloadFilePath( di, old_file_path );
-
-									_wmemcpy_s( new_file_path, MAX_PATH, di->shared_info->file_path, MAX_PATH - di->shared_info->filename_offset );
-									new_file_path[ di->shared_info->filename_offset - 1 ] = L'\\';
-									_wmemcpy_s( new_file_path + di->shared_info->filename_offset, MAX_PATH - di->shared_info->filename_offset, ri->filename, ri->filename_length );
-									new_file_path[ di->shared_info->filename_offset + ri->filename_length ] = 0;	// Sanity.
+									_SendNotifyMessageW( g_hWnd_main, WM_ALERT, 1, 0 );
 								}
-
-								if ( MoveFileW( old_file_path, new_file_path ) == FALSE )
+								else if ( error == ERROR_PATH_NOT_FOUND )
 								{
-									if ( GetLastError() != ERROR_FILE_NOT_FOUND )
-									{
-										renamed = false;
-									}
+									_SendNotifyMessageW( g_hWnd_main, WM_ALERT, 0, ( LPARAM )ST_V_The_specified_path_was_not_found );
 								}
-							}
-						}
-
-						if ( renamed )
-						{
-							_wmemcpy_s( di->shared_info->file_path + di->shared_info->filename_offset, MAX_PATH - di->shared_info->filename_offset, ri->filename, ri->filename_length );
-							di->shared_info->file_path[ di->shared_info->filename_offset + ri->filename_length ] = 0;	// Sanity.
-
-							// Get the new file extension offset.
-							di->shared_info->file_extension_offset = di->shared_info->filename_offset + get_file_extension_offset( di->shared_info->file_path + di->shared_info->filename_offset, lstrlenW( di->shared_info->file_path + di->shared_info->filename_offset ) );
-
-							DoublyLinkedList *context_node;
-
-							// If we manually renamed our download, then prevent it from being set elsewhere.
-							EnterCriticalSection( &di->di_cs );
-
-							context_node = di->parts_list;
-
-							LeaveCriticalSection( &di->di_cs );
-
-							while ( context_node != NULL )
-							{
-								SOCKET_CONTEXT *context = ( SOCKET_CONTEXT * )context_node->data;
-
-								context_node = context_node->next;
-
-								if ( context != NULL )
+								else if ( error == ERROR_ACCESS_DENIED )
 								{
-									EnterCriticalSection( &context->context_cs );
-
-									context->got_filename = 1;
-
-									LeaveCriticalSection( &context->context_cs );
+									_SendNotifyMessageW( g_hWnd_main, WM_ALERT, 0, ( LPARAM )ST_V_File_is_in_use_cannot_rename );
 								}
-							}
-
-							RemoveCachedIcon( di->shared_info );
-
-							SHFILEINFO *sfi = ( SHFILEINFO * )GlobalAlloc( GMEM_FIXED, sizeof( SHFILEINFO ) );
-
-							// Cache our file's icon.
-							ICON_INFO *ii = CacheIcon( di->shared_info, sfi );
-
-							EnterCriticalSection( &di->di_cs );
-
-							di->shared_info->icon = ( ii != NULL ? &ii->icon : NULL );
-
-							LeaveCriticalSection( &di->di_cs );
-
-							GlobalFree( sfi );
-
-							g_download_history_changed = true;
-						}
-						else
-						{
-							// Alert the user, but don't hang up this thread.
-							int error = GetLastError();
-							if ( error == ERROR_ALREADY_EXISTS )
-							{
-								_SendNotifyMessageW( g_hWnd_main, WM_ALERT, 0, ( LPARAM )ST_V_There_is_already_a_file );
-							}
-							else if ( error == ERROR_FILE_NOT_FOUND )
-							{
-								_SendNotifyMessageW( g_hWnd_main, WM_ALERT, 1, 0 );
-							}
-							else if ( error == ERROR_ACCESS_DENIED )
-							{
-								_SendNotifyMessageW( g_hWnd_main, WM_ALERT, 0, ( LPARAM )ST_V_File_is_in_use_cannot_rename );
 							}
 						}
 					}
@@ -3051,6 +3128,10 @@ THREAD_RETURN delete_files( void * /*pArguments*/ )
 						{
 							error_type |= 2;
 						}
+						else if ( error == ERROR_PATH_NOT_FOUND )
+						{
+							error_type |= 4;
+						}
 					}
 				}
 				else if ( DeleteFileW( file_path ) == FALSE )
@@ -3065,6 +3146,10 @@ THREAD_RETURN delete_files( void * /*pArguments*/ )
 					else if ( error == ERROR_FILE_NOT_FOUND )
 					{
 						error_type |= 2;
+					}
+					else if ( error == ERROR_PATH_NOT_FOUND )
+					{
+						error_type |= 4;
 					}
 				}
 			}
@@ -3085,6 +3170,10 @@ THREAD_RETURN delete_files( void * /*pArguments*/ )
 			{
 				_SendNotifyMessageW( g_hWnd_main, WM_ALERT, 1, 0 );
 			}
+			else if ( error_type & 4 )	// Path Not Found.
+			{
+				_SendNotifyMessageW( g_hWnd_main, WM_ALERT, 0, ( LPARAM )ST_V_The_specified_path_was_not_found );
+			}
 		}
 		else if ( sel_count > 1 )
 		{
@@ -3096,6 +3185,11 @@ THREAD_RETURN delete_files( void * /*pArguments*/ )
 			if ( error_type & 2 )	// File Not Found.
 			{
 				_SendNotifyMessageW( g_hWnd_main, WM_ALERT, 0, ( LPARAM )ST_V_One_or_more_files_were_not_found );
+			}
+
+			if ( error_type & 4 )	// Path Not Found.
+			{
+				_SendNotifyMessageW( g_hWnd_main, WM_ALERT, 0, ( LPARAM )ST_V_One_or_more_paths_were_not_found );
 			}
 		}
 	}
@@ -3516,37 +3610,46 @@ THREAD_RETURN process_command_line_args( void *pArguments )
 		if ( cla->download_history_file != NULL )
 		{
 			importexportinfo *iei = ( importexportinfo * )GlobalAlloc( GMEM_FIXED, sizeof( importexportinfo ) );
-
-			// Include an empty string.
-			iei->file_paths = ( wchar_t * )GlobalAlloc( GPTR, sizeof( wchar_t ) * ( MAX_PATH + 1 ) );
-			_wmemcpy_s( iei->file_paths, MAX_PATH, cla->download_history_file, cla->download_history_file_length );
-			iei->file_paths[ cla->download_history_file_length ] = 0;	// Sanity.
-
-			iei->file_offset = ( unsigned short )( cla->download_history_file_length );
-
-			// Find the last occurance of "\" in the string.
-			while ( iei->file_offset != 0 )
+			if ( iei != NULL )
 			{
-				if ( iei->file_paths[ --iei->file_offset ] == L'\\' )
+				// Include an empty string.
+				iei->file_paths = ( wchar_t * )GlobalAlloc( GPTR, sizeof( wchar_t ) * ( MAX_PATH + 1 ) );
+				if ( iei->file_paths != NULL )
 				{
-					iei->file_paths[ iei->file_offset++ ] = 0;	// Sanity.
+					_wmemcpy_s( iei->file_paths, MAX_PATH, cla->download_history_file, cla->download_history_file_length );
+					iei->file_paths[ cla->download_history_file_length ] = 0;	// Sanity.
 
-					break;
+					iei->file_offset = ( unsigned short )( cla->download_history_file_length );
+
+					// Find the last occurance of "\" in the string.
+					while ( iei->file_offset != 0 )
+					{
+						if ( iei->file_paths[ --iei->file_offset ] == L'\\' )
+						{
+							iei->file_paths[ iei->file_offset++ ] = 0;	// Sanity.
+
+							break;
+						}
+					}
+
+					iei->type = 1;	// Import from menu.
+
+					// iei will be freed in the import_list thread.
+					HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, import_list, ( void * )iei, 0, NULL );
+					if ( thread != NULL )
+					{
+						CloseHandle( thread );
+					}
+					else
+					{
+						GlobalFree( iei->file_paths );
+						GlobalFree( iei );
+					}
 				}
-			}
-
-			iei->type = 1;	// Import from menu.
-
-			// iei will be freed in the import_list thread.
-			HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, import_list, ( void * )iei, 0, NULL );
-			if ( thread != NULL )
-			{
-				CloseHandle( thread );
-			}
-			else
-			{
-				GlobalFree( iei->file_paths );
-				GlobalFree( iei );
+				else
+				{
+					GlobalFree( iei );
+				}
 			}
 		}
 
@@ -3590,144 +3693,156 @@ THREAD_RETURN process_command_line_args( void *pArguments )
 			int utf8_val_length = 0;
 
 			ADD_INFO *ai = ( ADD_INFO * )GlobalAlloc( GPTR, sizeof( ADD_INFO ) );
-			ai->method = ( cla->data != NULL ? METHOD_POST : METHOD_GET );
-
-			ai->download_operations = cla->download_operations;
-
-			ai->use_download_directory = cla->use_download_directory;
-			ai->download_directory = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * MAX_PATH );
-			if ( cla->use_download_directory && cla->download_directory != NULL )
+			if ( ai != NULL )
 			{
-				_wmemcpy_s( ai->download_directory, MAX_PATH, cla->download_directory, cla->download_directory_length );
-				ai->download_directory[ cla->download_directory_length ] = 0;	// Sanity.
-			}
-			else
-			{
-				_wmemcpy_s( ai->download_directory, MAX_PATH, cfg_default_download_directory, g_default_download_directory_length );
-				ai->download_directory[ g_default_download_directory_length ] = 0;	// Sanity.
-			}
+				ai->method = ( cla->data != NULL ? METHOD_POST : METHOD_GET );
 
-			ai->use_parts = cla->use_parts;
-			ai->parts = ( cla->use_parts ? cla->parts : cfg_default_download_parts );
-			ai->use_download_speed_limit = cla->use_download_speed_limit;
-			ai->download_speed_limit = ( cla->use_download_speed_limit ? cla->download_speed_limit : cfg_download_speed_limit );
-			ai->ssl_version = ( cla->ssl_version != 0 ? cla->ssl_version : cfg_default_ssl_version + 1 );
+				ai->download_operations = cla->download_operations;
 
-			if ( cla->urls != NULL )
-			{
-				ai->urls = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( cla->urls_length + 1 ) );
-				_wmemcpy_s( ai->urls, cla->urls_length + 1, cla->urls, cla->urls_length );
-				ai->urls[ cla->urls_length ] = 0;	// Sanity.
-			}
-
-			if ( cla->cookies != NULL )
-			{
-				utf8_val_length = WideCharToMultiByte( CP_UTF8, 0, cla->cookies, cla->cookies_length + 1, NULL, 0, NULL, NULL );
-				ai->utf8_cookies = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * utf8_val_length ); // Size includes the null character.
-				WideCharToMultiByte( CP_UTF8, 0, cla->cookies, cla->cookies_length + 1, ai->utf8_cookies, utf8_val_length, NULL, NULL );
-			}
-
-			if ( cla->headers != NULL )
-			{
-				utf8_val_length = WideCharToMultiByte( CP_UTF8, 0, cla->headers, cla->headers_length + 1, NULL, 0, NULL, NULL );
-				ai->utf8_headers = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * utf8_val_length ); // Size includes the null character.
-				WideCharToMultiByte( CP_UTF8, 0, cla->headers, cla->headers_length + 1, ai->utf8_headers, utf8_val_length, NULL, NULL );
-			}
-
-			if ( cla->data != NULL )
-			{
-				utf8_val_length = WideCharToMultiByte( CP_UTF8, 0, cla->data, cla->data_length + 1, NULL, 0, NULL, NULL );
-				ai->utf8_data = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * utf8_val_length ); // Size includes the null character.
-				WideCharToMultiByte( CP_UTF8, 0, cla->data, cla->data_length + 1, ai->utf8_data, utf8_val_length, NULL, NULL );
-			}
-
-			if ( cla->username != NULL )
-			{
-				utf8_val_length = WideCharToMultiByte( CP_UTF8, 0, cla->username, cla->username_length + 1, NULL, 0, NULL, NULL );
-				ai->auth_info.username = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * utf8_val_length ); // Size includes the null character.
-				WideCharToMultiByte( CP_UTF8, 0, cla->username, cla->username_length + 1, ai->auth_info.username, utf8_val_length, NULL, NULL );
-			}
-
-			if ( cla->password != NULL )
-			{
-				utf8_val_length = WideCharToMultiByte( CP_UTF8, 0, cla->password, cla->password_length + 1, NULL, 0, NULL, NULL );
-				ai->auth_info.password = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * utf8_val_length ); // Size includes the null character.
-				WideCharToMultiByte( CP_UTF8, 0, cla->password, cla->password_length + 1, ai->auth_info.password, utf8_val_length, NULL, NULL );
-			}
-
-			ai->proxy_info.type = cla->proxy_type;
-
-			if ( ai->proxy_info.type != 0 )
-			{
-				if ( cla->proxy_hostname != NULL )
+				ai->use_download_directory = cla->use_download_directory;
+				ai->download_directory = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * MAX_PATH );
+				if ( ai->download_directory != NULL )
 				{
-					ai->proxy_info.hostname = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( cla->proxy_hostname_length + 1 ) );
-					_wmemcpy_s( ai->proxy_info.hostname, cla->proxy_hostname_length + 1, cla->proxy_hostname, cla->proxy_hostname_length );
-					ai->proxy_info.hostname[ cla->proxy_hostname_length ] = 0;	// Sanity.
-
-					if ( normaliz_state == NORMALIZ_STATE_RUNNING )
+					if ( cla->use_download_directory && cla->download_directory != NULL )
 					{
-						int punycode_length = _IdnToAscii( 0, ai->proxy_info.hostname, cla->proxy_hostname_length + 1, NULL, 0 );
+						_wmemcpy_s( ai->download_directory, MAX_PATH, cla->download_directory, cla->download_directory_length );
+						ai->download_directory[ cla->download_directory_length ] = 0;	// Sanity.
+					}
+					else
+					{
+						_wmemcpy_s( ai->download_directory, MAX_PATH, cfg_default_download_directory, g_default_download_directory_length );
+						ai->download_directory[ g_default_download_directory_length ] = 0;	// Sanity.
+					}
+				}
 
-						if ( punycode_length > ( int )( cla->proxy_hostname_length + 1 ) )
+				ai->use_parts = cla->use_parts;
+				ai->parts = ( cla->use_parts ? cla->parts : cfg_default_download_parts );
+				ai->use_download_speed_limit = cla->use_download_speed_limit;
+				ai->download_speed_limit = ( cla->use_download_speed_limit ? cla->download_speed_limit : cfg_download_speed_limit );
+				ai->ssl_version = ( cla->ssl_version != 0 ? cla->ssl_version : cfg_default_ssl_version + 1 );
+
+				if ( cla->urls != NULL )
+				{
+					ai->urls = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( cla->urls_length + 1 ) );
+					_wmemcpy_s( ai->urls, cla->urls_length + 1, cla->urls, cla->urls_length );
+					ai->urls[ cla->urls_length ] = 0;	// Sanity.
+				}
+
+				if ( cla->cookies != NULL )
+				{
+					utf8_val_length = WideCharToMultiByte( CP_UTF8, 0, cla->cookies, cla->cookies_length + 1, NULL, 0, NULL, NULL );
+					ai->utf8_cookies = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * utf8_val_length ); // Size includes the null character.
+					WideCharToMultiByte( CP_UTF8, 0, cla->cookies, cla->cookies_length + 1, ai->utf8_cookies, utf8_val_length, NULL, NULL );
+				}
+
+				if ( cla->headers != NULL )
+				{
+					utf8_val_length = WideCharToMultiByte( CP_UTF8, 0, cla->headers, cla->headers_length + 1, NULL, 0, NULL, NULL );
+					ai->utf8_headers = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * utf8_val_length ); // Size includes the null character.
+					WideCharToMultiByte( CP_UTF8, 0, cla->headers, cla->headers_length + 1, ai->utf8_headers, utf8_val_length, NULL, NULL );
+				}
+
+				if ( cla->data != NULL )
+				{
+					utf8_val_length = WideCharToMultiByte( CP_UTF8, 0, cla->data, cla->data_length + 1, NULL, 0, NULL, NULL );
+					ai->utf8_data = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * utf8_val_length ); // Size includes the null character.
+					WideCharToMultiByte( CP_UTF8, 0, cla->data, cla->data_length + 1, ai->utf8_data, utf8_val_length, NULL, NULL );
+				}
+
+				if ( cla->username != NULL )
+				{
+					utf8_val_length = WideCharToMultiByte( CP_UTF8, 0, cla->username, cla->username_length + 1, NULL, 0, NULL, NULL );
+					ai->auth_info.username = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * utf8_val_length ); // Size includes the null character.
+					WideCharToMultiByte( CP_UTF8, 0, cla->username, cla->username_length + 1, ai->auth_info.username, utf8_val_length, NULL, NULL );
+				}
+
+				if ( cla->password != NULL )
+				{
+					utf8_val_length = WideCharToMultiByte( CP_UTF8, 0, cla->password, cla->password_length + 1, NULL, 0, NULL, NULL );
+					ai->auth_info.password = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * utf8_val_length ); // Size includes the null character.
+					WideCharToMultiByte( CP_UTF8, 0, cla->password, cla->password_length + 1, ai->auth_info.password, utf8_val_length, NULL, NULL );
+				}
+
+				ai->proxy_info.type = cla->proxy_type;
+
+				if ( ai->proxy_info.type != 0 )
+				{
+					if ( cla->proxy_hostname != NULL )
+					{
+						ai->proxy_info.hostname = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( cla->proxy_hostname_length + 1 ) );
+						_wmemcpy_s( ai->proxy_info.hostname, cla->proxy_hostname_length + 1, cla->proxy_hostname, cla->proxy_hostname_length );
+						ai->proxy_info.hostname[ cla->proxy_hostname_length ] = 0;	// Sanity.
+
+						if ( normaliz_state == NORMALIZ_STATE_RUNNING )
 						{
-							ai->proxy_info.punycode_hostname = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * punycode_length );
-							_IdnToAscii( 0, ai->proxy_info.hostname, cla->proxy_hostname_length + 1, ai->proxy_info.punycode_hostname, punycode_length );
+							int punycode_length = _IdnToAscii( 0, ai->proxy_info.hostname, cla->proxy_hostname_length + 1, NULL, 0 );
+
+							if ( punycode_length > ( int )( cla->proxy_hostname_length + 1 ) )
+							{
+								ai->proxy_info.punycode_hostname = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * punycode_length );
+								_IdnToAscii( 0, ai->proxy_info.hostname, cla->proxy_hostname_length + 1, ai->proxy_info.punycode_hostname, punycode_length );
+							}
+						}
+
+						ai->proxy_info.address_type = 0;
+					}
+					else
+					{
+						ai->proxy_info.ip_address = cla->proxy_ip_address;
+
+						ai->proxy_info.address_type = 1;
+					}
+
+					if ( cla->proxy_port == 0 )
+					{
+						ai->proxy_info.port = ( cla->proxy_type == 1 ? 80 : ( cla->proxy_type == 2 ? 443 : 1080 ) );
+					}
+
+					if ( cla->proxy_username != NULL )
+					{
+						ai->proxy_info.use_authentication = true;	// For SOCKS v5 connections.
+
+						ai->proxy_info.w_username = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( cla->proxy_username_length + 1 ) );
+						if ( ai->proxy_info.w_username != NULL )
+						{
+							_wmemcpy_s( ai->proxy_info.w_username, cla->proxy_username_length + 1, cla->proxy_username, cla->proxy_username_length );
+							ai->proxy_info.w_username[ cla->proxy_username_length ] = 0;	// Sanity.
+
+							utf8_val_length = WideCharToMultiByte( CP_UTF8, 0, ai->proxy_info.w_username, -1, NULL, 0, NULL, NULL );
+							ai->proxy_info.username = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * utf8_val_length ); // Size includes the null character.
+							WideCharToMultiByte( CP_UTF8, 0, ai->proxy_info.w_username, -1, ai->proxy_info.username, utf8_val_length, NULL, NULL );
 						}
 					}
 
-					ai->proxy_info.address_type = 0;
+					if ( cla->proxy_password != NULL )
+					{
+						ai->proxy_info.use_authentication = true;	// For SOCKS v5 connections.
+
+						ai->proxy_info.w_password = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( cla->proxy_password_length + 1 ) );
+						if ( ai->proxy_info.w_password != NULL )
+						{
+							_wmemcpy_s( ai->proxy_info.w_password, cla->proxy_password_length + 1, cla->proxy_password, cla->proxy_password_length );
+							ai->proxy_info.w_password[ cla->proxy_password_length ] = 0;	// Sanity.
+
+							utf8_val_length = WideCharToMultiByte( CP_UTF8, 0, ai->proxy_info.w_password, -1, NULL, 0, NULL, NULL );
+							ai->proxy_info.password = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * utf8_val_length ); // Size includes the null character.
+							WideCharToMultiByte( CP_UTF8, 0, ai->proxy_info.w_password, -1, ai->proxy_info.password, utf8_val_length, NULL, NULL );
+						}
+					}
+
+					ai->proxy_info.resolve_domain_names = cla->proxy_resolve_domain_names;
+				}
+
+				// ai is freed in AddURL.
+				HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, AddURL, ( void * )ai, 0, NULL );
+				if ( thread != NULL )
+				{
+					CloseHandle( thread );
 				}
 				else
 				{
-					ai->proxy_info.ip_address = cla->proxy_ip_address;
-
-					ai->proxy_info.address_type = 1;
+					FreeAddInfo( &ai );
 				}
-
-				if ( cla->proxy_port == 0 )
-				{
-					ai->proxy_info.port = ( cla->proxy_type == 1 ? 80 : ( cla->proxy_type == 2 ? 443 : 1080 ) );
-				}
-
-				if ( cla->proxy_username != NULL )
-				{
-					ai->proxy_info.use_authentication = true;	// For SOCKS v5 connections.
-
-					ai->proxy_info.w_username = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( cla->proxy_username_length + 1 ) );
-					_wmemcpy_s( ai->proxy_info.w_username, cla->proxy_username_length + 1, cla->proxy_username, cla->proxy_username_length );
-					ai->proxy_info.w_username[ cla->proxy_username_length ] = 0;	// Sanity.
-
-					utf8_val_length = WideCharToMultiByte( CP_UTF8, 0, ai->proxy_info.w_username, -1, NULL, 0, NULL, NULL );
-					ai->proxy_info.username = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * utf8_val_length ); // Size includes the null character.
-					WideCharToMultiByte( CP_UTF8, 0, ai->proxy_info.w_username, -1, ai->proxy_info.username, utf8_val_length, NULL, NULL );
-				}
-
-				if ( cla->proxy_password != NULL )
-				{
-					ai->proxy_info.use_authentication = true;	// For SOCKS v5 connections.
-
-					ai->proxy_info.w_password = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( cla->proxy_password_length + 1 ) );
-					_wmemcpy_s( ai->proxy_info.w_password, cla->proxy_password_length + 1, cla->proxy_password, cla->proxy_password_length );
-					ai->proxy_info.w_password[ cla->proxy_password_length ] = 0;	// Sanity.
-
-					utf8_val_length = WideCharToMultiByte( CP_UTF8, 0, ai->proxy_info.w_password, -1, NULL, 0, NULL, NULL );
-					ai->proxy_info.password = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * utf8_val_length ); // Size includes the null character.
-					WideCharToMultiByte( CP_UTF8, 0, ai->proxy_info.w_password, -1, ai->proxy_info.password, utf8_val_length, NULL, NULL );
-				}
-
-				ai->proxy_info.resolve_domain_names = cla->proxy_resolve_domain_names;
-			}
-
-			// ai is freed in AddURL.
-			HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, AddURL, ( void * )ai, 0, NULL );
-			if ( thread != NULL )
-			{
-				CloseHandle( thread );
-			}
-			else
-			{
-				FreeAddInfo( &ai );
 			}
 		}
 		else if ( cla->urls != NULL )
@@ -3768,7 +3883,7 @@ THREAD_RETURN save_session( void * /*pArguments*/ )
 
 		_wmemcpy_s( t_base_directory, MAX_PATH, g_base_directory, g_base_directory_length );
 		_wmemcpy_s( t_base_directory + g_base_directory_length, MAX_PATH - g_base_directory_length, L"\\download_history\0", 18 );
-		t_base_directory[ g_base_directory_length + 17 ] = 0;	// Sanity.
+		//t_base_directory[ g_base_directory_length + 17 ] = 0;	// Sanity.
 
 		save_download_history( t_base_directory );
 		g_download_history_changed = false;

@@ -160,6 +160,7 @@ enum IO_OPERATION
 	IO_GetRequest,
 	IO_GetContent,
 	IO_ResumeGetContent,
+	IO_SparseFileAllocate,
 	IO_WriteFile,
 	IO_Write,
 	IO_Shutdown,
@@ -490,6 +491,7 @@ DWORD WINAPI AddURL( void *add_info );
 void ResetDownload( DOWNLOAD_INFO *di, unsigned char reset_type, bool reset_progress = true );
 void RestartDownload( DOWNLOAD_INFO *di, unsigned char restart_type, unsigned char start_operation );
 void StartDownload( DOWNLOAD_INFO *di, unsigned char start_type, unsigned char start_operation );
+void StartQueuedItem();
 
 dllrbt_tree *CreateFilenameTree();
 void DestroyFilenameTree( dllrbt_tree *filename_tree );

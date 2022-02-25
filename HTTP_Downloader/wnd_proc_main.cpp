@@ -115,7 +115,11 @@ VOID CALLBACK UpdateCheckTimerProc( HWND hWnd, UINT /*msg*/, UINT /*idTimer*/, D
 
 			g_update_check_state = 2;	// Automatic update check.
 
-			CloseHandle( ( HANDLE )_CreateThread( NULL, 0, CheckForUpdates, NULL, 0, NULL ) );
+			HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, CheckForUpdates, NULL, 0, NULL );
+			if ( thread != NULL )
+			{
+				CloseHandle( thread );
+			}
 		}
 	}
 
@@ -171,7 +175,7 @@ void FormatTooltipStatus()
 			}
 			else
 			{
-				g_nid.szInfo[ sizeof( g_nid.szInfo ) / sizeof( g_nid.szInfo[ 0 ] ) ] = 0;	// Sanity.
+				g_nid.szInfo[ ( sizeof( g_nid.szInfo ) / sizeof( g_nid.szInfo[ 0 ] ) ) - 1 ] = 0;	// Sanity.
 
 				break;
 			}
@@ -551,14 +555,15 @@ DWORD WINAPI UpdateWindow( LPVOID /*WorkThreadContext*/ )
 			}
 
 			// Sort all values that can change during a download.
-			if ( cfg_sort_added_and_updating_items &&
+			if ( !g_in_list_edit_mode &&
+				 cfg_sort_added_and_updating_items &&
 				 cfg_sorted_column_index != COLUMN_NUM &&
 				 cfg_sorted_column_index != COLUMN_DATE_AND_TIME_ADDED &&
 				 cfg_sorted_column_index != COLUMN_DOWNLOAD_DIRECTORY &&
 				 cfg_sorted_column_index != COLUMN_URL )
 			{
 				SORT_INFO si;
-				si.column = GetColumnIndexFromVirtualIndex( cfg_sorted_column_index, download_columns, NUM_COLUMNS );
+				si.column = cfg_sorted_column_index;
 				si.hWnd = g_hWnd_tlv_files;
 				si.direction = cfg_sorted_direction;
 
@@ -633,14 +638,15 @@ DWORD WINAPI UpdateWindow( LPVOID /*WorkThreadContext*/ )
 			ResetSessionStatus();
 
 			// Sort all values that can change during a download.
-			if ( cfg_sort_added_and_updating_items &&
+			if ( !g_in_list_edit_mode &&
+				 cfg_sort_added_and_updating_items &&
 				 cfg_sorted_column_index != COLUMN_NUM &&
 				 cfg_sorted_column_index != COLUMN_DATE_AND_TIME_ADDED &&
 				 cfg_sorted_column_index != COLUMN_DOWNLOAD_DIRECTORY &&
 				 cfg_sorted_column_index != COLUMN_URL )
 			{
 				SORT_INFO si;
-				si.column = GetColumnIndexFromVirtualIndex( cfg_sorted_column_index, download_columns, NUM_COLUMNS );
+				si.column = cfg_sorted_column_index;
 				si.hWnd = g_hWnd_tlv_files;
 				si.direction = cfg_sorted_direction;
 
@@ -1314,34 +1320,45 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 			{
 				g_timer_semaphore = CreateSemaphore( NULL, 0, 1, NULL );
 
-				//CloseHandle( _CreateThread( NULL, 0, UpdateWindow, NULL, 0, NULL ) );
 				HANDLE timer_handle = _CreateThread( NULL, 0, UpdateWindow, NULL, 0, NULL );
-				SetThreadPriority( timer_handle, THREAD_PRIORITY_LOWEST );
-				CloseHandle( timer_handle );
+				if ( timer_handle != NULL )
+				{
+					SetThreadPriority( timer_handle, THREAD_PRIORITY_LOWEST );
+					CloseHandle( timer_handle );
+				}
 			}
 
 			if ( cfg_enable_download_history )
 			{
 				importexportinfo *iei = ( importexportinfo * )GlobalAlloc( GMEM_FIXED, sizeof( importexportinfo ) );
-
-				// Include an empty string.
-				iei->file_paths = ( wchar_t * )GlobalAlloc( GPTR, sizeof( wchar_t ) * ( MAX_PATH + 1 ) );
-				_wmemcpy_s( iei->file_paths, MAX_PATH, g_base_directory, g_base_directory_length );
-				_wmemcpy_s( iei->file_paths + ( g_base_directory_length + 1 ), MAX_PATH - ( g_base_directory_length - 1 ), L"download_history\0", 17 );
-				iei->file_paths[ g_base_directory_length + 17 ] = 0;	// Sanity.
-				iei->file_offset = ( unsigned short )( g_base_directory_length + 1 );
-				iei->type = 0;	// Load during startup.
-
-				// iei will be freed in the import_list thread.
-				HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, import_list, ( void * )iei, 0, NULL );
-				if ( thread != NULL )
+				if ( iei != NULL )
 				{
-					CloseHandle( thread );
-				}
-				else
-				{
-					GlobalFree( iei->file_paths );
-					GlobalFree( iei );
+					// Include an empty string.
+					iei->file_paths = ( wchar_t * )GlobalAlloc( GPTR, sizeof( wchar_t ) * ( MAX_PATH + 1 ) );
+					if ( iei->file_paths != NULL )
+					{
+						_wmemcpy_s( iei->file_paths, MAX_PATH, g_base_directory, g_base_directory_length );
+						_wmemcpy_s( iei->file_paths + ( g_base_directory_length + 1 ), MAX_PATH - ( g_base_directory_length - 1 ), L"download_history\0", 17 );
+						//iei->file_paths[ g_base_directory_length + 17 ] = 0;	// Sanity.
+						iei->file_offset = ( unsigned short )( g_base_directory_length + 1 );
+						iei->type = 0;	// Load during startup.
+
+						// iei will be freed in the import_list thread.
+						HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, import_list, ( void * )iei, 0, NULL );
+						if ( thread != NULL )
+						{
+							CloseHandle( thread );
+						}
+						else
+						{
+							GlobalFree( iei->file_paths );
+							GlobalFree( iei );
+						}
+					}
+					else
+					{
+						GlobalFree( iei );
+					}
 				}
 			}
 
@@ -1357,6 +1374,8 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 				_SetTimer( hWnd, IDT_UPDATE_CHECK_TIMER, 10000, ( TIMERPROC )UpdateCheckTimerProc );
 			}
 
+			RECT rc, rc2;
+
 			// Windows 10 uses an invisible border that we need to take into account when snapping the window.
 			if ( IsWindowsVersionOrGreater( HIBYTE( _WIN32_WINNT_WIN10 ), LOBYTE( _WIN32_WINNT_WIN10 ), 0 ) )
 			{
@@ -1371,7 +1390,6 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 
 				if ( use_theme && _IsThemeActive() == TRUE )*/
 				{
-					RECT rc, rc2;
 					_GetWindowRect( hWnd, &rc );
 					_GetClientRect( hWnd, &rc2 );
 
@@ -1379,22 +1397,24 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 				}
 			}
 
-			HMONITOR hMon = _MonitorFromWindow( hWnd, MONITOR_DEFAULTTONEAREST );
+			rc.left = cfg_pos_x;
+			rc.top = cfg_pos_y;
+			rc.right = rc.left + cfg_width;
+			rc.bottom = rc.top + cfg_height;
+			HMONITOR hMon = _MonitorFromRect( &rc, MONITOR_DEFAULTTONEAREST );
 			MONITORINFO mi;
 			mi.cbSize = sizeof( MONITORINFO );
 			_GetMonitorInfoW( hMon, &mi );
-			int pos_x = cfg_pos_x;
-			int pos_y = cfg_pos_y;
 			// If the window is offscreen, then move it into the current monitor.
-			if ( pos_x + cfg_width <= mi.rcMonitor.left ||
-				 pos_x >= mi.rcMonitor.right ||
-				 pos_y + cfg_height <= mi.rcMonitor.top ||
-				 pos_y >= mi.rcMonitor.bottom )
+			if ( rc.right <= mi.rcMonitor.left ||
+				 rc.left >= mi.rcMonitor.right ||
+				 rc.bottom <= mi.rcMonitor.top ||
+				 rc.top >= mi.rcMonitor.bottom )
 			{
-				pos_x = mi.rcMonitor.left + ( ( ( mi.rcMonitor.right - mi.rcMonitor.left ) - cfg_width ) / 2 );
-				pos_y = mi.rcMonitor.top + ( ( ( mi.rcMonitor.bottom - mi.rcMonitor.top ) - cfg_height ) / 2 );
+				rc.left = mi.rcMonitor.left + ( ( ( mi.rcMonitor.right - mi.rcMonitor.left ) - cfg_width ) / 2 );
+				rc.top = mi.rcMonitor.top + ( ( ( mi.rcMonitor.bottom - mi.rcMonitor.top ) - cfg_height ) / 2 );
 			}
-			_SetWindowPos( hWnd, NULL, pos_x, pos_y, cfg_width, cfg_height, 0 );
+			_SetWindowPos( hWnd, NULL, rc.left, rc.top, cfg_width, cfg_height, 0 );
 
 #ifdef ENABLE_DARK_MODE
 			if ( g_use_dark_mode )
@@ -2003,7 +2023,12 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 			{
 				if ( CMessageBoxW( hWnd, ST_V_PROMPT_The_specified_file_was_not_found, PROGRAM_CAPTION, /*CMB_APPLMODAL |*/ CMB_ICONWARNING | CMB_YESNO ) == CMBIDYES )
 				{
-					CloseHandle( ( HANDLE )_CreateThread( NULL, 0, handle_download_list, ( void * )3, 0, NULL ) );	// Restart download (from the beginning).
+					// Restart download (from the beginning).
+					HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, handle_download_list, ( void * )3, 0, NULL );
+					if ( thread != NULL )
+					{
+						CloseHandle( thread );
+					}
 				}
 			}
 
@@ -2104,7 +2129,11 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 			// If we're in a secondary thread, then kill it (cleanly) and wait for it to exit.
 			if ( in_worker_thread )
 			{
-				CloseHandle( ( HANDLE )_CreateThread( NULL, 0, cleanup, ( void * )NULL, 0, NULL ) );
+				HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, cleanup, ( void * )NULL, 0, NULL );
+				if ( thread != NULL )
+				{
+					CloseHandle( thread );
+				}
 			}
 			else	// Otherwise, destroy the window normally.
 			{
@@ -2173,7 +2202,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 			if ( cfg_enable_download_history && g_download_history_changed )
 			{
 				_wmemcpy_s( g_base_directory + g_base_directory_length, MAX_PATH - g_base_directory_length, L"\\download_history\0", 18 );
-				g_base_directory[ g_base_directory_length + 17 ] = 0;	// Sanity.
+				//g_base_directory[ g_base_directory_length + 17 ] = 0;	// Sanity.
 
 				save_download_history( g_base_directory );
 				g_download_history_changed = false;
@@ -2315,7 +2344,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 			if ( cfg_enable_download_history && g_download_history_changed )
 			{
 				_wmemcpy_s( g_base_directory + g_base_directory_length, MAX_PATH - g_base_directory_length, L"\\download_history\0", 18 );
-				g_base_directory[ g_base_directory_length + 17 ] = 0;	// Sanity.
+				//g_base_directory[ g_base_directory_length + 17 ] = 0;	// Sanity.
 
 				save_download_history( g_base_directory );
 				g_download_history_changed = false;
