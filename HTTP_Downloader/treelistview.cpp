@@ -1273,7 +1273,10 @@ int merge_compare( void *a, void *b, void *sort )
 
 					if ( di1_type == di2_type )
 					{
-						return ( di1->code > di2->code );
+						if ( di1->code != di2->code )
+						{
+							return ( di1->code > di2->code );
+						}
 					}
 					else
 					{

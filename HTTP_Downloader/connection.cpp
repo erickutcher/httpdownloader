@@ -4525,6 +4525,8 @@ void StartDownload( DOWNLOAD_INFO *di, unsigned char start_type, unsigned char s
 
 	//EnterCriticalSection( &cleanup_cs );
 
+	di->code = 0;
+
 	// If the number of ranges is less than the total number of parts that's been set for the download,
 	// then the remaining ranges will be split to equal the total number of parts.
 	UpdateRangeList( di );

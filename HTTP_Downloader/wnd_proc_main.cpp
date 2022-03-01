@@ -951,7 +951,29 @@ wchar_t *GetDownloadInfoString( DOWNLOAD_INFO *di, int column, int root_index, i
 				}
 				else if ( di->status == STATUS_FAILED )
 				{
-					__snwprintf( buf, tbuf_size, L"%s - %d.%1d%%", ST_V_Failed, i_percentage, remainder );
+					if ( di->code != 0 && di->url != NULL )
+					{
+						if ( di->url[ 0 ] == L'h' || di->url[ 0 ] == L'H' )
+						{
+							__snwprintf( buf, tbuf_size, L"%s - %d.%1d%% - HTTP %d", ST_V_Failed, i_percentage, remainder, di->code );
+						}
+						else if ( di->url[ 0 ] == L'f' || di->url[ 0 ] == L'F' )
+						{
+							__snwprintf( buf, tbuf_size, L"%s - %d.%1d%% - FTP %d", ST_V_Failed, i_percentage, remainder, di->code );
+						}
+						else if ( di->url[ 0 ] == L's' || di->url[ 0 ] == L'S' )
+						{
+							__snwprintf( buf, tbuf_size, L"%s - %d.%1d%% - SFTP %d", ST_V_Failed, i_percentage, remainder, di->code );
+						}
+						else	// Shouldn't happen.
+						{
+							__snwprintf( buf, tbuf_size, L"%s - %d.%1d%% - %d", ST_V_Failed, i_percentage, remainder, di->code );
+						}
+					}
+					else
+					{
+						__snwprintf( buf, tbuf_size, L"%s - %d.%1d%%", ST_V_Failed, i_percentage, remainder );
+					}
 				}
 				else if ( di->status == STATUS_FILE_IO_ERROR )
 				{
