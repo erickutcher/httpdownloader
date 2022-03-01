@@ -1235,6 +1235,52 @@ int merge_compare( void *a, void *b, void *sort )
 		{
 			if ( di1->status == di2->status )
 			{
+				if ( di1->status == STATUS_FAILED )
+				{
+					char di1_type = 0, di2_type = 0;
+
+					if ( di1->url != NULL )
+					{
+						if ( di1->url[ 0 ] == L'h' || di1->url[ 0 ] == L'H' )
+						{
+							di1_type = 2;
+						}
+						else if ( di1->url[ 0 ] == L'f' || di1->url[ 0 ] == L'F' )
+						{
+							di1_type = 1;
+						}
+						else if ( di1->url[ 0 ] == L's' || di1->url[ 0 ] == L'S' )
+						{
+							di1_type = 3;
+						}
+					}
+
+					if ( di2->url != NULL )
+					{
+						if ( di2->url[ 0 ] == L'h' || di2->url[ 0 ] == L'H' )
+						{
+							di2_type = 2;
+						}
+						else if ( di2->url[ 0 ] == L'f' || di2->url[ 0 ] == L'F' )
+						{
+							di2_type = 1;
+						}
+						else if ( di2->url[ 0 ] == L's' || di2->url[ 0 ] == L'S' )
+						{
+							di2_type = 3;
+						}
+					}
+
+					if ( di1_type == di2_type )
+					{
+						return ( di1->code > di2->code );
+					}
+					else
+					{
+						return ( di1_type > di2_type );
+					}
+				}
+
 				if ( di1->last_downloaded != 0 && di2->last_downloaded == 0 )
 				{
 					return 1;
@@ -1286,7 +1332,7 @@ int merge_compare( void *a, void *b, void *sort )
 						fistp i_percentage2;	//; Convert the floating point value into an integer, store it in an integer, and then pop it off the stack.
 					}
 #endif
-					return i_percentage1 > i_percentage2;
+					return ( i_percentage1 > i_percentage2 );
 				}
 
 				//return ( ( di1->file_size - di1->downloaded ) > ( di2->file_size - di2->downloaded ) );
