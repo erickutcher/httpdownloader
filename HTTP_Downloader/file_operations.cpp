@@ -57,11 +57,20 @@ char read_config()
 	_wmemcpy_s( g_base_directory + g_base_directory_length, MAX_PATH - g_base_directory_length, L"\\http_downloader_settings\0", 26 );
 	//g_base_directory[ g_base_directory_length + 25 ] = 0;	// Sanity.
 
+#ifdef ENABLE_LOGGING
+	DWORD lfz = 0;
+	WriteLog( LOG_INFO_MISC, "Reading configuration: %S", g_base_directory );
+#endif
+
 	HANDLE hFile_cfg = CreateFile( g_base_directory, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL );
 	if ( hFile_cfg != INVALID_HANDLE_VALUE )
 	{
 		DWORD read = 0;
 		DWORD fz = GetFileSize( hFile_cfg, NULL );
+
+#ifdef ENABLE_LOGGING
+		lfz = fz;
+#endif
 
 		unsigned char i;
 		int reserved;
@@ -1193,7 +1202,7 @@ char read_config()
 	}
 
 #ifdef ENABLE_LOGGING
-	WriteLog( ( ret_status == 0 ? LOG_INFO : LOG_ERROR ), "Reading configuration: %d | %S", ret_status, g_base_directory );
+	WriteLog( ( ret_status == 0 ? LOG_INFO_MISC : LOG_ERROR ), "Finished reading configuration: %d | %lu bytes", ret_status, lfz );
 #endif
 
 	return ret_status;
@@ -1205,6 +1214,11 @@ char save_config()
 
 	_wmemcpy_s( g_base_directory + g_base_directory_length, MAX_PATH - g_base_directory_length, L"\\http_downloader_settings\0", 26 );
 	//g_base_directory[ g_base_directory_length + 25 ] = 0;	// Sanity.
+
+#ifdef ENABLE_LOGGING
+	DWORD lfz = 0;
+	WriteLog( LOG_INFO_MISC, "Saving configuration: %S", g_base_directory );
+#endif
 
 	HANDLE hFile_cfg = CreateFile( g_base_directory, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL );
 	if ( hFile_cfg != INVALID_HANDLE_VALUE )
@@ -1643,6 +1657,9 @@ char save_config()
 
 		DWORD write = 0;
 		WriteFile( hFile_cfg, write_buf, size, &write, NULL );
+#ifdef ENABLE_LOGGING
+		lfz += write;
+#endif
 
 		GlobalFree( write_buf );
 
@@ -1665,16 +1682,25 @@ char save_config()
 		{
 			WriteFile( hFile_cfg, "\0", 1, &write, NULL );
 		}
+#ifdef ENABLE_LOGGING
+		lfz += write;
+#endif
 
 		// Options Appearance
 
 		utf8_cfg_val = WideStringToUTF8String( cfg_odd_row_font_settings.lf.lfFaceName, &cfg_val_length );
 		WriteFile( hFile_cfg, utf8_cfg_val, cfg_val_length, &write, NULL );
 		GlobalFree( utf8_cfg_val );
+#ifdef ENABLE_LOGGING
+		lfz += write;
+#endif
 
 		utf8_cfg_val = WideStringToUTF8String( cfg_even_row_font_settings.lf.lfFaceName, &cfg_val_length );
 		WriteFile( hFile_cfg, utf8_cfg_val, cfg_val_length, &write, NULL );
 		GlobalFree( utf8_cfg_val );
+#ifdef ENABLE_LOGGING
+		lfz += write;
+#endif
 
 		// Options FTP
 
@@ -1688,6 +1714,9 @@ char save_config()
 		{
 			WriteFile( hFile_cfg, "\0", 1, &write, NULL );
 		}
+#ifdef ENABLE_LOGGING
+		lfz += write;
+#endif
 
 		// Options Proxy
 
@@ -1701,6 +1730,9 @@ char save_config()
 		{
 			WriteFile( hFile_cfg, "\0", 1, &write, NULL );
 		}
+#ifdef ENABLE_LOGGING
+		lfz += write;
+#endif
 
 		if ( cfg_proxy_auth_username != NULL )
 		{
@@ -1718,6 +1750,9 @@ char save_config()
 		{
 			WriteFile( hFile_cfg, "\0\0", 2, &write, NULL );
 		}
+#ifdef ENABLE_LOGGING
+		lfz += write;
+#endif
 
 		if ( cfg_proxy_auth_password != NULL )
 		{
@@ -1735,6 +1770,9 @@ char save_config()
 		{
 			WriteFile( hFile_cfg, "\0\0", 2, &write, NULL );
 		}
+#ifdef ENABLE_LOGGING
+		lfz += write;
+#endif
 
 		//
 
@@ -1748,6 +1786,9 @@ char save_config()
 		{
 			WriteFile( hFile_cfg, "\0", 1, &write, NULL );
 		}
+#ifdef ENABLE_LOGGING
+		lfz += write;
+#endif
 
 		if ( cfg_proxy_auth_username_s != NULL )
 		{
@@ -1765,6 +1806,9 @@ char save_config()
 		{
 			WriteFile( hFile_cfg, "\0\0", 2, &write, NULL );
 		}
+#ifdef ENABLE_LOGGING
+		lfz += write;
+#endif
 
 		if ( cfg_proxy_auth_password_s != NULL )
 		{
@@ -1782,6 +1826,9 @@ char save_config()
 		{
 			WriteFile( hFile_cfg, "\0\0", 2, &write, NULL );
 		}
+#ifdef ENABLE_LOGGING
+		lfz += write;
+#endif
 
 		//
 
@@ -1795,6 +1842,9 @@ char save_config()
 		{
 			WriteFile( hFile_cfg, "\0", 1, &write, NULL );
 		}
+#ifdef ENABLE_LOGGING
+		lfz += write;
+#endif
 
 		if ( cfg_proxy_auth_ident_username_socks != NULL )
 		{
@@ -1812,6 +1862,9 @@ char save_config()
 		{
 			WriteFile( hFile_cfg, "\0\0", 2, &write, NULL );
 		}
+#ifdef ENABLE_LOGGING
+		lfz += write;
+#endif
 
 		if ( cfg_proxy_auth_username_socks != NULL )
 		{
@@ -1829,6 +1882,9 @@ char save_config()
 		{
 			WriteFile( hFile_cfg, "\0\0", 2, &write, NULL );
 		}
+#ifdef ENABLE_LOGGING
+		lfz += write;
+#endif
 
 		if ( cfg_proxy_auth_password_socks != NULL )
 		{
@@ -1846,6 +1902,9 @@ char save_config()
 		{
 			WriteFile( hFile_cfg, "\0\0", 2, &write, NULL );
 		}
+#ifdef ENABLE_LOGGING
+		lfz += write;
+#endif
 
 		// Options Server
 
@@ -1859,6 +1918,9 @@ char save_config()
 		{
 			WriteFile( hFile_cfg, "\0", 1, &write, NULL );
 		}
+#ifdef ENABLE_LOGGING
+		lfz += write;
+#endif
 
 		if ( cfg_authentication_username != NULL )
 		{
@@ -1876,6 +1938,9 @@ char save_config()
 		{
 			WriteFile( hFile_cfg, "\0\0", 2, &write, NULL );
 		}
+#ifdef ENABLE_LOGGING
+		lfz += write;
+#endif
 
 		if ( cfg_authentication_password != NULL )
 		{
@@ -1893,6 +1958,9 @@ char save_config()
 		{
 			WriteFile( hFile_cfg, "\0\0", 2, &write, NULL );
 		}
+#ifdef ENABLE_LOGGING
+		lfz += write;
+#endif
 
 		if ( cfg_certificate_pkcs_password != NULL )
 		{
@@ -1910,6 +1978,9 @@ char save_config()
 		{
 			WriteFile( hFile_cfg, "\0\0", 2, &write, NULL );
 		}
+#ifdef ENABLE_LOGGING
+		lfz += write;
+#endif
 
 		if ( cfg_certificate_pkcs_file_name != NULL )
 		{
@@ -1921,6 +1992,9 @@ char save_config()
 		{
 			WriteFile( hFile_cfg, "\0", 1, &write, NULL );
 		}
+#ifdef ENABLE_LOGGING
+		lfz += write;
+#endif
 
 		if ( cfg_certificate_cer_file_name != NULL )
 		{
@@ -1932,6 +2006,9 @@ char save_config()
 		{
 			WriteFile( hFile_cfg, "\0", 1, &write, NULL );
 		}
+#ifdef ENABLE_LOGGING
+		lfz += write;
+#endif
 
 		if ( cfg_certificate_key_file_name != NULL )
 		{
@@ -1943,6 +2020,9 @@ char save_config()
 		{
 			WriteFile( hFile_cfg, "\0", 1, &write, NULL );
 		}
+#ifdef ENABLE_LOGGING
+		lfz += write;
+#endif
 
 		// Options Advanced
 
@@ -1956,6 +2036,9 @@ char save_config()
 		{
 			WriteFile( hFile_cfg, "\0", 1, &write, NULL );
 		}
+#ifdef ENABLE_LOGGING
+		lfz += write;
+#endif
 
 		if ( cfg_temp_download_directory != NULL )
 		{
@@ -1967,6 +2050,9 @@ char save_config()
 		{
 			WriteFile( hFile_cfg, "\0", 1, &write, NULL );
 		}
+#ifdef ENABLE_LOGGING
+		lfz += write;
+#endif
 
 		CloseHandle( hFile_cfg );
 	}
@@ -1976,7 +2062,7 @@ char save_config()
 	}
 
 #ifdef ENABLE_LOGGING
-	WriteLog( ( ret_status == 0 ? LOG_INFO : LOG_ERROR ), "Saving configuration: %d | %S", ret_status, g_base_directory );
+	WriteLog( ( ret_status == 0 ? LOG_INFO_MISC : LOG_ERROR ), "Finished saving configuration: %d | %lu bytes", ret_status, lfz );
 #endif
 
 	return ret_status;
@@ -1985,6 +2071,11 @@ char save_config()
 char read_download_history( wchar_t *file_path, bool scroll_to_last_item )
 {
 	char ret_status = 0;
+
+#ifdef ENABLE_LOGGING
+	DWORD lfz = 0;
+	WriteLog( LOG_INFO_MISC, "Reading download history: %S", file_path );
+#endif
 
 	HANDLE hFile_read = CreateFile( file_path, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL );
 	if ( hFile_read != INVALID_HANDLE_VALUE )
@@ -2062,6 +2153,9 @@ char read_download_history( wchar_t *file_path, bool scroll_to_last_item )
 		BOOL bRet = ReadFile( hFile_read, magic_identifier, sizeof( char ) * 4, &read, NULL );
 		if ( bRet != FALSE )
 		{
+#ifdef ENABLE_LOGGING
+			lfz += 4;
+#endif
 			if ( read == 4 && _memcmp( magic_identifier, MAGIC_ID_DOWNLOADS, 3 ) == 0 && ( int )magic_identifier[ 3 ] >= 0x15 )
 			{
 				char *history_buf = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( 524288 + 1 ) );	// 512 KB buffer.
@@ -2080,6 +2174,10 @@ char read_download_history( wchar_t *file_path, bool scroll_to_last_item )
 						{
 							break;
 						}
+
+#ifdef ENABLE_LOGGING
+						lfz += read;
+#endif
 
 						history_buf[ read ] = 0;	// Guarantee a NULL terminated buffer.
 
@@ -3069,7 +3167,7 @@ char read_download_history( wchar_t *file_path, bool scroll_to_last_item )
 	}
 
 #ifdef ENABLE_LOGGING
-	WriteLog( ( ret_status == 0 ? LOG_INFO : LOG_ERROR ), "Reading download history: %d | %S", ret_status, file_path );
+	WriteLog( ( ret_status == 0 ? LOG_INFO_MISC : LOG_ERROR ), "Finished reading download history: %d | %lu bytes", ret_status, lfz );
 #endif
 
 	return ret_status;
@@ -3078,6 +3176,11 @@ char read_download_history( wchar_t *file_path, bool scroll_to_last_item )
 char save_download_history( wchar_t *file_path )
 {
 	char ret_status = 0;
+
+#ifdef ENABLE_LOGGING
+	DWORD lfz = 0;
+	WriteLog( LOG_INFO_MISC, "Saving download history: %S", file_path );
+#endif
 
 	HANDLE hFile_downloads = CreateFile( file_path, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL );
 	if ( hFile_downloads != INVALID_HANDLE_VALUE )
@@ -3114,6 +3217,9 @@ char save_download_history( wchar_t *file_path )
 					// Dump the buffer.
 					WriteFile( hFile_downloads, buf, pos, &write, NULL );
 					pos = 0;
+#ifdef ENABLE_LOGGING
+					lfz += write;
+#endif
 				}
 
 				_memcpy_s( buf + pos, size - pos, &di->hosts, sizeof( unsigned char ) );
@@ -3226,6 +3332,9 @@ char save_download_history( wchar_t *file_path )
 						// Dump the buffer.
 						WriteFile( hFile_downloads, buf, pos, &write, NULL );
 						pos = 0;
+#ifdef ENABLE_LOGGING
+						lfz += write;
+#endif
 					}
 
 					if ( di->shared_info->hosts > 1 )
@@ -3450,6 +3559,9 @@ char save_download_history( wchar_t *file_path )
 						// Dump the buffer.
 						WriteFile( hFile_downloads, buf, pos, &write, NULL );
 						pos = 0;
+#ifdef ENABLE_LOGGING
+						lfz += write;
+#endif
 					}
 
 					_memcpy_s( buf + pos, size - pos, &range_count, sizeof( unsigned char ) );
@@ -3492,6 +3604,9 @@ char save_download_history( wchar_t *file_path )
 		if ( pos > 0 )
 		{
 			WriteFile( hFile_downloads, buf, pos, &write, NULL );
+#ifdef ENABLE_LOGGING
+			lfz += write;
+#endif
 		}
 
 		GlobalFree( buf );
@@ -3504,7 +3619,7 @@ char save_download_history( wchar_t *file_path )
 	}
 
 #ifdef ENABLE_LOGGING
-	WriteLog( ( ret_status == 0 ? LOG_INFO : LOG_ERROR ), "Saving download history: %d | %S", ret_status, file_path );
+	WriteLog( ( ret_status == 0 ? LOG_INFO_MISC : LOG_ERROR ), "Finished saving download history: %d | %lu bytes", ret_status, lfz );
 #endif
 
 	return ret_status;

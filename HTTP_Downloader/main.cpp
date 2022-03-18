@@ -594,9 +594,30 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 				else if ( ( arg + 1 ) < argCount &&
 					 arg_name_length == 3 && _StrCmpNIW( arg_name, L"log", 3 ) == 0 )	// Log file.
 				{
+					++arg;
+
+					unsigned int log_filter = 0;
+					wchar_t *ptr = szArgList[ arg ];
+					while ( ptr != NULL && *ptr != NULL )
+					{
+						if ( *ptr >= L'0' && *ptr <= L'9' )
+						{
+							unsigned char log_type = ( unsigned char )( *ptr - L'0' );
+							switch ( log_type )
+							{
+								case 1: { log_filter |= LOG_INFO_MISC; } break;
+								case 2: { log_filter |= LOG_INFO_ACTION; } break;
+								case 3: { log_filter |= LOG_INFO_CON_STATE; } break;
+								case 4: { log_filter |= LOG_WARNING; } break;
+								case 5: { log_filter |= LOG_ERROR; } break;
+							}
+						}
+						++ptr;
+					}
+
 					++arg;	// Move to the supplied filepath.
 
-					OpenLog( szArgList[ arg ] );
+					OpenLog( szArgList[ arg ], log_filter );
 				}
 #endif
 			}
@@ -1208,9 +1229,9 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 	}
 
 #ifdef ENABLE_LOGGING
-	WriteLog( LOG_INFO, "zlib1.dll %s", ( zlib1_state == ZLIB1_STATE_RUNNING ? "loaded" : "not loaded" ) );
-	WriteLog( LOG_INFO, "psftp.dll %s", ( psftp_state == PSFTP_STATE_RUNNING ? "loaded" : "not loaded" ) );
-	WriteLog( LOG_INFO, "libpcre2-16-0.dll %s", ( pcre2_state == PCRE2_STATE_RUNNING ? "loaded" : "not loaded" ) );
+	WriteLog( ( zlib1_state == ZLIB1_STATE_RUNNING ? LOG_INFO_MISC : LOG_WARNING ), "zlib1.dll %s", ( zlib1_state == ZLIB1_STATE_RUNNING ? "loaded" : "not loaded" ) );
+	WriteLog( ( psftp_state == PSFTP_STATE_RUNNING ? LOG_INFO_MISC : LOG_WARNING ), "psftp.dll %s", ( psftp_state == PSFTP_STATE_RUNNING ? "loaded" : "not loaded" ) );
+	WriteLog( ( pcre2_state == PCRE2_STATE_RUNNING ? LOG_INFO_MISC : LOG_WARNING ), "libpcre2-16-0.dll %s", ( pcre2_state == PCRE2_STATE_RUNNING ? "loaded" : "not loaded" ) );
 #endif
 
 	downloader_ready_semaphore = CreateSemaphore( NULL, 0, 1, NULL );
@@ -1597,7 +1618,7 @@ CLEANUP:
 
 		if ( ii != NULL )
 		{
-			DestroyIcon( ii->icon );
+			_DestroyIcon( ii->icon );
 			GlobalFree( ii->file_extension );
 			GlobalFree( ii );
 		}

@@ -1876,6 +1876,10 @@ THREAD_RETURN handle_sftp_fps_host_list( void *pArguments )
 		{
 			SFTP_FPS_HOST_INFO *sfhi = sfhui->sfhi;
 
+#ifdef ENABLE_LOGGING
+			WriteLog( LOG_INFO_ACTION, "Adding %S to SFTP fingerprint list", sfhi->w_host );
+#endif
+
 			char fail_type = 0;
 
 			ParseSFTPHost( sfhi->w_host, &sfhi->host, sfhi->port );
@@ -2159,6 +2163,9 @@ THREAD_RETURN handle_sftp_fps_host_list( void *pArguments )
 
 					if ( sfhi != NULL )
 					{
+#ifdef ENABLE_LOGGING
+						WriteLog( LOG_INFO_ACTION, "Removing %S from SFTP fingerprint list", sfhi->w_host );
+#endif
 						// Find the host info
 						dllrbt_iterator *old_itr = dllrbt_find( g_sftp_fps_host_info, ( void * )sfhi, false );
 						if ( old_itr != NULL )
@@ -2340,6 +2347,11 @@ char read_sftp_fps_host_info()
 	_wmemcpy_s( g_base_directory + g_base_directory_length, MAX_PATH - g_base_directory_length, L"\\sftp_fingerprint_settings\0", 27 );
 	//g_base_directory[ g_base_directory_length + 26 ] = 0;	// Sanity.
 
+#ifdef ENABLE_LOGGING
+	DWORD lfz = 0;
+	WriteLog( LOG_INFO_MISC, "Reading SFTP fingerprints: %S", g_base_directory );
+#endif
+
 	HANDLE hFile_read = CreateFile( g_base_directory, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL );
 	if ( hFile_read != INVALID_HANDLE_VALUE )
 	{
@@ -2357,6 +2369,9 @@ char read_sftp_fps_host_info()
 		BOOL bRet = ReadFile( hFile_read, magic_identifier, sizeof( char ) * 4, &read, NULL );
 		if ( bRet != FALSE && read == 4 && _memcmp( magic_identifier, MAGIC_ID_SFTP_HOSTS, 4 ) == 0 )
 		{
+#ifdef ENABLE_LOGGING
+			lfz += 4;
+#endif
 			char *buf = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( 524288 + 1 ) );	// 512 KB buffer.
 			if ( buf != NULL )
 			{
@@ -2369,6 +2384,10 @@ char read_sftp_fps_host_info()
 					{
 						break;
 					}
+
+#ifdef ENABLE_LOGGING
+					lfz += read;
+#endif
 
 					buf[ read ] = 0;	// Guarantee a NULL terminated buffer.
 
@@ -2514,6 +2533,10 @@ char read_sftp_fps_host_info()
 		ret_status = -1;	// Can't open file for reading.
 	}
 
+#ifdef ENABLE_LOGGING
+	WriteLog( ( ret_status == 0 ? LOG_INFO_MISC : LOG_ERROR ), "Finished reading SFTP fingerprints: %d | %lu bytes", ret_status, lfz );
+#endif
+
 	return ret_status;
 }
 
@@ -2523,6 +2546,11 @@ char save_sftp_fps_host_info()
 
 	_wmemcpy_s( g_base_directory + g_base_directory_length, MAX_PATH - g_base_directory_length, L"\\sftp_fingerprint_settings\0", 27 );
 	//g_base_directory[ g_base_directory_length + 26 ] = 0;	// Sanity.
+
+#ifdef ENABLE_LOGGING
+	DWORD lfz = 0;
+	WriteLog( LOG_INFO_MISC, "Saving SFTP fingerprints: %S", g_base_directory );
+#endif
 
 	HANDLE hFile = CreateFile( g_base_directory, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL );
 	if ( hFile != INVALID_HANDLE_VALUE )
@@ -2557,6 +2585,9 @@ char save_sftp_fps_host_info()
 						// Dump the buffer.
 						WriteFile( hFile, buf, pos, &write, NULL );
 						pos = 0;
+#ifdef ENABLE_LOGGING
+						lfz += write;
+#endif
 					}
 
 					_memcpy_s( buf + pos, size - pos, sfhi->w_host, host_length );
@@ -2579,6 +2610,9 @@ char save_sftp_fps_host_info()
 		if ( pos > 0 )
 		{
 			WriteFile( hFile, buf, pos, &write, NULL );
+#ifdef ENABLE_LOGGING
+			lfz += write;
+#endif
 		}
 
 		GlobalFree( buf );
@@ -2589,6 +2623,10 @@ char save_sftp_fps_host_info()
 	{
 		ret_status = -1;	// Can't open file for writing.
 	}
+
+#ifdef ENABLE_LOGGING
+	WriteLog( ( ret_status == 0 ? LOG_INFO_MISC : LOG_ERROR ), "Finished saving SFTP fingerprints: %d | %lu bytes", ret_status, lfz );
+#endif
 
 	return ret_status;
 }
@@ -2699,6 +2737,10 @@ THREAD_RETURN handle_sftp_keys_host_list( void *pArguments )
 		if ( skhui->update_type == 0 && skhui->skhi != NULL )	// Add
 		{
 			SFTP_KEYS_HOST_INFO *skhi = skhui->skhi;
+
+#ifdef ENABLE_LOGGING
+			WriteLog( LOG_INFO_ACTION, "Adding %S to SFTP host key list", skhi->w_host );
+#endif
 
 			unsigned char fail_type = 0;
 
@@ -2842,6 +2884,9 @@ THREAD_RETURN handle_sftp_keys_host_list( void *pArguments )
 
 					if ( skhi != NULL )
 					{
+#ifdef ENABLE_LOGGING
+						WriteLog( LOG_INFO_ACTION, "Removing %S from SFTP host key list", skhi->w_host );
+#endif
 						// Find the host info
 						dllrbt_iterator *itr = dllrbt_find( g_sftp_keys_host_info, ( void * )skhi, false );
 						if ( itr != NULL )
@@ -2909,6 +2954,9 @@ THREAD_RETURN handle_sftp_keys_host_list( void *pArguments )
 
 				if ( skhi != NULL )
 				{
+#ifdef ENABLE_LOGGING
+					WriteLog( LOG_INFO_ACTION, "%s %S in SFTP host key list", ( skhui->enable ? "Enabling" : "Disabling" ), skhi->w_host );
+#endif
 					skhi->enable = skhui->enable;
 				}
 			}
@@ -2943,6 +2991,11 @@ char read_sftp_keys_host_info()
 	_wmemcpy_s( g_base_directory + g_base_directory_length, MAX_PATH - g_base_directory_length, L"\\sftp_private_key_settings\0", 27 );
 	//g_base_directory[ g_base_directory_length + 26 ] = 0;	// Sanity.
 
+#ifdef ENABLE_LOGGING
+	DWORD lfz = 0;
+	WriteLog( LOG_INFO_MISC, "Reading SFTP host keys: %S", g_base_directory );
+#endif
+
 	HANDLE hFile_read = CreateFile( g_base_directory, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL );
 	if ( hFile_read != INVALID_HANDLE_VALUE )
 	{
@@ -2961,6 +3014,9 @@ char read_sftp_keys_host_info()
 		BOOL bRet = ReadFile( hFile_read, magic_identifier, sizeof( char ) * 4, &read, NULL );
 		if ( bRet != FALSE && read == 4 && _memcmp( magic_identifier, MAGIC_ID_SFTP_KEYS, 4 ) == 0 )
 		{
+#ifdef ENABLE_LOGGING
+			lfz += 4;
+#endif
 			char *buf = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( 524288 + 1 ) );	// 512 KB buffer.
 			if ( buf != NULL )
 			{
@@ -2973,6 +3029,10 @@ char read_sftp_keys_host_info()
 					{
 						break;
 					}
+
+#ifdef ENABLE_LOGGING
+					lfz += read;
+#endif
 
 					buf[ read ] = 0;	// Guarantee a NULL terminated buffer.
 
@@ -3115,6 +3175,10 @@ char read_sftp_keys_host_info()
 		ret_status = -1;	// Can't open file for reading.
 	}
 
+#ifdef ENABLE_LOGGING
+	WriteLog( ( ret_status == 0 ? LOG_INFO_MISC : LOG_ERROR ), "Finished reading SFTP host keys: %d | %lu bytes", ret_status, lfz );
+#endif
+
 	return ret_status;
 }
 
@@ -3124,6 +3188,11 @@ char save_sftp_keys_host_info()
 
 	_wmemcpy_s( g_base_directory + g_base_directory_length, MAX_PATH - g_base_directory_length, L"\\sftp_private_key_settings\0", 27 );
 	//g_base_directory[ g_base_directory_length + 26 ] = 0;	// Sanity.
+
+#ifdef ENABLE_LOGGING
+	DWORD lfz = 0;
+	WriteLog( LOG_INFO_MISC, "Saving SFTP host keys: %S", g_base_directory );
+#endif
 
 	HANDLE hFile = CreateFile( g_base_directory, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL );
 	if ( hFile != INVALID_HANDLE_VALUE )
@@ -3155,6 +3224,9 @@ char save_sftp_keys_host_info()
 					// Dump the buffer.
 					WriteFile( hFile, buf, pos, &write, NULL );
 					pos = 0;
+#ifdef ENABLE_LOGGING
+					lfz += write;
+#endif
 				}
 
 				_memcpy_s( buf + pos, size - pos, &skhi->enable, sizeof( bool ) );
@@ -3177,6 +3249,9 @@ char save_sftp_keys_host_info()
 		if ( pos > 0 )
 		{
 			WriteFile( hFile, buf, pos, &write, NULL );
+#ifdef ENABLE_LOGGING
+			lfz += write;
+#endif
 		}
 
 		GlobalFree( buf );
@@ -3187,6 +3262,10 @@ char save_sftp_keys_host_info()
 	{
 		ret_status = -1;	// Can't open file for writing.
 	}
+
+#ifdef ENABLE_LOGGING
+	WriteLog( ( ret_status == 0 ? LOG_INFO_MISC : LOG_ERROR ), "Finished saving SFTP host keys: %d | %lu bytes", ret_status, lfz );
+#endif
 
 	return ret_status;
 }

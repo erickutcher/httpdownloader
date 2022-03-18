@@ -494,7 +494,7 @@ void CleanupServerInfo()
 void StartServer()
 {
 #ifdef ENABLE_LOGGING
-	WriteLog( LOG_INFO, "Starting web server" );
+	WriteLog( LOG_INFO_MISC, "Starting web server" );
 #endif
 
 	g_listen_socket = CreateListenSocket();
@@ -512,7 +512,7 @@ void CleanupServer()
 	if ( g_listen_socket != INVALID_SOCKET )
 	{
 #ifdef ENABLE_LOGGING
-		WriteLog( LOG_INFO, "Shutting down web server" );
+		WriteLog( LOG_INFO_MISC, "Shutting down web server" );
 #endif
 
 		SOCKET del_listen_socket = g_listen_socket;
@@ -532,7 +532,7 @@ THREAD_RETURN IOCPDownloader( void * /*pArguments*/ )
 	DWORD dwThreadCount = cfg_thread_count;
 
 #ifdef ENABLE_LOGGING
-	WriteLog( LOG_INFO, "Initializing Winsock" );
+	WriteLog( LOG_INFO_MISC, "Initializing Winsock" );
 #endif
 
 	if ( ws2_32_state == WS2_32_STATE_SHUTDOWN )
@@ -551,7 +551,7 @@ THREAD_RETURN IOCPDownloader( void * /*pArguments*/ )
 	}
 
 #ifdef ENABLE_LOGGING
-	WriteLog( LOG_INFO, "Initializing SSL" );
+	WriteLog( LOG_INFO_MISC, "Initializing SSL" );
 #endif
 
 	// Load our SSL functions.
@@ -586,7 +586,7 @@ THREAD_RETURN IOCPDownloader( void * /*pArguments*/ )
 	}
 
 #ifdef ENABLE_LOGGING
-	WriteLog( LOG_INFO, "Initializing IOCP with %lu threads", dwThreadCount );
+	WriteLog( LOG_INFO_MISC, "Initializing IOCP with %lu threads", dwThreadCount );
 #endif
 
 	g_hIOCP = CreateIoCompletionPort( INVALID_HANDLE_VALUE, NULL, 0, 0 );
@@ -633,7 +633,7 @@ THREAD_RETURN IOCPDownloader( void * /*pArguments*/ )
 	}
 
 #ifdef ENABLE_LOGGING
-	WriteLog( LOG_INFO, "Waiting on IOCP threads" );
+	WriteLog( LOG_INFO_MISC, "Waiting on IOCP threads" );
 #endif
 
 	_WSAWaitForMultipleEvents( 1, g_cleanup_event, TRUE, WSA_INFINITE, FALSE );
@@ -650,7 +650,7 @@ THREAD_RETURN IOCPDownloader( void * /*pArguments*/ )
 	}
 
 #ifdef ENABLE_LOGGING
-	WriteLog( LOG_INFO, "Waiting for IOCP threads to exit" );
+	WriteLog( LOG_INFO_MISC, "Waiting for IOCP threads to exit" );
 #endif
 
 	// Make sure IOCP worker threads have exited.
@@ -715,7 +715,7 @@ HARD_CLEANUP:
 	}
 
 #ifdef ENABLE_LOGGING
-	WriteLog( LOG_INFO, "Exiting main IOCP thread" );
+	WriteLog( LOG_INFO_MISC, "Exiting main IOCP thread" );
 #endif
 
 	_ExitThread( 0 );
@@ -1898,6 +1898,23 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 						// Allow the accept socket to inherit the properties of the listen socket.
 						if ( _setsockopt( context->socket, SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT, ( char * )&listen_socket, sizeof( SOCKET ) ) != SOCKET_ERROR )
 						{
+#ifdef ENABLE_LOGGING
+							sockaddr_storage addr;
+							_memzero( &addr, sizeof( sockaddr_storage ) );
+							socklen_t addr_len = sizeof( sockaddr_storage );
+							_getpeername( context->socket, ( sockaddr * )&addr, &addr_len );
+
+							char cs_ip[ INET6_ADDRSTRLEN ];
+							_memzero( cs_ip, INET6_ADDRSTRLEN );
+							DWORD cs_ip_length = INET6_ADDRSTRLEN;
+							if ( !_WSAAddressToStringA( ( sockaddr * )&addr, ( DWORD )addr_len, NULL, cs_ip, &cs_ip_length ) )
+							{
+								wchar_t cs_host[ NI_MAXHOST ];
+								_memzero( cs_host, sizeof( wchar_t ) * NI_MAXHOST );
+								_GetNameInfoW( ( sockaddr * )&addr, addr_len, cs_host, NI_MAXHOST, NULL, 0, 0 );
+								WriteLog( LOG_INFO_CON_STATE, "Accepted client connection: %s (%S)", cs_ip, ( cs_host[ 0 ] != NULL ? cs_host : L"UNKNOWN HOST" ) );
+							}
+#endif
 							// Create a new socket context with the inherited socket.
 							new_context = UpdateCompletionPort( context->socket, false, 0, true, true );
 
@@ -4801,18 +4818,7 @@ void StartDownload( DOWNLOAD_INFO *di, unsigned char start_type, unsigned char s
 				//
 
 #ifdef ENABLE_LOGGING
-				wchar_t *l_file_path;
-				wchar_t t_l_file_path[ MAX_PATH ];
-				if ( di->shared_info->download_operations & DOWNLOAD_OPERATION_SIMULATE )
-				{
-					l_file_path = L"Simulated";
-				}
-				else
-				{
-					GetDownloadFilePath( di, t_l_file_path );
-					l_file_path = t_l_file_path;
-				}
-				WriteLog( LOG_INFO, "Connecting: %S | %S", di->url, l_file_path );
+				GenericLogEntry( di, LOG_INFO_CON_STATE, "Connecting" );
 #endif
 
 				context->status = STATUS_CONNECTING;
@@ -5011,7 +5017,7 @@ ICON_INFO *CacheIcon( DOWNLOAD_INFO *di, SHFILEINFO *sfi )
 
 				if ( dllrbt_insert( g_icon_handles, ( void * )ii->file_extension, ( void * )ii ) != DLLRBT_STATUS_OK )
 				{
-					DestroyIcon( ii->icon );
+					_DestroyIcon( ii->icon );
 					GlobalFree( ii->file_extension );
 					GlobalFree( ii );
 					ii = NULL;
@@ -5049,7 +5055,7 @@ void RemoveCachedIcon( DOWNLOAD_INFO *di, wchar_t *file_extension )
 			{
 				if ( --ii->count == 0 )
 				{
-					DestroyIcon( ii->icon );
+					_DestroyIcon( ii->icon );
 					GlobalFree( ii->file_extension );
 					GlobalFree( ii );
 
@@ -6694,23 +6700,6 @@ DWORD WINAPI AddURL( void *add_info )
 								// print_range_list is used in DrawTreeListView
 								shared_info->print_range_list = shared_info->host_list;
 							}
-#ifdef ENABLE_LOGGING
-							else
-							{
-								wchar_t *l_file_path;
-								wchar_t t_l_file_path[ MAX_PATH ];
-								if ( di->shared_info->download_operations & DOWNLOAD_OPERATION_SIMULATE )
-								{
-									l_file_path = L"Simulated";
-								}
-								else
-								{
-									GetDownloadFilePath( di, t_l_file_path );
-									l_file_path = t_l_file_path;
-								}
-								WriteLog( LOG_INFO, "Added URL: %S | %S", di->url, l_file_path );
-							}
-#endif
 
 							if ( download_operations & DOWNLOAD_OPERATION_ADD_STOPPED )
 							{
@@ -6737,20 +6726,6 @@ DWORD WINAPI AddURL( void *add_info )
 
 						if ( di != shared_info )
 						{
-#ifdef ENABLE_LOGGING
-							wchar_t *l_file_path;
-							wchar_t t_l_file_path[ MAX_PATH ];
-							if ( di->shared_info->download_operations & DOWNLOAD_OPERATION_SIMULATE )
-							{
-								l_file_path = L"Simulated";
-							}
-							else
-							{
-								GetDownloadFilePath( di, t_l_file_path );
-								l_file_path = t_l_file_path;
-							}
-							WriteLog( LOG_INFO, "Added group URL: %S | %S", di->url, l_file_path );
-#endif
 							di->shared_info->parts += parts;
 
 							++tln_parent->child_count;
@@ -6771,6 +6746,10 @@ DWORD WINAPI AddURL( void *add_info )
 
 							TLV_SetTotalItemCount( TLV_GetTotalItemCount() + 1 );
 						}
+
+#ifdef ENABLE_LOGGING
+						GenericLogEntry( di, LOG_INFO_ACTION, "Added URL" );
+#endif
 					}
 					else
 					{
@@ -7272,6 +7251,12 @@ THREAD_RETURN ProcessMoveQueue( void * /*pArguments*/ )
 
 				break;
 			}
+
+#ifdef ENABLE_LOGGING
+			char log_status[ 256 ];
+			GetDownloadStatus( log_status, 256, di->shared_info->status );
+			WriteLog( LOG_INFO_ACTION, "Move file status: %s | %S | %S -> %S", log_status, di->url, file_path, di->shared_info->file_path );
+#endif
 
 			di->shared_info->file_path[ di->shared_info->filename_offset - 1 ] = 0;	// Restore.
 		}
@@ -8040,16 +8025,18 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 							GetDownloadStatus( log_status, 256, di->status );
 							wchar_t *l_file_path;
 							wchar_t t_l_file_path[ MAX_PATH ];
+							bool is_temp = false;
 							if ( di->shared_info->download_operations & DOWNLOAD_OPERATION_SIMULATE )
 							{
 								l_file_path = L"Simulated";
 							}
 							else
 							{
-								GetDownloadFilePath( di, t_l_file_path );
+								if ( cfg_use_temp_download_directory ) { GetTemporaryFilePath( di, t_l_file_path ); is_temp = true; }
+								else { GetDownloadFilePath( di, t_l_file_path ); }
 								l_file_path = t_l_file_path;
 							}
-							WriteLog( LOG_INFO, "Download cleanup status: %s | %s%S | %S", log_status, ( is_group ? "group | " : "" ), di->url, l_file_path );
+							WriteLog( LOG_INFO_CON_STATE, "Download cleanup status: %s | %s%S | %s%S", log_status, ( is_group ? "group | " : "" ), di->url, ( is_temp ? "temp | " : "" ), l_file_path );
 #endif
 
 							EnterCriticalSection( &active_download_list_cs );
@@ -8290,6 +8277,16 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 										{
 											DeleteFileW( file_path_delete );
 										}
+
+#ifdef ENABLE_LOGGING
+										wchar_t *l_file_path;
+										wchar_t t_l_file_path[ MAX_PATH ];
+										bool is_temp = false;
+										if ( cfg_use_temp_download_directory && shared_info->status != STATUS_COMPLETED ) { GetTemporaryFilePath( shared_info, t_l_file_path ); is_temp = true; }
+										else { GetDownloadFilePath( shared_info, t_l_file_path ); }
+										l_file_path = t_l_file_path;
+										WriteLog( LOG_INFO_ACTION, "Deleting: %s%S", ( is_temp ? "temp | " : "" ), l_file_path );
+#endif
 									}
 
 									free_shared_info = true;
@@ -8555,7 +8552,7 @@ void FreeListenContext()
 	if ( g_listen_context != NULL )
 	{
 #ifdef ENABLE_LOGGING
-		WriteLog( LOG_INFO, "Shutting down web server" );
+		WriteLog( LOG_INFO_MISC, "Shutting down web server" );
 #endif
 
 		CleanupConnection( g_listen_context );
@@ -8569,7 +8566,7 @@ THREAD_RETURN CheckForUpdates( void * /*pArguments*/ )
 	if ( TryEnterCriticalSection( &worker_cs ) == TRUE )
 	{
 #ifdef ENABLE_LOGGING
-		WriteLog( LOG_INFO, "Checking for updates" );
+		WriteLog( LOG_INFO_MISC, "Checking for updates" );
 #endif
 		in_worker_thread = true;
 
@@ -8658,7 +8655,7 @@ THREAD_RETURN CheckForUpdates( void * /*pArguments*/ )
 				unsigned long version_c = ( g_new_version & 0x0000FF00 ) >> 8;
 				unsigned long version_d = ( g_new_version & 0x000000FF );
 
-				WriteLog( LOG_INFO, "Update response: %lu.%lu.%lu.%lu", version_a, version_b, version_c, version_d );
+				WriteLog( LOG_INFO_MISC, "Update response: %lu.%lu.%lu.%lu", version_a, version_b, version_c, version_d );
 #endif
 			}
 

@@ -217,11 +217,21 @@ THREAD_RETURN remove_items( void *pArguments )
 			continue;
 		}
 
+		DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )tln->data;
+
 		TREELISTNODE *tln_parent = tln;
 
 		// We'll go through each child regardless of whether it's selected if a group is selected.
 		if ( tln->data_type == TLVDT_GROUP && tln->child != NULL )
 		{
+			// Is our update window open and are we removing the item we want to update? Close the window if we are.
+			if ( g_update_download_info != NULL && di == g_update_download_info )
+			{
+				g_update_download_info = NULL;
+
+				_SendMessageW( g_hWnd_update_download, WM_DESTROY_ALT, 0, 0 );
+			}
+
 			tln = tln->child;
 		}
 
@@ -236,9 +246,12 @@ THREAD_RETURN remove_items( void *pArguments )
 			// Wait, specifically for CleanupConnection to do its thing.
 			EnterCriticalSection( &cleanup_cs );
 
-			DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )tln->data;
+			di = ( DOWNLOAD_INFO * )tln->data;
 			if ( di != NULL )
 			{
+#ifdef ENABLE_LOGGING
+				GenericLogEntry( di, LOG_INFO_ACTION, "Removing" );
+#endif
 				// Is our update window open and are we removing the item we want to update? Close the window if we are.
 				if ( di == g_update_download_info )
 				{
@@ -317,12 +330,12 @@ THREAD_RETURN remove_items( void *pArguments )
 					{
 						if ( di->shared_info->hosts == 0 &&
 							 /*di->shared_info->host_list != NULL &&*/
-						  !( di->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
+						  !( di->shared_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
 						{
 							wchar_t *file_path_delete;
 
 							wchar_t file_path[ MAX_PATH + 1 ];
-							if ( cfg_use_temp_download_directory && di->status != STATUS_COMPLETED )
+							if ( cfg_use_temp_download_directory && di->shared_info->status != STATUS_COMPLETED )
 							{
 								GetTemporaryFilePath( di, file_path );
 
@@ -331,9 +344,9 @@ THREAD_RETURN remove_items( void *pArguments )
 							else
 							{
 								// We're freeing this anyway so it's safe to modify.
-								di->file_path[ di->filename_offset - 1 ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
+								di->shared_info->file_path[ di->shared_info->filename_offset - 1 ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
 
-								file_path_delete = di->file_path;
+								file_path_delete = di->shared_info->file_path;
 
 								file_path[ 0 ] = 0;	// Flag for if we're moving to the Recycle Bin.
 							}
@@ -393,6 +406,16 @@ THREAD_RETURN remove_items( void *pArguments )
 									error_type |= 4;
 								}
 							}
+
+#ifdef ENABLE_LOGGING
+							wchar_t *l_file_path;
+							wchar_t t_l_file_path[ MAX_PATH ];
+							bool is_temp = false;
+							if ( cfg_use_temp_download_directory && di->shared_info->status != STATUS_COMPLETED ) { GetTemporaryFilePath( di, t_l_file_path ); is_temp = true; }
+							else { GetDownloadFilePath( di, t_l_file_path ); }
+							l_file_path = t_l_file_path;
+							WriteLog( LOG_INFO_ACTION, "Deleting: %s%S", ( is_temp ? "temp | " : "" ), l_file_path );
+#endif
 						}
 					}
 
@@ -640,9 +663,6 @@ THREAD_RETURN handle_download_list( void *pArguments )
 
 	if ( handle_type == 0 )	// Pause active downloads.
 	{
-#ifdef ENABLE_LOGGING
-		WriteLog( LOG_INFO, "Pausing active downloads" );
-#endif
 		// Go through each active download, and set their status to paused.
 		EnterCriticalSection( &active_download_list_cs );
 
@@ -668,6 +688,12 @@ THREAD_RETURN handle_download_list( void *pArguments )
 				if ( di->status == STATUS_CONNECTING ||
 					 di->status == STATUS_DOWNLOADING )
 				{
+#ifdef ENABLE_LOGGING
+					if ( !( di == di->shared_info && di != ( DOWNLOAD_INFO * )di->shared_info->host_list->data ) )
+					{
+						GenericLogEntry( di, LOG_INFO_CON_STATE, "Pausing" );
+					}
+#endif
 					di->status |= STATUS_PAUSED;
 
 					context_node = di->parts_list;
@@ -706,9 +732,6 @@ THREAD_RETURN handle_download_list( void *pArguments )
 	}
 	else if ( handle_type == 1 )	// Stop all active and queued downloads.
 	{
-#ifdef ENABLE_LOGGING
-		WriteLog( LOG_INFO, "Stopping active and queued downloads" );
-#endif
 		// We'll stop queued downloads first so that the active downloads don't trigger the queued downloads to start.
 
 		// Go through each queued download, and set their status to stopped.
@@ -728,12 +751,15 @@ THREAD_RETURN handle_download_list( void *pArguments )
 				while ( host_node != NULL )
 				{
 					DOWNLOAD_INFO *host_di = ( DOWNLOAD_INFO * )host_node->data;
-					if ( host_di != NULL && host_di != di )
+					if ( host_di != NULL /*&& host_di != di*/ )
 					{
 						EnterCriticalSection( &host_di->di_cs );
 
 						if ( IS_STATUS( host_di->status, STATUS_QUEUED ) )
 						{
+#ifdef ENABLE_LOGGING
+							GenericLogEntry( host_di, LOG_INFO_ACTION, "Stopping queued" );
+#endif
 							host_di->status = STATUS_STOPPED;
 						}
 
@@ -747,9 +773,9 @@ THREAD_RETURN handle_download_list( void *pArguments )
 				di->shared_info->status = STATUS_STOPPED;
 				LeaveCriticalSection( &di->shared_info->di_cs );
 
-				EnterCriticalSection( &di->di_cs );
+				/*EnterCriticalSection( &di->di_cs );
 				di->status = STATUS_STOPPED;
-				LeaveCriticalSection( &di->di_cs );
+				LeaveCriticalSection( &di->di_cs );*/
 
 				// Remove the item from the download queue.
 				DLL_RemoveNode( &download_queue, &di->queue_node );
@@ -784,6 +810,12 @@ THREAD_RETURN handle_download_list( void *pArguments )
 						STATUS_CONNECTING |
 						STATUS_DOWNLOADING ) )
 				{
+#ifdef ENABLE_LOGGING
+					if ( !( di == di->shared_info && di != ( DOWNLOAD_INFO * )di->shared_info->host_list->data ) )
+					{
+						GenericLogEntry( di, LOG_INFO_CON_STATE, "Stopping active" );
+					}
+#endif
 					// Download is active, close the connection.
 					if ( di->download_node.data != NULL )
 					{
@@ -832,9 +864,6 @@ THREAD_RETURN handle_download_list( void *pArguments )
 	}
 	else if ( handle_type == 2 )	// Remove completed downloads.
 	{
-#ifdef ENABLE_LOGGING
-		WriteLog( LOG_INFO, "Removing completed downloads" );
-#endif
 		// Prevent the listviews from drawing while freeing lParam values.
 		_SendMessageW( g_hWnd_tlv_files, TLVM_TOGGLE_DRAW, TRUE, NULL );
 
@@ -849,6 +878,11 @@ THREAD_RETURN handle_download_list( void *pArguments )
 		TREELISTNODE *first_visible_node = TLV_GetFirstVisibleItem();
 
 		int first_visible_root_index = TLV_GetFirstVisibleRootIndex();
+
+		TREELISTNODE *first_selection_node = NULL;
+		int first_selection_index = -1;
+		TREELISTNODE *last_selection_node = NULL;
+		int last_selection_index = -1;
 
 		TREELISTNODE *tln = g_tree_list;
 		int item_index = 0;
@@ -883,6 +917,14 @@ THREAD_RETURN handle_download_list( void *pArguments )
 				// We'll go through each child regardless of whether it's selected if a group is selected.
 				if ( tln->data_type == TLVDT_GROUP && tln->child != NULL )
 				{
+					// Is our update window open and are we removing the item we want to update? Close the window if we are.
+					if ( di == g_update_download_info )
+					{
+						g_update_download_info = NULL;
+
+						_SendMessageW( g_hWnd_update_download, WM_DESTROY_ALT, 0, 0 );
+					}
+
 					tln = tln->child;
 				}
 
@@ -897,6 +939,9 @@ THREAD_RETURN handle_download_list( void *pArguments )
 					di = ( DOWNLOAD_INFO * )tln->data;
 					if ( di != NULL )
 					{
+#ifdef ENABLE_LOGGING
+						GenericLogEntry( di, LOG_INFO_ACTION, "Removing completed" );
+#endif
 						// Is our update window open and are we removing the item we want to update? Close the window if we are.
 						if ( di == g_update_download_info )
 						{
@@ -977,7 +1022,7 @@ THREAD_RETURN handle_download_list( void *pArguments )
 
 				tln = tln_parent;
 
-				if ( tln->flag & TLVS_SELECTED )
+				if ( tln->child != NULL && tln->flag & TLVS_SELECTED )
 				{
 					++selected_count;
 
@@ -1111,6 +1156,18 @@ THREAD_RETURN handle_download_list( void *pArguments )
 			}
 			else
 			{
+				if ( tln->flag & TLVS_SELECTED )
+				{
+					last_selection_node = tln;
+					last_selection_index = ( item_index - selected_count );
+
+					if ( first_selection_node == NULL )
+					{
+						first_selection_node = last_selection_node;
+						first_selection_index = last_selection_index;
+					}
+				}
+
 				++item_index;	// Include the parent.
 				if ( tln->is_expanded )
 				{
@@ -1130,6 +1187,8 @@ THREAD_RETURN handle_download_list( void *pArguments )
 		TLV_SetRootItemCount( TLV_GetRootItemCount() - root_item_count );
 		TLV_SetSelectedCount( TLV_GetSelectedCount() - selected_count );
 		TLV_ResetSelectionBounds();
+		TLV_SetSelectionBounds( first_selection_index, first_selection_node );
+		TLV_SetSelectionBounds( last_selection_index, last_selection_node );
 
 		if ( g_tree_list != NULL )
 		{
@@ -1144,9 +1203,6 @@ THREAD_RETURN handle_download_list( void *pArguments )
 	}
 	else if ( handle_type == 3 )	// Restart selected download (from the beginning).
 	{
-#ifdef ENABLE_LOGGING
-		WriteLog( LOG_INFO, "Restarting selected download" );
-#endif
 		TREELISTNODE *tln = TLV_GetFocusedItem();
 		if ( tln != NULL )
 		{
@@ -1158,9 +1214,35 @@ THREAD_RETURN handle_download_list( void *pArguments )
 				// Ensure that there are no active parts downloading.
 				if ( di->active_parts == 0 )
 				{
+					bool is_group = ( tln->data_type == ( TLVDT_GROUP | TLVDT_HOST ) ? false : true );
+					DOWNLOAD_INFO *t_di = ( DOWNLOAD_INFO * )di->shared_info->host_list->data;
+
+#ifdef ENABLE_LOGGING
+					GenericLogEntry( t_di, LOG_INFO_ACTION, "Restarting" );
+#endif
+
 					g_download_history_changed = true;
 
-					RestartDownload( di, START_TYPE_HOST, START_OPERATION_NONE );
+					DoublyLinkedList *host_node = di->shared_info->host_list;
+					while ( host_node != NULL )
+					{
+						DOWNLOAD_INFO *host_di = ( DOWNLOAD_INFO * )host_node->data;
+						if ( host_di != NULL )
+						{
+							ResetDownload( host_di, START_TYPE_HOST );
+
+							// Last child, restart group using the first host in the list.
+							if ( is_group && host_node->next == NULL )
+							{
+								ResetDownload( host_di, START_TYPE_GROUP );
+							}
+						}
+
+						host_node = host_node->next;
+					}
+
+					// di->shared_info->downloaded will have been set to 0 above. It shouldn't get into a recursive loop.
+					StartDownload( t_di, START_TYPE_GROUP, START_OPERATION_NONE );
 				}
 
 				LeaveCriticalSection( &di->di_cs );
@@ -1288,22 +1370,27 @@ THREAD_RETURN handle_connection( void *pArguments )
 			if ( di != NULL )
 			{
 #ifdef ENABLE_LOGGING
-				char log_status1[ 256 ];
-				char log_status2[ 256 ];
-				GetDownloadStatus( log_status1, 256, di->status );
-				GetDownloadStatus( log_status2, 256, status );
-				wchar_t *l_file_path;
-				wchar_t t_l_file_path[ MAX_PATH ];
-				if ( di->shared_info->download_operations & DOWNLOAD_OPERATION_SIMULATE )
+				if ( di->status != STATUS_COMPLETED || status == STATUS_RESTART )
 				{
-					l_file_path = L"Simulated";
+					char log_status1[ 256 ];
+					char log_status2[ 256 ];
+					GetDownloadStatus( log_status1, 256, di->status );
+					GetDownloadStatus( log_status2, 256, status );
+					wchar_t *l_file_path;
+					wchar_t t_l_file_path[ MAX_PATH ];
+					bool is_temp = false;
+					if ( di->shared_info->download_operations & DOWNLOAD_OPERATION_SIMULATE )
+					{
+						l_file_path = L"Simulated";
+					}
+					else
+					{
+						if ( cfg_use_temp_download_directory && di->status != STATUS_COMPLETED ) { GetTemporaryFilePath( di, t_l_file_path ); is_temp = true; }
+						else { GetDownloadFilePath( di, t_l_file_path ); }
+						l_file_path = t_l_file_path;
+					}
+					WriteLog( LOG_INFO_CON_STATE, "Setting download status: %s -> %s | %s%S | %s%S", log_status1, log_status2, ( is_group ? "group | " : "" ), di->url, ( is_temp ? "temp | " : "" ), l_file_path );
 				}
-				else
-				{
-					GetDownloadFilePath( di, t_l_file_path );
-					l_file_path = t_l_file_path;
-				}
-				WriteLog( LOG_INFO, "Setting download status: %s -> %s | %s%S | %S", log_status1, log_status2, ( is_group ? "group | " : "" ), di->url, l_file_path );
 #endif
 				unsigned int tmp_status;
 
@@ -2092,6 +2179,9 @@ THREAD_RETURN handle_download_queue( void *pArguments )
 
 		if ( download_queue != NULL )
 		{
+#ifdef ENABLE_LOGGING
+			WriteLog( LOG_INFO_ACTION, "Saving reordered queue" );
+#endif
 			download_queue = NULL;
 
 			TREELISTNODE *tln = g_tree_list;
@@ -2266,6 +2356,30 @@ THREAD_RETURN handle_download_update( void *pArguments )
 		DOWNLOAD_INFO *di = g_update_download_info;
 		if ( di != NULL )
 		{
+#ifdef ENABLE_LOGGING
+			wchar_t *l_file_path;
+			wchar_t t_l_file_path[ MAX_PATH ];
+			bool is_temp = false;
+			if ( di->shared_info->download_operations & DOWNLOAD_OPERATION_SIMULATE )
+			{
+				l_file_path = L"Simulated";
+			}
+			else
+			{
+				if ( cfg_use_temp_download_directory && di->status != STATUS_COMPLETED ) { GetTemporaryFilePath( di, t_l_file_path ); is_temp = true; }
+				else { GetDownloadFilePath( di, t_l_file_path ); }
+				l_file_path = t_l_file_path;
+			}
+
+			if ( di == di->shared_info && di != ( DOWNLOAD_INFO * )di->shared_info->host_list->data )
+			{
+				WriteLog( LOG_INFO_ACTION, "Updating: group | %S", l_file_path );
+			}
+			else
+			{
+				WriteLog( LOG_INFO_ACTION, "Updating: %s%S | %s%S", ( IS_GROUP( di ) ? "group | " : "" ), di->url, ( is_temp ? "temp | " : "" ), l_file_path );
+			}
+#endif
 			EnterCriticalSection( &di->di_cs );
 
 			di->download_speed_limit = ai->download_speed_limit;
@@ -3152,6 +3266,17 @@ THREAD_RETURN delete_files( void * /*pArguments*/ )
 						error_type |= 4;
 					}
 				}
+
+#ifdef ENABLE_LOGGING
+				wchar_t *l_file_path;
+				wchar_t t_l_file_path[ MAX_PATH ];
+				bool is_temp = false;
+				if ( cfg_use_temp_download_directory && di->shared_info->status != STATUS_COMPLETED ) { GetTemporaryFilePath( di, t_l_file_path ); is_temp = true; }
+				else { GetDownloadFilePath( di, t_l_file_path ); }
+				l_file_path = t_l_file_path;
+				WriteLog( LOG_INFO_ACTION, "Deleting: %s%S", ( is_temp ? "temp | " : "" ), l_file_path );
+#endif
+
 			}
 		}
 

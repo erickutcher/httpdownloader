@@ -45,8 +45,6 @@ wchar_t *GetMonth( unsigned short month );
 wchar_t *GetDay( unsigned short day );
 void UnixTimeToSystemTime( DWORD t, SYSTEMTIME *st );
 
-int CALLBACK DMCompareFunc( LPARAM lParam1, LPARAM lParam2, LPARAM lParamSort );
-
 void OffsetVirtualIndices( int *arr, char *column_arr[], unsigned char num_columns, unsigned char total_columns );
 int GetVirtualIndexFromColumnIndex( int column_index, char *column_arr[], unsigned char num_columns );
 int GetColumnIndexFromVirtualIndex( int virtual_index, char *column_arr[], unsigned char num_columns );
@@ -111,10 +109,14 @@ void UpdateSBItemCount();
 
 #ifdef ENABLE_LOGGING
 
-#define LOG_INFO	0
-#define LOG_WARNING	1
-#define LOG_ERROR	2
+#define LOG_INFO_MISC		0x00000001
+#define LOG_INFO_ACTION		0x00000002
+#define LOG_INFO_CON_STATE	0x00000004
+#define LOG_INFO			( LOG_INFO_MISC | LOG_INFO_ACTION | LOG_INFO_CON_STATE )
+#define LOG_WARNING			0x00000008
+#define LOG_ERROR			0x00000010
 
+// ntdll
 //typedef int ( WINAPIV *p_vsnwprintf )( wchar_t *buffer, size_t count, const wchar_t *format, va_list argptr );
 typedef int ( WINAPIV *p_vsnprintf )( char *buffer, size_t count, const char *format, va_list argptr );
 typedef void ( WINAPIV *pRtlGetNtVersionNumbers )( LPDWORD major, LPDWORD minor, LPDWORD build );
@@ -123,12 +125,21 @@ typedef void ( WINAPIV *pRtlGetNtVersionNumbers )( LPDWORD major, LPDWORD minor,
 extern p_vsnprintf				__vsnprintf;
 extern pRtlGetNtVersionNumbers	_RtlGetNtVersionNumbers;
 
+// ws2_32
+typedef int ( WSAAPI *pGetNameInfoW )( const SOCKADDR *pSockaddr, socklen_t SockaddrLength, PWCHAR pNodeBuffer, DWORD NodeBufferSize, PWCHAR pServiceBuffer, DWORD ServiceBufferSize, INT Flags );
+typedef int ( WSAAPI *pgetpeername )( SOCKET s, struct sockaddr *name, int *namelen );
+
+extern pGetNameInfoW	_GetNameInfoW;
+extern pgetpeername		_getpeername;
+
+//
+
 bool InitLogging();
 bool UnInitLogging();
 
-void OpenLog( wchar_t *file_path );
+void OpenLog( wchar_t *file_path, unsigned int log_filter );
 void CloseLog();
-void WriteLog( char type, const char *format, ... );
+void WriteLog( unsigned int type, const char *format, ... );
 
 #define LOG_BUFFER_SIZE	65536
 
@@ -139,6 +150,7 @@ extern unsigned int g_log_buffer_offset;
 #define LOG_BUFFER_OFFSET	( LOG_BUFFER_SIZE - g_log_buffer_offset )
 
 void GetDownloadStatus( char *buf, unsigned short buf_size, unsigned int status );
+void GenericLogEntry( DOWNLOAD_INFO *di, unsigned int type, char *msg );
 
 #endif
 

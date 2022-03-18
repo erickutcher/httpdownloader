@@ -19,6 +19,7 @@
 #include "globals.h"
 #include "string_tables.h"
 #include "lite_kernel32.h"
+#include "utilities.h"
 
 bool g_use_dynamic_locale = false;	// Did we get the strings from a file? We'll need to free the memory when we're done.
 
@@ -699,6 +700,10 @@ void InitializeLocaleValues()
 				}
 
 				g_use_dynamic_locale = true;
+
+#ifdef ENABLE_LOGGING
+				WriteLog( LOG_INFO_MISC, "Using locale file: %S", g_program_directory );
+#endif
 			}
 			else
 			{

@@ -144,6 +144,11 @@ char read_site_info()
 	_wmemcpy_s( g_base_directory + g_base_directory_length, MAX_PATH - g_base_directory_length, L"\\site_settings\0", 15 );
 	//g_base_directory[ g_base_directory_length + 14 ] = 0;	// Sanity.
 
+#ifdef ENABLE_LOGGING
+	DWORD lfz = 0;
+	WriteLog( LOG_INFO_MISC, "Reading site settings: %S", g_base_directory );
+#endif
+
 	HANDLE hFile_read = CreateFile( g_base_directory, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL );
 	if ( hFile_read != INVALID_HANDLE_VALUE )
 	{
@@ -208,6 +213,9 @@ char read_site_info()
 		BOOL bRet = ReadFile( hFile_read, magic_identifier, sizeof( char ) * 4, &read, NULL );
 		if ( bRet != FALSE )
 		{
+#ifdef ENABLE_LOGGING
+			lfz += 4;
+#endif
 			if ( read == 4 && _memcmp( magic_identifier, MAGIC_ID_SITES, 4 ) == 0 )
 			{
 				char *buf = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( 524288 + 1 ) );	// 512 KB buffer.
@@ -222,6 +230,10 @@ char read_site_info()
 						{
 							break;
 						}
+
+#ifdef ENABLE_LOGGING
+						lfz += read;
+#endif
 
 						buf[ read ] = 0;	// Guarantee a NULL terminated buffer.
 
@@ -825,6 +837,10 @@ char read_site_info()
 		ret_status = -1;	// Can't open file for reading.
 	}
 
+#ifdef ENABLE_LOGGING
+	WriteLog( ( ret_status == 0 ? LOG_INFO_MISC : LOG_ERROR ), "Finished reading site settings: %d | %lu bytes", ret_status, lfz );
+#endif
+
 	return ret_status;
 }
 
@@ -834,6 +850,11 @@ char save_site_info()
 
 	_wmemcpy_s( g_base_directory + g_base_directory_length, MAX_PATH - g_base_directory_length, L"\\site_settings\0", 15 );
 	//g_base_directory[ g_base_directory_length + 14 ] = 0;	// Sanity.
+
+#ifdef ENABLE_LOGGING
+	DWORD lfz = 0;
+	WriteLog( LOG_INFO_MISC, "Saving site settings: %S", g_base_directory );
+#endif
 
 	HANDLE hFile = CreateFile( g_base_directory, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL );
 	if ( hFile != INVALID_HANDLE_VALUE )
@@ -933,6 +954,9 @@ char save_site_info()
 					// Dump the buffer.
 					WriteFile( hFile, buf, pos, &write, NULL );
 					pos = 0;
+#ifdef ENABLE_LOGGING
+					lfz += write;
+#endif
 				}
 
 				_memcpy_s( buf + pos, size - pos, &si->enable, sizeof( bool ) );
@@ -1150,6 +1174,9 @@ char save_site_info()
 		if ( pos > 0 )
 		{
 			WriteFile( hFile, buf, pos, &write, NULL );
+#ifdef ENABLE_LOGGING
+			lfz += write;
+#endif
 		}
 
 		GlobalFree( buf );
@@ -1160,6 +1187,10 @@ char save_site_info()
 	{
 		ret_status = -1;	// Can't open file for writing.
 	}
+
+#ifdef ENABLE_LOGGING
+	WriteLog( ( ret_status == 0 ? LOG_INFO_MISC : LOG_ERROR ), "Finished saving site settings: %d | %lu bytes", ret_status, lfz );
+#endif
 
 	return ret_status;
 }
@@ -1220,6 +1251,10 @@ THREAD_RETURN handle_site_list( void *pArguments )
 		if ( sui->update_type == 0 && sui->si != NULL )	// Add
 		{
 			SITE_INFO *si = sui->si;
+
+#ifdef ENABLE_LOGGING
+			WriteLog( LOG_INFO_ACTION, "Adding %S to site manager", si->w_host );
+#endif
 
 			unsigned char fail_type = 0;
 
@@ -1426,6 +1461,9 @@ THREAD_RETURN handle_site_list( void *pArguments )
 
 					if ( si != NULL )
 					{
+#ifdef ENABLE_LOGGING
+						WriteLog( LOG_INFO_ACTION, "Removing %S from site manager", si->w_host );
+#endif
 						// Find the site info
 						dllrbt_iterator *itr = dllrbt_find( g_site_info, ( void * )si, false );
 						if ( itr != NULL )
@@ -1493,6 +1531,9 @@ THREAD_RETURN handle_site_list( void *pArguments )
 
 				if ( si != NULL )
 				{
+#ifdef ENABLE_LOGGING
+					WriteLog( LOG_INFO_ACTION, "%s %S in site manager", ( sui->enable ? "Enabling" : "Disabling" ), si->w_host );
+#endif
 					si->enable = sui->enable;
 				}
 			}
