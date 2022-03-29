@@ -1352,7 +1352,7 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 				case BTN_DOWNLOAD:
 				case BTN_ADD_DOWNLOAD:
 				{
-					unsigned char download_operations = ( _SendMessageW( g_hWnd_chk_simulate_download, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? DOWNLOAD_OPERATION_SIMULATE : DOWNLOAD_OPERATION_NONE );
+					unsigned int download_operations = ( _SendMessageW( g_hWnd_chk_simulate_download, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? DOWNLOAD_OPERATION_SIMULATE : DOWNLOAD_OPERATION_NONE );
 
 					if ( !( download_operations & DOWNLOAD_OPERATION_SIMULATE ) && t_download_directory == NULL )
 					{

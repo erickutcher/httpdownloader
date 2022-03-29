@@ -1305,6 +1305,8 @@ THREAD_RETURN handle_connection( void *pArguments )
 			break;
 		}
 
+		unsigned int tmp_status;
+
 		TREELISTNODE *tln_parent = tln;
 		// The last host whose status is not completed.
 		// We need this to know when to start group downloads.
@@ -1392,7 +1394,6 @@ THREAD_RETURN handle_connection( void *pArguments )
 					WriteLog( LOG_INFO_CON_STATE, "Setting download status: %s -> %s | %s%S | %s%S", log_status1, log_status2, ( is_group ? "group | " : "" ), di->url, ( is_temp ? "temp | " : "" ), l_file_path );
 				}
 #endif
-				unsigned int tmp_status;
 
 				EnterCriticalSection( &di->di_cs );
 
@@ -1908,7 +1909,7 @@ THREAD_RETURN handle_connection( void *pArguments )
 												tmp_status = di->status;
 												di->status = STATUS_NONE;
 
-												StartDownload( di, START_TYPE_HOST_IN_GROUP, ( tmp_status == STATUS_SKIPPED ? START_OPERATION_CHECK_FILE : START_OPERATION_NONE ) );
+												StartDownload( di, START_TYPE_HOST_IN_GROUP, START_OPERATION_NONE/*( tmp_status == STATUS_SKIPPED ? START_OPERATION_CHECK_FILE : START_OPERATION_NONE )*/ );
 											}
 											else	// We're starting an unprocessed group, or host in group.
 											{
@@ -1958,8 +1959,9 @@ THREAD_RETURN handle_connection( void *pArguments )
 
 													if ( driver_di != NULL )
 													{
-														tmp_status = driver_di->status;
-														driver_di->status = STATUS_NONE;
+														//tmp_status = driver_di->status;
+														//driver_di->status = STATUS_NONE;
+														tmp_status = di->shared_info->status;
 
 														di->status = STATUS_NONE;
 
@@ -2018,8 +2020,9 @@ THREAD_RETURN handle_connection( void *pArguments )
 											tmp_status = di->status;
 											di->status = STATUS_NONE;
 
-											RestartDownload( di, ( status == STATUS_RESTART ? ( is_host_in_group ? START_TYPE_HOST_IN_GROUP : START_TYPE_HOST ) : START_TYPE_NONE ),
-																 ( tmp_status == STATUS_SKIPPED ? ( status == STATUS_RESTART ? ( START_OPERATION_CHECK_FILE | START_OPERATION_FORCE_PROMPT ) : START_OPERATION_CHECK_FILE ) : START_OPERATION_NONE ) );
+											RestartDownload( di,
+														   ( status == STATUS_RESTART ? ( is_host_in_group ? START_TYPE_HOST_IN_GROUP : START_TYPE_HOST ) : START_TYPE_NONE ),
+														   ( tmp_status == STATUS_SKIPPED && ( !is_host_in_group || ( is_host_in_group && !di->shared_info->processed_header ) ) ? ( status == STATUS_RESTART ? ( START_OPERATION_CHECK_FILE | START_OPERATION_FORCE_PROMPT ) : START_OPERATION_CHECK_FILE ) : START_OPERATION_NONE ) );
 										}
 									}
 								}

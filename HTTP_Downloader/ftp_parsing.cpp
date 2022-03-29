@@ -1304,14 +1304,14 @@ char GetFTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, unsi
 					}
 					else
 					{
-						if ( context->download_info != NULL )
+						/*if ( context->download_info != NULL )
 						{
 							EnterCriticalSection( &context->download_info->di_cs );
 
 							context->download_info->ssl_version = -1;
 
 							LeaveCriticalSection( &context->download_info->di_cs );
-						}
+						}*/
 
 						context->content_status = FTP_CONTENT_STATUS_SEND_USER;		// 230 (no password needed) or 331 (password needed) if successful.
 					}

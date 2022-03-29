@@ -986,24 +986,17 @@ int CALLBACK LMCompareFunc( LPARAM lParam1, LPARAM lParam2, LPARAM lParamSort )
 
 			case SM_COLUMN_DOWNLOAD_OPERATIONS:
 			{
-				if ( ( si1->download_operations & DOWNLOAD_OPERATION_SIMULATE ) && ( si2->download_operations == DOWNLOAD_OPERATION_SIMULATE ) )
+				if ( si1->download_operations & DOWNLOAD_OPERATION_SIMULATE && !( si2->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
 				{
-					return ( si1->download_operations < si2->download_operations );
+					return 1;
+				}
+				else if ( si2->download_operations & DOWNLOAD_OPERATION_SIMULATE && !( si1->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
+				{
+					return -1;
 				}
 				else
 				{
-					if ( si1->download_operations & DOWNLOAD_OPERATION_SIMULATE )
-					{
-						return 1;
-					}
-					else if ( si2->download_operations & DOWNLOAD_OPERATION_SIMULATE )
-					{
-						return -1;
-					}
-					else
-					{
-						return 0;
-					}
+					return ( si1->download_operations > si2->download_operations );
 				}
 			}
 			break;

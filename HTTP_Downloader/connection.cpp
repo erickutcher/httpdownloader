@@ -1213,11 +1213,11 @@ THREAD_RETURN PromptRenameFile( void *pArguments )
 				{
 					EnterCriticalSection( &context->context_cs );
 
-					EnterCriticalSection( &di->shared_info->di_cs );
+					EnterCriticalSection( &di->di_cs );
 
-					di->shared_info->status = STATUS_SKIPPED;
+					di->status = STATUS_SKIPPED;
 
-					LeaveCriticalSection( &di->shared_info->di_cs );
+					LeaveCriticalSection( &di->di_cs );
 
 					context->status = STATUS_SKIPPED;
 
@@ -1328,11 +1328,11 @@ THREAD_RETURN PromptFileSize( void * /*pArguments*/ )
 				// Close all large downloads.
 				if ( g_file_size_cmb_ret == CMBIDNO || g_file_size_cmb_ret == CMBIDNOALL )
 				{
-					EnterCriticalSection( &di->shared_info->di_cs );
+					EnterCriticalSection( &di->di_cs );
 
-					di->shared_info->status = STATUS_SKIPPED;
+					di->status = STATUS_SKIPPED;
 
-					LeaveCriticalSection( &di->shared_info->di_cs );
+					LeaveCriticalSection( &di->di_cs );
 
 					context->status = STATUS_SKIPPED;
 
@@ -1446,110 +1446,146 @@ THREAD_RETURN PromptLastModified( void *pArguments )
 			DOWNLOAD_INFO *di = context->download_info;
 			if ( di != NULL )
 			{
-				wchar_t prompt_message[ MAX_PATH + 512 ];
-
-				wchar_t file_path[ MAX_PATH ];
-				if ( cfg_use_temp_download_directory )
+				if ( context->processed_header && ( di->download_operations & DOWNLOAD_OPERATION_MODIFIED ) )
 				{
-					GetTemporaryFilePath( di, file_path );
+					// This is a good reason why they say not to use the gotos.
+					EnterCriticalSection( &context->context_cs );
+
+					if ( di->download_operations & DOWNLOAD_OPERATION_MODIFIED_CONTINUE )
+					{
+						goto MOD_CONTINUE;
+					}
+					else if ( di->download_operations & DOWNLOAD_OPERATION_MODIFIED_RESTART )
+					{
+						goto MOD_RESTART;
+					}
+					else// if ( di->download_operations & DOWNLOAD_OPERATION_MODIFIED_SKIP )
+					{
+						goto MOD_SKIP;
+					}
 				}
 				else
 				{
-					GetDownloadFilePath( di, file_path );
-				}
+					wchar_t prompt_message[ MAX_PATH + 512 ];
 
-				if ( restart_only == 0 )
-				{
-					// If the last return value was not set to remember our choice, then prompt again.
-					if ( g_last_modified_cmb_ret != CMBIDCONTINUEALL && g_last_modified_cmb_ret != CMBIDRESTARTALL && g_last_modified_cmb_ret != CMBIDSKIPALL )
+					wchar_t file_path[ MAX_PATH ];
+					if ( cfg_use_temp_download_directory )
 					{
-						__snwprintf( prompt_message, MAX_PATH + 512, ST_V_PROMPT___has_been_modified, file_path );
-
-						g_last_modified_cmb_ret = CMessageBoxW( g_hWnd_main, prompt_message, PROGRAM_CAPTION, CMB_ICONWARNING | CMB_CONTINUERESTARTSKIPALL );
+						GetTemporaryFilePath( di, file_path );
 					}
-				}
-
-				EnterCriticalSection( &context->context_cs );
-
-				// Restart the download.
-				if ( restart_only == 1 || g_last_modified_cmb_ret == CMBIDRESTART || g_last_modified_cmb_ret == CMBIDRESTARTALL )
-				{
-					EnterCriticalSection( &di->di_cs );
-
-					di->status = STATUS_STOPPED | STATUS_RESTART;
-
-					LeaveCriticalSection( &di->di_cs );
-
-					context->status = STATUS_STOPPED | STATUS_RESTART;
-
-					if ( context->cleanup == 0 )
+					else
 					{
+						GetDownloadFilePath( di, file_path );
+					}
+
+					if ( restart_only == 0 )
+					{
+						// If the last return value was not set to remember our choice, then prompt again.
+						if ( g_last_modified_cmb_ret != CMBIDCONTINUEALL && g_last_modified_cmb_ret != CMBIDRESTARTALL && g_last_modified_cmb_ret != CMBIDSKIPALL )
+						{
+							__snwprintf( prompt_message, MAX_PATH + 512, ST_V_PROMPT___has_been_modified, file_path );
+
+							g_last_modified_cmb_ret = CMessageBoxW( g_hWnd_main, prompt_message, PROGRAM_CAPTION, CMB_ICONWARNING | CMB_CONTINUERESTARTSKIPALL );
+						}
+					}
+
+					EnterCriticalSection( &context->context_cs );
+
+					// Restart the download.
+					if ( restart_only == 1 || g_last_modified_cmb_ret == CMBIDRESTART || g_last_modified_cmb_ret == CMBIDRESTARTALL )
+					{
+						if ( context->processed_header )
+						{
+							di->download_operations |= DOWNLOAD_OPERATION_MODIFIED_RESTART;
+						}
+
+						EnterCriticalSection( &di->di_cs );
+
+						di->status = STATUS_STOPPED | STATUS_RESTART;
+
+						LeaveCriticalSection( &di->di_cs );
+MOD_RESTART:
+						context->status = STATUS_STOPPED | STATUS_RESTART;
+
+						if ( context->cleanup == 0 )
+						{
+							InterlockedIncrement( &context->pending_operations );
+
+							if ( context->ssh != NULL )
+							{
+								context->status &= ~STATUS_INPUT_REQUIRED;
+
+								//context->cleanup = 0;
+								context->overlapped_close.current_operation = IO_SFTPCleanup;
+
+								context->overlapped.current_operation = IO_SFTPReadContent;//IO_SFTPResumeReadContent;
+								PostQueuedCompletionStatus( g_hIOCP, 0/*context->current_bytes_read*/, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped );
+							}
+							else
+							{
+								context->cleanup = 1;	// Auto cleanup.
+								context->overlapped_close.current_operation = ( context->ssl != NULL ? IO_Shutdown : IO_Close );
+								PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped_close );
+							}
+						}
+					}
+					else if ( g_last_modified_cmb_ret == CMBIDFAIL || g_last_modified_cmb_ret == CMBIDSKIP || g_last_modified_cmb_ret == CMBIDSKIPALL ) // Skip the download if the return value fails, or the user selected skip.
+					{
+						if ( context->processed_header )
+						{
+							di->download_operations |= DOWNLOAD_OPERATION_MODIFIED_SKIP;
+						}
+
+						EnterCriticalSection( &di->di_cs );
+
+						di->status = STATUS_SKIPPED;
+
+						LeaveCriticalSection( &di->di_cs );
+MOD_SKIP:
+						context->status = STATUS_SKIPPED;
+
+						if ( context->cleanup == 0 )
+						{
+							InterlockedIncrement( &context->pending_operations );
+
+							if ( context->ssh != NULL )
+							{
+								context->status &= ~STATUS_INPUT_REQUIRED;
+
+								//context->cleanup = 0;
+								context->overlapped_close.current_operation = IO_SFTPCleanup;
+
+								context->overlapped.current_operation = IO_SFTPReadContent/*IO_SFTPResumeReadContent*/;
+								PostQueuedCompletionStatus( g_hIOCP, 0/*context->current_bytes_read*/, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped );
+							}
+							else
+							{
+								context->cleanup = 1;	// Auto cleanup.
+								context->overlapped_close.current_operation = ( context->ssl != NULL ? IO_Shutdown : IO_Close );
+								PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped_close );
+							}
+						}
+					}
+					else	// Continue where we left off when getting the content.
+					{
+						if ( context->processed_header )
+						{
+							di->download_operations |= DOWNLOAD_OPERATION_MODIFIED_CONTINUE;
+						}
+
+						EnterCriticalSection( &di->di_cs );
+
+						di->last_modified.HighPart = context->header_info.last_modified.dwHighDateTime;
+						di->last_modified.LowPart = context->header_info.last_modified.dwLowDateTime;
+
+						LeaveCriticalSection( &di->di_cs );
+MOD_CONTINUE:
+						context->status &= ~STATUS_INPUT_REQUIRED;
+
 						InterlockedIncrement( &context->pending_operations );
-
-						if ( context->ssh != NULL )
-						{
-							context->status &= ~STATUS_INPUT_REQUIRED;
-
-							//context->cleanup = 0;
-							context->overlapped_close.current_operation = IO_SFTPCleanup;
-
-							context->overlapped.current_operation = IO_SFTPReadContent;//IO_SFTPResumeReadContent;
-							PostQueuedCompletionStatus( g_hIOCP, 0/*context->current_bytes_read*/, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped );
-						}
-						else
-						{
-							context->cleanup = 1;	// Auto cleanup.
-							context->overlapped_close.current_operation = ( context->ssl != NULL ? IO_Shutdown : IO_Close );
-							PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped_close );
-						}
+						context->overlapped.current_operation = ( context->ssh != NULL ? IO_SFTPResumeReadContent : IO_ResumeGetContent );
+						PostQueuedCompletionStatus( g_hIOCP, context->current_bytes_read, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped );
 					}
-				}
-				else if ( g_last_modified_cmb_ret == CMBIDFAIL || g_last_modified_cmb_ret == CMBIDSKIP || g_last_modified_cmb_ret == CMBIDSKIPALL ) // Skip the download if the return value fails, or the user selected skip.
-				{
-					EnterCriticalSection( &di->shared_info->di_cs );
-
-					di->shared_info->status = STATUS_SKIPPED;
-
-					LeaveCriticalSection( &di->shared_info->di_cs );
-
-					context->status = STATUS_SKIPPED;
-
-					if ( context->cleanup == 0 )
-					{
-						InterlockedIncrement( &context->pending_operations );
-
-						if ( context->ssh != NULL )
-						{
-							context->status &= ~STATUS_INPUT_REQUIRED;
-
-							//context->cleanup = 0;
-							context->overlapped_close.current_operation = IO_SFTPCleanup;
-
-							context->overlapped.current_operation = IO_SFTPReadContent/*IO_SFTPResumeReadContent*/;
-							PostQueuedCompletionStatus( g_hIOCP, 0/*context->current_bytes_read*/, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped );
-						}
-						else
-						{
-							context->cleanup = 1;	// Auto cleanup.
-							context->overlapped_close.current_operation = ( context->ssl != NULL ? IO_Shutdown : IO_Close );
-							PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped_close );
-						}
-					}
-				}
-				else	// Continue where we left off when getting the content.
-				{
-					EnterCriticalSection( &di->di_cs );
-
-					di->last_modified.HighPart = context->header_info.last_modified.dwHighDateTime;
-					di->last_modified.LowPart = context->header_info.last_modified.dwLowDateTime;
-
-					LeaveCriticalSection( &di->di_cs );
-
-					context->status &= ~STATUS_INPUT_REQUIRED;
-
-					InterlockedIncrement( &context->pending_operations );
-					context->overlapped.current_operation = ( context->ssh != NULL ? IO_SFTPResumeReadContent : IO_ResumeGetContent );
-					PostQueuedCompletionStatus( g_hIOCP, context->current_bytes_read, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped );
 				}
 			}
 			else	// No DOWNLOAD_INFO? Then skip.
@@ -2125,6 +2161,11 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 						if ( context->download_info != NULL )
 						{
 							EnterCriticalSection( &context->download_info->di_cs );
+
+							if ( context->ssl == NULL )
+							{
+								context->download_info->ssl_version = -1;
+							}
 
 							if ( !connection_failed )
 							{
@@ -4193,6 +4234,8 @@ void ResetDownload( DOWNLOAD_INFO *di, unsigned char reset_type, bool reset_prog
 				}
 			}
 
+			di->last_modified.QuadPart = 0;
+
 			EnterCriticalSection( &di->shared_info->di_cs );
 
 			di->shared_info->downloaded -= di->downloaded;
@@ -4222,7 +4265,7 @@ void ResetDownload( DOWNLOAD_INFO *di, unsigned char reset_type, bool reset_prog
 
 		di->start_time.QuadPart = 0;
 
-		di->download_operations &= ~DOWNLOAD_OPERATION_ADD_STOPPED;
+		di->download_operations &= ~( DOWNLOAD_OPERATION_ADD_STOPPED | DOWNLOAD_OPERATION_MODIFIED );
 
 		EnterCriticalSection( &di->shared_info->di_cs );
 
@@ -4728,7 +4771,7 @@ void StartDownload( DOWNLOAD_INFO *di, unsigned char start_type, unsigned char s
 					 di != ( DOWNLOAD_INFO * )di->shared_info->host_list->data )
 				{
 					context->got_filename = 1;				// No need to rename it again.
-					context->got_last_modified = 1;			// No need to get the date/time again.
+//					context->got_last_modified = 1;			// No need to get the date/time again.
 					context->show_file_size_prompt = false;	// No need to prompt again.
 				}
 
@@ -5522,7 +5565,7 @@ DWORD WINAPI AddURL( void *add_info )
 	unsigned long long download_speed_limit;
 	char ssl_version;
 
-	unsigned char download_operations = DOWNLOAD_OPERATION_NONE;
+	unsigned int download_operations = DOWNLOAD_OPERATION_NONE;
 
 	unsigned char method = METHOD_NONE;
 

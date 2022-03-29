@@ -3625,10 +3625,10 @@ char GetHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int h
 
 				context->download_info->parts = context->parts;
 
-				if ( context->ssl == NULL )
+				/*if ( context->ssl == NULL )
 				{
 					context->download_info->ssl_version = -1;
-				}
+				}*/
 
 				if ( IS_GROUP( context->download_info ) )
 				{
@@ -6098,10 +6098,10 @@ char GetHTTPRequestContent( SOCKET_CONTEXT *context, char *request_buffer, unsig
 					ssl_version = ( char )_strtoul( context->post_info->ssl_tls_version, NULL, 10 );
 				}
 
-				unsigned char download_operations = 0;
+				unsigned int download_operations = 0;
 				if ( context->post_info->download_operations != NULL )
 				{
-					download_operations = ( unsigned char )_strtoul( context->post_info->download_operations, NULL, 10 );
+					download_operations = ( unsigned int )_strtoul( context->post_info->download_operations, NULL, 10 );
 					download_operations &= ( DOWNLOAD_OPERATION_SIMULATE | DOWNLOAD_OPERATION_OVERRIDE_PROMPTS | DOWNLOAD_OPERATION_ADD_STOPPED );	// Ensure we can only simulate, override prompts, and/or add stopped.
 
 					// No need to override prompts if it's simulated or added.

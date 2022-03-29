@@ -2114,7 +2114,7 @@ char read_download_history( wchar_t *file_path, bool scroll_to_last_item )
 		char				ssl_version;
 
 		bool				processed_header;
-		unsigned char		download_operations;
+		unsigned int		download_operations;
 		unsigned char		method;
 
 		ULARGE_INTEGER		last_modified;
@@ -2275,10 +2275,22 @@ char read_download_history( wchar_t *file_path, bool scroll_to_last_item )
 							p += sizeof( bool );
 
 							// Download Operations
-							offset += sizeof( unsigned char );
-							if ( offset >= read ) { goto CLEANUP; }
-							_memcpy_s( &download_operations, sizeof( unsigned char ), p, sizeof( unsigned char ) );
-							p += sizeof( unsigned char );
+							if ( version >= 7 )
+							{
+								offset += sizeof( unsigned int );
+								if ( offset >= read ) { goto CLEANUP; }
+								_memcpy_s( &download_operations, sizeof( unsigned int ), p, sizeof( unsigned int ) );
+								p += sizeof( unsigned int );
+							}
+							else
+							{
+								download_operations = 0;
+
+								offset += sizeof( unsigned char );
+								if ( offset >= read ) { goto CLEANUP; }
+								_memcpy_s( &download_operations, sizeof( unsigned int ), p, sizeof( unsigned char ) );
+								p += sizeof( unsigned char );
+							}
 
 							// Download Directory
 							int string_length = lstrlenW( ( wchar_t * )p ) + 1;
@@ -3212,7 +3224,8 @@ char save_download_history( wchar_t *file_path )
 								 sizeof( ULONGLONG ) +
 							   ( sizeof( unsigned long long ) * 3 ) +
 							   ( sizeof( bool ) * 2 ) +
-							   ( sizeof( unsigned char ) * 2 ) ) > size )
+								 sizeof( unsigned int ) +
+								 sizeof( unsigned char ) ) > size )
 				{
 					// Dump the buffer.
 					WriteFile( hFile_downloads, buf, pos, &write, NULL );
@@ -3243,8 +3256,8 @@ char save_download_history( wchar_t *file_path )
 				_memcpy_s( buf + pos, size - pos, &di->processed_header, sizeof( bool ) );
 				pos += sizeof( bool );
 
-				_memcpy_s( buf + pos, size - pos, &di->download_operations, sizeof( unsigned char ) );
-				pos += sizeof( unsigned char );
+				_memcpy_s( buf + pos, size - pos, &di->download_operations, sizeof( unsigned int ) );
+				pos += sizeof( unsigned int );
 
 				_memcpy_s( buf + pos, size - pos, di->file_path, download_directory_length );
 				pos += download_directory_length;

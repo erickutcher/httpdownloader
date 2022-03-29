@@ -117,14 +117,18 @@
 #define LA_STATUS_UNKNOWN				0
 #define LA_STATUS_OK					1
 
-#define DOWNLOAD_OPERATION_NONE					0x00
-#define DOWNLOAD_OPERATION_SIMULATE				0x01
-#define DOWNLOAD_OPERATION_OVERRIDE_PROMPTS		0x02
-#define DOWNLOAD_OPERATION_ADD_STOPPED			0x04
-#define DOWNLOAD_OPERATION_OVERRIDE_FILENAME	0x08
-#define DOWNLOAD_OPERATION_GET_EXTENSION		0x10
-#define DOWNLOAD_OPERATION_RENAME				0x20	// When moving from a temporary folder.
-#define DOWNLOAD_OPERATION_OVERWRITE			0x40	// When moving from a temporary folder.
+#define DOWNLOAD_OPERATION_NONE					0x00000000
+#define DOWNLOAD_OPERATION_SIMULATE				0x00000001
+#define DOWNLOAD_OPERATION_OVERRIDE_PROMPTS		0x00000002
+#define DOWNLOAD_OPERATION_ADD_STOPPED			0x00000004
+#define DOWNLOAD_OPERATION_OVERRIDE_FILENAME	0x00000008
+#define DOWNLOAD_OPERATION_GET_EXTENSION		0x00000010
+#define DOWNLOAD_OPERATION_RENAME				0x00000020	// When moving from a temporary folder.
+#define DOWNLOAD_OPERATION_OVERWRITE			0x00000040	// When moving from a temporary folder.
+#define DOWNLOAD_OPERATION_MODIFIED_CONTINUE	0x00000080
+#define DOWNLOAD_OPERATION_MODIFIED_RESTART		0x00000100
+#define DOWNLOAD_OPERATION_MODIFIED_SKIP		0x00000200
+#define DOWNLOAD_OPERATION_MODIFIED				( DOWNLOAD_OPERATION_MODIFIED_CONTINUE | DOWNLOAD_OPERATION_MODIFIED_RESTART | DOWNLOAD_OPERATION_MODIFIED_SKIP )
 
 #define START_TYPE_NONE					0x00
 #define START_TYPE_HOST					0x01
@@ -386,8 +390,8 @@ struct ADD_INFO
 	char				*utf8_cookies;
 	char				*utf8_headers;
 	char				*utf8_data;	// POST payload.
+	unsigned int		download_operations;
 	unsigned char		parts;
-	unsigned char		download_operations;
 	unsigned char		method;		// 1 = GET, 2 = POST
 	char				ssl_version;
 	bool				use_download_speed_limit;
@@ -439,6 +443,7 @@ struct DOWNLOAD_INFO
 	unsigned int		filename_offset;
 	unsigned int		file_extension_offset;
 	unsigned int		status;
+	unsigned int		download_operations;
 	int					code;
 	unsigned short		parts;
 	unsigned short		active_parts;
@@ -447,7 +452,6 @@ struct DOWNLOAD_INFO
 	unsigned char		method;				// 1 = GET, 2 = POST
 	char				ssl_version;
 	bool				processed_header;
-	unsigned char		download_operations;
 	unsigned char		moving_state;		// 0 = None, 1 = Moving, 2 = Cancelling
 	unsigned char		hosts;
 	unsigned char		active_hosts;

@@ -189,6 +189,7 @@ struct CL_ARGS
 	wchar_t *proxy_username;
 	wchar_t *proxy_password;
 	unsigned long proxy_ip_address;
+	unsigned int download_operations;
 	int download_directory_length;
 	int download_history_file_length;
 	int url_list_file_length;
@@ -203,7 +204,6 @@ struct CL_ARGS
 	int proxy_password_length;
 	unsigned short proxy_port;
 	unsigned char parts;
-	unsigned char download_operations;
 	unsigned char download_immediately;
 	unsigned char proxy_type;
 	char ssl_version;

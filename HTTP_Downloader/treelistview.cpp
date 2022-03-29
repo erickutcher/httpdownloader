@@ -5536,15 +5536,17 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 
 			short scroll = ( GET_WHEEL_DELTA_WPARAM( wParam ) / WHEEL_DELTA );
 
+			int scroll_amount = ( ( _GetKeyState( VK_CONTROL ) & 0x8000 ) ? 1 : SCROLL_AMOUNT );
+
 			int offset = 0;
 
 			if ( scroll > 0 )	// Up
 			{
-				offset = Scroll( &si, SCROLL_TYPE_UP, SCROLL_AMOUNT );
+				offset = Scroll( &si, SCROLL_TYPE_UP, scroll_amount );
 			}
 			else if ( scroll < 0 )	// Down
 			{
-				offset = Scroll( &si, SCROLL_TYPE_DOWN, SCROLL_AMOUNT );
+				offset = Scroll( &si, SCROLL_TYPE_DOWN, scroll_amount );
 			}
 
 			if ( offset != 0 )

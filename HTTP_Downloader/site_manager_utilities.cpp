@@ -178,7 +178,7 @@ char read_site_info()
 		wchar_t				*w_username;
 		wchar_t				*w_password;
 
-		unsigned char		download_operations;
+		unsigned int		download_operations;
 
 		//
 
@@ -221,6 +221,8 @@ char read_site_info()
 				char *buf = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( 524288 + 1 ) );	// 512 KB buffer.
 				if ( buf != NULL )
 				{
+					char version = magic_identifier[ 3 ] - 0x20;
+
 					DWORD fz = GetFileSize( hFile_read, NULL ) - 4;
 
 					while ( total_read < fz )
@@ -417,10 +419,22 @@ char read_site_info()
 							}
 
 							// Download Operations
-							offset += sizeof( unsigned char );
-							if ( offset >= read ) { goto CLEANUP; }
-							_memcpy_s( &download_operations, sizeof( unsigned char ), p, sizeof( unsigned char ) );
-							p += sizeof( unsigned char );
+							if ( version >= 2 )
+							{
+								offset += sizeof( unsigned int );
+								if ( offset >= read ) { goto CLEANUP; }
+								_memcpy_s( &download_operations, sizeof( unsigned int ), p, sizeof( unsigned int ) );
+								p += sizeof( unsigned int );
+							}
+							else
+							{
+								download_operations = 0;
+
+								offset += sizeof( unsigned char );
+								if ( offset >= read ) { goto CLEANUP; }
+								_memcpy_s( &download_operations, sizeof( unsigned int ), p, sizeof( unsigned char ) );
+								p += sizeof( unsigned char );
+							}
 
 							// Cookies, Headers, POST Data Tabs
 
@@ -947,9 +961,9 @@ char save_site_info()
 								 proxy_username_length +
 								 proxy_password_length +
 								 optional_extra_length +
-							   ( sizeof( int ) * 2 ) +
+							   ( sizeof( int ) * 3 ) +
 							   ( sizeof( bool ) * 4 ) +
-							   ( sizeof( char ) * 4 ) ) > size )
+							   ( sizeof( char ) * 3 ) ) > size )
 				{
 					// Dump the buffer.
 					WriteFile( hFile, buf, pos, &write, NULL );
@@ -1027,8 +1041,8 @@ char save_site_info()
 					pos += sizeof( int );
 				}
 
-				_memcpy_s( buf + pos, size - pos, &si->download_operations, sizeof( unsigned char ) );
-				pos += sizeof( unsigned char );
+				_memcpy_s( buf + pos, size - pos, &si->download_operations, sizeof( unsigned int ) );
+				pos += sizeof( unsigned int );
 
 				// Cookies, Headers, POST Data Tabs
 

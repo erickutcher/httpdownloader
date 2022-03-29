@@ -40,12 +40,13 @@ struct SITE_INFO
 	char				*utf8_headers;
 	char				*utf8_data;		// POST payload.
 
+	unsigned int		download_operations;
+
 	PROTOCOL			protocol;
 	unsigned short		port;
 
 	unsigned char		parts;
 	unsigned char		method;			// 1 = GET, 2 = POST
-	unsigned char		download_operations;
 	char				ssl_version;	// 0 = Default, 1 = SSL 2.0, 2 = 3.0, etc.
 
 	bool				use_download_speed_limit;
