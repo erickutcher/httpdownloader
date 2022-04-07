@@ -1,3 +1,20 @@
+Version:	1.0.4.9
+Released:	2022-04-07
+
+Added the ability to reorder the download list and queue.
+Added option to allocate sparse files.
+Added command-line parameter to filter log.
+Fixed digest authentication failing.
+Fixed icon cache not updating when renaming item.
+Fixed incorrect columns being automatically sorted.
+Fixed last startup position in multi-monitor setup.
+Fixed painting issue when TreeListView is loaded off screen.
+Fixed restarting group downloads when file isn't found.
+Prevented decoding of plus character in URL.
+Sort error codes in Progress column.
+Better handling of prompts for modified files.
+Flash main window if minimized and message box is displayed.
+
 Version:	1.0.4.8
 Released:	2022-01-01
 

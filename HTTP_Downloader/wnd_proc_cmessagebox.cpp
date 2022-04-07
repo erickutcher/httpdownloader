@@ -162,6 +162,11 @@ int CMessageBoxW( HWND hWnd, LPCWSTR lpText, LPCWSTR lpCaption, UINT uType )
 			// Force the window to be painted.
 			_ShowWindow( hWnd_cmsgbox, SW_SHOW );
 
+			if ( _IsIconic( hWnd ) )
+			{
+				_FlashWindow( hWnd, TRUE );
+			}
+
 			// CMessageBox message loop:
 			MSG msg;
 			while ( _GetMessageW( &msg, NULL, 0, 0 ) > 0 )
@@ -242,6 +247,11 @@ int CPromptW( HWND hWnd, LPCWSTR lpText, LPCWSTR lpCaption, UINT uType, void *da
 
 			// Force the window to be painted.
 			_ShowWindow( hWnd_cmsgbox, SW_SHOW );
+
+			if ( _IsIconic( hWnd ) )
+			{
+				_FlashWindow( hWnd, TRUE );
+			}
 
 			// CMessageBox message loop:
 			MSG msg;
