@@ -1,3 +1,9 @@
+Version:	1.0.5.0
+Released	2022-09-02
+
+Fixed dark mode build only working in portable mode.
+Fixed encryption command-line parameter not setting correct version.
+
 Version:	1.0.4.9
 Released:	2022-04-07
 

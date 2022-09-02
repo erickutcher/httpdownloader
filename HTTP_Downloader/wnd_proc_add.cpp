@@ -1888,7 +1888,7 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 					if ( cla->ssl_version >= 0 )
 					{
-						_SendMessageW( g_hWnd_ssl_version, CB_SETCURSEL, cla->ssl_version + 1, 0 );
+						_SendMessageW( g_hWnd_ssl_version, CB_SETCURSEL, cla->ssl_version, 0 );
 					}
 
 					if ( cla->username != NULL )

@@ -647,6 +647,23 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 		LocalFree( szArgList );
 	}
 
+#ifdef ENABLE_DARK_MODE
+	if ( IsWindowsVersionOrGreater( HIBYTE( _WIN32_WINNT_WIN10 ), LOBYTE( _WIN32_WINNT_WIN10 ), 0 ) )
+	{
+		wchar_t dm_file_path[ MAX_PATH ];
+		_wmemcpy_s( dm_file_path, MAX_PATH, g_program_directory, g_program_directory_length );
+		g_base_directory_length = g_program_directory_length;
+		_wmemcpy_s( dm_file_path + g_base_directory_length, MAX_PATH - g_base_directory_length, L"\\dark_mode\0", 11 );
+		//dm_file_path[ g_base_directory_length + 10 ] = 0;	// Sanity.
+
+		// See if the user wants to run the program with dark mode support.
+		if ( GetFileAttributesW( dm_file_path ) != INVALID_FILE_ATTRIBUTES )
+		{
+			g_use_dark_mode = InitDarkMode();
+		}
+	}
+#endif
+
 	// Use our default directory if none was supplied or check if there's a "portable" file in the same directory.
 	if ( default_directory )
 	{
@@ -1268,29 +1285,18 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 	wcex.hIconSm		= NULL;
 
 #ifdef ENABLE_DARK_MODE
-	if ( IsWindowsVersionOrGreater( HIBYTE( _WIN32_WINNT_WIN10 ), LOBYTE( _WIN32_WINNT_WIN10 ), 0 ) )
+	if ( g_use_dark_mode )
 	{
-		_wmemcpy_s( g_base_directory + g_base_directory_length, MAX_PATH - g_base_directory_length, L"\\dark_mode\0", 11 );
-		//g_base_directory[ g_base_directory_length + 10 ] = 0;	// Sanity.
-
-		// See if the user wants to run the program with dark mode support.
-		if ( GetFileAttributesW( g_base_directory ) != INVALID_FILE_ATTRIBUTES )
+		if ( g_dm_buildNumber < WINDOWS_BUILD_1909 )
 		{
-			g_use_dark_mode = InitDarkMode();
-			if ( g_use_dark_mode )
-			{
-				if ( g_dm_buildNumber < WINDOWS_BUILD_1909 )
-				{
-					_AllowDarkModeForApp( true );
-				}
-				else
-				{
-					_SetPreferredAppMode( ForceDark );
-				}
-
-				wcex.hbrBackground = g_hBrush_window_background;
-			}
+			_AllowDarkModeForApp( true );
 		}
+		else
+		{
+			_SetPreferredAppMode( ForceDark );
+		}
+
+		wcex.hbrBackground = g_hBrush_window_background;
 	}
 #endif
 
