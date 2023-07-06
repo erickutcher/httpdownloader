@@ -285,8 +285,8 @@ function SendDownloadToClient( download_info )
 	if ( request )
 	{
 		var server = g_options.server;
-		var server_username = g_options.server;
-		var server_password = g_options.password;
+		var server_username = atob( g_options.username );
+		var server_password = atob( g_options.password );
 		var download_operations = ( g_options.override_prompts ? 2 : 0 );
 		var url;
 
