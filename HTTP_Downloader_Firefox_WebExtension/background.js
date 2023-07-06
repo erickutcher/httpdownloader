@@ -247,6 +247,21 @@ function HandleMessages( request, sender, sendResponse )
 				}
 			}
 
+			if ( browser.webRequest.onBeforeSendHeaders.hasListener( GetURLHeaders ) )
+			{
+				if ( !g_options.override )
+				{
+					browser.webRequest.onBeforeSendHeaders.removeListener( GetURLHeaders );
+				}
+			}
+			else
+			{
+				if ( g_options.override )
+				{
+					browser.webRequest.onBeforeSendHeaders.addListener( GetURLHeaders, { urls: [ "<all_urls>" ] }, [ "requestHeaders" ] );
+				}
+			}
+
 			if ( browser.downloads.onCreated.hasListener( OnDownloadItemCreated ) )
 			{
 				if ( !g_options.override )
