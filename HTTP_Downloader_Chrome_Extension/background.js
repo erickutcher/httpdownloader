@@ -226,6 +226,21 @@ function HandleMessages( request, sender, sendResponse )
 				}
 			}
 
+			if ( chrome.webRequest.onBeforeSendHeaders.hasListener( GetURLHeaders ) )
+			{
+				if ( !g_options.override )
+				{
+					chrome.webRequest.onBeforeSendHeaders.removeListener( GetURLHeaders );
+				}
+			}
+			else
+			{
+				if ( g_options.override )
+				{
+					chrome.webRequest.onBeforeSendHeaders.addListener( GetURLHeaders, { urls: [ "<all_urls>" ] }, [ "requestHeaders" ] );
+				}
+			}
+
 			if ( chrome.downloads.onCreated.hasListener( OnDownloadItemCreated ) )
 			{
 				if ( !g_options.override )
@@ -271,8 +286,8 @@ function SendDownloadToClient( download_info )
 	if ( request )
 	{
 		var server = g_options.server;
-		var server_username = g_options.server;
-		var server_password = g_options.password;
+		var server_username = atob( g_options.username );
+		var server_password = atob( g_options.password );
 		var download_operations = ( g_options.override_prompts ? 2 : 0 );
 		var url;
 
