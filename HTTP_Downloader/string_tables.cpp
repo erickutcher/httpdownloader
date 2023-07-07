@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
-	Copyright (C) 2015-2022 Eric Kutcher
+	Copyright (C) 2015-2023 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -599,6 +599,8 @@ void InitializeLocaleValues()
 
 	bool use_locale_file = true;
 
+	char open_count = 0;
+
 	_memzero( g_locale_table, sizeof( STRING_TABLE_DATA ) * TOTAL_LOCALE_STRINGS );
 
 	//wchar_t directory[ MAX_PATH ];
@@ -632,9 +634,17 @@ void InitializeLocaleValues()
 
 	if ( use_locale_file )
 	{
-		HANDLE hFile_locale = CreateFile( g_program_directory, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL );
+		HANDLE hFile_locale = INVALID_HANDLE_VALUE;
+
+RETRY_OPEN:
+
+		hFile_locale = CreateFile( g_program_directory, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL );
 		if ( hFile_locale != INVALID_HANDLE_VALUE )
 		{
+			OVERLAPPED lfo;
+			_memzero( &lfo, sizeof( OVERLAPPED ) );
+			LockFileEx( hFile_locale, LOCKFILE_EXCLUSIVE_LOCK, 0, MAXDWORD, MAXDWORD, &lfo );
+
 			unsigned char *locale_buf = NULL;
 			DWORD read = 0;
 			DWORD fz = GetFileSize( hFile_locale, NULL );
@@ -677,6 +687,8 @@ void InitializeLocaleValues()
 				use_locale_file = false;	// Incorrect file size.
 			}
 
+			UnlockFileEx( hFile_locale, 0, MAXDWORD, MAXDWORD, &lfo );
+
 			CloseHandle( hFile_locale );
 
 			if ( fz > sizeof( wchar_t ) )
@@ -714,6 +726,12 @@ void InitializeLocaleValues()
 		}
 		else
 		{
+			if ( GetLastError() == ERROR_SHARING_VIOLATION && ++open_count <= 5 )
+			{
+				Sleep( 200 );
+				goto RETRY_OPEN;
+			}
+
 			use_locale_file = false;	// Can't open file for reading.
 		}
 	}

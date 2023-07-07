@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
-	Copyright (C) 2015-2022 Eric Kutcher
+	Copyright (C) 2015-2023 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -1403,6 +1403,8 @@ SECURITY_STATUS SSL_WSARecv_Decrypt( SSL *ssl, LPWSABUF lpBuffers, DWORD &lpNumb
 
 PCCERT_CONTEXT LoadPublicPrivateKeyPair( wchar_t *cer, wchar_t *key )
 {
+	char open_count = 0;
+
 	bool failed = false;
 	PCCERT_CONTEXT	pCertContext = NULL;
 	HCRYPTPROV hProv = NULL;
@@ -1433,9 +1435,18 @@ PCCERT_CONTEXT LoadPublicPrivateKeyPair( wchar_t *cer, wchar_t *key )
 	//pCertContext = _CertFindCertificateInStore( hMyCertStore, X509_ASN_ENCODING | PKCS_7_ASN_ENCODING, 0, CERT_FIND_ANY, NULL, NULL );
 	_CryptQueryObject( CERT_QUERY_OBJECT_FILE, cer, CERT_QUERY_CONTENT_FLAG_CERT, CERT_QUERY_FORMAT_FLAG_ALL, 0, &dwMsgAndCertEncodingType, &dwContentType, &dwFormatType, &hMyCertStore, &hCryptMsg, ( const void ** )&pCertContext );
 
-	HANDLE hFile_cfg = CreateFile( key, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL );
+	HANDLE hFile_cfg = INVALID_HANDLE_VALUE;
+
+	OVERLAPPED lfo;
+
+RETRY_OPEN:
+
+	hFile_cfg = CreateFile( key, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL );
 	if ( hFile_cfg != INVALID_HANDLE_VALUE )
 	{
+		_memzero( &lfo, sizeof( OVERLAPPED ) );
+		LockFileEx( hFile_cfg, LOCKFILE_EXCLUSIVE_LOCK, 0, MAXDWORD, MAXDWORD, &lfo );
+
 		dwBufferLen = GetFileSize( hFile_cfg, NULL );
 
 		szPemPrivKey = ( BYTE * )GlobalAlloc( GMEM_FIXED, sizeof( BYTE ) * dwBufferLen );
@@ -1518,11 +1529,21 @@ PCCERT_CONTEXT LoadPublicPrivateKeyPair( wchar_t *cer, wchar_t *key )
 			failed = true;
 		}
 	}
+	else
+	{
+		if ( GetLastError() == ERROR_SHARING_VIOLATION && ++open_count <= 5 )
+		{
+			Sleep( 200 );
+			goto RETRY_OPEN;
+		}
+	}
 
 CLEANUP:
 
 	if ( hFile_cfg != INVALID_HANDLE_VALUE )
 	{
+		UnlockFileEx( hFile_cfg, 0, MAXDWORD, MAXDWORD, &lfo );
+
 		CloseHandle( hFile_cfg );
 	}
 
@@ -1576,11 +1597,21 @@ CLEANUP:
 
 PCCERT_CONTEXT LoadPKCS12( wchar_t *p12_file, wchar_t *password )
 {
+	char open_count = 0;
+
 	PCCERT_CONTEXT	pCertContext = NULL;
 
-	HANDLE hFile_cfg = CreateFile( p12_file, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL );
+	HANDLE hFile_cfg = INVALID_HANDLE_VALUE;
+
+RETRY_OPEN:
+
+	hFile_cfg = CreateFile( p12_file, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL );
 	if ( hFile_cfg != INVALID_HANDLE_VALUE )
 	{
+		OVERLAPPED lfo;
+		_memzero( &lfo, sizeof( OVERLAPPED ) );
+		LockFileEx( hFile_cfg, LOCKFILE_EXCLUSIVE_LOCK, 0, MAXDWORD, MAXDWORD, &lfo );
+
 		HCERTSTORE hMyCertStore = NULL;
 
 		CRYPT_DATA_BLOB cdb;
@@ -1606,7 +1637,17 @@ PCCERT_CONTEXT LoadPKCS12( wchar_t *p12_file, wchar_t *password )
 			GlobalFree( cdb.pbData );
 		}
 
+		UnlockFileEx( hFile_cfg, 0, MAXDWORD, MAXDWORD, &lfo );
+
 		CloseHandle( hFile_cfg );
+	}
+	else
+	{
+		if ( GetLastError() == ERROR_SHARING_VIOLATION && ++open_count <= 5 )
+		{
+			Sleep( 200 );
+			goto RETRY_OPEN;
+		}
 	}
 
 	return pCertContext;

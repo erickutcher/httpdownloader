@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
-	Copyright (C) 2015-2022 Eric Kutcher
+	Copyright (C) 2015-2023 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -4605,11 +4605,24 @@ char AllocateFile( SOCKET_CONTEXT *context, IO_OPERATION current_operation )
 					GetDownloadFilePath( context->download_info, file_path );
 				}
 
+				ULONG delete_mask;
+				ULONG share_delete_mask;
+				if ( g_allow_rename )
+				{
+					delete_mask = DELETE;
+					share_delete_mask = FILE_SHARE_DELETE;
+				}
+				else
+				{
+					delete_mask = 0;
+					share_delete_mask = 0;
+				}
+
 				// If the file already exists and has been partially downloaded, then open it to resume downloading.
 				if ( GetFileAttributesW( file_path ) != INVALID_FILE_ATTRIBUTES && context->download_info->shared_info->downloaded > 0 )
 				{
 					// If the file has downloaded data (we're resuming), then open it, otherwise truncate its size to 0.
-					context->download_info->shared_info->hFile = CreateFile( file_path, GENERIC_WRITE | FILE_WRITE_ATTRIBUTES | DELETE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED, NULL );
+					context->download_info->shared_info->hFile = CreateFile( file_path, GENERIC_READ | GENERIC_WRITE | FILE_WRITE_ATTRIBUTES | delete_mask, FILE_SHARE_READ | FILE_SHARE_WRITE | share_delete_mask, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED, NULL );
 
 					if ( context->download_info->shared_info->hFile != INVALID_HANDLE_VALUE )
 					{
@@ -4634,7 +4647,7 @@ char AllocateFile( SOCKET_CONTEXT *context, IO_OPERATION current_operation )
 				}
 				else	// Pre-allocate our file on the disk if it does not exist, or if we're overwriting one that already exists.
 				{
-					context->download_info->shared_info->hFile = CreateFile( file_path, GENERIC_WRITE | FILE_WRITE_ATTRIBUTES | DELETE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED, NULL );
+					context->download_info->shared_info->hFile = CreateFile( file_path, GENERIC_READ | GENERIC_WRITE | FILE_WRITE_ATTRIBUTES | delete_mask, FILE_SHARE_READ | FILE_SHARE_WRITE | share_delete_mask, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED, NULL );
 
 					if ( context->download_info->shared_info->hFile != INVALID_HANDLE_VALUE )
 					{

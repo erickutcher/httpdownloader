@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
-	Copyright (C) 2015-2022 Eric Kutcher
+	Copyright (C) 2015-2023 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -590,6 +590,10 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 
 					g_shutdown_action = ( unsigned char )_wcstoul( szArgList[ arg ], NULL, 10 );
 				}
+				else if ( arg_name_length == 12 && _StrCmpNIW( arg_name, L"allow-rename", 12 ) == 0 )	// Rename/delete active files.
+				{
+					g_allow_rename = true;
+				}
 #ifdef ENABLE_LOGGING
 				else if ( ( arg + 1 ) < argCount &&
 					 arg_name_length == 3 && _StrCmpNIW( arg_name, L"log", 3 ) == 0 )	// Log file.
@@ -805,18 +809,14 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 	}
 
 	// See if there's an instance of the program running.
-	HANDLE app_instance_mutex = OpenMutexW( MUTEX_ALL_ACCESS, 0, PROGRAM_CAPTION );
+	HANDLE app_instance_mutex = CreateMutexW( NULL, 0, PROGRAM_CAPTION );
 	if ( app_instance_mutex == NULL )
 	{
-		app_instance_mutex = CreateMutexW( NULL, 0, PROGRAM_CAPTION );
-		if ( app_instance_mutex == NULL )
-		{
-			goto CLEANUP;
-		}
+		goto CLEANUP;
 	}
 	else	// There's already an instance of the program running.
 	{
-		if ( cfg_use_one_instance )
+		if ( GetLastError() == ERROR_ALREADY_EXISTS && cfg_use_one_instance )
 		{
 			HWND hWnd_instance = _FindWindowW( L"class_http_downloader", NULL );
 			if ( hWnd_instance != NULL )

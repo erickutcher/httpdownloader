@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
-	Copyright (C) 2015-2022 Eric Kutcher
+	Copyright (C) 2015-2023 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -53,6 +53,7 @@ char *WideStringToUTF8String( wchar_t *wide_string, int *utf8_string_length, int
 char read_config()
 {
 	char ret_status = 0;
+	char open_count = 0;
 
 	_wmemcpy_s( g_base_directory + g_base_directory_length, MAX_PATH - g_base_directory_length, L"\\http_downloader_settings\0", 26 );
 	//g_base_directory[ g_base_directory_length + 25 ] = 0;	// Sanity.
@@ -62,9 +63,17 @@ char read_config()
 	WriteLog( LOG_INFO_MISC, "Reading configuration: %S", g_base_directory );
 #endif
 
-	HANDLE hFile_cfg = CreateFile( g_base_directory, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL );
+	HANDLE hFile_cfg = INVALID_HANDLE_VALUE;
+
+RETRY_OPEN:
+
+	hFile_cfg = CreateFile( g_base_directory, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL );
 	if ( hFile_cfg != INVALID_HANDLE_VALUE )
 	{
+		OVERLAPPED lfo;
+		_memzero( &lfo, sizeof( OVERLAPPED ) );
+		LockFileEx( hFile_cfg, LOCKFILE_EXCLUSIVE_LOCK, 0, MAXDWORD, MAXDWORD, &lfo );
+
 		DWORD read = 0;
 		DWORD fz = GetFileSize( hFile_cfg, NULL );
 
@@ -1069,10 +1078,18 @@ char read_config()
 			ret_status = -3;	// Incorrect file size.
 		}
 
+		UnlockFileEx( hFile_cfg, 0, MAXDWORD, MAXDWORD, &lfo );
+
 		CloseHandle( hFile_cfg );
 	}
 	else
 	{
+		if ( GetLastError() == ERROR_SHARING_VIOLATION && ++open_count <= 5 )
+		{
+			Sleep( 200 );
+			goto RETRY_OPEN;
+		}
+
 		ret_status = -1;	// Can't open file for reading.
 	}
 
@@ -1211,6 +1228,7 @@ char read_config()
 char save_config()
 {
 	char ret_status = 0;
+	char open_count = 0;
 
 	_wmemcpy_s( g_base_directory + g_base_directory_length, MAX_PATH - g_base_directory_length, L"\\http_downloader_settings\0", 26 );
 	//g_base_directory[ g_base_directory_length + 25 ] = 0;	// Sanity.
@@ -1220,9 +1238,17 @@ char save_config()
 	WriteLog( LOG_INFO_MISC, "Saving configuration: %S", g_base_directory );
 #endif
 
-	HANDLE hFile_cfg = CreateFile( g_base_directory, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL );
+	HANDLE hFile_cfg = INVALID_HANDLE_VALUE;
+
+RETRY_OPEN:
+
+	hFile_cfg = CreateFile( g_base_directory, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL );
 	if ( hFile_cfg != INVALID_HANDLE_VALUE )
 	{
+		OVERLAPPED lfo;
+		_memzero( &lfo, sizeof( OVERLAPPED ) );
+		LockFileEx( hFile_cfg, LOCKFILE_EXCLUSIVE_LOCK, 0, MAXDWORD, MAXDWORD, &lfo );
+
 		int reserved = 1024 - 720;
 		int size = ( sizeof( int ) * 25 ) +
 				   ( sizeof( unsigned short ) * 7 ) +
@@ -2054,10 +2080,18 @@ char save_config()
 		lfz += write;
 #endif
 
+		UnlockFileEx( hFile_cfg, 0, MAXDWORD, MAXDWORD, &lfo );
+
 		CloseHandle( hFile_cfg );
 	}
 	else
 	{
+		if ( GetLastError() == ERROR_SHARING_VIOLATION && ++open_count <= 5 )
+		{
+			Sleep( 200 );
+			goto RETRY_OPEN;
+		}
+
 		ret_status = -1;	// Can't open file for writing.
 	}
 
@@ -2071,15 +2105,24 @@ char save_config()
 char read_download_history( wchar_t *file_path, bool scroll_to_last_item )
 {
 	char ret_status = 0;
+	char open_count = 0;
 
 #ifdef ENABLE_LOGGING
 	DWORD lfz = 0;
 	WriteLog( LOG_INFO_MISC, "Reading download history: %S", file_path );
 #endif
 
-	HANDLE hFile_read = CreateFile( file_path, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL );
+	HANDLE hFile_read = INVALID_HANDLE_VALUE;
+
+RETRY_OPEN:
+
+	hFile_read = CreateFile( file_path, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL );
 	if ( hFile_read != INVALID_HANDLE_VALUE )
 	{
+		OVERLAPPED lfo;
+		_memzero( &lfo, sizeof( OVERLAPPED ) );
+		LockFileEx( hFile_read, LOCKFILE_EXCLUSIVE_LOCK, 0, MAXDWORD, MAXDWORD, &lfo );
+
 		DWORD read = 0, total_read = 0, offset = 0, last_entry = 0, last_total = 0;
 
 		char *p = NULL;
@@ -3171,10 +3214,18 @@ char read_download_history( wchar_t *file_path, bool scroll_to_last_item )
 			ret_status = -1;	// Can't open file for reading.
 		}
 
+		UnlockFileEx( hFile_read, 0, MAXDWORD, MAXDWORD, &lfo );
+
 		CloseHandle( hFile_read );	
 	}
 	else
 	{
+		if ( GetLastError() == ERROR_SHARING_VIOLATION && ++open_count <= 5 )
+		{
+			Sleep( 200 );
+			goto RETRY_OPEN;
+		}
+
 		ret_status = -1;	// Can't open file for reading.
 	}
 
@@ -3188,15 +3239,24 @@ char read_download_history( wchar_t *file_path, bool scroll_to_last_item )
 char save_download_history( wchar_t *file_path )
 {
 	char ret_status = 0;
+	char open_count = 0;
 
 #ifdef ENABLE_LOGGING
 	DWORD lfz = 0;
 	WriteLog( LOG_INFO_MISC, "Saving download history: %S", file_path );
 #endif
 
-	HANDLE hFile_downloads = CreateFile( file_path, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL );
+	HANDLE hFile_downloads = INVALID_HANDLE_VALUE;
+
+RETRY_OPEN:
+
+	hFile_downloads = CreateFile( file_path, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL );
 	if ( hFile_downloads != INVALID_HANDLE_VALUE )
 	{
+		OVERLAPPED lfo;
+		_memzero( &lfo, sizeof( OVERLAPPED ) );
+		LockFileEx( hFile_downloads, LOCKFILE_EXCLUSIVE_LOCK, 0, MAXDWORD, MAXDWORD, &lfo );
+
 		//int size = ( 32768 + 1 );
 		int size = ( 524288 + 1 );
 		int pos = 0;
@@ -3624,10 +3684,18 @@ char save_download_history( wchar_t *file_path )
 
 		GlobalFree( buf );
 
+		UnlockFileEx( hFile_downloads, 0, MAXDWORD, MAXDWORD, &lfo );
+
 		CloseHandle( hFile_downloads );
 	}
 	else
 	{
+		if ( GetLastError() == ERROR_SHARING_VIOLATION && ++open_count <= 5 )
+		{
+			Sleep( 200 );
+			goto RETRY_OPEN;
+		}
+
 		ret_status = -1;	// Can't open file for writing.
 	}
 
@@ -3799,7 +3867,7 @@ wchar_t *read_url_list_file( wchar_t *file_path, unsigned int &url_list_length )
 {
 	wchar_t *urls = NULL;
 
-	HANDLE hFile_url_list = CreateFile( file_path, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL );
+	HANDLE hFile_url_list = CreateFile( file_path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL );
 	if ( hFile_url_list != INVALID_HANDLE_VALUE )
 	{
 		DWORD read = 0;

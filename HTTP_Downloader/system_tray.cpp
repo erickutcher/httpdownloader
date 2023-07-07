@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
-	Copyright (C) 2015-2022 Eric Kutcher
+	Copyright (C) 2015-2023 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -37,23 +37,30 @@ int g_last_percent = 0;
 COLORREF last_border_color = 0;
 COLORREF last_progress_color = 0;
 
+bool is_system_tray_initialized = false;
 bool is_icon_initialized = false;
 
 void InitializeSystemTray( HWND hWnd )
 {
-	_memzero( &g_nid, sizeof( NOTIFYICONDATA ) );
-	g_nid.cbSize = NOTIFYICONDATA_V2_SIZE;	// 5.0 (Windows 2000) and newer.
-	g_nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
-	g_nid.hWnd = hWnd;
-	g_nid.uCallbackMessage = WM_TRAY_NOTIFY;
-	g_nid.uID = 1000;
-	g_nid.hIcon = g_default_tray_icon;
-	g_nid.dwInfoFlags = NIIF_INFO;
-	unsigned char info_size = ( unsigned char )( ST_L_Downloads_Have_Finished > ( ( sizeof( g_nid.szInfoTitle ) / sizeof( g_nid.szInfoTitle[ 0 ] ) ) - 1 ) ? ( ( sizeof( g_nid.szInfoTitle ) / sizeof( g_nid.szInfoTitle[ 0 ] ) ) - 1 ) : ST_L_Downloads_Have_Finished );
-	_wmemcpy_s( g_nid.szInfoTitle, sizeof( g_nid.szInfoTitle ) / sizeof( g_nid.szInfoTitle[ 0 ] ), ST_V_Downloads_Have_Finished, info_size );
-	g_nid.szInfoTitle[ info_size ] = 0;	// Sanity.
-	_wmemcpy_s( g_nid.szTip, sizeof( g_nid.szTip ) / sizeof( g_nid.szTip[ 0 ] ), PROGRAM_CAPTION, 16 );
-	g_nid.szTip[ 15 ] = 0;	// Sanity.
+	if ( !is_system_tray_initialized )
+	{
+		_memzero( &g_nid, sizeof( NOTIFYICONDATA ) );
+		g_nid.cbSize = NOTIFYICONDATA_V2_SIZE;	// 5.0 (Windows 2000) and newer.
+		g_nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
+		g_nid.hWnd = hWnd;
+		g_nid.uCallbackMessage = WM_TRAY_NOTIFY;
+		g_nid.uID = 1000;
+		g_nid.hIcon = g_default_tray_icon;
+		g_nid.dwInfoFlags = NIIF_INFO;
+		unsigned char info_size = ( unsigned char )( ST_L_Downloads_Have_Finished > ( ( sizeof( g_nid.szInfoTitle ) / sizeof( g_nid.szInfoTitle[ 0 ] ) ) - 1 ) ? ( ( sizeof( g_nid.szInfoTitle ) / sizeof( g_nid.szInfoTitle[ 0 ] ) ) - 1 ) : ST_L_Downloads_Have_Finished );
+		_wmemcpy_s( g_nid.szInfoTitle, sizeof( g_nid.szInfoTitle ) / sizeof( g_nid.szInfoTitle[ 0 ] ), ST_V_Downloads_Have_Finished, info_size );
+		g_nid.szInfoTitle[ info_size ] = 0;	// Sanity.
+		_wmemcpy_s( g_nid.szTip, sizeof( g_nid.szTip ) / sizeof( g_nid.szTip[ 0 ] ), PROGRAM_CAPTION, 16 );
+		g_nid.szTip[ 15 ] = 0;	// Sanity.
+
+		is_system_tray_initialized = true;
+	}
+
 	_Shell_NotifyIconW( NIM_ADD, &g_nid );
 }
 

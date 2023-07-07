@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
-	Copyright (C) 2015-2022 Eric Kutcher
+	Copyright (C) 2015-2023 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -132,6 +132,8 @@ wchar_t *cfg_default_download_directory = NULL;
 
 unsigned int g_default_download_directory_length = 0;
 unsigned int g_temp_download_directory_length = 0;
+
+bool g_allow_rename = false;
 
 // FTP
 

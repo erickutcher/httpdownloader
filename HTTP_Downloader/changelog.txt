@@ -1,3 +1,11 @@
+Version:	1.0.5.1
+Released:	2023-07-07
+
+Renaming downloading files can be done when the --allow-rename switch is set.
+Files can now be opened while downloading (only if --allow-rename is not set).
+Guard against spawning multiple instances when one instance setting is enabled.
+System Tray icon will reappear if Explorer is reset.
+
 Version:	1.0.5.0
 Released	2022-09-02
 

@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
-	Copyright (C) 2015-2022 Eric Kutcher
+	Copyright (C) 2015-2023 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -140,6 +140,7 @@ int dllrbt_compare_site_info( void *a, void *b )
 char read_site_info()
 {
 	char ret_status = 0;
+	char open_count = 0;
 
 	_wmemcpy_s( g_base_directory + g_base_directory_length, MAX_PATH - g_base_directory_length, L"\\site_settings\0", 15 );
 	//g_base_directory[ g_base_directory_length + 14 ] = 0;	// Sanity.
@@ -149,9 +150,17 @@ char read_site_info()
 	WriteLog( LOG_INFO_MISC, "Reading site settings: %S", g_base_directory );
 #endif
 
-	HANDLE hFile_read = CreateFile( g_base_directory, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL );
+	HANDLE hFile_read = INVALID_HANDLE_VALUE;
+
+RETRY_OPEN:
+
+	hFile_read = CreateFile( g_base_directory, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL );
 	if ( hFile_read != INVALID_HANDLE_VALUE )
 	{
+		OVERLAPPED lfo;
+		_memzero( &lfo, sizeof( OVERLAPPED ) );
+		LockFileEx( hFile_read, LOCKFILE_EXCLUSIVE_LOCK, 0, MAXDWORD, MAXDWORD, &lfo );
+
 		DWORD read = 0, total_read = 0, offset = 0, last_entry = 0, last_total = 0;
 
 		char *p = NULL;
@@ -844,10 +853,18 @@ char read_site_info()
 			ret_status = -1;	// Can't open file for reading.
 		}
 
+		UnlockFileEx( hFile_read, 0, MAXDWORD, MAXDWORD, &lfo );
+
 		CloseHandle( hFile_read );	
 	}
 	else
 	{
+		if ( GetLastError() == ERROR_SHARING_VIOLATION && ++open_count <= 5 )
+		{
+			Sleep( 200 );
+			goto RETRY_OPEN;
+		}
+
 		ret_status = -1;	// Can't open file for reading.
 	}
 
@@ -861,6 +878,7 @@ char read_site_info()
 char save_site_info()
 {
 	char ret_status = 0;
+	char open_count = 0;
 
 	_wmemcpy_s( g_base_directory + g_base_directory_length, MAX_PATH - g_base_directory_length, L"\\site_settings\0", 15 );
 	//g_base_directory[ g_base_directory_length + 14 ] = 0;	// Sanity.
@@ -870,9 +888,17 @@ char save_site_info()
 	WriteLog( LOG_INFO_MISC, "Saving site settings: %S", g_base_directory );
 #endif
 
-	HANDLE hFile = CreateFile( g_base_directory, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL );
+	HANDLE hFile = INVALID_HANDLE_VALUE;
+
+RETRY_OPEN:
+
+	hFile = CreateFile( g_base_directory, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL );
 	if ( hFile != INVALID_HANDLE_VALUE )
 	{
+		OVERLAPPED lfo;
+		_memzero( &lfo, sizeof( OVERLAPPED ) );
+		LockFileEx( hFile, LOCKFILE_EXCLUSIVE_LOCK, 0, MAXDWORD, MAXDWORD, &lfo );
+
 		//int size = ( 32768 + 1 );
 		int size = ( 524288 + 1 );
 		int pos = 0;
@@ -1195,10 +1221,18 @@ char save_site_info()
 
 		GlobalFree( buf );
 
+		UnlockFileEx( hFile, 0, MAXDWORD, MAXDWORD, &lfo );
+
 		CloseHandle( hFile );
 	}
 	else
 	{
+		if ( GetLastError() == ERROR_SHARING_VIOLATION && ++open_count <= 5 )
+		{
+			Sleep( 200 );
+			goto RETRY_OPEN;
+		}
+
 		ret_status = -1;	// Can't open file for writing.
 	}
 

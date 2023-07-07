@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
-	Copyright (C) 2015-2022 Eric Kutcher
+	Copyright (C) 2015-2023 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -96,6 +96,7 @@ struct PROGRESS_INFO
 
 PROGRESS_INFO g_progress_info;
 
+UINT WM_TASKBARCREATED = 0;
 UINT WM_TASKBARBUTTONCREATED = 0;
 
 #define IDT_UPDATE_CHECK_TIMER	10000
@@ -1388,6 +1389,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 
 			_memzero( &g_progress_info, sizeof( PROGRESS_INFO ) );
 
+			WM_TASKBARCREATED = _RegisterWindowMessageW( L"TaskbarCreated" );
 			WM_TASKBARBUTTONCREATED = _RegisterWindowMessageW( L"TaskbarButtonCreated" );
 
 			if ( cfg_check_for_updates )
@@ -2445,6 +2447,19 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 					_CoInitializeEx( NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE );
 
 					_CoCreateInstance( _CLSID_TaskbarList, NULL, CLSCTX_INPROC_SERVER, _IID_ITaskbarList3, ( void ** )&g_taskbar );
+				}
+			}
+			else if ( msg == WM_TASKBARCREATED )
+			{
+				// Show the system tray icon again if it disappeared.
+				if ( cfg_tray_icon )
+				{
+					InitializeSystemTray( hWnd );
+
+					if ( cfg_show_tray_progress )
+					{
+						InitializeIconValues( hWnd );
+					}
 				}
 			}
 

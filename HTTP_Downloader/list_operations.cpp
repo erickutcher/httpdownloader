@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
-	Copyright (C) 2015-2022 Eric Kutcher
+	Copyright (C) 2015-2023 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -3173,70 +3173,83 @@ THREAD_RETURN delete_files( void * /*pArguments*/ )
 		DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )tln->data;
 		if ( di != NULL )
 		{
-			// Stop all active downloads before we delete anything.
-			DoublyLinkedList *context_node;
+			unsigned int status = ( g_allow_rename ? STATUS_NONE : STATUS_DELETE );
 
 			EnterCriticalSection( &di->di_cs );
 
-			// Connecting, Downloading, Paused.
-			if ( IS_STATUS( di->status,
-					STATUS_CONNECTING |
-					STATUS_DOWNLOADING ) )
+			DoublyLinkedList *context_node = di->parts_list;
+
+			// If there are still active connections.
+			if ( di->download_node.data != NULL )
 			{
-				// Download is active, close the connection.
-				if ( di->download_node.data != NULL )
+				di->status = STATUS_STOPPED | status;
+
+				LeaveCriticalSection( &di->di_cs );
+
+				while ( context_node != NULL )
 				{
-					context_node = di->parts_list;
+					SOCKET_CONTEXT *context = ( SOCKET_CONTEXT * )context_node->data;
 
-					LeaveCriticalSection( &di->di_cs );
+					context_node = context_node->next;
 
-					// di->status will be set to STATUS_STOPPED in CleanupConnection().
-					while ( context_node != NULL )
-					{
-						SOCKET_CONTEXT *context = ( SOCKET_CONTEXT * )context_node->data;
-
-						context_node = context_node->next;
-
-						SetContextStatus( context, STATUS_STOPPED );
-					}
-				}
-				else
-				{
-					LeaveCriticalSection( &di->di_cs );
+					SetContextStatus( context, STATUS_STOPPED | status );
 				}
 			}
-			else
+
+			// If the allow-rename switch is set, then we can rename files that are actively downloading.
+			// They can't be opened while they're downloading.
+			// They can be deleted while they're downloading.
+			// This avoids us having to delete them in ConnectionCleanup().
+			if ( g_allow_rename )
 			{
 				LeaveCriticalSection( &di->di_cs );
-			}
 
-			if ( !( di->shared_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
-			{
-				if ( cfg_use_temp_download_directory && di->status != STATUS_COMPLETED )
+				if ( !( di->shared_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
 				{
-					GetTemporaryFilePath( di, file_path );
-				}
-				else
-				{
-					GetDownloadFilePath( di, file_path );
-				}
+					if ( cfg_use_temp_download_directory && di->status != STATUS_COMPLETED )
+					{
+						GetTemporaryFilePath( di, file_path );
+					}
+					else
+					{
+						GetDownloadFilePath( di, file_path );
+					}
 
-				if ( cfg_move_to_trash )
-				{
-					int file_path_length = lstrlenW( file_path );
-					file_path[ file_path_length ] = 0;
-					file_path[ file_path_length + 1 ] = 0;
-					SHFILEOPSTRUCTW sfos;
-					_memzero( &sfos, sizeof( SHFILEOPSTRUCTW ) );
-					sfos.wFunc = FO_DELETE;
-					sfos.pFrom = file_path;
-					sfos.fFlags = FOF_ALLOWUNDO | FOF_NO_UI;
+					if ( cfg_move_to_trash )
+					{
+						int file_path_length = lstrlenW( file_path );
+						file_path[ file_path_length ] = 0;
+						file_path[ file_path_length + 1 ] = 0;
+						SHFILEOPSTRUCTW sfos;
+						_memzero( &sfos, sizeof( SHFILEOPSTRUCTW ) );
+						sfos.wFunc = FO_DELETE;
+						sfos.pFrom = file_path;
+						sfos.fFlags = FOF_ALLOWUNDO | FOF_NO_UI;
 
-					int error = _SHFileOperationW( &sfos );
-					if ( error != 0 )
+						int error = _SHFileOperationW( &sfos );
+						if ( error != 0 )
+						{
+							delete_success = false;
+
+							if ( error == ERROR_ACCESS_DENIED )
+							{
+								error_type |= 1;
+							}
+							else if ( error == ERROR_FILE_NOT_FOUND )
+							{
+								error_type |= 2;
+							}
+							else if ( error == ERROR_PATH_NOT_FOUND )
+							{
+								error_type |= 4;
+							}
+						}
+					}
+					else if ( DeleteFileW( file_path ) == FALSE )
 					{
 						delete_success = false;
 
+						int error = GetLastError();
 						if ( error == ERROR_ACCESS_DENIED )
 						{
 							error_type |= 1;
@@ -3250,36 +3263,18 @@ THREAD_RETURN delete_files( void * /*pArguments*/ )
 							error_type |= 4;
 						}
 					}
-				}
-				else if ( DeleteFileW( file_path ) == FALSE )
-				{
-					delete_success = false;
-
-					int error = GetLastError();
-					if ( error == ERROR_ACCESS_DENIED )
-					{
-						error_type |= 1;
-					}
-					else if ( error == ERROR_FILE_NOT_FOUND )
-					{
-						error_type |= 2;
-					}
-					else if ( error == ERROR_PATH_NOT_FOUND )
-					{
-						error_type |= 4;
-					}
-				}
 
 #ifdef ENABLE_LOGGING
-				wchar_t *l_file_path;
-				wchar_t t_l_file_path[ MAX_PATH ];
-				bool is_temp = false;
-				if ( cfg_use_temp_download_directory && di->shared_info->status != STATUS_COMPLETED ) { GetTemporaryFilePath( di, t_l_file_path ); is_temp = true; }
-				else { GetDownloadFilePath( di, t_l_file_path ); }
-				l_file_path = t_l_file_path;
-				WriteLog( LOG_INFO_ACTION, "Deleting: %s%S", ( is_temp ? "temp | " : "" ), l_file_path );
+					wchar_t *l_file_path;
+					wchar_t t_l_file_path[ MAX_PATH ];
+					bool is_temp = false;
+					if ( cfg_use_temp_download_directory && di->shared_info->status != STATUS_COMPLETED ) { GetTemporaryFilePath( di, t_l_file_path ); is_temp = true; }
+					else { GetDownloadFilePath( di, t_l_file_path ); }
+					l_file_path = t_l_file_path;
+					WriteLog( LOG_INFO_ACTION, "Deleting: %s%S", ( is_temp ? "temp | " : "" ), l_file_path );
 #endif
 
+				}
 			}
 		}
 

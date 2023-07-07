@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
-	Copyright (C) 2015-2022 Eric Kutcher
+	Copyright (C) 2015-2023 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -8055,7 +8055,7 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 								{
 									incomplete_download = false;
 
-									di->status = context->status;
+									di->status = context->status & ~STATUS_DELETE;
 								}
 							}
 							else if ( di->status != STATUS_FILE_IO_ERROR && di->status != STATUS_INSUFFICIENT_DISK_SPACE )
@@ -8275,64 +8275,73 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 
 									GlobalFree( shared_info->w_add_time );
 
-									// Do we want to delete the file as well?
-									if ( !( shared_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) &&
-										IS_STATUS( context->status, STATUS_DELETE ) )
+									free_shared_info = true;
+								}
+
+								// Do we want to delete the file as well?
+								if ( !( shared_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) &&
+									IS_STATUS( context->status, STATUS_DELETE ) )
+								{
+									wchar_t *file_path_delete;
+
+									wchar_t file_path[ MAX_PATH + 1 ];
+									if ( cfg_use_temp_download_directory )
 									{
-										wchar_t *file_path_delete;
+										GetTemporaryFilePath( shared_info, file_path );
 
-										wchar_t file_path[ MAX_PATH + 1 ];
-										if ( cfg_use_temp_download_directory )
-										{
-											GetTemporaryFilePath( shared_info, file_path );
-
-											file_path_delete = file_path;
-										}
-										else
+										file_path_delete = file_path;
+									}
+									else
+									{
+										if ( free_shared_info )
 										{
 											// We're freeing this anyway so it's safe to modify.
 											shared_info->file_path[ shared_info->filename_offset - 1 ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
 
 											file_path_delete = shared_info->file_path;
 										}
-
-										if ( cfg_move_to_trash )
-										{
-											int file_path_length = lstrlenW( file_path_delete );
-
-											if ( file_path[ 0 ] == 0 )
-											{
-												_wmemcpy_s( file_path, MAX_PATH + 1, file_path_delete, file_path_length );
-											}
-
-											file_path[ file_path_length ] = 0;
-											file_path[ file_path_length + 1 ] = 0;
-
-											SHFILEOPSTRUCTW sfos;
-											_memzero( &sfos, sizeof( SHFILEOPSTRUCTW ) );
-											sfos.wFunc = FO_DELETE;
-											sfos.pFrom = file_path;
-											sfos.fFlags = FOF_ALLOWUNDO | FOF_NO_UI;
-
-											_SHFileOperationW( &sfos );
-										}
 										else
 										{
-											DeleteFileW( file_path_delete );
-										}
+											GetDownloadFilePath( shared_info, file_path );
 
-#ifdef ENABLE_LOGGING
-										wchar_t *l_file_path;
-										wchar_t t_l_file_path[ MAX_PATH ];
-										bool is_temp = false;
-										if ( cfg_use_temp_download_directory && shared_info->status != STATUS_COMPLETED ) { GetTemporaryFilePath( shared_info, t_l_file_path ); is_temp = true; }
-										else { GetDownloadFilePath( shared_info, t_l_file_path ); }
-										l_file_path = t_l_file_path;
-										WriteLog( LOG_INFO_ACTION, "Deleting: %s%S", ( is_temp ? "temp | " : "" ), l_file_path );
-#endif
+											file_path_delete = file_path;
+										}
 									}
 
-									free_shared_info = true;
+									if ( cfg_move_to_trash )
+									{
+										int file_path_length = lstrlenW( file_path_delete );
+
+										if ( file_path[ 0 ] == 0 )
+										{
+											_wmemcpy_s( file_path, MAX_PATH + 1, file_path_delete, file_path_length );
+										}
+
+										file_path[ file_path_length ] = 0;
+										file_path[ file_path_length + 1 ] = 0;
+
+										SHFILEOPSTRUCTW sfos;
+										_memzero( &sfos, sizeof( SHFILEOPSTRUCTW ) );
+										sfos.wFunc = FO_DELETE;
+										sfos.pFrom = file_path;
+										sfos.fFlags = FOF_ALLOWUNDO | FOF_NO_UI;
+
+										_SHFileOperationW( &sfos );
+									}
+									else
+									{
+										DeleteFileW( file_path_delete );
+									}
+
+#ifdef ENABLE_LOGGING
+									wchar_t *l_file_path;
+									wchar_t t_l_file_path[ MAX_PATH ];
+									bool is_temp = false;
+									if ( cfg_use_temp_download_directory && shared_info->status != STATUS_COMPLETED ) { GetTemporaryFilePath( shared_info, t_l_file_path ); is_temp = true; }
+									else { GetDownloadFilePath( shared_info, t_l_file_path ); }
+									l_file_path = t_l_file_path;
+									WriteLog( LOG_INFO_ACTION, "Deleting: %s%S", ( is_temp ? "temp | " : "" ), l_file_path );
+#endif
 								}
 							}
 
