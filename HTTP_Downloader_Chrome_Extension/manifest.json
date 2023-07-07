@@ -1,9 +1,9 @@
 {
 	"default_locale": "en",
 	"description": "__MSG_extension_description__",
-	"manifest_version": 2,
+	"manifest_version": 3,
 	"name": "HTTP Downloader",
-	"version": "1.0.2.3",
+	"version": "1.0.2.4",
 	"homepage_url": "https://erickutcher.github.io/#HTTP_Downloader",
 
 	"icons":
@@ -21,10 +21,7 @@
 
 	"background":
 	{
-		"scripts":
-		[
-			"background.js"
-		]
+		"service_worker": "background.js"
 	},
 
 	"options_ui":
@@ -32,7 +29,7 @@
 		"page": "options.html"
 	},
 
-	"browser_action":
+	"action":
 	{
 		"default_icon": "icons/icon-d-64.png",
 		"default_title": "HTTP Downloader",
@@ -61,12 +58,18 @@
 
 	"permissions":
 	[
-		"<all_urls>",
 		"activeTab",
 		"webRequest",
 		"contextMenus",
 		"cookies",
 		"storage",
-		"downloads"
+		"downloads",
+		"scripting",
+		"system.display"
+	],
+
+	"host_permissions":
+	[
+		"*://*/*"
 	]
 }

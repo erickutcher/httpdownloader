@@ -5,8 +5,6 @@ var g_options = null;
 
 const g_width = 600;
 const g_height = 300;
-const g_top = Math.round( ( screen.height - g_height ) / 2 );
-const g_left = Math.round( ( screen.width - g_width ) / 2 );
 
 function OnGetOptions( options )
 {
@@ -25,36 +23,53 @@ function OnGetOptions( options )
 
 function CreateDownloadWindow( download_info, message = "" )
 {
-	chrome.windows.create(
+	chrome.system.display.getInfo( function( info )
 	{
-		url: chrome.runtime.getURL( "download.html" ),
-		type: "popup",
-		left: g_left,
-		top: g_top,
-		width: g_width,
-		height: g_height
-	}, function( window_info )
-	{
-		var method = download_info.method;
-		var url = download_info.url;
-		var cookie_string = download_info.cookie_string;
-		var headers = download_info.headers;
-		var post_data = download_info.post_data;
-		var directory = download_info.directory;
-		var filename = download_info.filename;
+		var g_top;
+		var g_left;
 
-		g_open_windows.push(
-		[
-			window_info.id,
-			method,
-			url,
-			cookie_string,
-			headers,
-			post_data,
-			directory,
-			filename,
-			message
-		] );
+		if ( info.length > 0 )
+		{
+			g_top = Math.round( ( info[ 0 ].bounds.height - g_height ) / 2 );
+			g_left = Math.round( ( info[ 0 ].bounds.width - g_width ) / 2 );
+		}
+		else
+		{
+			g_top = 0;
+			g_left = 0;
+		}
+
+		chrome.windows.create(
+		{
+			url: chrome.runtime.getURL( "download.html" ),
+			type: "popup",
+			left: g_left,
+			top: g_top,
+			width: g_width,
+			height: g_height
+		}, function( window_info )
+		{
+			var method = download_info.method;
+			var url = download_info.url;
+			var cookie_string = download_info.cookie_string;
+			var headers = download_info.headers;
+			var post_data = download_info.post_data;
+			var directory = download_info.directory;
+			var filename = download_info.filename;
+
+			g_open_windows.push(
+			[
+				window_info.id,
+				method,
+				url,
+				cookie_string,
+				headers,
+				post_data,
+				directory,
+				filename,
+				message
+			] );
+		} );
 	} );
 }
 
@@ -271,7 +286,7 @@ function HandleMessages( request, sender, sendResponse )
 				}
 			}
 
-			chrome.browserAction.setIcon( ( g_options.override ? { path: "icons/icon-e-64.png" } : { path: "icons/icon-d-64.png" } ) );
+			chrome.action.setIcon( ( g_options.override ? { path: "icons/icon-e-64.png" } : { path: "icons/icon-d-64.png" } ) );
 		} );
 
 		sendResponse( {} );
@@ -282,78 +297,70 @@ function HandleMessages( request, sender, sendResponse )
 
 function SendDownloadToClient( download_info )
 {
-	var request = new XMLHttpRequest();
-	if ( request )
+	var server = g_options.server;
+	var server_username = atob( g_options.username );
+	var server_password = atob( g_options.password );
+	var download_operations = ( g_options.override_prompts ? 2 : 0 );
+	var url;
+
+	if ( download_info.filename != "" )
 	{
-		var server = g_options.server;
-		var server_username = atob( g_options.username );
-		var server_password = atob( g_options.password );
-		var download_operations = ( g_options.override_prompts ? 2 : 0 );
-		var url;
-
-		if ( download_info.filename != "" )
-		{
-			url = "[" + download_info.filename + "]" + download_info.url;
-		}
-		else
-		{
-			url = download_info.url;
-		}
-
-		request.onerror = function( e )
-		{
-			CreateDownloadWindow( download_info, chrome.i18n.getMessage( "SEND_FAILED" ) );
-		};
-
-		request.ontimeout = function( e )
-		{
-			CreateDownloadWindow( download_info, chrome.i18n.getMessage( "CONNECTION_TIMEOUT" ) );
-		};
-
-		request.onload = function( e )
-		{
-			if ( request.responseText != "DOWNLOADING" )
-			{
-				CreateDownloadWindow( download_info, chrome.i18n.getMessage( "INVALID_RESPONSE" ) );
-			}
-		};
-
-		if ( server_username != "" || server_password != "" )
-		{
-			request.open( "POST", server, true, server_username, server_password );
-			request.withCredentials = true;
-		}
-		else
-		{
-			request.open( "POST", server, true );
-		}
-		request.timeout = 30000;	// 30 second timeout.
-		request.setRequestHeader( "Content-Type", "application/octet-stream" );
-		request.send( download_info.method + "\x1f" +
-					  url + "\x1f" +
-					  download_info.directory + "\x1f" +
-					  "\x1f" +									// Parts
-					  "\x1f" +									// SSL/TLS version
-					  "\x1f" +									// Username
-					  "\x1f" +									// Password
-					  "\x1f" +									// Speed limit
-					  download_operations + "\x1f" +
-					  download_info.cookie_string + "\x1f" +
-					  download_info.headers + "\x1f" +
-					  download_info.post_data + "\x1f" +
-					  "\x1f" +									// Proxy type
-					  "\x1f" +									// Proxy hostname/IP address
-					  "\x1f" +									// Proxy port
-					  "\x1f" +									// Proxy username
-					  "\x1f" +									// Proxy password
-					  "\x1f" +									// Proxy resolve domain names
-					  "\x1f"									// Proxy use authentication
-					);
+		url = "[" + download_info.filename + "]" + download_info.url;
 	}
 	else
 	{
-		console.log( "Failed to create XMLHttpRequest." );
+		url = download_info.url;
 	}
+
+	var json_headers = { "Content-Type": "application/octet-stream" };
+	if ( server_username != "" || server_password != "" )
+	{
+		json_headers.Authorization = 'Basic ' + btoa( server_username + ':' + server_password );
+	}
+
+	var controller = new AbortController();
+	var timeout = setTimeout( () => controller.abort(), 30000 );
+
+	// No support for Digest authentication or timeouts. Dumb!
+	fetch( server,
+	{
+		signal: controller.signal,
+		method: 'POST',
+		headers: json_headers,
+		body: download_info.method + "\x1f" +
+			  url + "\x1f" +
+			  download_info.directory + "\x1f" +
+			  "\x1f" +									// Parts
+			  "\x1f" +									// SSL/TLS version
+			  "\x1f" +									// Username
+			  "\x1f" +									// Password
+			  "\x1f" +									// Speed limit
+			  download_operations + "\x1f" +
+			  download_info.cookie_string + "\x1f" +
+			  download_info.headers + "\x1f" +
+			  download_info.post_data + "\x1f" +
+			  "\x1f" +									// Proxy type
+			  "\x1f" +									// Proxy hostname/IP address
+			  "\x1f" +									// Proxy port
+			  "\x1f" +									// Proxy username
+			  "\x1f" +									// Proxy password
+			  "\x1f" +									// Proxy resolve domain names
+			  "\x1f"									// Proxy use authentication
+	} ).then( function( response )
+	{
+		clearTimeout( timeout );
+		return response.text();
+	} ).then( function( response )
+	{
+		if ( response != "DOWNLOADING" )
+		{
+			CreateDownloadWindow( download_info, chrome.i18n.getMessage( "INVALID_RESPONSE" ) );
+		}
+	} ).catch( function( error )
+	{
+		clearTimeout( timeout );
+		CreateDownloadWindow( download_info, chrome.i18n.getMessage( ( error.name === "AbortError" ? "CONNECTION_TIMEOUT" : "SEND_FAILED" ) ) + "\r\n\r\n" + error );
+	} );
 }
 
 function InitializeDownload( download_info )
@@ -482,7 +489,7 @@ function OnDownloadItemCreated( item )
 
 			if ( g_options.user_agent )
 			{
-				headers += "User-Agent: " + window.navigator.userAgent + "\r\n";
+				headers += "User-Agent: " + navigator.userAgent + "\r\n";
 			}
 
 			if ( g_options.referer && item.referrer != null && item.referrer != "" )
@@ -582,7 +589,7 @@ function OnMenuClicked( info, tab )
 
 	if ( g_options.user_agent )
 	{
-		headers = "User-Agent: " + window.navigator.userAgent + "\r\n";
+		headers = "User-Agent: " + navigator.userAgent + "\r\n";
 	}
 
 	if ( g_options.referer && info.pageUrl != null )
@@ -609,7 +616,7 @@ function OnMenuClicked( info, tab )
 			script_file = "get_links.js"
 		}
 
-		chrome.tabs.executeScript( { file: script_file }, function( urls )
+		chrome.scripting.executeScript( { target: { tabId: tab.id }, files: [ script_file ] }, function( urls )
 		{
 			if ( typeof urls == "undefined" )
 			{
@@ -621,10 +628,12 @@ function OnMenuClicked( info, tab )
 
 			if ( urls.length > 0 )
 			{
+				urls = urls[ 0 ].result;
+
 				var page_hostname = new URL( info.pageUrl ).hostname;
 				var last_hostname = null;
 
-				var url_array = urls[ 0 ].split( "\r\n" );
+				var url_array = urls.split( "\r\n" );
 				for ( var i = 0; i < url_array.length; ++i )
 				{
 					if ( url_array[ i ] != "" )
@@ -730,101 +739,108 @@ function HandleCommand( command )
 	}
 }
 
+chrome.runtime.onInstalled.addListener( function()
+{
+	chrome.storage.local.get( null, function( options )
+	{
+		g_options = OnGetOptions( options );
+
+		chrome.contextMenus.create(
+		{
+			id: "download-link",
+			title: chrome.i18n.getMessage( "menu_download_link" ),
+			contexts: [ "link" ]
+		} );
+
+		chrome.contextMenus.create(
+		{
+			id: "download-image",
+			title: chrome.i18n.getMessage( "menu_download_image" ),
+			contexts: [ "image" ]
+		} );
+
+		chrome.contextMenus.create(
+		{
+			id: "download-audio",
+			title: chrome.i18n.getMessage( "menu_download_audio" ),
+			contexts: [ "audio" ]
+		} );
+
+		chrome.contextMenus.create(
+		{
+			id: "download-video",
+			title: chrome.i18n.getMessage( "menu_download_video" ),
+			contexts: [ "video" ]
+		} );
+
+		chrome.contextMenus.create(
+		{
+			id: "separator-1",
+			type: "separator",
+			contexts: [ "link", "image", "audio", "video" ]
+		} );
+
+		chrome.contextMenus.create(
+		{
+			id: "download-all-images",
+			title: chrome.i18n.getMessage( "menu_download_all_images" ),
+			contexts: [ "page", "frame", "link", "image", "audio", "video" ]
+		} );
+
+		chrome.contextMenus.create(
+		{
+			id: "download-all-media",
+			title: chrome.i18n.getMessage( "menu_download_all_media" ),
+			contexts: [ "page", "frame", "link", "image", "audio", "video" ]
+		} );
+
+		chrome.contextMenus.create(
+		{
+			id: "download-all-links",
+			title: chrome.i18n.getMessage( "menu_download_all_links" ),
+			contexts: [ "page", "frame", "link", "image", "audio", "video" ]
+		} );
+
+		chrome.contextMenus.create(
+		{
+			id: "from-current-domain",
+			title: chrome.i18n.getMessage( "menu_from_current_domain" ),
+			type: "checkbox",
+			checked: g_options.from_current_domain,
+			contexts: [ "page", "frame", "link", "image", "audio", "video" ]
+		} );
+
+		chrome.contextMenus.create(
+		{
+			id: "separator-2",
+			type: "separator",
+			contexts: [ "page", "frame", "link", "image", "audio", "video" ]
+		} );
+
+		chrome.contextMenus.create(
+		{
+			id: "download-page",
+			title: chrome.i18n.getMessage( "menu_download_page" ),
+			contexts: [ "page", "frame", "link", "image", "audio", "video" ]
+		} );
+	} );
+} );
+
 chrome.storage.local.get( null, function( options )
 {
 	g_options = OnGetOptions( options );
 
-	chrome.contextMenus.create(
-	{
-		id: "download-link",
-		title: chrome.i18n.getMessage( "menu_download_link" ),
-		contexts: [ "link" ]
-	} );
-
-	chrome.contextMenus.create(
-	{
-		id: "download-image",
-		title: chrome.i18n.getMessage( "menu_download_image" ),
-		contexts: [ "image" ]
-	} );
-
-	chrome.contextMenus.create(
-	{
-		id: "download-audio",
-		title: chrome.i18n.getMessage( "menu_download_audio" ),
-		contexts: [ "audio" ]
-	} );
-
-	chrome.contextMenus.create(
-	{
-		id: "download-video",
-		title: chrome.i18n.getMessage( "menu_download_video" ),
-		contexts: [ "video" ]
-	} );
-
-	chrome.contextMenus.create(
-	{
-		id: "separator-1",
-		type: "separator",
-		contexts: [ "link", "image", "audio", "video" ]
-	} );
-
-	chrome.contextMenus.create(
-	{
-		id: "download-all-images",
-		title: chrome.i18n.getMessage( "menu_download_all_images" ),
-		contexts: [ "page", "frame", "link", "image", "audio", "video" ]
-	} );
-
-	chrome.contextMenus.create(
-	{
-		id: "download-all-media",
-		title: chrome.i18n.getMessage( "menu_download_all_media" ),
-		contexts: [ "page", "frame", "link", "image", "audio", "video" ]
-	} );
-
-	chrome.contextMenus.create(
-	{
-		id: "download-all-links",
-		title: chrome.i18n.getMessage( "menu_download_all_links" ),
-		contexts: [ "page", "frame", "link", "image", "audio", "video" ]
-	} );
-
-	chrome.contextMenus.create(
-	{
-		id: "from-current-domain",
-		title: chrome.i18n.getMessage( "menu_from_current_domain" ),
-		type: "checkbox",
-		checked: g_options.from_current_domain,
-		contexts: [ "page", "frame", "link", "image", "audio", "video" ]
-	} );
-
-	chrome.contextMenus.create(
-	{
-		id: "separator-2",
-		type: "separator",
-		contexts: [ "page", "frame", "link", "image", "audio", "video" ]
-	} );
-
-	chrome.contextMenus.create(
-	{
-		id: "download-page",
-		title: chrome.i18n.getMessage( "menu_download_page" ),
-		contexts: [ "page", "frame", "link", "image", "audio", "video" ]
-	} );
-
-	chrome.contextMenus.onClicked.addListener( OnMenuClicked );
-
-	chrome.runtime.onMessage.addListener( HandleMessages );
-
-	chrome.commands.onCommand.addListener( HandleCommand );
-
 	if ( g_options.override )
 	{
-		chrome.browserAction.setIcon( { path: "icons/icon-e-64.png" } );
+		chrome.action.setIcon( { path: "icons/icon-e-64.png" } );
+
 		chrome.webRequest.onBeforeRequest.addListener( GetURLRequest, { urls: [ "<all_urls>" ] }, [ "requestBody" ] );
 		chrome.webRequest.onBeforeSendHeaders.addListener( GetURLHeaders, { urls: [ "<all_urls>" ] }, [ "requestHeaders" ] );
 		chrome.downloads.onCreated.addListener( OnDownloadItemCreated );
 		chrome.downloads.onChanged.addListener( OnDownloadItemChange );
 	}
 } );
+
+chrome.contextMenus.onClicked.addListener( OnMenuClicked );
+chrome.runtime.onMessage.addListener( HandleMessages );
+chrome.commands.onCommand.addListener( HandleCommand );
