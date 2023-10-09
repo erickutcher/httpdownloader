@@ -95,7 +95,146 @@ wchar_t *decode_w( wchar_t *str, unsigned int str_len, unsigned int *dec_len )
 	return str;
 }
 
-int main()
+void OpenLocaleFile( wchar_t *file_path )
+{
+	HANDLE hFile_input = CreateFile( file_path, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL );
+	if ( hFile_input != INVALID_HANDLE_VALUE )
+	{
+		unsigned char *locale_buf = NULL;
+		DWORD read = 0;
+		DWORD fz = GetFileSize( hFile_input, NULL );
+
+		if ( fz > sizeof( wchar_t ) && fz < 131072 )
+		{
+			locale_buf = ( unsigned char * )GlobalAlloc( GMEM_FIXED, sizeof( unsigned char ) * fz + 2 );
+			if ( locale_buf != NULL )
+			{
+				// Look for a UTF-16 BOM (little endian or big endian) and ignore it.
+				BOOL bRet = ReadFile( hFile_input, locale_buf, sizeof( unsigned char ) * 2, &read, NULL );
+				if ( bRet != FALSE )
+				{
+					if ( read == 2 && ( ( locale_buf[ 0 ] == 0xFF && locale_buf[ 1 ] == 0xFE ) ||
+										( locale_buf[ 0 ] == 0xFE && locale_buf[ 1 ] == 0xFF ) ) )
+					{
+						read = 0;
+						fz -= 2;
+					}
+					bRet = ReadFile( hFile_input, locale_buf + read, ( sizeof( unsigned char ) * fz ) - read, &read, NULL );
+					if ( bRet != FALSE )
+					{
+						// Guarantee a NULL terminated (wide character) buffer.
+						locale_buf[ fz ] = 0;
+						locale_buf[ fz + 1 ] = 0;
+					}
+					else
+					{
+						fz = 0;
+					}
+				}
+				else
+				{
+					fz = 0;
+				}
+			}
+		}
+
+		CloseHandle( hFile_input );
+
+		if ( fz > sizeof( wchar_t ) )
+		{
+			wchar_t *ptr = ( wchar_t * )locale_buf;
+			wchar_t *last_ptr = ptr;
+			wchar_t *ptr_end = ( wchar_t * )( ( unsigned char * )( locale_buf + fz ) );
+
+			HANDLE hFile_string_list = CreateFile( L"string_list.txt", GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL );
+			if ( hFile_string_list != INVALID_HANDLE_VALUE )
+			{
+				DWORD write = 0;
+
+				WriteFile( hFile_string_list, "\xEF\xBB\xBF", 3, &write, NULL );
+
+				while ( ++ptr < ptr_end )
+				{
+					if ( *ptr == NULL )
+					{
+						int utf8_string_length = WideCharToMultiByte( CP_UTF8, 0, last_ptr, ( ptr - last_ptr ), NULL, 0, NULL, NULL );
+						char *utf8_val = ( char * )GlobalAlloc( GPTR, sizeof( char ) * utf8_string_length );
+						utf8_string_length = WideCharToMultiByte( CP_UTF8, 0, last_ptr, ( ptr - last_ptr ), utf8_val, utf8_string_length, NULL, NULL );
+
+						WriteFile( hFile_string_list, utf8_val, utf8_string_length, &write, NULL );
+
+						GlobalFree( utf8_val );
+
+						++ptr;
+						if ( ptr + 1 < ptr_end )
+						{
+							WriteFile( hFile_string_list, "\r\n", 2, &write, NULL );
+						}
+
+						last_ptr = ptr;
+					}
+					else if ( *ptr == L'\t' )
+					{
+						if ( ptr - last_ptr > 0 )
+						{
+							int utf8_string_length = WideCharToMultiByte( CP_UTF8, 0, last_ptr, ( ptr - last_ptr ), NULL, 0, NULL, NULL );
+							char *utf8_val = ( char * )GlobalAlloc( GPTR, sizeof( char ) * utf8_string_length );
+							utf8_string_length = WideCharToMultiByte( CP_UTF8, 0, last_ptr, ( ptr - last_ptr ), utf8_val, utf8_string_length, NULL, NULL );
+
+							WriteFile( hFile_string_list, utf8_val, utf8_string_length, &write, NULL );
+
+							GlobalFree( utf8_val );
+						}
+
+						WriteFile( hFile_string_list, "\\t", 2, &write, NULL );
+
+						last_ptr = ptr + 1;
+					}
+					else if ( *ptr == L'\r' )
+					{
+						if ( ptr - last_ptr > 0 )
+						{
+							int utf8_string_length = WideCharToMultiByte( CP_UTF8, 0, last_ptr, ( ptr - last_ptr ), NULL, 0, NULL, NULL );
+							char *utf8_val = ( char * )GlobalAlloc( GPTR, sizeof( char ) * utf8_string_length );
+							utf8_string_length = WideCharToMultiByte( CP_UTF8, 0, last_ptr, ( ptr - last_ptr ), utf8_val, utf8_string_length, NULL, NULL );
+
+							WriteFile( hFile_string_list, utf8_val, utf8_string_length, &write, NULL );
+
+							GlobalFree( utf8_val );
+						}
+
+						WriteFile( hFile_string_list, "\\r", 2, &write, NULL );
+
+						last_ptr = ptr + 1;
+					}
+					else if ( *ptr == L'\n' )
+					{
+						if ( ptr - last_ptr > 0 )
+						{
+							int utf8_string_length = WideCharToMultiByte( CP_UTF8, 0, last_ptr, ( ptr - last_ptr ), NULL, 0, NULL, NULL );
+							char *utf8_val = ( char * )GlobalAlloc( GPTR, sizeof( char ) * utf8_string_length );
+							utf8_string_length = WideCharToMultiByte( CP_UTF8, 0, last_ptr, ( ptr - last_ptr ), utf8_val, utf8_string_length, NULL, NULL );
+
+							WriteFile( hFile_string_list, utf8_val, utf8_string_length, &write, NULL );
+
+							GlobalFree( utf8_val );
+						}
+
+						WriteFile( hFile_string_list, "\\n", 2, &write, NULL );
+
+						last_ptr = ptr + 1;
+					}
+				}
+
+				CloseHandle( hFile_string_list );
+			}
+		}
+
+		GlobalFree( locale_buf );
+	}
+}
+
+void OpenStringList( wchar_t *file_path )
 {
 	bool loaded_function = false;
 
@@ -109,7 +248,7 @@ int main()
 		loaded_function = true;
 	}
 
-	HANDLE hFile_input = CreateFile( L"string_list.txt", GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL );
+	HANDLE hFile_input = CreateFile( file_path, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL );
 	if ( hFile_input != INVALID_HANDLE_VALUE )
 	{
 		unsigned char *input_buf = NULL;
@@ -215,6 +354,25 @@ int main()
 	if ( hm != NULL )
 	{
 		FreeLibrary( hm );
+	}
+}
+
+int wmain( int argc, wchar_t *argv[] )
+{
+	if ( argc == 3 )
+	{
+		if ( wcsncmp( argv[ 1 ], L"--string-list", 13 ) == 0 )
+		{
+			OpenStringList( argv[ 2 ] );
+		}
+		else if ( wcsncmp( argv[ 1 ], L"--locale", 8 ) == 0 )
+		{
+			OpenLocaleFile( argv[ 2 ] );
+		}
+	}
+	else
+	{
+		OpenStringList( L"string_list.txt" );
 	}
 
 	return 0;
