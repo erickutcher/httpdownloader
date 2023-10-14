@@ -3173,6 +3173,8 @@ THREAD_RETURN delete_files( void * /*pArguments*/ )
 		DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )tln->data;
 		if ( di != NULL )
 		{
+			bool allow_delete = true;
+
 			unsigned int status = ( g_allow_rename ? STATUS_NONE : STATUS_DELETE );
 
 			EnterCriticalSection( &di->di_cs );
@@ -3194,16 +3196,20 @@ THREAD_RETURN delete_files( void * /*pArguments*/ )
 
 					SetContextStatus( context, STATUS_STOPPED | status );
 				}
+
+				allow_delete = g_allow_rename;
+			}
+			else
+			{
+				LeaveCriticalSection( &di->di_cs );
 			}
 
 			// If the allow-rename switch is set, then we can rename files that are actively downloading.
 			// They can't be opened while they're downloading.
 			// They can be deleted while they're downloading.
 			// This avoids us having to delete them in ConnectionCleanup().
-			if ( g_allow_rename )
+			if ( allow_delete )
 			{
-				LeaveCriticalSection( &di->di_cs );
-
 				if ( !( di->shared_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
 				{
 					if ( cfg_use_temp_download_directory && di->status != STATUS_COMPLETED )
