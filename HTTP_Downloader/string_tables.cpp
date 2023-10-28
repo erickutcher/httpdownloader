@@ -453,6 +453,7 @@ STRING_TABLE_DATA common_string_table[] =
 	{ L"Allocating File", 15 },
 	{ L"Authorization Required", 22 },
 	{ L"Cancel", 6 },
+	{ L"Check For Updates", 17 },
 	{ L"Completed", 9 },
 	{ L"Connecting", 10 },
 	{ L"Default", 7 },
@@ -593,6 +594,19 @@ STRING_TABLE_DATA sftp_hka_string_table[] =
 	{ L"ssh-rsa", 7 }
 };
 
+// File filters.
+STRING_TABLE_DATA file_filters_string_table[] =
+{
+	{ L"All Files", 9 },
+	{ L"CSV (Comma delimited)", 21 },
+	{ L"Download History", 16 },
+	{ L"Personal Information Exchange", 29 },
+	{ L"Private Keys", 12 },
+	{ L"PuTTY Private Key Files", 23 },
+	{ L"WAV", 3 },
+	{ L"X.509 Certificates", 18 }
+};
+
 void InitializeLocaleValues()
 {
 	unsigned short string_count = 0;
@@ -601,7 +615,73 @@ void InitializeLocaleValues()
 
 	char open_count = 0;
 
-	_memzero( g_locale_table, sizeof( STRING_TABLE_DATA ) * TOTAL_LOCALE_STRINGS );
+	//_memzero( g_locale_table, sizeof( STRING_TABLE_DATA ) * TOTAL_LOCALE_STRINGS );
+
+	unsigned char i;
+
+	for ( i = 0; i < MONTH_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = month_string_table[ i ]; }
+	for ( i = 0; i < DAY_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = day_string_table[ i ]; }
+	for ( i = 0; i < DOWNLOAD_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = download_string_table[ i ]; }
+	for ( i = 0; i < MENU_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = menu_string_table[ i ]; }
+	for ( i = 0; i < OPTIONS_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = options_string_table[ i ]; }
+	for ( i = 0; i < OPTIONS_ADVANCED_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = options_advanced_string_table[ i ]; }
+	for ( i = 0; i < OPTIONS_APPEARANCE_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = options_appearance_string_table[ i ]; }
+	for ( i = 0; i < OPTIONS_CONNECTION_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = options_connection_string_table[ i ]; }
+	for ( i = 0; i < OPTIONS_FTP_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = options_ftp_string_table[ i ]; }
+	for ( i = 0; i < OPTIONS_GENERAL_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = options_general_string_table[ i ]; }
+	for ( i = 0; i < OPTIONS_PROXY_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = options_proxy_string_table[ i ]; }
+	for ( i = 0; i < OPTIONS_SERVER_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = options_server_string_table[ i ]; }
+	for ( i = 0; i < OPTIONS_SFTP_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = options_sftp_string_table[ i ]; }
+	for ( i = 0; i < CMESSAGEBOX_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = cmessagebox_string_table[ i ]; }
+	for ( i = 0; i < ADD_URLS_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = add_urls_string_table[ i ]; }
+	for ( i = 0; i < SEARCH_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = search_string_table[ i ]; }
+	for ( i = 0; i < SITE_MANAGER_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = site_manager_string_table[ i ]; }
+	for ( i = 0; i < FINGERPRINT_PROMPT_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = fingerprint_prompt_string_table[ i ]; }
+	for ( i = 0; i < UPDATE_CHECK_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = update_check_string_table[ i ]; }
+	for ( i = 0; i < COMMON_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = common_string_table[ i ]; }
+	for ( i = 0; i < COMMON_MESSAGE_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = common_message_string_table[ i ]; }
+	for ( i = 0; i < ABOUT_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = about_string_table[ i ]; }
+	for ( i = 0; i < DYNAMIC_MESSAGE_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = dynamic_message_string_table[ i ]; }
+	for ( i = 0; i < SFTP_KEX_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = sftp_kex_string_table[ i ]; }
+	for ( i = 0; i < SFTP_HK_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = sftp_hk_string_table[ i ]; }
+	for ( i = 0; i < SFTP_EC_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = sftp_ec_string_table[ i ]; }
+	for ( i = 0; i < SFTP_HKA_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = sftp_hka_string_table[ i ]; }
+	for ( i = 0; i < FILE_FILTERS_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = file_filters_string_table[ i ]; }
+
+	string_count = 0;
+
+	/*
+	// Quick locale generation.
+	HANDLE hFile_locale = CreateFile( L"en-US", GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL );
+	if ( hFile_locale != INVALID_HANDLE_VALUE )
+	{
+		DWORD write = 0;
+
+		for ( short j = 0; j < TOTAL_LOCALE_STRINGS; ++j )
+		{
+			// Include NULL terminator.
+			WriteFile( hFile_locale, g_locale_table[ j ].value, sizeof( wchar_t ) * ( g_locale_table[ j ].length + 1 ), &write, NULL );
+		}
+
+		CloseHandle( hFile_locale );
+	}
+	*/
+	/*
+	// Quick string list generation.
+	HANDLE hFile_string_list = CreateFile( L"string_list.txt", GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL );
+	if ( hFile_string_list != INVALID_HANDLE_VALUE )
+	{
+		DWORD write = 0;
+
+		for ( short j = 0; j < TOTAL_LOCALE_STRINGS; ++j )
+		{
+			WriteFile( hFile_string_list, g_locale_table[ j ].value, sizeof( wchar_t ) * g_locale_table[ j ].length, &write, NULL );
+			WriteFile( hFile_string_list, L"\r\n", sizeof( wchar_t ) * 2, &write, NULL );
+		}
+
+		CloseHandle( hFile_string_list );
+	}
+	*/
 
 	//wchar_t directory[ MAX_PATH ];
 	//int directory_length = GetCurrentDirectoryW( MAX_PATH, directory );
@@ -682,10 +762,10 @@ RETRY_OPEN:
 					}
 				}
 			}
-			else
+			/*else
 			{
 				use_locale_file = false;	// Incorrect file size.
-			}
+			}*/
 
 			UnlockFileEx( hFile_locale, 0, MAXDWORD, MAXDWORD, &lfo );
 
@@ -721,7 +801,7 @@ RETRY_OPEN:
 			{
 				GlobalFree( locale_buf );
 
-				use_locale_file = false;	// Incorrect file size.
+				//use_locale_file = false;	// Incorrect file size.
 			}
 		}
 		else
@@ -732,74 +812,8 @@ RETRY_OPEN:
 				goto RETRY_OPEN;
 			}
 
-			use_locale_file = false;	// Can't open file for reading.
+			//use_locale_file = false;	// Can't open file for reading.
 		}
-	}
-
-	if ( !use_locale_file )
-	{
-		unsigned char i;
-
-		for ( i = 0; i < MONTH_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = month_string_table[ i ]; }
-		for ( i = 0; i < DAY_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = day_string_table[ i ]; }
-		for ( i = 0; i < DOWNLOAD_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = download_string_table[ i ]; }
-		for ( i = 0; i < MENU_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = menu_string_table[ i ]; }
-		for ( i = 0; i < OPTIONS_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = options_string_table[ i ]; }
-		for ( i = 0; i < OPTIONS_ADVANCED_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = options_advanced_string_table[ i ]; }
-		for ( i = 0; i < OPTIONS_APPEARANCE_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = options_appearance_string_table[ i ]; }
-		for ( i = 0; i < OPTIONS_CONNECTION_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = options_connection_string_table[ i ]; }
-		for ( i = 0; i < OPTIONS_FTP_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = options_ftp_string_table[ i ]; }
-		for ( i = 0; i < OPTIONS_GENERAL_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = options_general_string_table[ i ]; }
-		for ( i = 0; i < OPTIONS_PROXY_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = options_proxy_string_table[ i ]; }
-		for ( i = 0; i < OPTIONS_SERVER_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = options_server_string_table[ i ]; }
-		for ( i = 0; i < OPTIONS_SFTP_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = options_sftp_string_table[ i ]; }
-		for ( i = 0; i < CMESSAGEBOX_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = cmessagebox_string_table[ i ]; }
-		for ( i = 0; i < ADD_URLS_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = add_urls_string_table[ i ]; }
-		for ( i = 0; i < SEARCH_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = search_string_table[ i ]; }
-		for ( i = 0; i < SITE_MANAGER_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = site_manager_string_table[ i ]; }
-		for ( i = 0; i < FINGERPRINT_PROMPT_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = fingerprint_prompt_string_table[ i ]; }
-		for ( i = 0; i < UPDATE_CHECK_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = update_check_string_table[ i ]; }
-		for ( i = 0; i < COMMON_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = common_string_table[ i ]; }
-		for ( i = 0; i < COMMON_MESSAGE_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = common_message_string_table[ i ]; }
-		for ( i = 0; i < ABOUT_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = about_string_table[ i ]; }
-		for ( i = 0; i < DYNAMIC_MESSAGE_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = dynamic_message_string_table[ i ]; }
-		for ( i = 0; i < SFTP_KEX_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = sftp_kex_string_table[ i ]; }
-		for ( i = 0; i < SFTP_HK_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = sftp_hk_string_table[ i ]; }
-		for ( i = 0; i < SFTP_EC_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = sftp_ec_string_table[ i ]; }
-		for ( i = 0; i < SFTP_HKA_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = sftp_hka_string_table[ i ]; }
-
-		/*
-		// Quick locale generation.
-		HANDLE hFile_locale = CreateFile( L"en-US", GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL );
-		if ( hFile_locale != INVALID_HANDLE_VALUE )
-		{
-			DWORD write = 0;
-
-			for ( short j = 0; j < TOTAL_LOCALE_STRINGS; ++j )
-			{
-				// Include NULL terminator.
-				WriteFile( hFile_locale, g_locale_table[ j ].value, sizeof( wchar_t ) * ( g_locale_table[ j ].length + 1 ), &write, NULL );
-			}
-
-			CloseHandle( hFile_locale );
-		}
-		*/
-		/*
-		// Quick string list generation.
-		HANDLE hFile_string_list = CreateFile( L"string_list.txt", GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL );
-		if ( hFile_string_list != INVALID_HANDLE_VALUE )
-		{
-			DWORD write = 0;
-
-			for ( short j = 0; j < TOTAL_LOCALE_STRINGS; ++j )
-			{
-				WriteFile( hFile_string_list, g_locale_table[ j ].value, sizeof( wchar_t ) * g_locale_table[ j ].length, &write, NULL );
-				WriteFile( hFile_string_list, L"\r\n", sizeof( wchar_t ) * 2, &write, NULL );
-			}
-
-			CloseHandle( hFile_string_list );
-		}
-		*/
 	}
 }
 

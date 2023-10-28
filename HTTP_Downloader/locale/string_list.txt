@@ -346,6 +346,7 @@ Added
 Allocating File
 Authorization Required
 Cancel
+Check For Updates
 Completed
 Connecting
 Default
@@ -452,3 +453,11 @@ ecdsa-sha2-nistp521
 ssh-dss
 ssh-ed25519
 ssh-rsa
+All Files
+CSV (Comma delimited)
+Download History
+Personal Information Exchange
+Private Keys
+PuTTY Private Key Files
+WAV
+X.509 Certificates

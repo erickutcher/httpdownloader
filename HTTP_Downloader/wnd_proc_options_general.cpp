@@ -316,11 +316,20 @@ LRESULT CALLBACK GeneralTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 				{
 					wchar_t *file_name = ( wchar_t * )GlobalAlloc( GPTR, sizeof( wchar_t ) * MAX_PATH );
 
+					wchar_t filter[ 256 ];
+					int filter_length = min( ST_L_WAV, ( 256 - 41 ) );
+					_wmemcpy_s( filter, 256, ST_V_WAV, filter_length );
+					_wmemcpy_s( filter + filter_length, 256 - filter_length, L" (*.WAV;*.WAVE)\0*.wav;*.wave\0", 29 );
+					int filter_offset = filter_length + 29;
+					filter_length = min( ST_L_All_Files, ( 256 - 12 - filter_offset ) );
+					_wmemcpy_s( filter + filter_offset, 256 - filter_offset, ST_V_All_Files, filter_length );
+					_wmemcpy_s( filter + filter_offset + filter_length, 256 - filter_offset - filter_length, L" (*.*)\0*.*\0\0", 12 );
+
 					OPENFILENAME ofn;
 					_memzero( &ofn, sizeof( OPENFILENAME ) );
 					ofn.lStructSize = sizeof( OPENFILENAME );
 					ofn.hwndOwner = hWnd;
-					ofn.lpstrFilter = L"WAV (*.WAV;*.WAVE)\0*.wav;*.wave\0All Files (*.*)\0*.*\0";
+					ofn.lpstrFilter = filter;
 					ofn.lpstrTitle = ST_V_Load_Download_Finish_Sound_File;
 					ofn.lpstrFile = file_name;
 					ofn.nMaxFile = MAX_PATH;

@@ -1485,11 +1485,16 @@ void HandleCommand( HWND hWnd, WORD command )
 		{
 			wchar_t *file_path = ( wchar_t * )GlobalAlloc( GPTR, sizeof( wchar_t ) * MAX_PATH );
 
+			wchar_t filter[ 64 ];
+			int filter_length = min( ST_L_CSV__Comma_delimited_, ( 64 - 16 ) );
+			_wmemcpy_s( filter, 64, ST_V_CSV__Comma_delimited_, filter_length );
+			_wmemcpy_s( filter + filter_length, 64 - filter_length, L" (*.csv)\0*.csv\0\0", 16 );
+
 			OPENFILENAME ofn;
 			_memzero( &ofn, sizeof( OPENFILENAME ) );
 			ofn.lStructSize = sizeof( OPENFILENAME );
 			ofn.hwndOwner = hWnd;
-			ofn.lpstrFilter = L"CSV (Comma delimited) (*.csv)\0*.csv\0";
+			ofn.lpstrFilter = filter;
 			ofn.lpstrDefExt = L"csv";
 			ofn.lpstrTitle = ST_V_Save_Download_History;
 			ofn.lpstrFile = file_path;
@@ -1520,11 +1525,16 @@ void HandleCommand( HWND hWnd, WORD command )
 		{
 			wchar_t *file_name = ( wchar_t * )GlobalAlloc( GPTR, sizeof( wchar_t ) * ( MAX_PATH * MAX_PATH ) );
 
+			wchar_t filter[ 64 ];
+			int filter_length = min( ST_L_Download_History, ( 64 - 16 ) );
+			_wmemcpy_s( filter, 64, ST_V_Download_History, filter_length );
+			_wmemcpy_s( filter + filter_length, 64 - filter_length, L" (*.hdh)\0*.hdh\0\0", 16 );
+
 			OPENFILENAME ofn;
 			_memzero( &ofn, sizeof( OPENFILENAME ) );
 			ofn.lStructSize = sizeof( OPENFILENAME );
 			ofn.hwndOwner = hWnd;
-			ofn.lpstrFilter = L"Download History (*.hdh)\0*.hdh\0";
+			ofn.lpstrFilter = filter;
 			ofn.lpstrDefExt = L"hdh";
 			ofn.lpstrTitle = ST_V_Import_Download_History;
 			ofn.lpstrFile = file_name;
@@ -1568,11 +1578,16 @@ void HandleCommand( HWND hWnd, WORD command )
 		{
 			wchar_t *file_name = ( wchar_t * )GlobalAlloc( GPTR, sizeof( wchar_t ) * MAX_PATH );
 
+			wchar_t filter[ 64 ];
+			int filter_length = min( ST_L_Download_History, ( 64 - 16 ) );
+			_wmemcpy_s( filter, 64, ST_V_Download_History, filter_length );
+			_wmemcpy_s( filter + filter_length, 64 - filter_length, L" (*.hdh)\0*.hdh\0\0", 16 );
+
 			OPENFILENAME ofn;
 			_memzero( &ofn, sizeof( OPENFILENAME ) );
 			ofn.lStructSize = sizeof( OPENFILENAME );
 			ofn.hwndOwner = hWnd;
-			ofn.lpstrFilter = L"Download History (*.hdh)\0*.hdh\0";
+			ofn.lpstrFilter = filter;
 			ofn.lpstrDefExt = L"hdh";
 			ofn.lpstrTitle = ST_V_Export_Download_History;
 			ofn.lpstrFile = file_name;
@@ -1703,7 +1718,7 @@ void HandleCommand( HWND hWnd, WORD command )
 				{
 					if ( g_hWnd_update_download == NULL )
 					{
-						g_hWnd_update_download = _CreateWindowExW( ( g_is_windows_8_or_higher ? 0 : WS_EX_COMPOSITED ) | ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"class_update_download", ST_V_Update_Download, WS_CLIPCHILDREN | WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, 0, 600, 370, NULL, NULL, NULL, NULL );
+						g_hWnd_update_download = _CreateWindowExW( ( g_is_windows_8_or_higher ? 0 : WS_EX_COMPOSITED ) | ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"class_update_download", ST_V_Update_Download, WS_CLIPCHILDREN | WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, 0, 600, 376, NULL, NULL, NULL, NULL );
 					}
 					else if ( _IsIconic( g_hWnd_update_download ) )	// If minimized, then restore the window.
 					{
@@ -1956,7 +1971,7 @@ void HandleCommand( HWND hWnd, WORD command )
 		{
 			if ( g_hWnd_search == NULL )
 			{
-				g_hWnd_search = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"class_search", ST_V_Search, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU, CW_USEDEFAULT, 0, 400, 190, NULL, NULL, NULL, NULL );
+				g_hWnd_search = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"class_search", ST_V_Search, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU, CW_USEDEFAULT, 0, 400, 192, NULL, NULL, NULL, NULL );
 			}
 
 			_SendMessageW( g_hWnd_search, WM_PROPAGATE, 0, 0 );
@@ -1967,7 +1982,7 @@ void HandleCommand( HWND hWnd, WORD command )
 		{
 			if ( g_hWnd_download_speed_limit == NULL )
 			{
-				g_hWnd_download_speed_limit = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"class_download_speed_limit", ST_V_Global_Download_Speed_Limit, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU, CW_USEDEFAULT, 0, 280, 120, NULL, NULL, NULL, NULL );
+				g_hWnd_download_speed_limit = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"class_download_speed_limit", ST_V_Global_Download_Speed_Limit, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU, CW_USEDEFAULT, 0, 280, 123, NULL, NULL, NULL, NULL );
 				_ShowWindow( g_hWnd_download_speed_limit, SW_SHOWNORMAL );
 			}
 			_SetForegroundWindow( g_hWnd_download_speed_limit );
@@ -1990,7 +2005,7 @@ void HandleCommand( HWND hWnd, WORD command )
 		{
 			if ( g_hWnd_options == NULL )
 			{
-				g_hWnd_options = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"class_options", ST_V_Options, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU /*| WS_THICKFRAME*/, CW_USEDEFAULT, 0, 720, 500, NULL, NULL, NULL, NULL );
+				g_hWnd_options = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"class_options", ST_V_Options, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU /*| WS_THICKFRAME*/, CW_USEDEFAULT, 0, 735, 500, NULL, NULL, NULL, NULL );
 				_ShowWindow( g_hWnd_options, SW_SHOWNORMAL );
 			}
 			_SetForegroundWindow( g_hWnd_options );
@@ -2027,7 +2042,7 @@ void HandleCommand( HWND hWnd, WORD command )
 
 			if ( g_hWnd_check_for_updates == NULL )
 			{
-				g_hWnd_check_for_updates = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"class_check_for_updates", L"Check For Updates", WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU, CW_USEDEFAULT, 0, 400, 135, NULL, NULL, NULL, NULL );
+				g_hWnd_check_for_updates = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"class_check_for_updates", ST_V_Check_For_Updates, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU, CW_USEDEFAULT, 0, 401, 137, NULL, NULL, NULL, NULL );
 
 				HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, CheckForUpdates, NULL, 0, NULL );
 				if ( thread != NULL )

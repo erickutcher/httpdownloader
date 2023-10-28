@@ -1,0 +1,455 @@
+﻿Januar
+Februar
+März
+April
+Mai
+Juni
+Juli
+August
+September
+Oktober
+November
+Dezember
+Sonntag
+Montag
+Dienstag
+Mittwoch
+Donnerstag
+Freitag
+Samstag
+#
+Aktive Teile
+Hinzugefügt am
+Verzeichnis
+Geschwindigkeit
+Geschwindigkeitlimit
+Heruntergeladen
+Dateigröße
+Dateityp
+Dateiname
+Fortschritt
+SSL / TLS Version
+Zeit verstrichen
+Zeit verbleibend
+URL
+#
+&Über
+Aktive Teile
+URL(s) &hinzufügen...\tStrg+N
+URL(s) hinzufügen...
+Immer im Vordergrund
+Auf Aktualisierung &prüfen...
+&Spaltenüberschrift
+URL(s) &kopieren\tStrg+C
+URL(s) kopieren
+Hinzugefügt am
+&Löschen\tEntf
+Löschen
+Verzeichnis
+Geschwindigkeit
+Geschwindigkeitslimit
+Heruntergeladen
+&Bearbeiten
+B&earbeitungsmodus für Listen aktivieren\tStrg+Shift+E
+Bearbeitungsmodus für Listen aktivieren
+B&eenden
+Beenden
+Verlauf &exportieren...
+&Datei
+Dateigröße
+Dateityp
+Dateiname
+Globales Geschwindigkeits&limit...\tStrg+L
+&Hilfe
+HTTP Downloader &Webseite
+Verlauf &importieren...
+Nach unten verschieben
+Nach ganz unten verschieben
+Nach ganz oben verschieben
+Nach oben verschieben
+Verzeichnis öffnen
+Datei öffnen
+Downloadliste öffnen
+&Optionen...\tStrg+O
+Optionen...
+&Pause
+Pause
+Pausieren
+Fortschritt
+Warteschlange
+&Entfernen\tStrg+R
+Entfernen
+Entfernen und Löschen\tStrg+Entf
+Entfernen und Löschen
+Entfernen von Fertiggestellten
+Umbenennen\tF2
+Umbenennen
+Neustart
+Fortse&tzen
+Fortsetzen
+Verlauf &speichern...
+&Suchen...\tStrg+S
+Alle au&swählen\tStrg+A
+Alle auswählen
+Seiten&verwatlung...\tStrg+M
+SSL / TLS Version
+St&art
+Start
+Start / Fortsetzen (inaktive)
+&Statuszeile
+Anha&lten
+Anhalten
+Alle anhalten
+Zeit verstrichen
+Zeit verbleibend
+&Werkzeugleiste
+&Werkzeuge
+Akt&ualisierung herunterladen...\tStrg+U
+Aktualisierung herunterladen...
+URL
+&Ansicht
+Erweitert
+Aussehen
+Anwenden
+Verbindung
+Fingerabdrücke
+FTP
+Allgemein
+OK
+Private Schlüssel\t
+Proxy
+SFTP
+Nur hinzufügen aber nicht starten
+Nur eine Instanz des Programms zulassen
+Download fortsetzen
+Standard Downloadverzeichnis:
+Abfrage anzeigen
+Sofort herunterladen
+Herunterladen von Dateien mit non-200 und non-206-Antworten
+URL(s) aus der Zwischenablage sofort herunterladen
+Verlauf aktivieren
+Schnelle Dateizuordnung aktivieren (Administratorrechte erforderlich)
+Sparse-Datei-Zuordnung aktivieren
+Programm schließen
+Ruhezustand
+Hybrid-Herunterfahren
+Sperren
+Abmelden
+Gelöschte Downloads in den Papierkorb verschieben
+Nichts
+Datei überschreiben
+Standby während aktiven Downloads verhindern
+Datei umbenennen
+Neustart
+Download neu starten
+Download zuletzt herunterladender Dateien beim Starten fortsetzen
+Datum und Zeit der Datei vom Server beziehen
+Herunterfahren
+Download überspringen
+Energie sparten
+Aktion wenn alle Downloads fertigestellt wurden:
+Anzahl der Threadpools:
+Umgeleitete URL(s) in der Downloadliste aktualisieren
+Temporäres Downloadverzeichnis:
+Wenn eine Datei bereits existiert:
+Wenn eine Datei geändert wurde:
+Wenn eine Datei größer oder gleich ist (bytes):
+Hintergrundfarbe
+Hintergrundschriftfarbe
+Randfabe
+Downloadliste:
+Alle Zeilen hervorheben
+Volle Zeilen hervorheben
+Hintergrundfarbe (gerade Zeile)
+Schrift (gerade Zeile)
+Schriftfarbe (gerade Zeile)
+Markierungsfarbe (gerade Zeile)
+Markierungsschriftfarbe (gerade Zeile)
+Erweitern der hinzugefügten Gruppenposten
+Gitternetzlinienfarbe
+Hintergrundfarbe (ungerade Zeile)
+Schrift (ungerade Zeile)
+Schriftfarbe (ungerade Zeile)
+Markierungsfarbe (ungerade Zeile)
+Markierungsschriftfarbe (ungerade Zeile)
+Andere Fortschritsleisten:
+Fortschrittsfarbe
+Fortschrittsleiste:
+Fortschrittsschriftfarbe
+Beim hinzufügen von URL(s) zu letztem Eintrag gehen
+Auswahlfarbe
+Gitternetzlinien in Downloadliste anzeigen
+Fortschritt für jeden Teil anzeigen
+hinzugefügte/aktualisierte Downloads sortieren
+Infobereich-Symbol (Tray) bei Download
+Infobereich-Symbol (Tray) bei Pause
+Infobereich-Symbol (Tray) bei Fehler
+Drag&Drop-Fenster bei Download
+Drag&Drop-Fenster bei Pause
+Drag&Drop-Fenster bei Fehler
+Downloadlimit:
+Standard Teile:
+Standard SSL / TLS Version:
+Maximale Weiterleitungen:
+Neuzuteilung der Teile für maximale Verbindungsanzahl
+Unvollständige Downloads wiederholen:
+Unvollständige Teile wiederholen:
+Zeitbeschränkung (Sekunden):
+-
+Aktiv
+Aktiv-Modus Informationen
+Daten-Transfer-Modus
+Passiv
+Port Ende:
+Port Start:
+Keep-Alive-Anfragen senden
+Bei Fehler anderen Modus benutzen
+Immer im Vordergrund
+Beim Start auf Aktualisierung prüfen
+In Infobereich (Tray) schließen
+Smybol für Infobereich (Tray) aktivieren:
+Drag&&Drop-Fenster aktivieren:
+Audiodatei für fertiggestellte Downloads auswählen
+In Infobereich (Tray) minimieren
+Ton abspielen wenn alle Downloads fertiggestellt wurden:
+Benachrichtigung anzeigen wenn alle Downloads fertiggestellt wurden
+Fortschrittsleiste anzeigen
+In Infobereich (Tray) starten
+Durchsichtigkeit:
+Proxy erlauben den Domänennamen aufzulösen
+Proxy erlauben den Domänennamen aufzulösen (SOCKS v4a benutzen)
+Hostname:
+SOCKS v4
+SOCKS v5
+Authentifikation benutzen:
+HTTP-Proxy benutzen:
+HTTPS-Proxy benutzen:
+SOCKS-Proxy benutzen:
+:
+Standardauthentifikation
+Zertifikatsdatei:
+Hashwertauthentifikation
+Server aktivieren:
+SSL / TLS aktivieren:
+Hostname / IPv6-Adresse:
+IPv4-Adresse:
+Schlüsseldatei:
+PKCS #12 Datei laden
+Private Schlüsseldatei laden
+X.509 Zertifikatsdatei laden
+PKCS #12:
+PKCS #12 Datei:
+PKCS #12 Passwort:
+Port:
+Öffentliches / Privates Schlüsselpaar:
+Authentifikation erforderlich:
+Server
+Server SSL / TLS Version:
+Algorithmusauswahlrichtlinien
+GSSAPI-Authentifizierung versuchen
+GSSAPI-Schlüsselaustausch versuchen
+Einträge zum neuordnen der Priorität ziehen.
+Kompression aktivieren
+Verschlüsselungschiffre:
+Fingerabdruck
+Fingerabdruck:
+Fingerabdrücke:
+GSS-Schlüsselzeit (Minuten):
+Host
+Host:
+Host-Schlüssel:
+Host-Schlüsselalgorithmus
+Host-Schlüsselalgorithmus:
+Schlüssel/Gruppen-Austausch:
+Private Schlüsseldatei laden
+Private Schlüsseldatei
+Private Schlüsseldatei:
+Schlüsseldatenlimit (Bytes):
+Schlüsselzeit (Minuten):
+Kepp-Alive-Anfragen senden (Sekunden):
+Fortsetzen
+Nein
+Überschreiben
+Auswahl merken
+Überspringen
+Noch ausstehende Meldungen überspringen
+Ja
+Erweiterte Optionen
+Authentifikation
+Cookies
+Cookies:
+Eigener
+Download
+Downloadverzeichnis:
+Teile:
+Header
+Header:
+Bilder
+Musik
+Passwort:
+POST-Methode
+RegEx-Filter:
+POST Daten senden:
+Download simulieren
+SSL / TLS Version:
+URL(s):
+Proxy verwenden:
+Benutzername:
+Videos
+Groß-/Kleinschreibung
+Nur ganze Wörter
+regulärer Ausdruck
+Suchen
+Suche alle
+Suchen nach:
+Suche nächstes
+Suchtyp
+********
+[...]
+Hinzufügen
+Gestoppt hinzufügen
+Schließen
+Deaktivieren
+Downloadaktionen
+Downloadteile
+Leerer Inhalt
+Aktivieren
+Neu
+Passwort
+Proxy-Passwort
+Proxy-Port
+Proxy-Server
+Proxy-Typ
+Proxy-Benutzername
+Domänennamen auflösen
+Speichern
+Passwörter anzeigen
+Simulieren
+Seite
+Seite:
+Benutzername
+Host- und Schlüsselinformation dem Cache hinzufügen
+Schlüsselgröße:
+Eine neue Version ist verfügbar.
+Prüfe auf Aktualisierung...
+Aktuelle Version:
+Aktualisierung herunterladen
+HTTP Downloader ist auf dem neusten Stand.
+Aktuellste Version:
+Die Prüfung auf Aktualisierungen ist fehlgeschlagen.
+Änderungen anzeigen
+Webseite besuchen
+...
+[Simuliert]
+URL(s) hinzufügen
+Hinzugefügt
+Dateizuordnung läuft
+Autorisierung erforderlich
+Abbrechen
+Auf Aktualisierung prüfen
+Fertiggestellt
+Verbinde
+Standard
+Standard Geschwindigkeitslimit (bytes/s):
+Downloadgeschwindigkeit: 
+Geschwindigkeitslimit (bytes/s):
+Wird heruntergeladen
+Downloads wurden fertiggestellt
+Fehler
+Verlauf exportieren
+Fehlgeschlagen
+Dateifehler
+Globales Geschwindigkeitslimit
+Globales Geschwindigkeitslimit:
+Globales Geschwindigkeitslimit (bytes/s):
+HTTP
+HTTPS
+Verlauf importieren
+Unzureichender Speicherplatz
+Einträge:
+Verschiebe Datei
+Optionen
+Pausiert
+Proxy-Authentifikation erforderlich
+Wartend
+Neu startend
+Verlauf speichern
+Festlegen
+Seitenverwaltung
+Übersprungen
+Angehalten
+SSL 2.0
+SSL 3.0
+Zeit überschritten
+TLS 1.0
+TLS 1.1
+TLS 1.2
+Heruntergeladen: 
+Unbegrenzt
+Aktualisieren
+Download aktualisieren
+URL:
+Es muss ein Schlüsselalgorithmus mitgegeben werden.
+Es ist eine private Schlüsseldatei erforderlich.
+Es muss ein Protokoll (HTTP(S) oder FTP(S)) mitgegeben werden.
+Ein Protokoll (HTTP oder HTTPS) muss angegeben werden.
+Ein Neustart ist erforderlich, damit die Änderungen in Kraft treten.
+Ein Neustart ist erforderlich, um die Dateizuordnung zu aktivieren.
+Ein Neustart ist erforderlich, um die Aktion durchzuführen.
+Ein Neustart ist erforderlich, um die Anzahl der Threadpools anzupassen.
+Sind Sie sicher, dass Sie die ausgewählten Dateien löschen wollen?
+Sind Sie sicher, dass Sie die fertiggestellten Einträge entfernen wollen?
+Sind Sie sicher, dass Sie die ausgewählten Einträge entfernen und löschen wollen?
+Sind Sie sicher, dass Sie die ausgewählten Einträge entfernen wollen?
+Sind Sie sicher, dass Sie die ausgewählten Einträge neustarten wollen?
+Möchten Sie den Hostschlüssel des Servers akzeptieren?
+Eine oder mehrere Dateien werden derzeit benutzt und können nicht gelöscht werden.
+Eine oder mehrere Dateien wurden nicht gefunden.
+Ein oder mehrere Pfade wurden nicht gefunden.
+Wählen Sie das Standard-Downloadverzeichnis aus.
+Wählen Sie das Downloadverzeichnis aus.
+Wählen Sie das temporäre Downloadverzeichnis aus.
+Der Download wird fortgesetzt wenn er aktualisiert wurde.
+Die Datei wird derzeit benutzt und kann deswegen nicht gelöscht werden.
+Die Datei wird derzeit benutzt und kann deswegen nicht umbenannt werden.
+Die Datei(en) konnten wegen fehlerhaftem Format nicht importiert werden.
+Der Fingerabdruck des Schlüssels stimmt nicht mit dem im Cache überein.\r\nMöchten Sie den Hostschlüssel des Servers akzeptieren?
+Die festgelegte Datei konnte nicht gefunden werden.
+Die festgelegte Datei konnte nicht gefunden werden.\r\n\r\nMöchten Sie die Datei erneut herunterladen?
+Der festgelegte Host existiert bereits.
+Der festgelegte Host ist ungültig.
+Der festgelegte Pfad konnte nicht gefunden werden.
+Die festgelegte Seite existiert bereits.
+Die festgelegte Seite ist ungültig.
+Der festgelegte Benutzername und Host existieren bereits.
+Es existiert bereits eine Datei mit dem selben Namen.
+Sie müssen ein Downloadverzeichnis angeben.
+Erstellt am
+Copyright
+HTTP Downloader ist frei unter der GPLv3-Lizenz.
+Version
+%s existiert bereits.\r\n\r\nWas möchten Sie mit dem neuen Download tun?
+%s konnte nicht umbenannt werden.\r\n\r\nSie müssen ein anderes Verzeichnis auswählen.
+%s wurde geändert.\r\n\r\nWas möchten Sie mit dem neuen Download tun?
+%s hat eine Größe von %I64u bytes.\r\n\r\nMöchten Sie mit dem Download der Datei fortfahren?
+DH-Group1-SHA1
+DH-Group14-SHA1
+DH-GEX-SHA1
+RSA
+ECDH
+RSA
+DSA
+ECDSA
+Ed25519
+3DES
+Blowfish
+AES
+DES
+Arcfour
+ChaCha20
+ecdsa-sha2-nistp256
+ecdsa-sha2-nistp384
+ecdsa-sha2-nistp521
+ssh-dss
+ssh-ed25519
+ssh-rsa

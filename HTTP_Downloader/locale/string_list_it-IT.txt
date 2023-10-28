@@ -1,0 +1,455 @@
+﻿Gennaio
+Febbraio
+Marzo
+aprile
+Maggio
+Giugno
+Luglio
+Agosto
+Settembre
+Ottobre
+Novembre
+Dicembre
+Domenica
+Lunedì
+Martedì
+Mercoledì
+Giovedì
+Venerdì
+Sabato
+#
+Parti attive
+Data/ora aggiunte
+Cartella download
+Velocità download
+Limite velocità download
+Scaricato
+Dimensione file
+Tipo file
+Nome file
+Progresso
+Versione SSL/TLS
+Tempo trascorso
+Tempo rimanente
+URL
+#
+&Info programma
+Parti attive
+&Aggiungi URL...\tCtrl+N
+Aggiungi URL...
+Sempre in primo piano
+&Controlla aggiornamenti...
+Intestazioni &colonna
+&Copia URL\tCtrl+C
+Copia URL
+Data/ora aggiunte
+&Elimina\tCanc
+Elimina
+Cartella download
+Velocità download
+Limite velocità download
+Scaricato
+&Modifica
+Abilita modo modifica &elenco\tCtrl+Maiusc+E
+Abilita modo modifica elenco
+&Esci
+Esci
+&Esporta cronologia download...
+&File
+Dimensione file
+Tipo file
+Nome file
+&Limite globale velocità download...\tCtrl+L
+&Aiuto
+Sito web HTTP Downloader
+&Importa cronologia download...
+Sposta giù
+Sposta in basso
+Sposta in alto
+Sposta su
+Apri cartella
+Apri  file
+Apri elenco download
+&Opzioni...\tCtrl+O
+Opzioni...
+&Pausa
+Pausa
+Pausa attivi
+Progresso
+Coda
+&Rimuovi\tCtrl+R
+Rimuovere
+Rimuovi ed elimina\tCtrl+Canc
+Rimuovi ed elimina
+Rimuovi completati
+Rinomina\tF2
+Rinomina
+Riavvia
+Riprendi
+Riprendi
+&Salva cronologia download...
+&Cerca...\tCtrl+S
+&Seleziona tutto\tCtrl+A
+Seleziona tutto
+&Gestione siti...\tCtrl+M
+Versione SSL/TLS
+Avvia
+Avvia
+Avvia/riprendi non attivi
+&Barra di stato
+Ferma
+Ferma
+Ferma tutto
+Tempo trascorso
+Tempo rimanente
+&Barra strumenti
+&Strumenti
+&Aggiorna download...\tCtrl+U
+Aggiorna download...
+URL
+&Visualizza
+Avanzate
+Aspetto
+Applica
+Connessione
+Firma digitale
+FTP
+Generale
+OK
+Chiavi private
+Proxy
+SFTP
+Aggiungi in stato Interrotto
+Consenti l'esecuzione di una sola istanza del programma
+Continua download
+Cartella predefinita download:
+Visualizza richiesta
+Download immediato
+Scarica risposte non-200 e non-206
+Azione trascina e rilascia URL:
+Abilita cronologia download
+Abilita allocazione rapida file (è richiesto l'accesso come amministratore)
+Abilita allocazione casuale file
+Esci dal programma
+Ibernazione
+Spegnimento ibrido
+Blocca
+Disconnessione
+Sposta i download eliminati nel Cestino
+Nessuna
+Sovrascrivi file
+Impedisci standby del sistema mentre i download sono attivi
+Rinomina file
+Ricomincia
+Riavvia download
+All'avvio riprendi download file precedenti
+Imposta data e ora file in base alla risposta del server
+Ferma
+Salta download
+Sleep
+Azione arresto sistema a download completati:
+N. thread pool:
+Aggiorna  URL reindirizzati nell'elenco dei download
+Usa cartella temporanea download:
+Quando un file esiste già:
+Quando un file è stato modificato:
+Quando un file è maggiore o uguale a (byte):
+Colore sfondo
+Colore sfondo font
+Colore bordo
+Elenco download:
+Disegna tutte le righe
+Disegna righe complete
+Colore sfondo righe pari
+Font righe pari
+Colore font righe pari
+Colore evidenziazione rihe pari
+Colore font evidenziazione righe pari
+Espandi elementi aggiunti al gruppo
+Colore griglia
+Colore sfondo righe dispari
+Font righe dispari
+Colore font righe dispari
+Colore evidenziazione righe dispari
+Colore font evidenziazione righe dispari
+Altre barre progresso:
+Colore progresso
+Barra progresso:
+Colore font progresso
+Quando aggiungi URL scorri fino all'ultimo elemento 
+Colore riquadro selezione
+Visualizza griglia nell'elenco download
+Visualizza progressi per ciascuna parte
+Ordina elementi aggiunti e in aggiornamento
+Icona 'In download' nella barra applicazioni
+Icona 'In pausa' nella barra applicazioni
+Icona 'Errori' nella barra applicazioni
+Rilascio URL nella finestra 'In download'
+Rilascio URL nella finestra 'In pausa'
+Rilascio URL nella finestra 'Errori'
+Limite download attivo:
+Parti predefinite download:
+Versione predefinita SSL/TLS:
+N. max reindirizzamenti:
+Rialloca parti per massimizzare connessioni
+Riprova download incompleti:
+Riprova con parti incomplete:
+Timeout (secondi):
+-
+Attivo
+Informazioni ascolto attivo
+Modalità trasferimento dati
+Passiva
+Porta finale:
+Porta iniziale:
+Invia richieste mantieni attivo
+In caso di errore usa un'altra modalità
+Sempre in primo piano
+Controlla aggiornamenti all'avvio
+Vicino alla barra di sistema
+Abilita icona nella barra delle applicazioni:
+Abilita finestra rilascio URL:
+Carica file audio download completato
+Riduci ad icona nella barra di sistema
+Riproduci audio a download completati:
+Visualizza notifica a download completati
+Visualizza barra progresso
+Avvia nella barra di sistema
+Trasparenza:
+Consenti al proxy di risolvere i nomi di dominio
+Consenti al proxy di risolvere i nomi di dominio (usa SOCKS v4a)
+Nome host:
+SOCKS v4
+SOCKS v5
+Usa autenticazione:
+Usa proxy HTTP:
+Usa proxy HTTPS:
+Usa proxy SOCKS:
+:
+Autenticazione base
+File certificato:
+Autenticazione digest
+Abilita server:
+Abilita SSL/TLS:
+Nome host/indirizzo IPv6:
+Indirizzo IPv4:
+File chiave:
+Carica file PKCS #12
+Carica file chiave privata
+Carica file certificato X.509
+PKCS #12:
+File PKCS #12:
+Password PKCS #12:
+Porta:
+Coppia chiavi pubblica/privata:
+Richiedi autenticazione:
+Server
+Versione server SSL/TLS:
+Politiche selezione algoritmi
+Tentativo di autenticazione GSSAPI
+Tentativo di scambio di chiavi GSSAPI
+Trascina gli elementi per riordinare la priorità.
+Abilita compressione
+Cifratura crittografia:
+Firma digitale
+Firma digitale:
+Firme digitali:
+Tempo riattivazione GSS (minuti):
+Host
+Host:
+Chiave host:
+Algoritmo chiave host
+Algoritmo chiave host:
+Scambio chiave/gruppo:
+Carica chiave privata
+File chiave privata
+File chiave privata:
+Limite dati reimpostati (byte):
+Tempo reimpostazione (minuti):
+Invia richieste mantieni attivo (secondi):
+Continua
+NO
+Sovrascrivi
+Ricorda la scelta
+Salta
+Salta i messaggi rimanenti
+Sì
+Opzioni avanzate
+Autenticazione
+Cookie
+Cookie:
+Personalizzato
+Download
+Cartella download:
+Parti download:
+Intestazioni
+Intestazioni:
+Immagini
+Musica
+Password:
+Dati POST
+Filtro RegEx:
+Invia dati POST:
+Simula download
+Versione SSL/TLS:
+URL:
+Usa proxy:
+Nome utente:
+Video
+Corrispondenza maiuscole/minuscole
+Corrispondenza parola intera
+Espressione regolare
+Cerca
+Cerca tutto
+Cerca:
+Cerca successivo
+Tipo ricerca
+********
+[...]
+Aggiungi
+Aggiungi come arrestato
+Chiudi
+Disattiva
+Operazioni download
+Parti download
+Corpo vuoto
+Abilita
+Nuovo
+Password
+Password proxy
+Porta proxy
+Server proxy
+Tipo proxy
+Utente proxy
+Risolvi nomi di dominio
+Salva
+Visualizza password
+Simula
+Sito
+Sito:
+Nome utente
+Aggiungi alla cache informazioni host e chiave
+Dimensione chiave:
+È disponibile una nuova versione del programma.
+Verifica aggiornamenti...
+Versione attuale:
+Download aggiornamento
+Questa versione di HTTP Downloader è aggiornata.
+Versione aggiornata:
+Il controllo degli aggiornamenti non è riuscito.
+Novità programma
+Visita sito web programma
+...
+[Simulato]
+Aggiungi URL
+Aggiunta
+Assegnazione file
+Richiesta autorizzazione
+Annulla
+Controlla aggiornamenti
+Completato
+Connessione
+Predefinito
+Limite predefinito velocità download (byte/s):
+Velocità download:
+Limite velocità download (byte/s):
+Download in corso
+I download sono stati completati
+Errore
+Esporta cronologia download
+Fallito
+Errore I/O file
+Limite globale velocità download
+Limite globale velocità download:
+Limite globale velocità download (byte/s):
+HTTP
+HTTPS
+Importa cronologia download
+Spazio insufficiente su disco
+Elementi:
+Spostamento file
+Opzioni
+In pausa
+Richiesta autenticazione proxy
+In coda
+Riavvio
+Salva cronologia download
+Imposta
+Gestione siti
+Saltato
+Fermato
+SSL2.0
+SSL3.0
+Timeout
+TLS 1.0
+TLS 1.1
+TLS 1.2
+Totale download:
+Illimitato
+Aggiorna
+Download aggiornamento
+URL:
+È necessario fornire un algoritmo chiave.
+È richiesto un file chiave privata.
+È necessario definire un protocollo (HTTP(S) o FTP(S)).
+Affinché queste modifiche abbiano effetto è necessario un riavvio.
+Per disabilitare l'allocazione rapida dei file è necessario un riavvio.
+Per abilitare l'allocazione rapida dei file è necessario un riavvio.
+Per eseguire l'azione di arresto del sistema è necessario un riavvio.
+Per aggiornare il conteggio del pool di thread è necessario un riavvio .
+Sei sicuro di voler eliminare i file selezionati?
+Sei sicuro di voler rimuovere gli elementi completati?
+Sei sicuro di voler rimuovere ed eliminare gli elementi selezionati?
+Sei sicuro di voler rimuovere gli elementi selezionati?
+Sei sicuro di voler riavviare gli elementi selezionati?
+Vuoi accettare la chiave host del server?
+Uno o più file sono in uso e non possono essere eliminati.
+Uno o più file non sono stati trovati.
+Uno o più percorsi non sono stati trovati.
+Seleziona la cartella predefinita download.
+Seleziona la cartella download.
+Seleziona la cartella temporanea download.
+Il download verrà ripreso dopo l'aggiornamento.
+Il file è attualmente in uso e non può essere eliminato.
+Il file è attualmente in uso e non può essere rinominato.
+Impossibile importare i file perché il formato non è corretto.
+La firma digitale della chiave non corrisponde alla voce memorizzata nella cache.\r\nVuoi accettare la chiave host del server?
+Il file specificato non è stato trovato.
+Il file specificato non è stato trovato.\r\n\r\nVuoi scaricare nuovamente il file?
+L'host specificato esiste già.
+L'host specificato non è valido.
+Il percorso specificato non è stato trovato.
+Il sito specificato esiste già.
+Il sito specificato non è valido.
+Il nome utente e l'host specificati esistono già.
+ In questo percorso esiste già un file con lo stesso nome.
+È necessario impostare un cartella download.
+Build:
+Copyright
+HTTP Downloader è gratuito ed è distribuito sotto licenza GPLv3.
+Versione:
+'%s' esiste già.\r\n\r\nQuale operazione vuoi eseguire?
+Impossibile rinominare '%s'.\r\n\r\nDovrai scegliere una cartella di salvataggio diversa.
+'%s' è stato modificato.\r\n\r\nQuale operazione vuoi eseguire?
+'%s' avrà una dimensione di '%I64u' byte.\r\n\r\nVuoi continuare a scaricare questo file?
+DH-Group1-SHA1
+DH-Group14-SHA1
+DH-GEX-SHA1
+RSA
+ECDH
+RSA
+DSA
+ECDSA
+Ed25519
+3DES
+Blowfish
+AES
+DES
+Arcfour
+ChaCha20
+ecdsa-sha2-nistp256
+ecdsa-sha2-nistp384
+ecdsa-sha2-nistp521
+ssh-dss
+ssh-ed25519
+ssh-rsa

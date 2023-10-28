@@ -263,19 +263,19 @@ LRESULT CALLBACK SFTPKeysTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 			g_hWnd_sftp_keys_host_list = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_LISTVIEW, NULL, LVS_REPORT | LVS_OWNERDRAWFIXED | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, rc.right, 330, hWnd, NULL, NULL, NULL );
 			_SendMessageW( g_hWnd_sftp_keys_host_list, LVM_SETEXTENDEDLISTVIEWSTYLE, 0, LVS_EX_DOUBLEBUFFER | LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES );
 
-			HWND hWnd_static_sftp_keys_username = _CreateWindowW( WC_STATIC, ST_V_Username_, WS_CHILD | WS_VISIBLE, 0, 335, 110, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_edit_sftp_keys_username = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 350, 110, 23, hWnd, ( HMENU )EDIT_SKH_USERNAME, NULL, NULL );
+			HWND hWnd_static_sftp_keys_username = _CreateWindowW( WC_STATIC, ST_V_Username_, WS_CHILD | WS_VISIBLE, 0, 337, 110, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_edit_sftp_keys_username = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 355, 110, 23, hWnd, ( HMENU )EDIT_SKH_USERNAME, NULL, NULL );
 
-			HWND hWnd_static_sftp_keys_host = _CreateWindowW( WC_STATIC, ST_V_Host_, WS_CHILD | WS_VISIBLE, 115, 335, 200, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_edit_sftp_keys_host = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 115, 350, 200, 23, hWnd, ( HMENU )EDIT_SKH_HOST, NULL, NULL );
+			HWND hWnd_static_sftp_keys_host = _CreateWindowW( WC_STATIC, ST_V_Host_, WS_CHILD | WS_VISIBLE, 115, 337, 200, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_edit_sftp_keys_host = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 115, 355, 200, 23, hWnd, ( HMENU )EDIT_SKH_HOST, NULL, NULL );
 
-			HWND hWnd_static_sftp_keys_key_file = _CreateWindowW( WC_STATIC, ST_V_Private_key_file_, WS_CHILD | WS_VISIBLE, 320, 335, rc.right - 360, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_edit_sftp_keys_key_file = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_READONLY | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 320, 350, rc.right - 360, 23, hWnd, ( HMENU )EDIT_SKH_KEY_FILE, NULL, NULL );
-			HWND hWnd_btn_sftp_keys_key_file = _CreateWindowW( WC_BUTTON, ST_V_BTN___, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 35, 350, 35, 23, hWnd, ( HMENU )BTN_SKH_KEY_FILE, NULL, NULL );
+			HWND hWnd_static_sftp_keys_key_file = _CreateWindowW( WC_STATIC, ST_V_Private_key_file_, WS_CHILD | WS_VISIBLE, 320, 337, rc.right - 360, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_edit_sftp_keys_key_file = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_READONLY | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 320, 355, rc.right - 360, 23, hWnd, ( HMENU )EDIT_SKH_KEY_FILE, NULL, NULL );
+			HWND hWnd_btn_sftp_keys_key_file = _CreateWindowW( WC_BUTTON, ST_V_BTN___, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 35, 355, 35, 23, hWnd, ( HMENU )BTN_SKH_KEY_FILE, NULL, NULL );
 
-			g_hWnd_new_keys_host = _CreateWindowW( WC_BUTTON, ST_V_New, WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 383, 80, 23, hWnd, ( HMENU )BTN_SKH_NEW_HOST, NULL, NULL );
-			g_hWnd_save_keys_host = _CreateWindowW( WC_BUTTON, ST_V_Save, WS_CHILD | WS_TABSTOP | WS_VISIBLE, 85, 383, 80, 23, hWnd, ( HMENU )BTN_SKH_SAVE_HOST, NULL, NULL );
-			g_hWnd_remove_keys_host = _CreateWindowW( WC_BUTTON, ST_V_Remove, WS_CHILD | WS_DISABLED | WS_TABSTOP | WS_VISIBLE, 170, 383, 80, 23, hWnd, ( HMENU )BTN_SKH_REMOVE_HOST, NULL, NULL );
+			g_hWnd_new_keys_host = _CreateWindowW( WC_BUTTON, ST_V_New, WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 388, 80, 23, hWnd, ( HMENU )BTN_SKH_NEW_HOST, NULL, NULL );
+			g_hWnd_save_keys_host = _CreateWindowW( WC_BUTTON, ST_V_Save, WS_CHILD | WS_TABSTOP | WS_VISIBLE, 85, 388, 80, 23, hWnd, ( HMENU )BTN_SKH_SAVE_HOST, NULL, NULL );
+			g_hWnd_remove_keys_host = _CreateWindowW( WC_BUTTON, ST_V_Remove, WS_CHILD | WS_DISABLED | WS_TABSTOP | WS_VISIBLE, 170, 388, 80, 23, hWnd, ( HMENU )BTN_SKH_REMOVE_HOST, NULL, NULL );
 
 			_SendMessageW( g_hWnd_edit_sftp_keys_host, EM_LIMITTEXT, MAX_DOMAIN_LENGTH, 0 );
 
@@ -377,11 +377,16 @@ LRESULT CALLBACK SFTPKeysTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 					wchar_t file_path[ MAX_PATH ];
 					file_path[ 0 ] = 0;	// Sanity.
 
+					wchar_t filter[ 128 ];
+					int filter_length = min( ST_L_PuTTY_Private_Key_Files, ( 128 - 16 ) );
+					_wmemcpy_s( filter, 128, ST_V_PuTTY_Private_Key_Files, filter_length );
+					_wmemcpy_s( filter + filter_length, 128 - filter_length, L" (*.ppk)\0*.ppk\0\0", 16 );
+
 					OPENFILENAME ofn;
 					_memzero( &ofn, sizeof( OPENFILENAME ) );
 					ofn.lStructSize = sizeof( OPENFILENAME );
 					ofn.hwndOwner = hWnd;
-					ofn.lpstrFilter = L"PuTTY Private Key Files (*.ppk)\0*.ppk\0";
+					ofn.lpstrFilter = filter;
 					ofn.lpstrDefExt = L"ppk";
 					ofn.lpstrTitle = ST_V_Load_Private_Key;
 					ofn.lpstrFile = file_path;

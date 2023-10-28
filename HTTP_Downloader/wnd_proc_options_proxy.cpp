@@ -154,17 +154,17 @@ LRESULT CALLBACK ProxyTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPa
 			g_hWnd_ip_address = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_IPADDRESS, NULL, WS_CHILD | WS_TABSTOP, 0, 40, 310, 23, hWnd, ( HMENU )EDIT_IP_ADDRESS, NULL, NULL );
 
 
-			g_hWnd_static_colon = _CreateWindowW( WC_STATIC, ST_V_COLON, SS_CENTER | WS_CHILD | WS_VISIBLE, 310, 44, 10, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_static_colon = _CreateWindowW( WC_STATIC, ST_V_COLON, SS_CENTER | WS_CHILD | WS_VISIBLE, 310, 43, 10, 15, hWnd, NULL, NULL, NULL );
 
-			g_hWnd_static_port = _CreateWindowW( WC_STATIC, ST_V_Port_, WS_CHILD | WS_VISIBLE, 320, 25, 75, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_static_port = _CreateWindowW( WC_STATIC, ST_V_Port_, WS_CHILD | WS_VISIBLE, 320, 22, 75, 15, hWnd, NULL, NULL, NULL );
 			g_hWnd_port = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 320, 40, 75, 23, hWnd, ( HMENU )EDIT_PORT, NULL, NULL );
 
 
-			g_hWnd_static_auth_username = _CreateWindowW( WC_STATIC, ST_V_Username_, WS_CHILD | WS_VISIBLE, 0, 68, 150, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_auth_username = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 83, 150, 23, hWnd, ( HMENU )( HMENU )EDIT_AUTH_USERNAME, NULL, NULL );
+			g_hWnd_static_auth_username = _CreateWindowW( WC_STATIC, ST_V_Username_, WS_CHILD | WS_VISIBLE, 0, 69, 150, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_auth_username = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 87, 150, 23, hWnd, ( HMENU )( HMENU )EDIT_AUTH_USERNAME, NULL, NULL );
 
-			g_hWnd_static_auth_password = _CreateWindowW( WC_STATIC, ST_V_Password_, WS_CHILD | WS_VISIBLE, 160, 68, 150, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_auth_password = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_PASSWORD | ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 160, 83, 150, 23, hWnd, ( HMENU )( HMENU )EDIT_AUTH_PASSWORD, NULL, NULL );
+			g_hWnd_static_auth_password = _CreateWindowW( WC_STATIC, ST_V_Password_, WS_CHILD | WS_VISIBLE, 160, 69, 150, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_auth_password = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_PASSWORD | ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 160, 87, 150, 23, hWnd, ( HMENU )( HMENU )EDIT_AUTH_PASSWORD, NULL, NULL );
 
 
 			_SendMessageW( g_hWnd_hostname, EM_LIMITTEXT, MAX_DOMAIN_LENGTH, 0 );
@@ -173,31 +173,31 @@ LRESULT CALLBACK ProxyTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPa
 
 			//
 
-			/*HWND hWnd_static_proxy_hoz1 =*/ _CreateWindowW( WC_STATIC, NULL, SS_ETCHEDHORZ | WS_CHILD | WS_VISIBLE, 0, 116, rc.right, 1, hWnd, NULL, NULL, NULL );
+			/*HWND hWnd_static_proxy_hoz1 =*/ _CreateWindowW( WC_STATIC, NULL, SS_ETCHEDHORZ | WS_CHILD | WS_VISIBLE, 0, 120, rc.right, 1, hWnd, NULL, NULL, NULL );
 
 			//
 
-			g_hWnd_chk_proxy_s = _CreateWindowW( WC_BUTTON, ST_V_Use_HTTPS_proxy_, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 126, rc.right - 10, 20, hWnd, ( HMENU )BTN_PROXY_S, NULL, NULL );
+			g_hWnd_chk_proxy_s = _CreateWindowW( WC_BUTTON, ST_V_Use_HTTPS_proxy_, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 128, rc.right - 10, 20, hWnd, ( HMENU )BTN_PROXY_S, NULL, NULL );
 
 
-			g_hWnd_chk_type_hostname_s = _CreateWindowW( WC_BUTTON, ST_V_Hostname___IPv6_address_, BS_AUTORADIOBUTTON | WS_CHILD | WS_GROUP | WS_TABSTOP | WS_VISIBLE, 0, 146, 200, 20, hWnd, ( HMENU )BTN_TYPE_HOST_S, NULL, NULL );
-			g_hWnd_chk_type_ip_address_s = _CreateWindowW( WC_BUTTON, ST_V_IPv4_address_, BS_AUTORADIOBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 205, 146, 110, 20, hWnd, ( HMENU )BTN_TYPE_IP_ADDRESS_S, NULL, NULL );
+			g_hWnd_chk_type_hostname_s = _CreateWindowW( WC_BUTTON, ST_V_Hostname___IPv6_address_, BS_AUTORADIOBUTTON | WS_CHILD | WS_GROUP | WS_TABSTOP | WS_VISIBLE, 0, 148, 200, 20, hWnd, ( HMENU )BTN_TYPE_HOST_S, NULL, NULL );
+			g_hWnd_chk_type_ip_address_s = _CreateWindowW( WC_BUTTON, ST_V_IPv4_address_, BS_AUTORADIOBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 205, 148, 110, 20, hWnd, ( HMENU )BTN_TYPE_IP_ADDRESS_S, NULL, NULL );
 
-			g_hWnd_hostname_s = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 166, 310, 23, hWnd, ( HMENU )EDIT_HOST_S, NULL, NULL );
-			g_hWnd_ip_address_s = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_IPADDRESS, NULL, WS_CHILD | WS_TABSTOP, 0, 166, 310, 23, hWnd, ( HMENU )EDIT_IP_ADDRESS_S, NULL, NULL );
-
-
-			g_hWnd_static_colon_s = _CreateWindowW( WC_STATIC, ST_V_COLON, SS_CENTER | WS_CHILD | WS_VISIBLE, 310, 170, 10, 15, hWnd, NULL, NULL, NULL );
-
-			g_hWnd_static_port_s = _CreateWindowW( WC_STATIC, ST_V_Port_, WS_CHILD | WS_VISIBLE, 320, 151, 75, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_port_s = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 320, 166, 75, 23, hWnd, ( HMENU )EDIT_PORT_S, NULL, NULL );
+			g_hWnd_hostname_s = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 168, 310, 23, hWnd, ( HMENU )EDIT_HOST_S, NULL, NULL );
+			g_hWnd_ip_address_s = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_IPADDRESS, NULL, WS_CHILD | WS_TABSTOP, 0, 168, 310, 23, hWnd, ( HMENU )EDIT_IP_ADDRESS_S, NULL, NULL );
 
 
-			g_hWnd_static_auth_username_s = _CreateWindowW( WC_STATIC, ST_V_Username_, WS_CHILD | WS_VISIBLE, 0, 194, 150, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_auth_username_s = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 209, 150, 23, hWnd, ( HMENU )( HMENU )EDIT_AUTH_USERNAME_S, NULL, NULL );
+			g_hWnd_static_colon_s = _CreateWindowW( WC_STATIC, ST_V_COLON, SS_CENTER | WS_CHILD | WS_VISIBLE, 310, 171, 10, 15, hWnd, NULL, NULL, NULL );
 
-			g_hWnd_static_auth_password_s = _CreateWindowW( WC_STATIC, ST_V_Password_, WS_CHILD | WS_VISIBLE, 160, 194, 150, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_auth_password_s = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_PASSWORD | ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 160, 209, 150, 23, hWnd, ( HMENU )( HMENU )EDIT_AUTH_PASSWORD_S, NULL, NULL );
+			g_hWnd_static_port_s = _CreateWindowW( WC_STATIC, ST_V_Port_, WS_CHILD | WS_VISIBLE, 320, 150, 75, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_port_s = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 320, 168, 75, 23, hWnd, ( HMENU )EDIT_PORT_S, NULL, NULL );
+
+
+			g_hWnd_static_auth_username_s = _CreateWindowW( WC_STATIC, ST_V_Username_, WS_CHILD | WS_VISIBLE, 0, 197, 150, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_auth_username_s = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 215, 150, 23, hWnd, ( HMENU )( HMENU )EDIT_AUTH_USERNAME_S, NULL, NULL );
+
+			g_hWnd_static_auth_password_s = _CreateWindowW( WC_STATIC, ST_V_Password_, WS_CHILD | WS_VISIBLE, 160, 197, 150, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_auth_password_s = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_PASSWORD | ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 160, 215, 150, 23, hWnd, ( HMENU )( HMENU )EDIT_AUTH_PASSWORD_S, NULL, NULL );
 
 
 			_SendMessageW( g_hWnd_hostname_s, EM_LIMITTEXT, MAX_DOMAIN_LENGTH, 0 );
@@ -207,42 +207,42 @@ LRESULT CALLBACK ProxyTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPa
 			//
 
 
-			/*HWND hWnd_static_proxy_hoz2 =*/ _CreateWindowW( WC_STATIC, NULL, SS_ETCHEDHORZ | WS_CHILD | WS_VISIBLE, 0, 242, rc.right, 1, hWnd, NULL, NULL, NULL );
+			/*HWND hWnd_static_proxy_hoz2 =*/ _CreateWindowW( WC_STATIC, NULL, SS_ETCHEDHORZ | WS_CHILD | WS_VISIBLE, 0, 248, rc.right, 1, hWnd, NULL, NULL, NULL );
 
 			//
 
-			g_hWnd_chk_proxy_socks = _CreateWindowW( WC_BUTTON, ST_V_Use_SOCKS_proxy_, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 252, 150, 20, hWnd, ( HMENU )BTN_PROXY_SOCKS, NULL, NULL );
+			g_hWnd_chk_proxy_socks = _CreateWindowW( WC_BUTTON, ST_V_Use_SOCKS_proxy_, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 256, 150, 20, hWnd, ( HMENU )BTN_PROXY_SOCKS, NULL, NULL );
 
-			g_hWnd_chk_type_socks4 = _CreateWindowW( WC_BUTTON, ST_V_SOCKS_v4, BS_AUTORADIOBUTTON | WS_CHILD | WS_GROUP | WS_TABSTOP | WS_VISIBLE, 155, 252, 90, 20, hWnd, ( HMENU )BTN_TYPE_SOCKS4, NULL, NULL );
-			g_hWnd_chk_type_socks5 = _CreateWindowW( WC_BUTTON, ST_V_SOCKS_v5, BS_AUTORADIOBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 250, 252, 90, 20, hWnd, ( HMENU )BTN_TYPE_SOCKS5, NULL, NULL );
+			g_hWnd_chk_type_socks4 = _CreateWindowW( WC_BUTTON, ST_V_SOCKS_v4, BS_AUTORADIOBUTTON | WS_CHILD | WS_GROUP | WS_TABSTOP | WS_VISIBLE, 155, 256, 90, 20, hWnd, ( HMENU )BTN_TYPE_SOCKS4, NULL, NULL );
+			g_hWnd_chk_type_socks5 = _CreateWindowW( WC_BUTTON, ST_V_SOCKS_v5, BS_AUTORADIOBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 250, 256, 90, 20, hWnd, ( HMENU )BTN_TYPE_SOCKS5, NULL, NULL );
 
-			g_hWnd_chk_type_hostname_socks = _CreateWindowW( WC_BUTTON, ST_V_Hostname___IPv6_address_, BS_AUTORADIOBUTTON | WS_CHILD | WS_GROUP | WS_TABSTOP | WS_VISIBLE, 0, 272, 200, 20, hWnd, ( HMENU )BTN_TYPE_HOST_SOCKS, NULL, NULL );
-			g_hWnd_chk_type_ip_address_socks = _CreateWindowW( WC_BUTTON, ST_V_IPv4_address_, BS_AUTORADIOBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 205, 272, 110, 20, hWnd, ( HMENU )BTN_TYPE_IP_ADDRESS_SOCKS, NULL, NULL );
+			g_hWnd_chk_type_hostname_socks = _CreateWindowW( WC_BUTTON, ST_V_Hostname___IPv6_address_, BS_AUTORADIOBUTTON | WS_CHILD | WS_GROUP | WS_TABSTOP | WS_VISIBLE, 0, 276, 200, 20, hWnd, ( HMENU )BTN_TYPE_HOST_SOCKS, NULL, NULL );
+			g_hWnd_chk_type_ip_address_socks = _CreateWindowW( WC_BUTTON, ST_V_IPv4_address_, BS_AUTORADIOBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 205, 276, 110, 20, hWnd, ( HMENU )BTN_TYPE_IP_ADDRESS_SOCKS, NULL, NULL );
 
-			g_hWnd_hostname_socks = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 292, 310, 23, hWnd, ( HMENU )EDIT_HOST_SOCKS, NULL, NULL );
-			g_hWnd_ip_address_socks = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_IPADDRESS, NULL, WS_CHILD | WS_TABSTOP, 0, 292, 310, 23, hWnd, ( HMENU )EDIT_IP_ADDRESS_SOCKS, NULL, NULL );
-
-
-			g_hWnd_static_colon_socks = _CreateWindowW( WC_STATIC, ST_V_COLON, SS_CENTER | WS_CHILD | WS_VISIBLE, 310, 296, 10, 15, hWnd, NULL, NULL, NULL );
-
-			g_hWnd_static_port_socks = _CreateWindowW( WC_STATIC, ST_V_Port_, WS_CHILD | WS_VISIBLE, 320, 277, 75, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_port_socks = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 320, 292, 75, 23, hWnd, ( HMENU )EDIT_PORT_SOCKS, NULL, NULL );
+			g_hWnd_hostname_socks = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 296, 310, 23, hWnd, ( HMENU )EDIT_HOST_SOCKS, NULL, NULL );
+			g_hWnd_ip_address_socks = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_IPADDRESS, NULL, WS_CHILD | WS_TABSTOP, 0, 296, 310, 23, hWnd, ( HMENU )EDIT_IP_ADDRESS_SOCKS, NULL, NULL );
 
 
-			g_hWnd_static_auth_ident_username_socks = _CreateWindowW( WC_STATIC, ST_V_Username_, WS_CHILD | WS_VISIBLE, 0, 320, rc.right - 10, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_auth_ident_username_socks = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 335, 150, 23, hWnd, ( HMENU )( HMENU )EDIT_AUTH_IDENT_USERNAME_SOCKS, NULL, NULL );
+			g_hWnd_static_colon_socks = _CreateWindowW( WC_STATIC, ST_V_COLON, SS_CENTER | WS_CHILD | WS_VISIBLE, 310, 299, 10, 15, hWnd, NULL, NULL, NULL );
 
-			g_hWnd_chk_resolve_domain_names_v4a = _CreateWindowW( WC_BUTTON, ST_V_Allow_proxy_to_resolve_domain_names_v4a, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 363, rc.right - 10, 20, hWnd, ( HMENU )BTN_RESOLVE_DOMAIN_NAMES_V4A, NULL, NULL );
+			g_hWnd_static_port_socks = _CreateWindowW( WC_STATIC, ST_V_Port_, WS_CHILD | WS_VISIBLE, 320, 278, 75, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_port_socks = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 320, 296, 75, 23, hWnd, ( HMENU )EDIT_PORT_SOCKS, NULL, NULL );
 
-			g_hWnd_chk_use_authentication_socks = _CreateWindowW( WC_BUTTON, ST_V_Use_Authentication_, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 320, rc.right - 10, 20, hWnd, ( HMENU )BTN_AUTHENTICATION_SOCKS, NULL, NULL );
 
-			g_hWnd_static_auth_username_socks = _CreateWindowW( WC_STATIC, ST_V_Username_, WS_CHILD | WS_VISIBLE, 15, 340, 150, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_auth_username_socks = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 15, 355, 150, 23, hWnd, ( HMENU )( HMENU )EDIT_AUTH_USERNAME_SOCKS, NULL, NULL );
+			g_hWnd_static_auth_ident_username_socks = _CreateWindowW( WC_STATIC, ST_V_Username_, WS_CHILD | WS_VISIBLE, 0, 325, rc.right - 10, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_auth_ident_username_socks = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 343, 150, 23, hWnd, ( HMENU )( HMENU )EDIT_AUTH_IDENT_USERNAME_SOCKS, NULL, NULL );
 
-			g_hWnd_static_auth_password_socks = _CreateWindowW( WC_STATIC, ST_V_Password_, WS_CHILD | WS_VISIBLE, 175, 340, 150, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_auth_password_socks = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_PASSWORD | ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 175, 355, 150, 23, hWnd, ( HMENU )( HMENU )EDIT_AUTH_PASSWORD_SOCKS, NULL, NULL );
+			g_hWnd_chk_resolve_domain_names_v4a = _CreateWindowW( WC_BUTTON, ST_V_Allow_proxy_to_resolve_domain_names_v4a, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 371, rc.right - 10, 20, hWnd, ( HMENU )BTN_RESOLVE_DOMAIN_NAMES_V4A, NULL, NULL );
 
-			g_hWnd_chk_resolve_domain_names = _CreateWindowW( WC_BUTTON, ST_V_Allow_proxy_to_resolve_domain_names, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 383, rc.right - 10, 20, hWnd, ( HMENU )BTN_RESOLVE_DOMAIN_NAMES, NULL, NULL );
+			g_hWnd_chk_use_authentication_socks = _CreateWindowW( WC_BUTTON, ST_V_Use_Authentication_, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 325, rc.right - 10, 20, hWnd, ( HMENU )BTN_AUTHENTICATION_SOCKS, NULL, NULL );
+
+			g_hWnd_static_auth_username_socks = _CreateWindowW( WC_STATIC, ST_V_Username_, WS_CHILD | WS_VISIBLE, 15, 345, 150, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_auth_username_socks = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 15, 363, 150, 23, hWnd, ( HMENU )( HMENU )EDIT_AUTH_USERNAME_SOCKS, NULL, NULL );
+
+			g_hWnd_static_auth_password_socks = _CreateWindowW( WC_STATIC, ST_V_Password_, WS_CHILD | WS_VISIBLE, 175, 345, 150, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_auth_password_socks = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_PASSWORD | ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 175, 363, 150, 23, hWnd, ( HMENU )( HMENU )EDIT_AUTH_PASSWORD_SOCKS, NULL, NULL );
+
+			g_hWnd_chk_resolve_domain_names = _CreateWindowW( WC_BUTTON, ST_V_Allow_proxy_to_resolve_domain_names, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 391, rc.right - 10, 20, hWnd, ( HMENU )BTN_RESOLVE_DOMAIN_NAMES, NULL, NULL );
 
 			_SendMessageW( g_hWnd_hostname_socks, EM_LIMITTEXT, MAX_DOMAIN_LENGTH, 0 );
 			_SendMessageW( g_hWnd_port_socks, EM_LIMITTEXT, 5, 0 );

@@ -279,58 +279,58 @@ LRESULT CALLBACK WebServerTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 
 			g_hWnd_chk_enable_server = _CreateWindowW( WC_BUTTON, ST_V_Enable_server_, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, rc.right - 10, 20, hWnd, ( HMENU )BTN_ENABLE_SERVER, NULL, NULL );
 
-			g_hWnd_static_hoz1 = _CreateWindowW( WC_STATIC, NULL, SS_ETCHEDHORZ | WS_CHILD | WS_VISIBLE, 0, 25, rc.right, 1, hWnd, NULL, NULL, NULL );
+			g_hWnd_static_hoz1 = _CreateWindowW( WC_STATIC, NULL, SS_ETCHEDHORZ | WS_CHILD | WS_VISIBLE, 0, 26, rc.right, 1, hWnd, NULL, NULL, NULL );
 
-			g_hWnd_chk_type_server_hostname = _CreateWindowW( WC_BUTTON, ST_V_Hostname___IPv6_address_, BS_AUTORADIOBUTTON | WS_CHILD | WS_GROUP | WS_TABSTOP | WS_VISIBLE, 0, 30, 200, 20, hWnd, ( HMENU )BTN_TYPE_SERVER_HOST, NULL, NULL );
-			g_hWnd_chk_type_server_ip_address = _CreateWindowW( WC_BUTTON, ST_V_IPv4_address_, BS_AUTORADIOBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 205, 30, 110, 20, hWnd, ( HMENU )BTN_TYPE_SERVER_IP_ADDRESS, NULL, NULL );
+			g_hWnd_chk_type_server_hostname = _CreateWindowW( WC_BUTTON, ST_V_Hostname___IPv6_address_, BS_AUTORADIOBUTTON | WS_CHILD | WS_GROUP | WS_TABSTOP | WS_VISIBLE, 0, 34, 200, 20, hWnd, ( HMENU )BTN_TYPE_SERVER_HOST, NULL, NULL );
+			g_hWnd_chk_type_server_ip_address = _CreateWindowW( WC_BUTTON, ST_V_IPv4_address_, BS_AUTORADIOBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 205, 34, 110, 20, hWnd, ( HMENU )BTN_TYPE_SERVER_IP_ADDRESS, NULL, NULL );
 
-			g_hWnd_server_hostname = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 50, 310, 23, hWnd, ( HMENU )EDIT_SERVER_HOST, NULL, NULL );
-			g_hWnd_server_ip_address = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_IPADDRESS, NULL, WS_CHILD | WS_TABSTOP, 0, 50, 310, 23, hWnd, ( HMENU )EDIT_SERVER_IP_ADDRESS, NULL, NULL );
-
-
-			g_hWnd_static_server_colon = _CreateWindowW( WC_STATIC, ST_V_COLON, SS_CENTER | WS_CHILD | WS_VISIBLE, 310, 54, 10, 15, hWnd, NULL, NULL, NULL );
-
-			g_hWnd_static_server_port = _CreateWindowW( WC_STATIC, ST_V_Port_, WS_CHILD | WS_VISIBLE, 320, 35, 75, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_server_port = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 320, 50, 75, 23, hWnd, ( HMENU )EDIT_SERVER_PORT, NULL, NULL );
-
-			g_hWnd_chk_use_authentication = _CreateWindowW( WC_BUTTON, ST_V_Require_authentication_, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 80, rc.right - 10, 20, hWnd, ( HMENU )BTN_USE_AUTHENTICATION, NULL, NULL );
-
-			g_hWnd_chk_authentication_type_basic = _CreateWindowW( WC_BUTTON, ST_V_Basic_Authentication, BS_AUTORADIOBUTTON | WS_CHILD | WS_GROUP | WS_TABSTOP | WS_VISIBLE, 15, 102, 150, 20, hWnd, ( HMENU )BTN_AUTH_TYPE_BASIC, NULL, NULL );
-			g_hWnd_chk_authentication_type_digest = _CreateWindowW( WC_BUTTON, ST_V_Digest_Authentication, BS_AUTORADIOBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 170, 102, 150, 20, hWnd, ( HMENU )BTN_AUTH_TYPE_DIGEST, NULL, NULL );
-
-			g_hWnd_static_authentication_username = _CreateWindowW( WC_STATIC, ST_V_Username_, WS_CHILD | WS_VISIBLE, 15, 125, 150, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_authentication_username = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 15, 140, 150, 23, hWnd, ( HMENU )EDIT_AUTHENTICATION_USERNAME, NULL, NULL );
-
-			g_hWnd_static_authentication_password = _CreateWindowW( WC_STATIC, ST_V_Password_, WS_CHILD | WS_VISIBLE, 175, 125, 150, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_authentication_password = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_PASSWORD | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 175, 140, 150, 23, hWnd, ( HMENU )EDIT_AUTHENTICATION_PASSWORD, NULL, NULL );
+			g_hWnd_server_hostname = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 54, 310, 23, hWnd, ( HMENU )EDIT_SERVER_HOST, NULL, NULL );
+			g_hWnd_server_ip_address = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_IPADDRESS, NULL, WS_CHILD | WS_TABSTOP, 0, 54, 310, 23, hWnd, ( HMENU )EDIT_SERVER_IP_ADDRESS, NULL, NULL );
 
 
-			g_hWnd_chk_server_enable_ssl = _CreateWindowW( WC_BUTTON, ST_V_Enable_SSL___TLS_, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 170, rc.right - 10, 20, hWnd, ( HMENU )BTN_SERVER_ENABLE_SSL, NULL, NULL );
+			g_hWnd_static_server_colon = _CreateWindowW( WC_STATIC, ST_V_COLON, SS_CENTER | WS_CHILD | WS_VISIBLE, 310, 57, 10, 15, hWnd, NULL, NULL, NULL );
 
-			g_hWnd_static_hoz2 = _CreateWindowW( WC_STATIC, NULL, SS_ETCHEDHORZ | WS_CHILD | WS_VISIBLE, 0, 195, rc.right, 1, hWnd, NULL, NULL, NULL );
+			g_hWnd_static_server_port = _CreateWindowW( WC_STATIC, ST_V_Port_, WS_CHILD | WS_VISIBLE, 320, 36, 75, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_server_port = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 320, 54, 75, 23, hWnd, ( HMENU )EDIT_SERVER_PORT, NULL, NULL );
+
+			g_hWnd_chk_use_authentication = _CreateWindowW( WC_BUTTON, ST_V_Require_authentication_, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 84, rc.right - 10, 20, hWnd, ( HMENU )BTN_USE_AUTHENTICATION, NULL, NULL );
+
+			g_hWnd_chk_authentication_type_basic = _CreateWindowW( WC_BUTTON, ST_V_Basic_Authentication, BS_AUTORADIOBUTTON | WS_CHILD | WS_GROUP | WS_TABSTOP | WS_VISIBLE, 15, 106, 150, 20, hWnd, ( HMENU )BTN_AUTH_TYPE_BASIC, NULL, NULL );
+			g_hWnd_chk_authentication_type_digest = _CreateWindowW( WC_BUTTON, ST_V_Digest_Authentication, BS_AUTORADIOBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 170, 106, 150, 20, hWnd, ( HMENU )BTN_AUTH_TYPE_DIGEST, NULL, NULL );
+
+			g_hWnd_static_authentication_username = _CreateWindowW( WC_STATIC, ST_V_Username_, WS_CHILD | WS_VISIBLE, 15, 129, 150, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_authentication_username = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 15, 147, 150, 23, hWnd, ( HMENU )EDIT_AUTHENTICATION_USERNAME, NULL, NULL );
+
+			g_hWnd_static_authentication_password = _CreateWindowW( WC_STATIC, ST_V_Password_, WS_CHILD | WS_VISIBLE, 175, 129, 150, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_authentication_password = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_PASSWORD | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 175, 147, 150, 23, hWnd, ( HMENU )EDIT_AUTHENTICATION_PASSWORD, NULL, NULL );
 
 
-			g_hWnd_chk_type_pkcs = _CreateWindowW( WC_BUTTON, ST_V_PKCS_NUM12_, BS_AUTORADIOBUTTON | WS_CHILD | WS_GROUP | WS_TABSTOP | WS_VISIBLE, 0, 200, 100, 20, hWnd, ( HMENU )BTN_TYPE_PKCS, NULL, NULL );
-			g_hWnd_chk_type_pair = _CreateWindowW( WC_BUTTON, ST_V_Public___Private_key_pair_, BS_AUTORADIOBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 110, 200, 250, 20, hWnd, ( HMENU )BTN_TYPE_PAIR, NULL, NULL );
+			g_hWnd_chk_server_enable_ssl = _CreateWindowW( WC_BUTTON, ST_V_Enable_SSL___TLS_, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 177, rc.right - 10, 20, hWnd, ( HMENU )BTN_SERVER_ENABLE_SSL, NULL, NULL );
+
+			g_hWnd_static_hoz2 = _CreateWindowW( WC_STATIC, NULL, SS_ETCHEDHORZ | WS_CHILD | WS_VISIBLE, 0, 203, rc.right, 1, hWnd, NULL, NULL, NULL );
 
 
-			g_hWnd_static_certificate_pkcs_location = _CreateWindowW( WC_STATIC, ST_V_PKCS_NUM12_file_, WS_CHILD | WS_VISIBLE, 15, 225, rc.right - 55, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_certificate_pkcs_location = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_READONLY | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 15, 240, rc.right - 55, 23, hWnd, ( HMENU )EDIT_CERTIFICATE_PKCS, NULL, NULL );
-			g_hWnd_btn_certificate_pkcs_location = _CreateWindowW( WC_BUTTON, ST_V_BTN___, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 35, 240, 35, 23, hWnd, ( HMENU )BTN_CERTIFICATE_PKCS, NULL, NULL );
+			g_hWnd_chk_type_pkcs = _CreateWindowW( WC_BUTTON, ST_V_PKCS_NUM12_, BS_AUTORADIOBUTTON | WS_CHILD | WS_GROUP | WS_TABSTOP | WS_VISIBLE, 0, 211, 100, 20, hWnd, ( HMENU )BTN_TYPE_PKCS, NULL, NULL );
+			g_hWnd_chk_type_pair = _CreateWindowW( WC_BUTTON, ST_V_Public___Private_key_pair_, BS_AUTORADIOBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 110, 211, 250, 20, hWnd, ( HMENU )BTN_TYPE_PAIR, NULL, NULL );
 
-			g_hWnd_static_certificate_pkcs_password = _CreateWindowW( WC_STATIC, ST_V_PKCS_NUM12_password_, WS_CHILD | WS_VISIBLE, 15, 268, rc.right - 55, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_certificate_pkcs_password = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_PASSWORD | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 15, 283, rc.right - 55, 23, hWnd, ( HMENU )EDIT_CERTIFICATE_PKCS_PASSWORD, NULL, NULL );
 
-			g_hWnd_static_certificate_cer_location = _CreateWindowW( WC_STATIC, ST_V_Certificate_file_, WS_CHILD | WS_VISIBLE, 15, 225, rc.right - 55, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_certificate_cer_location = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_READONLY | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 15, 240, rc.right - 55, 23, hWnd, ( HMENU )EDIT_CERTIFICATE_CER, NULL, NULL );
-			g_hWnd_btn_certificate_cer_location = _CreateWindowW( WC_BUTTON, ST_V_BTN___, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 35, 240, 35, 23, hWnd, ( HMENU )BTN_CERTIFICATE_CER, NULL, NULL );
+			g_hWnd_static_certificate_pkcs_location = _CreateWindowW( WC_STATIC, ST_V_PKCS_NUM12_file_, WS_CHILD | WS_VISIBLE, 15, 233, rc.right - 55, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_certificate_pkcs_location = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_READONLY | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 15, 251, rc.right - 55, 23, hWnd, ( HMENU )EDIT_CERTIFICATE_PKCS, NULL, NULL );
+			g_hWnd_btn_certificate_pkcs_location = _CreateWindowW( WC_BUTTON, ST_V_BTN___, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 35, 251, 35, 23, hWnd, ( HMENU )BTN_CERTIFICATE_PKCS, NULL, NULL );
 
-			g_hWnd_static_certificate_key_location = _CreateWindowW( WC_STATIC, ST_V_Key_file_, WS_CHILD | WS_VISIBLE, 15, 268, rc.right - 55, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_certificate_key_location = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_READONLY | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 15, 283, rc.right - 55, 23, hWnd, ( HMENU )EDIT_CERTIFICATE_KEY, NULL, NULL );
-			g_hWnd_btn_certificate_key_location = _CreateWindowW( WC_BUTTON, ST_V_BTN___, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 35, 283, 35, 23, hWnd, ( HMENU )BTN_CERTIFICATE_KEY, NULL, NULL );
+			g_hWnd_static_certificate_pkcs_password = _CreateWindowW( WC_STATIC, ST_V_PKCS_NUM12_password_, WS_CHILD | WS_VISIBLE, 15, 282, rc.right - 55, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_certificate_pkcs_password = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_PASSWORD | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 15, 300, rc.right - 55, 23, hWnd, ( HMENU )EDIT_CERTIFICATE_PKCS_PASSWORD, NULL, NULL );
 
-			g_hWnd_static_server_ssl_version = _CreateWindowW( WC_STATIC, ST_V_Server_SSL___TLS_version_, WS_CHILD | WS_VISIBLE, 0, 317, 190, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_server_ssl_version = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_COMBOBOX, NULL, CBS_AUTOHSCROLL | CBS_DROPDOWNLIST | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE | CBS_DARK_MODE, rc.right - 100, 313, 100, 23, hWnd, ( HMENU )CB_SERVER_SSL_VERSION, NULL, NULL );
+			g_hWnd_static_certificate_cer_location = _CreateWindowW( WC_STATIC, ST_V_Certificate_file_, WS_CHILD | WS_VISIBLE, 15, 233, rc.right - 55, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_certificate_cer_location = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_READONLY | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 15, 251, rc.right - 55, 23, hWnd, ( HMENU )EDIT_CERTIFICATE_CER, NULL, NULL );
+			g_hWnd_btn_certificate_cer_location = _CreateWindowW( WC_BUTTON, ST_V_BTN___, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 35, 251, 35, 23, hWnd, ( HMENU )BTN_CERTIFICATE_CER, NULL, NULL );
+
+			g_hWnd_static_certificate_key_location = _CreateWindowW( WC_STATIC, ST_V_Key_file_, WS_CHILD | WS_VISIBLE, 15, 282, rc.right - 55, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_certificate_key_location = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_READONLY | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 15, 300, rc.right - 55, 23, hWnd, ( HMENU )EDIT_CERTIFICATE_KEY, NULL, NULL );
+			g_hWnd_btn_certificate_key_location = _CreateWindowW( WC_BUTTON, ST_V_BTN___, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 35, 300, 35, 23, hWnd, ( HMENU )BTN_CERTIFICATE_KEY, NULL, NULL );
+
+			g_hWnd_static_server_ssl_version = _CreateWindowW( WC_STATIC, ST_V_Server_SSL___TLS_version_, WS_CHILD | WS_VISIBLE, 0, 337, 190, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_server_ssl_version = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_COMBOBOX, NULL, CBS_AUTOHSCROLL | CBS_DROPDOWNLIST | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE | CBS_DARK_MODE, rc.right - 100, 333, 100, 23, hWnd, ( HMENU )CB_SERVER_SSL_VERSION, NULL, NULL );
 			_SendMessageW( g_hWnd_server_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_V_SSL_2_0 );
 			_SendMessageW( g_hWnd_server_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_V_SSL_3_0 );
 			_SendMessageW( g_hWnd_server_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_V_TLS_1_0 );
@@ -668,11 +668,20 @@ LRESULT CALLBACK WebServerTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 							file_name[ MAX_PATH - 1 ] = 0;	// Sanity.
 						}
 
+						wchar_t filter[ 256 ];
+						int filter_length = min( ST_L_Personal_Information_Exchange, ( 256 - 39 ) );
+						_wmemcpy_s( filter, 256, ST_V_Personal_Information_Exchange, filter_length );
+						_wmemcpy_s( filter + filter_length, 256 - filter_length, L" (*.pfx;*.p12)\0*.pfx;*.p12\0", 27 );
+						int filter_offset = filter_length + 27;
+						filter_length = min( ST_L_All_Files, ( 256 - 12 - filter_offset ) );
+						_wmemcpy_s( filter + filter_offset, 256 - filter_offset, ST_V_All_Files, filter_length );
+						_wmemcpy_s( filter + filter_offset + filter_length, 256 - filter_offset - filter_length, L" (*.*)\0*.*\0\0", 12 );
+
 						OPENFILENAME ofn;
 						_memzero( &ofn, sizeof( OPENFILENAME ) );
 						ofn.lStructSize = sizeof( OPENFILENAME );
 						ofn.hwndOwner = hWnd;
-						ofn.lpstrFilter = L"Personal Information Exchange (*.pfx;*.p12)\0*.pfx;*.p12\0All Files (*.*)\0*.*\0";
+						ofn.lpstrFilter = filter;
 						ofn.lpstrTitle = ST_V_Load_PKCS_NUM12_File;
 						ofn.lpstrFile = file_name;
 						ofn.nMaxFile = MAX_PATH;
@@ -712,11 +721,20 @@ LRESULT CALLBACK WebServerTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 							file_name[ MAX_PATH - 1 ] = 0;	// Sanity.
 						}
 
+						wchar_t filter[ 256 ];
+						int filter_length = min( ST_L_X_509_Certificates, ( 256 - 39 ) );
+						_wmemcpy_s( filter, 256, ST_V_X_509_Certificates, filter_length );
+						_wmemcpy_s( filter + filter_length, 256 - filter_length, L" (*.cer;*.crt)\0*.cer;*.crt\0", 27 );
+						int filter_offset = filter_length + 27;
+						filter_length = min( ST_L_All_Files, ( 256 - 12 - filter_offset ) );
+						_wmemcpy_s( filter + filter_offset, 256 - filter_offset, ST_V_All_Files, filter_length );
+						_wmemcpy_s( filter + filter_offset + filter_length, 256 - filter_offset - filter_length, L" (*.*)\0*.*\0\0", 12 );
+
 						OPENFILENAME ofn;
 						_memzero( &ofn, sizeof( OPENFILENAME ) );
 						ofn.lStructSize = sizeof( OPENFILENAME );
 						ofn.hwndOwner = hWnd;
-						ofn.lpstrFilter = L"X.509 Certificate (*.cer;*.crt)\0*.cer;*.crt\0All Files (*.*)\0*.*\0";
+						ofn.lpstrFilter = filter;
 						ofn.lpstrTitle = ST_V_Load_X_509_Certificate_File;
 						ofn.lpstrFile = file_name;
 						ofn.nMaxFile = MAX_PATH;
@@ -756,11 +774,20 @@ LRESULT CALLBACK WebServerTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 							file_name[ MAX_PATH - 1 ] = 0;	// Sanity.
 						}
 
+						wchar_t filter[ 256 ];
+						int filter_length = min( ST_L_Private_Keys, ( 256 - 27 ) );
+						_wmemcpy_s( filter, 256, ST_V_Private_Keys, filter_length );
+						_wmemcpy_s( filter + filter_length, 256 - filter_length, L" (*.key)\0*.key\0", 15 );
+						int filter_offset = filter_length + 15;
+						filter_length = min( ST_L_All_Files, ( 256 - 12 - filter_offset ) );
+						_wmemcpy_s( filter + filter_offset, 256 - filter_offset, ST_V_All_Files, filter_length );
+						_wmemcpy_s( filter + filter_offset + filter_length, 256 - filter_offset - filter_length, L" (*.*)\0*.*\0\0", 12 );
+
 						OPENFILENAME ofn;
 						_memzero( &ofn, sizeof( OPENFILENAME ) );
 						ofn.lStructSize = sizeof( OPENFILENAME );
 						ofn.hwndOwner = hWnd;
-						ofn.lpstrFilter = L"Private Key (*.key)\0*.key\0All Files (*.*)\0*.*\0";
+						ofn.lpstrFilter = filter;
 						ofn.lpstrTitle = ST_V_Load_Private_Key_File;
 						ofn.lpstrFile = file_name;
 						ofn.nMaxFile = MAX_PATH;

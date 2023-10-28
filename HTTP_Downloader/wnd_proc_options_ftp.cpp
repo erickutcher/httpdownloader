@@ -61,32 +61,32 @@ LRESULT CALLBACK FTPTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 			//RECT rc;
 			//_GetClientRect( hWnd, &rc );
 
-			HWND hWnd_static_transfer_mode = _CreateWindowW( WC_BUTTON, ST_V_Data_Transfer_Mode, BS_GROUPBOX | WS_CHILD | WS_VISIBLE, 0, 0, 400, 60, hWnd, NULL, NULL, NULL );
+			HWND hWnd_static_transfer_mode = _CreateWindowW( WC_BUTTON, ST_V_Data_Transfer_Mode, BS_GROUPBOX | WS_CHILD | WS_VISIBLE, 0, 0, 402, 63, hWnd, NULL, NULL, NULL );
 
-			g_hWnd_chk_passive_mode = _CreateWindowW( WC_BUTTON, ST_V_Passive, BS_AUTORADIOBUTTON | WS_CHILD | WS_GROUP | WS_TABSTOP | WS_VISIBLE, 10, 15, 80, 20, hWnd, ( HMENU )BTN_PASSIVE_MODE, NULL, NULL );
-			g_hWnd_chk_active_mode = _CreateWindowW( WC_BUTTON, ST_V_Active, BS_AUTORADIOBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 10, 35, 80, 20, hWnd, ( HMENU )BTN_ACTIVE_MODE, NULL, NULL );
+			g_hWnd_chk_passive_mode = _CreateWindowW( WC_BUTTON, ST_V_Passive, BS_AUTORADIOBUTTON | WS_CHILD | WS_GROUP | WS_TABSTOP | WS_VISIBLE, 11, 17, 80, 20, hWnd, ( HMENU )BTN_PASSIVE_MODE, NULL, NULL );
+			g_hWnd_chk_active_mode = _CreateWindowW( WC_BUTTON, ST_V_Active, BS_AUTORADIOBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 11, 37, 80, 20, hWnd, ( HMENU )BTN_ACTIVE_MODE, NULL, NULL );
 
-			g_hWnd_chk_fallback_mode = _CreateWindowW( WC_BUTTON, ST_V_Use_other_mode_on_failure, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 100, 15, 290, 20, hWnd, ( HMENU )BTN_FALLBACK_MODE, NULL, NULL );
+			g_hWnd_chk_fallback_mode = _CreateWindowW( WC_BUTTON, ST_V_Use_other_mode_on_failure, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 101, 17, 290, 20, hWnd, ( HMENU )BTN_FALLBACK_MODE, NULL, NULL );
 
-			g_hWnd_static_active_listen_info = _CreateWindowW( WC_BUTTON, ST_V_Active_Listen_Information, BS_GROUPBOX | WS_CHILD | WS_VISIBLE, 0, 70, 500, 70, hWnd, NULL, NULL, NULL );
+			g_hWnd_static_active_listen_info = _CreateWindowW( WC_BUTTON, ST_V_Active_Listen_Information, BS_GROUPBOX | WS_CHILD | WS_VISIBLE, 0, 73, 502, 72, hWnd, NULL, NULL, NULL );
 
-			g_hWnd_chk_type_ftp_hostname = _CreateWindowW( WC_BUTTON, ST_V_Hostname___IPv6_address_, BS_AUTORADIOBUTTON | WS_CHILD | WS_GROUP | WS_TABSTOP | WS_VISIBLE, 10, 85, 200, 20, hWnd, ( HMENU )BTN_TYPE_FTP_HOST, NULL, NULL );
-			g_hWnd_chk_type_ftp_ip_address = _CreateWindowW( WC_BUTTON, ST_V_IPv4_address_, BS_AUTORADIOBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 215, 85, 110, 20, hWnd, ( HMENU )BTN_TYPE_FTP_IP_ADDRESS, NULL, NULL );
+			g_hWnd_chk_type_ftp_hostname = _CreateWindowW( WC_BUTTON, ST_V_Hostname___IPv6_address_, BS_AUTORADIOBUTTON | WS_CHILD | WS_GROUP | WS_TABSTOP | WS_VISIBLE, 11, 90, 200, 20, hWnd, ( HMENU )BTN_TYPE_FTP_HOST, NULL, NULL );
+			g_hWnd_chk_type_ftp_ip_address = _CreateWindowW( WC_BUTTON, ST_V_IPv4_address_, BS_AUTORADIOBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 216, 90, 110, 20, hWnd, ( HMENU )BTN_TYPE_FTP_IP_ADDRESS, NULL, NULL );
 
-			g_hWnd_ftp_hostname = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 10, 105, 310, 23, hWnd, ( HMENU )EDIT_FTP_HOST, NULL, NULL );
-			g_hWnd_ftp_ip_address = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_IPADDRESS, NULL, WS_CHILD | WS_TABSTOP, 10, 105, 310, 23, hWnd, ( HMENU )EDIT_FTP_IP_ADDRESS, NULL, NULL );
+			g_hWnd_ftp_hostname = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 11, 110, 310, 23, hWnd, ( HMENU )EDIT_FTP_HOST, NULL, NULL );
+			g_hWnd_ftp_ip_address = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_IPADDRESS, NULL, WS_CHILD | WS_TABSTOP, 11, 110, 310, 23, hWnd, ( HMENU )EDIT_FTP_IP_ADDRESS, NULL, NULL );
 
-			g_hWnd_ftp_static_colon = _CreateWindowW( WC_STATIC, ST_V_COLON, SS_CENTER | WS_CHILD | WS_VISIBLE, 320, 109, 10, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_ftp_static_colon = _CreateWindowW( WC_STATIC, ST_V_COLON, SS_CENTER | WS_CHILD | WS_VISIBLE, 321, 113, 10, 15, hWnd, NULL, NULL, NULL );
 
-			g_hWnd_static_ftp_port_start = _CreateWindowW( WC_STATIC, ST_V_Port_start_, WS_CHILD | WS_VISIBLE, 330, 90, 75, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_ftp_port_start = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 330, 105, 75, 23, hWnd, ( HMENU )EDIT_FTP_PORT_START, NULL, NULL );
+			g_hWnd_static_ftp_port_start = _CreateWindowW( WC_STATIC, ST_V_Port_start_, WS_CHILD | WS_VISIBLE, 331, 92, 75, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_ftp_port_start = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 331, 110, 75, 23, hWnd, ( HMENU )EDIT_FTP_PORT_START, NULL, NULL );
 
-			g_hWnd_ftp_static_dash = _CreateWindowW( WC_STATIC, ST_V_DASH, SS_CENTER | WS_CHILD | WS_VISIBLE, 405, 109, 10, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_ftp_static_dash = _CreateWindowW( WC_STATIC, ST_V_DASH, SS_CENTER | WS_CHILD | WS_VISIBLE, 406, 113, 10, 15, hWnd, NULL, NULL, NULL );
 
-			g_hWnd_static_ftp_port_end = _CreateWindowW( WC_STATIC, ST_V_Port_end_, WS_CHILD | WS_VISIBLE, 415, 90, 75, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_ftp_port_end = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 415, 105, 75, 23, hWnd, ( HMENU )EDIT_FTP_PORT_END, NULL, NULL );
+			g_hWnd_static_ftp_port_end = _CreateWindowW( WC_STATIC, ST_V_Port_end_, WS_CHILD | WS_VISIBLE, 416, 92, 75, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_ftp_port_end = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 416, 110, 75, 23, hWnd, ( HMENU )EDIT_FTP_PORT_END, NULL, NULL );
 
-			g_hWnd_chk_send_keep_alive = _CreateWindowW( WC_BUTTON, ST_V_Send_keep_alive_requests, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 145, 300, 20, hWnd, ( HMENU )BTN_SEND_KEEP_ALIVE, NULL, NULL );
+			g_hWnd_chk_send_keep_alive = _CreateWindowW( WC_BUTTON, ST_V_Send_keep_alive_requests, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 154, 300, 20, hWnd, ( HMENU )BTN_SEND_KEEP_ALIVE, NULL, NULL );
 
 
 			_SendMessageW( hWnd_static_transfer_mode, WM_SETFONT, ( WPARAM )g_hFont, 0 );

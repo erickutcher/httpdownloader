@@ -662,7 +662,7 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			RECT rc;
 			_GetClientRect( hWnd, &rc );
 
-			g_hWnd_options_tree = _CreateWindowExW( WS_EX_CLIENTEDGE | TVS_EX_DOUBLEBUFFER, WC_TREEVIEW, NULL, TVS_HASBUTTONS | TVS_HASLINES | TVS_DISABLEDRAGDROP | TVS_SHOWSELALWAYS | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 10, 10, 120, 420, hWnd, NULL, NULL, NULL );
+			g_hWnd_options_tree = _CreateWindowExW( WS_EX_CLIENTEDGE | TVS_EX_DOUBLEBUFFER, WC_TREEVIEW, NULL, TVS_HASBUTTONS | TVS_HASLINES | TVS_DISABLEDRAGDROP | TVS_SHOWSELALWAYS | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 10, 10, 140, 420, hWnd, NULL, NULL, NULL );
 
 
 			TVINSERTSTRUCT tvis;
@@ -753,16 +753,16 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			_SendMessageW( g_hWnd_options_tree, TVM_INSERTITEM, 0, ( LPARAM )&tvis );
 
 			// WS_EX_CONTROLPARENT for tab key access.
-			g_hWnd_general_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"class_general_tab", NULL, WS_CHILD | WS_TABSTOP | WS_VISIBLE, 140, 10, rc.right - 150, 420, hWnd, NULL, NULL, NULL );
-			g_hWnd_appearance_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"class_appearance_tab", NULL, WS_VSCROLL | WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, 420, hWnd, NULL, NULL, NULL );
-			g_hWnd_connection_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"class_connection_tab", NULL, WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, 420, hWnd, NULL, NULL, NULL );
-			g_hWnd_web_server_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"class_web_server_tab", NULL, WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, 420, hWnd, NULL, NULL, NULL );
-			g_hWnd_ftp_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"class_ftp_tab", NULL, WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, 420, hWnd, NULL, NULL, NULL );
-			g_hWnd_sftp_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"class_sftp_tab", NULL, WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, 420, hWnd, NULL, NULL, NULL );
-			g_hWnd_sftp_fps_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"class_sftp_fps_tab", NULL, WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, 420, hWnd, NULL, NULL, NULL );
-			g_hWnd_sftp_keys_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"class_sftp_keys_tab", NULL, WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, 420, hWnd, NULL, NULL, NULL );
-			g_hWnd_proxy_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"class_proxy_tab", NULL, WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, 420, hWnd, NULL, NULL, NULL );
-			g_hWnd_advanced_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"class_advanced_tab", NULL, WS_VSCROLL | WS_CHILD | WS_TABSTOP, 140, 10, rc.right - 150, 420, hWnd, NULL, NULL, NULL );
+			g_hWnd_general_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"class_general_tab", NULL, WS_CHILD | WS_TABSTOP | WS_VISIBLE, 160, 10, rc.right - 170, 420, hWnd, NULL, NULL, NULL );
+			g_hWnd_appearance_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"class_appearance_tab", NULL, WS_VSCROLL | WS_CHILD | WS_TABSTOP, 160, 10, rc.right - 170, 420, hWnd, NULL, NULL, NULL );
+			g_hWnd_connection_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"class_connection_tab", NULL, WS_CHILD | WS_TABSTOP, 160, 10, rc.right - 170, 420, hWnd, NULL, NULL, NULL );
+			g_hWnd_web_server_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"class_web_server_tab", NULL, WS_CHILD | WS_TABSTOP, 160, 10, rc.right - 170, 420, hWnd, NULL, NULL, NULL );
+			g_hWnd_ftp_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"class_ftp_tab", NULL, WS_CHILD | WS_TABSTOP, 160, 10, rc.right - 170, 420, hWnd, NULL, NULL, NULL );
+			g_hWnd_sftp_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"class_sftp_tab", NULL, WS_CHILD | WS_TABSTOP, 160, 10, rc.right - 170, 420, hWnd, NULL, NULL, NULL );
+			g_hWnd_sftp_fps_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"class_sftp_fps_tab", NULL, WS_CHILD | WS_TABSTOP, 160, 10, rc.right - 170, 420, hWnd, NULL, NULL, NULL );
+			g_hWnd_sftp_keys_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"class_sftp_keys_tab", NULL, WS_CHILD | WS_TABSTOP, 160, 10, rc.right - 170, 420, hWnd, NULL, NULL, NULL );
+			g_hWnd_proxy_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"class_proxy_tab", NULL, WS_CHILD | WS_TABSTOP, 160, 10, rc.right - 170, 420, hWnd, NULL, NULL, NULL );
+			g_hWnd_advanced_tab = _CreateWindowExW( WS_EX_CONTROLPARENT, L"class_advanced_tab", NULL, WS_VSCROLL | WS_CHILD | WS_TABSTOP, 160, 10, rc.right - 170, 420, hWnd, NULL, NULL, NULL );
 
 			g_hWnd_options_ok = _CreateWindowW( WC_BUTTON, ST_V_OK, BS_DEFPUSHBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 260, 440, 80, 23, hWnd, ( HMENU )BTN_OK, NULL, NULL );
 			g_hWnd_options_cancel = _CreateWindowW( WC_BUTTON, ST_V_Cancel, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 175, 440, 80, 23, hWnd, ( HMENU )BTN_CANCEL, NULL, NULL );
@@ -786,7 +786,7 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			MONITORINFO mi;
 			mi.cbSize = sizeof( MONITORINFO );
 			_GetMonitorInfoW( hMon, &mi );
-			_SetWindowPos( hWnd, NULL, mi.rcMonitor.left + ( ( ( mi.rcMonitor.right - mi.rcMonitor.left ) - 720 ) / 2 ), mi.rcMonitor.top + ( ( ( mi.rcMonitor.bottom - mi.rcMonitor.top ) - height ) / 2 ), 720, height, 0 );
+			_SetWindowPos( hWnd, NULL, mi.rcMonitor.left + ( ( ( mi.rcMonitor.right - mi.rcMonitor.left ) - 735 ) / 2 ), mi.rcMonitor.top + ( ( ( mi.rcMonitor.bottom - mi.rcMonitor.top ) - height ) / 2 ), 735, height, 0 );
 
 			_SetFocus( g_hWnd_options_tree );
 

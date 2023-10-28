@@ -60,19 +60,19 @@ LRESULT CALLBACK SearchWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 			_GetClientRect( hWnd, &rc );
 
 			g_hWnd_static_search_for = _CreateWindowW( WC_STATIC, ST_V_Search_for_, WS_CHILD | WS_VISIBLE, 10, 10, 60, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_search_for = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 10, 25, rc.right - 20, 23, hWnd, ( HMENU )EDIT_SEARCH_FOR, NULL, NULL );
+			g_hWnd_search_for = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 10, 28, rc.right - 20, 23, hWnd, ( HMENU )EDIT_SEARCH_FOR, NULL, NULL );
 
-			HWND hWnd_btn_search_type = _CreateWindowW( WC_BUTTON, ST_V_Search_Type, BS_GROUPBOX | WS_CHILD | WS_VISIBLE, 10, 55, 110, 60, hWnd, NULL, NULL, NULL );
-			g_hWnd_chk_type_filename = _CreateWindowW( WC_BUTTON, ST_V_Filename, BS_AUTORADIOBUTTON | WS_CHILD | WS_GROUP | WS_TABSTOP | WS_VISIBLE, 20, 70, 90, 20, hWnd, ( HMENU )BTN_TYPE_FILENAME, NULL, NULL );
-			g_hWnd_chk_type_url = _CreateWindowW( WC_BUTTON, ST_V_URL, BS_AUTORADIOBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 20, 90, 90, 20, hWnd, ( HMENU )BTN_TYPE_URL, NULL, NULL );
+			HWND hWnd_btn_search_type = _CreateWindowW( WC_BUTTON, ST_V_Search_Type, BS_GROUPBOX | WS_CHILD | WS_VISIBLE, 10, 58, 112, 63, hWnd, NULL, NULL, NULL );
+			g_hWnd_chk_type_filename = _CreateWindowW( WC_BUTTON, ST_V_Filename, BS_AUTORADIOBUTTON | WS_CHILD | WS_GROUP | WS_TABSTOP | WS_VISIBLE, 21, 75, 90, 20, hWnd, ( HMENU )BTN_TYPE_FILENAME, NULL, NULL );
+			g_hWnd_chk_type_url = _CreateWindowW( WC_BUTTON, ST_V_URL, BS_AUTORADIOBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 21, 95, 90, 20, hWnd, ( HMENU )BTN_TYPE_URL, NULL, NULL );
 
-			g_hWnd_chk_match_case = _CreateWindowW( WC_BUTTON, ST_V_Match_case, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 135, 55, rc.right - 145, 20, hWnd, ( HMENU )BTN_MATCH_CASE, NULL, NULL );
-			g_hWnd_chk_match_whole_word = _CreateWindowW( WC_BUTTON, ST_V_Match_whole_word, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 135, 75, rc.right - 145, 20, hWnd, ( HMENU )BTN_MATCH_WHOLE_WORD, NULL, NULL );
-			g_hWnd_chk_regular_expression = _CreateWindowW( WC_BUTTON, ST_V_Regular_expression, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE | ( pcre2_state == PCRE2_STATE_RUNNING ? 0 : WS_DISABLED ), 135, 95, rc.right - 145, 20, hWnd, ( HMENU )BTN_REGULAR_EXPRESSION, NULL, NULL );
+			g_hWnd_chk_match_case = _CreateWindowW( WC_BUTTON, ST_V_Match_case, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 135, 62, rc.right - 145, 20, hWnd, ( HMENU )BTN_MATCH_CASE, NULL, NULL );
+			g_hWnd_chk_match_whole_word = _CreateWindowW( WC_BUTTON, ST_V_Match_whole_word, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 135, 82, rc.right - 145, 20, hWnd, ( HMENU )BTN_MATCH_WHOLE_WORD, NULL, NULL );
+			g_hWnd_chk_regular_expression = _CreateWindowW( WC_BUTTON, ST_V_Regular_expression, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE | ( pcre2_state == PCRE2_STATE_RUNNING ? 0 : WS_DISABLED ), 135, 102, rc.right - 145, 20, hWnd, ( HMENU )BTN_REGULAR_EXPRESSION, NULL, NULL );
 
-			g_hWnd_btn_search_all = _CreateWindowW( WC_BUTTON, ST_V_Search_All, WS_CHILD | WS_TABSTOP | WS_VISIBLE | WS_DISABLED, rc.right - 285, 125, 85, 23, hWnd, ( HMENU )BTN_SEARCH_ALL, NULL, NULL );
-			g_hWnd_btn_search = _CreateWindowW( WC_BUTTON, ST_V_Search_Next, BS_DEFPUSHBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE | WS_DISABLED, rc.right - 195, 125, 100, 23, hWnd, ( HMENU )BTN_SEARCH, NULL, NULL );
-			g_hWnd_search_cancel = _CreateWindowW( WC_BUTTON, ST_V_Cancel, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 90, 125, 80, 23, hWnd, ( HMENU )BTN_SEARCH_CANCEL, NULL, NULL );
+			g_hWnd_btn_search_all = _CreateWindowW( WC_BUTTON, ST_V_Search_All, WS_CHILD | WS_TABSTOP | WS_VISIBLE | WS_DISABLED, rc.right - 285, 130, 85, 23, hWnd, ( HMENU )BTN_SEARCH_ALL, NULL, NULL );
+			g_hWnd_btn_search = _CreateWindowW( WC_BUTTON, ST_V_Search_Next, BS_DEFPUSHBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE | WS_DISABLED, rc.right - 195, 130, 100, 23, hWnd, ( HMENU )BTN_SEARCH, NULL, NULL );
+			g_hWnd_search_cancel = _CreateWindowW( WC_BUTTON, ST_V_Cancel, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 90, 130, 80, 23, hWnd, ( HMENU )BTN_SEARCH_CANCEL, NULL, NULL );
 
 			_SendMessageW( g_hWnd_static_search_for, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 			_SendMessageW( g_hWnd_search_for, WM_SETFONT, ( WPARAM )g_hFont, 0 );
@@ -92,7 +92,7 @@ LRESULT CALLBACK SearchWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 
 			// Accounts for differing title bar heights.
 			CREATESTRUCTW *cs = ( CREATESTRUCTW * )lParam;
-			int height = ( cs->cy - ( rc.bottom - rc.top ) ) + 158;	// Bottom of last window object + 10.
+			int height = ( cs->cy - ( rc.bottom - rc.top ) ) + 163;	// Bottom of last window object + 10.
 
 			HMONITOR hMon = _MonitorFromWindow( g_hWnd_main, MONITOR_DEFAULTTONEAREST );
 			MONITORINFO mi;

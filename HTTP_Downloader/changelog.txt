@@ -1,3 +1,11 @@
+Version:	1.0.5.3
+Released:	2023-10-28
+
+Adjusted GUI layout to better fit long strings.
+Fixed file filter string termination.
+Added missing strings to string_list.txt.
+Added Italian string translations (thanks to bovirus).
+
 Version:	1.0.5.2
 Released:	2023-10-14
 
@@ -33,6 +41,7 @@ Prevented decoding of plus character in URL.
 Sort error codes in Progress column.
 Better handling of prompts for modified files.
 Flash main window if minimized and message box is displayed.
+Added Chinese string translations (thanks to wcxu21).
 
 Version:	1.0.4.8
 Released:	2022-01-01
