@@ -1,4 +1,4 @@
-﻿Gennaio
+Gennaio
 Febbraio
 Marzo
 aprile
@@ -346,7 +346,6 @@ Aggiunta
 Assegnazione file
 Richiesta autorizzazione
 Annulla
-Controlla aggiornamenti
 Completato
 Connessione
 Predefinito
@@ -453,3 +452,11 @@ ecdsa-sha2-nistp521
 ssh-dss
 ssh-ed25519
 ssh-rsa
+Tutti i file
+CSV (delimitato da virgole)
+Cronologia download
+Scambio informazioni personali
+Chiavi private
+File chiavi private PuTTY
+WAV
+Certificato X.509
