@@ -346,7 +346,7 @@ Hinzugefügt
 Dateizuordnung läuft
 Autorisierung erforderlich
 Abbrechen
-Auf Aktualisierung prüfen
+Prüfe auf Aktualisierung
 Fertiggestellt
 Verbinde
 Standard
@@ -453,3 +453,11 @@ ecdsa-sha2-nistp521
 ssh-dss
 ssh-ed25519
 ssh-rsa
+Alle Dateien
+CSV (Komma getrennt)
+Downloadverlauf
+Persönlicher Informationsaustausch
+Private Schlüssel
+Private PuTTY-Schlüssel
+WAV
+X.509-Zertifikate
