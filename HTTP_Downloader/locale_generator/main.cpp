@@ -1,6 +1,8 @@
 #include <windows.h>
 #include <mlang.h>
+#include <stdio.h>
 #include <string.h>
+#include <shlwapi.h>
 
 #define is_digit_w( c ) ( c - L'0' + 0U <= 9U )
 
@@ -40,6 +42,10 @@ wchar_t *decode_w( wchar_t *str, unsigned int str_len, unsigned int *dec_len )
 		{
 			*pbuf++ = 0;
 			pstr++;
+		}
+		else if ( *pstr == L'\n' )
+		{
+			*pbuf++ = 0;
 		}
 		else if ( *pstr == L'\\' )
 		{
@@ -146,7 +152,11 @@ void OpenLocaleFile( wchar_t *file_path )
 			wchar_t *last_ptr = ptr;
 			wchar_t *ptr_end = ( wchar_t * )( ( unsigned char * )( locale_buf + fz ) );
 
-			HANDLE hFile_string_list = CreateFile( L"string_list.txt", GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL );
+			wchar_t *filename = PathFindFileNameW( file_path );
+			wchar_t string_list[ MAX_PATH ];
+			wsprintfW( string_list, L"string_list_%s.txt", filename );
+
+			HANDLE hFile_string_list = CreateFile( string_list, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL );
 			if ( hFile_string_list != INVALID_HANDLE_VALUE )
 			{
 				DWORD write = 0;
@@ -284,39 +294,56 @@ void OpenStringList( wchar_t *file_path )
 			wchar_t locale_name[ LOCALE_NAME_MAX_LENGTH ];
 			int locale_length = 0;
 
-			if ( loaded_function )
+			wchar_t *filename = PathFindFileNameW( file_path );
+			if ( filename != NULL && _wcsnicmp( filename, L"string_list_", 12 ) == 0 )
 			{
-				// Find a specific locale based on the system's default.
-				locale_length = _GetUserDefaultLocaleName( locale_name, LOCALE_NAME_MAX_LENGTH );
-				locale_name[ locale_length ] = 0;	// Sanity.
-			}
-			else	// Try COM function instead.
-			{
-				HRESULT hr = CoInitialize( NULL );
-				if ( SUCCEEDED( hr ) )
-				{
-					IMultiLanguage *pml;
+				filename += 12;
+				wchar_t *ptr = filename;
+				while ( *ptr != 0 && *ptr != L'.' ) { ++ptr; }
+				*ptr = 0;
 
-					hr = CoCreateInstance( CLSID_CMultiLanguage, NULL, CLSCTX_ALL, IID_IMultiLanguage, ( void ** )&pml );
+				locale_length = min( LOCALE_NAME_MAX_LENGTH, ( ptr - filename ) + 1 );
+				memcpy_s( locale_name, sizeof( wchar_t ) * LOCALE_NAME_MAX_LENGTH, filename, sizeof( wchar_t ) * locale_length );
+				locale_name[ locale_length - 1  ] = 0;	// Sanity.
+			}
+
+			if ( locale_length == 0 )
+			{
+				if ( loaded_function )
+				{
+					// Find a specific locale based on the system's default.
+					locale_length = _GetUserDefaultLocaleName( locale_name, LOCALE_NAME_MAX_LENGTH );
+					locale_name[ locale_length ] = 0;	// Sanity.
+				}
+				else	// Try COM function instead.
+				{
+					HRESULT hr = CoInitialize( NULL );
 					if ( SUCCEEDED( hr ) )
 					{
-						BSTR bs;
-						LCID lcid = GetUserDefaultLCID();
+						IMultiLanguage *pml;
 
-						hr = pml->GetRfc1766FromLcid( lcid, &bs );
+						hr = CoCreateInstance( CLSID_CMultiLanguage, NULL, CLSCTX_ALL, IID_IMultiLanguage, ( void ** )&pml );
 						if ( SUCCEEDED( hr ) )
 						{
-							locale_length = SysStringLen( bs );
-							memcpy_s( locale_name, sizeof( wchar_t ) * LOCALE_NAME_MAX_LENGTH, bs, sizeof( OLECHAR ) * locale_length );
-							locale_name[ locale_length ] = 0;	// Sanity.
+							BSTR bs;
+							LCID lcid = GetUserDefaultLCID();
 
-							SysFreeString( bs );
+							hr = pml->GetRfc1766FromLcid( lcid, &bs );
+							if ( SUCCEEDED( hr ) )
+							{
+								locale_length = SysStringLen( bs );
+								locale_length = min( LOCALE_NAME_MAX_LENGTH, ( locale_length + 1 ) );
+								memcpy_s( locale_name, sizeof( wchar_t ) * LOCALE_NAME_MAX_LENGTH, bs, sizeof( OLECHAR ) * locale_length );
+								locale_name[ locale_length - 1 ] = 0;	// Sanity.
+
+								SysFreeString( bs );
+							}
+
+							pml->Release();
 						}
 
-						pml->Release();
+						CoUninitialize();
 					}
-
-					CoUninitialize();
 				}
 			}
 
@@ -372,7 +399,13 @@ int wmain( int argc, wchar_t *argv[] )
 	}
 	else
 	{
-		OpenStringList( L"string_list.txt" );
+		wprintf( L"Locale Generator for HTTP Downloader\r\n" );
+		wprintf( L"https://erickutcher.github.io/#HTTP_Downloader\r\n" );
+		wprintf( L"\r\nExample usage:\r\n" );
+		wprintf( L"Convert string list to locale: locale_generator.exe --string-list \"string_list.txt\"\r\n" );
+		wprintf( L"Convert locale to string list: locale_generator.exe --locale \"en-US\"\r\n" );
+		wprintf( L"\r\nPress any key to continue . . . " );
+		getchar();
 	}
 
 	return 0;

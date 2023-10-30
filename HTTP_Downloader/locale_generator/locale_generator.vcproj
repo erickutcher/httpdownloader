@@ -60,6 +60,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
+				AdditionalDependencies="Shlwapi.lib"
 				LinkIncremental="2"
 				GenerateDebugInformation="true"
 				SubSystem="1"
@@ -132,6 +133,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
+				AdditionalDependencies="Shlwapi.lib"
 				LinkIncremental="1"
 				GenerateDebugInformation="true"
 				SubSystem="1"
