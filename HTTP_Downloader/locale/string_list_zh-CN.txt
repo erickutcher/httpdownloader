@@ -453,3 +453,11 @@ ecdsa-sha2-nistp521
 ssh-dss
 ssh-ed25519
 ssh-rsa
+所有文件
+CSV（英文逗号分隔）
+下载历史
+个人信息交换
+私钥
+Putty 私钥文件
+WAV
+X.509 证书
