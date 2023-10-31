@@ -346,6 +346,7 @@ Aggiunta
 Assegnazione file
 Richiesta autorizzazione
 Annulla
+Controlla aggiornamenti
 Completato
 Connessione
 Predefinito
