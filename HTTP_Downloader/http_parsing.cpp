@@ -3465,7 +3465,23 @@ char GetHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int h
 					else
 					{
 						// Make sure we can split the download into enough parts.
-						if ( context->header_info.range_info->content_length < context->parts )
+						// Parts will be adjusted in MakeHostRanges() if it's a group download.
+						if ( context->download_info != NULL && IS_GROUP( context->download_info ) )
+						{
+							if ( context->header_info.range_info->content_length < context->download_info->shared_info->parts )
+							{
+								unsigned short shared_info_parts = ( context->header_info.range_info->content_length > 0 ? ( unsigned short )context->header_info.range_info->content_length : 1 );
+
+								// This context will have only downloaded 1 byte.
+								// If it's a keep-alive connection, then it won't trigger the other hosts to start.
+								// This will allow GetHTTPResponseContent to return CONTENT_STATUS_HANDLE_RESPONSE.
+								if ( ( shared_info_parts / context->download_info->shared_info->hosts ) <= 1 )
+								{
+									context->header_info.connection = CONNECTION_CLOSE;
+								}
+							}
+						}
+						else if ( context->header_info.range_info->content_length < context->parts )
 						{
 							context->parts = ( context->header_info.range_info->content_length > 0 ? ( unsigned char )context->header_info.range_info->content_length : 1 );
 						}
@@ -3476,9 +3492,9 @@ char GetHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int h
 			{
 				// If we indended to make a range request and the status is not 206.
 				if ( ( context->parts > 1 ||
-					 ( context->download_info != NULL &&
-					 ( IS_GROUP( context->download_info ) ||
-					   context->header_info.range_info->content_length != context->download_info->shared_info->file_size ) ) ) &&
+					 ( context->download_info != NULL && ( IS_GROUP( context->download_info ) ||
+					   context->header_info.range_info->content_length != context->download_info->shared_info->file_size ) ) ||
+					   context->header_info.range_info->range_start != 0 ) &&
 					   context->processed_header )
 				{
 					return CONTENT_STATUS_FAILED;
@@ -3613,10 +3629,17 @@ char GetHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int h
 					context->download_info->shared_info->file_size = context->header_info.range_info->content_length;
 				}
 
-				// If a host in a group download can only use one part, then adjust the shared_info part count.
-				if ( context->download_info != context->download_info->shared_info && context->download_info->parts > context->parts )
+				// Non-range requests don't make sense for group downloads, but assume the group's header has been processed.
+				// This prevents us from being able to resume the download (which it can't).
+				if ( context->header_info.http_status != 206 )
 				{
-					context->download_info->shared_info->parts -= ( context->download_info->parts - context->parts );
+					context->download_info->shared_info->processed_header = true;
+
+					// If a host in a group download can only use one part, then adjust the shared_info part count.
+					if ( IS_GROUP( context->download_info ) && context->download_info->parts > context->parts )
+					{
+						context->download_info->shared_info->parts -= ( context->download_info->parts - context->parts );
+					}
 				}
 
 				LeaveCriticalSection( &context->download_info->shared_info->di_cs );
@@ -3850,7 +3873,7 @@ void MakeHostRanges( SOCKET_CONTEXT *context )
 		}
 
 		unsigned long long host_size = content_length / host_count;
-		unsigned long long host_offset = 0;
+		unsigned long long host_offset = host_size;
 
 		context->header_info.range_info->range_start = context->header_info.range_info->content_offset;
 		if ( host_size > 0 )
@@ -3870,6 +3893,22 @@ void MakeHostRanges( SOCKET_CONTEXT *context )
 
 		context->download_info->file_size = host_size;
 
+		// Adjust the parts if it's more than the host's file size.
+		if ( context->download_info->parts > context->download_info->file_size )
+		{
+			LeaveCriticalSection( &context->download_info->di_cs );
+
+			context->parts = ( unsigned char )context->download_info->file_size;
+
+			EnterCriticalSection( &context->download_info->shared_info->di_cs );
+			context->download_info->shared_info->parts -= ( context->download_info->parts - ( unsigned short )context->download_info->file_size );
+			LeaveCriticalSection( &context->download_info->shared_info->di_cs );
+
+			EnterCriticalSection( &context->download_info->di_cs );
+
+			context->download_info->parts = ( unsigned short )context->download_info->file_size;
+		}
+
 		LeaveCriticalSection( &context->download_info->di_cs );
 
 		DoublyLinkedList *host_node = context->download_info->shared_info->host_list;
@@ -3883,8 +3922,10 @@ void MakeHostRanges( SOCKET_CONTEXT *context )
 
 				if ( !di->processed_header )	// The host download info we set above will have been set to true.
 				{
-					if ( host <= host_count )
+					if ( host < host_count )
 					{
+						++host;
+
 						di->processed_header = true;
 
 						RANGE_INFO *ri;
@@ -3925,6 +3966,20 @@ void MakeHostRanges( SOCKET_CONTEXT *context )
 							}
 
 							ri->file_write_offset = ri->range_start;
+
+							// Adjust the parts if it's more than the host's file size.
+							if ( di->parts > di->file_size )
+							{
+								LeaveCriticalSection( &di->di_cs );
+
+								EnterCriticalSection( &context->download_info->shared_info->di_cs );
+								di->shared_info->parts -= ( di->parts - ( unsigned short )di->file_size );
+								LeaveCriticalSection( &context->download_info->shared_info->di_cs );
+
+								EnterCriticalSection( &di->di_cs );
+
+								di->parts = ( unsigned short )di->file_size;
+							}
 						}
 					}
 					else
@@ -3932,18 +3987,18 @@ void MakeHostRanges( SOCKET_CONTEXT *context )
 						di->status = STATUS_SKIPPED;
 					}
 				}
-				else
+				else if ( di != context->download_info )
 				{
 					if ( host < host_count )
 					{
+						++host;
+
 						host_offset += host_size;
 					}
 				}
 
 				LeaveCriticalSection( &di->di_cs );
 			}
-
-			++host;
 
 			host_node = host_node->next;
 		}
@@ -3969,29 +4024,20 @@ char MakeRangeRequest( SOCKET_CONTEXT *context )
 
 				LeaveCriticalSection( &context->download_info->shared_info->di_cs );
 
-				unsigned long long content_length = context->download_info->shared_info->file_size;
-
-				unsigned char host_count = context->download_info->shared_info->hosts;
-
-				// Make sure we can split the download into enough parts.
-				if ( content_length < host_count )
-				{
-					host_count = ( content_length > 0 ? ( unsigned char )content_length : 1 );
-				}
-
 				DoublyLinkedList *host_node = context->download_info->shared_info->host_list;
-				unsigned char host = 0;
 				while ( host_node != NULL )
 				{
 					DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )host_node->data;
+					// We don't need to start the context's download since it's already started.
 					if ( di != NULL && di != context->download_info )
 					{
-						if ( host < host_count )
+						if ( di->processed_header )	// All usable hosts will have had their header processed in MakeHostRanges().
 						{
 							bool skip_start = false;
 
 							EnterCriticalSection( &di->di_cs );
 
+							// Skip starting downloads that were added in the stopped state.
 							if ( di->download_operations & DOWNLOAD_OPERATION_ADD_STOPPED )
 							{
 								di->download_operations &= ~DOWNLOAD_OPERATION_ADD_STOPPED;
@@ -4016,8 +4062,6 @@ char MakeRangeRequest( SOCKET_CONTEXT *context )
 							}
 						}
 					}
-
-					++host;
 
 					host_node = host_node->next;
 				}

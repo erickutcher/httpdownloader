@@ -195,7 +195,10 @@ void SetSharedInfoStatus( DOWNLOAD_INFO *shared_info )
 			DOWNLOAD_INFO *host_di = ( DOWNLOAD_INFO * )host_node->data;
 			if ( host_di != NULL )
 			{
-				shared_status |= host_di->status;
+				if ( host_di->processed_header || host_di->status != STATUS_SKIPPED )
+				{
+					shared_status |= host_di->status;
+				}
 			}
 
 			host_node = host_node->next;

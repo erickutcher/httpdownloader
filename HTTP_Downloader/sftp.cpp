@@ -976,7 +976,9 @@ RESUME_INIT:
 					}
 
 					// Make sure we can split the download into enough parts.
-					if ( context->header_info.range_info->content_length < context->parts )
+					// Parts will be adjusted in MakeHostRanges() if it's a group download.
+					if ( context->download_info != NULL && !IS_GROUP( context->download_info ) &&
+						 context->header_info.range_info->content_length < context->parts )
 					{
 						context->parts = ( context->header_info.range_info->content_length > 0 ? ( unsigned char )context->header_info.range_info->content_length : 1 );
 					}
@@ -1406,29 +1408,20 @@ char SFTP_HandleRequest( SOCKET_CONTEXT *context )
 
 				LeaveCriticalSection( &context->download_info->shared_info->di_cs );
 
-				unsigned long long content_length = context->download_info->shared_info->file_size;
-
-				unsigned char host_count = context->download_info->shared_info->hosts;
-
-				// Make sure we can split the download into enough parts.
-				if ( content_length < host_count )
-				{
-					host_count = ( content_length > 0 ? ( unsigned char )content_length : 1 );
-				}
-
 				DoublyLinkedList *host_node = context->download_info->shared_info->host_list;
-				unsigned char host = 0;
 				while ( host_node != NULL )
 				{
 					DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )host_node->data;
+					// We don't need to start the context's download since it's already started.
 					if ( di != NULL && di != context->download_info )
 					{
-						if ( host < host_count )
+						if ( di->processed_header )	// All usable hosts will have had their header processed in MakeHostRanges().
 						{
 							bool skip_start = false;
 
 							EnterCriticalSection( &di->di_cs );
 
+							// Skip starting downloads that were added in the stopped state.
 							if ( di->download_operations & DOWNLOAD_OPERATION_ADD_STOPPED )
 							{
 								di->download_operations &= ~DOWNLOAD_OPERATION_ADD_STOPPED;
@@ -1453,8 +1446,6 @@ char SFTP_HandleRequest( SOCKET_CONTEXT *context )
 							}
 						}
 					}
-
-					++host;
 
 					host_node = host_node->next;
 				}

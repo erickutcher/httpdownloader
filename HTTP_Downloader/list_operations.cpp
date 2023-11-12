@@ -1906,10 +1906,19 @@ THREAD_RETURN handle_connection( void *pArguments )
 											// Host has already been processed (assigned range info). Resume it.
 											if ( di->shared_info->processed_header )
 											{
-												tmp_status = di->status;
-												di->status = STATUS_NONE;
+												// If the group has already been processed, then each host has its own file size.
+												// If it's 0, then it was skipped.
+												if ( di->file_size == 0 )
+												{
+													di->status = STATUS_SKIPPED;
+												}
+												else
+												{
+													tmp_status = di->status;
+													di->status = STATUS_NONE;
 
-												StartDownload( di, START_TYPE_HOST_IN_GROUP, START_OPERATION_NONE/*( tmp_status == STATUS_SKIPPED ? START_OPERATION_CHECK_FILE : START_OPERATION_NONE )*/ );
+													StartDownload( di, START_TYPE_HOST_IN_GROUP, START_OPERATION_NONE/*( tmp_status == STATUS_SKIPPED ? START_OPERATION_CHECK_FILE : START_OPERATION_NONE )*/ );
+												}
 											}
 											else	// We're starting an unprocessed group, or host in group.
 											{
@@ -2014,6 +2023,10 @@ THREAD_RETURN handle_connection( void *pArguments )
 										{
 											di->download_operations &= ~DOWNLOAD_OPERATION_ADD_STOPPED;
 											di->status = STATUS_CONNECTING | STATUS_QUEUED;
+										}
+										else if ( is_host_in_group && di->shared_info->processed_header && di->file_size == 0 )
+										{
+											di->status = STATUS_SKIPPED;
 										}
 										else
 										{
