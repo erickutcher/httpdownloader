@@ -1681,23 +1681,27 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 
 		InterlockedExchange( &context->timeout, 0 );	// Reset timeout counter.
 
-		EnterCriticalSection( &context->context_cs );
-
-		InterlockedDecrement( &context->pending_operations );
-
-		LeaveCriticalSection( &context->context_cs );
-
 		use_ssl = ( context->ssl != NULL ? true : false );
 
 		if ( completion_status == FALSE )
 		{
+			bool skip_process = false;
+
 			EnterCriticalSection( &context->context_cs );
+
+			InterlockedDecrement( &context->pending_operations );
+
+			// This can happen if the connection timed out and we've forced the cleanup.
+			if ( context->pending_operations > 0 )
+			{
+				skip_process = true;
+			}
 
 			context->cleanup = 1;	// Auto cleanup.
 
 			LeaveCriticalSection( &context->context_cs );
 
-			if ( context->pending_operations > 0 )
+			if ( skip_process )
 			{
 				continue;
 			}
@@ -1705,8 +1709,6 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 			{
 				if ( *current_operation == IO_Connect )	// We couldn't establish a connection.
 				{
-					bool skip_process = false;
-
 					EnterCriticalSection( &context->context_cs );
 
 					if ( IS_STATUS_NOT( context->status,
@@ -1769,6 +1771,12 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 		}
 		else
 		{
+			EnterCriticalSection( &context->context_cs );
+
+			InterlockedDecrement( &context->pending_operations );
+
+			LeaveCriticalSection( &context->context_cs );
+
 			if ( *current_operation == IO_GetContent ||
 				 *current_operation == IO_SFTPReadContent ||
 				 *current_operation == IO_GetCONNECTResponse ||

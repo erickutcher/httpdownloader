@@ -121,6 +121,24 @@ void SetContextStatus( SOCKET_CONTEXT *context, unsigned int status )
 					PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped_close );
 				}
 			}
+			else if ( context->cleanup == 12 )
+			{
+				if ( context->ssh == NULL )
+				{
+					// We've initiated a clean shutdown of the connection, but it's stuck.
+					if ( context->overlapped_close.current_operation == IO_Write )
+					{
+						// Force close the socket to release the operation.
+						if ( context->socket != INVALID_SOCKET )
+						{
+							SOCKET s = context->socket;
+							context->socket = INVALID_SOCKET;
+							_shutdown( s, SD_BOTH );
+							_closesocket( s );	// Saves us from having to post if there's already a pending IO operation. Should force the operation to complete.
+						}
+					}
+				}
+			}
 		}
 
 		LeaveCriticalSection( &context->context_cs );
@@ -1474,6 +1492,24 @@ THREAD_RETURN handle_connection( void *pArguments )
 												InterlockedIncrement( &context->pending_operations );
 												context->overlapped_close.current_operation = ( context->ssl != NULL ? IO_Shutdown : IO_Close );
 												PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped_close );
+											}
+										}
+										else if ( context->cleanup == 12 )
+										{
+											if ( context->ssh == NULL )
+											{
+												// We've initiated a clean shutdown of the connection, but it's stuck.
+												if ( context->overlapped_close.current_operation == IO_Write )
+												{
+													// Force close the socket to release the operation.
+													if ( context->socket != INVALID_SOCKET )
+													{
+														SOCKET s = context->socket;
+														context->socket = INVALID_SOCKET;
+														_shutdown( s, SD_BOTH );
+														_closesocket( s );	// Saves us from having to post if there's already a pending IO operation. Should force the operation to complete.
+													}
+												}
 											}
 										}
 
