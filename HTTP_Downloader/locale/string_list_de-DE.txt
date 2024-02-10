@@ -391,7 +391,7 @@ Download aktualisieren
 URL:
 Es muss ein Schlüsselalgorithmus mitgegeben werden.
 Es ist eine private Schlüsseldatei erforderlich.
-Es muss ein Protokoll (HTTP(S) oder FTP(S)) mitgegeben werden.
+Es muss ein Protokoll (HTTP(S), FTP(S) oder SFTP) mitgegeben werden.
 Ein Protokoll (HTTP oder HTTPS) muss angegeben werden.
 Ein Neustart ist erforderlich, damit die Änderungen in Kraft treten.
 Ein Neustart ist erforderlich, um die Dateizuordnung zu aktivieren.

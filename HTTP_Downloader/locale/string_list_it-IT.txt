@@ -391,7 +391,7 @@ Download aggiornamento
 URL:
 È necessario fornire un algoritmo chiave.
 È richiesto un file chiave privata.
-È necessario definire un protocollo (HTTP(S) o FTP(S)).
+È necessario definire un protocollo (HTTP(S), FTP(S) o SFTP).
 Affinché queste modifiche abbiano effetto è necessario un riavvio.
 Per disabilitare l'allocazione rapida dei file è necessario un riavvio.
 Per abilitare l'allocazione rapida dei file è necessario un riavvio.

@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
-	Copyright (C) 2015-2023 Eric Kutcher
+	Copyright (C) 2015-2024 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -2061,7 +2061,7 @@ void HandleCommand( HWND hWnd, WORD command )
 			int msg_length = __snwprintf( msg, 512, L"%s\r\n\r\n" \
 												    L"%s %lu.%lu.%lu.%lu (%u-bit)\r\n\r\n" \
 												    L"%s %s, %s %d, %04d %d:%02d:%02d %s (UTC)\r\n\r\n" \
-												    L"%s \xA9 2015-2023 Eric Kutcher\r\n\r\n" \
+												    L"%s \xA9 2015-2024 Eric Kutcher\r\n\r\n" \
 												    L"%s ",
 												    ST_V_LICENSE,
 												    ST_V_VERSION,

@@ -391,7 +391,7 @@ Update Download
 URL:
 A key algorithm must be supplied.
 A private key file is required.
-A protocol (HTTP(S) or FTP(S)) must be supplied.
+A protocol (HTTP(S), FTP(S), or SFTP) must be supplied.
 A restart is required for these changes to take effect.
 A restart is required to disable quick file allocation.
 A restart is required to enable quick file allocation.

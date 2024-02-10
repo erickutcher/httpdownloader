@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
-	Copyright (C) 2015-2023 Eric Kutcher
+	Copyright (C) 2015-2024 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -502,7 +502,7 @@ STRING_TABLE_DATA common_message_string_table[] =
 {
 	{ L"A key algorithm must be supplied.", 33 },
 	{ L"A private key file is required.", 31 },
-	{ L"A protocol (HTTP(S) or FTP(S)) must be supplied.", 48 },
+	{ L"A protocol (HTTP(S), FTP(S), or SFTP) must be supplied.", 55 },
 	{ L"A restart is required for these changes to take effect.", 55 },
 	{ L"A restart is required to disable quick file allocation.", 55 },
 	{ L"A restart is required to enable quick file allocation.", 54 },

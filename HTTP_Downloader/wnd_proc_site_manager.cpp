@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
-	Copyright (C) 2015-2023 Eric Kutcher
+	Copyright (C) 2015-2024 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -234,6 +234,8 @@ HFONT hFont_copy_sm_proxy = NULL;
 
 SITE_INFO *g_selected_site_info = NULL;
 int g_selected_site_index = -1;
+
+bool g_sm_draw_tab_pane = false;
 
 wchar_t *GetSiteInfoString( SITE_INFO *si, int column, int item_index, wchar_t *tbuf, unsigned short tbuf_size )
 {
@@ -768,13 +770,20 @@ LRESULT CALLBACK SMTabSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam
 				{
 					_SetBkMode( ( HDC )wParam, TRANSPARENT );
 
-					POINT pt;
-					pt.x = 0; pt.y = 0;
+					if ( g_sm_draw_tab_pane )
+					{
+						POINT pt;
+						pt.x = 0; pt.y = 0;
 
-					_MapWindowPoints( hWnd, ( HWND )lParam, &pt, 1 );
-					_SetBrushOrgEx( ( HDC )wParam, pt.x, pt.y, NULL );
+						_MapWindowPoints( hWnd, ( HWND )lParam, &pt, 1 );
+						_SetBrushOrgEx( ( HDC )wParam, pt.x, pt.y, NULL );
 
-					return ( INT_PTR )g_sm_tab_brush;
+						return ( INT_PTR )g_sm_tab_brush;
+					}
+					else
+					{
+						return ( INT_PTR )_GetSysColorBrush( COLOR_WINDOW );
+					}
 				}
 			}
 		}
@@ -1766,6 +1775,8 @@ LRESULT CALLBACK SiteManagerWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 				_EnumThreadWindows( GetCurrentThreadId(), EnumTLWProc, NULL );
 			}
 #endif
+
+			g_sm_draw_tab_pane = !IsWindowsVersionOrGreater( HIBYTE( _WIN32_WINNT_VISTA ), LOBYTE( _WIN32_WINNT_VISTA ), 0 );
 
 			return 0;
 		}
@@ -2955,13 +2966,20 @@ LRESULT CALLBACK SiteManagerWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 				{
 					_SetBkMode( ( HDC )wParam, TRANSPARENT );
 
-					POINT pt;
-					pt.x = 0; pt.y = 0;
+					if ( g_sm_draw_tab_pane )
+					{
+						POINT pt;
+						pt.x = 0; pt.y = 0;
 
-					_MapWindowPoints( g_hWnd_sm_tab, ( HWND )lParam, &pt, 1 );
-					_SetBrushOrgEx( ( HDC )wParam, pt.x, pt.y, NULL );
+						_MapWindowPoints( g_hWnd_sm_tab, ( HWND )lParam, &pt, 1 );
+						_SetBrushOrgEx( ( HDC )wParam, pt.x, pt.y, NULL );
 
-					return ( INT_PTR )g_sm_tab_brush;
+						return ( INT_PTR )g_sm_tab_brush;
+					}
+					else
+					{
+						return ( INT_PTR )_GetSysColorBrush( COLOR_WINDOW );
+					}
 				}
 			}
 
@@ -2979,7 +2997,7 @@ LRESULT CALLBACK SiteManagerWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 			// This brush is refreshed whenever the tab changes size.
 			// It's used to paint the background of static controls.
 			// Windows XP has a gradient colored tab pane and setting the background of a static control to TRANSPARENT in WM_CTLCOLORSTATIC doesn't work well.
-			if ( ( wParam == SIZE_RESTORED || wParam == SIZE_MAXIMIZED ) && ( g_sm_tab_width != ( rc.right - 20 ) ) )
+			if ( g_sm_draw_tab_pane && ( wParam == SIZE_RESTORED || wParam == SIZE_MAXIMIZED ) && ( g_sm_tab_width != ( rc.right - 20 ) ) )
 			{
 				g_sm_tab_width = rc.right - 20;
 
