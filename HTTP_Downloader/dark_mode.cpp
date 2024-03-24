@@ -4122,6 +4122,12 @@ LRESULT CALLBACK DMToolbarSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lP
 		}
 		break;
 
+		case WM_NCPAINT:
+		{
+			_SetPropW( hWnd, L"STATE", ( HANDLE )( ( DWORD )_GetPropW( hWnd, L"STATE" ) | 0x20 ) );
+		}
+		break;
+
 		case WM_PAINT:
 		{
 			PAINTSTRUCT ps;
