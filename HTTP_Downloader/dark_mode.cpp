@@ -525,27 +525,48 @@ void CBRBPaint( HWND hWnd, HDC hDC, COLORREF text_color, int draw_state )
 	_SetBkMode( hdcMem, TRANSPARENT );
 
 	RECT rc;
+	_memzero( &rc, sizeof( RECT ) );
 
-	wchar_t buf[ 128 ];
-	int len = ( int )_SendMessageW( hWnd, WM_GETTEXT, 128, ( LPARAM )buf );
+	wchar_t *buf;
+	wchar_t tbuf[ 128 ];
+	int len = ( int )_SendMessageW( hWnd, WM_GETTEXTLENGTH, 0, 0 ) + 1;	// Include the NULL character.
+	if ( len > 128 )
+	{
+		buf = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * len );
+	}
+	else
+	{
+		buf = tbuf;
+	}
 
-	RECT text_rc;
-	text_rc.left = client_rc.left;
-	text_rc.right = client_rc.right;
-	text_rc.top = client_rc.top;
-	text_rc.bottom = client_rc.bottom;
-	_DrawTextW( hdcMem, buf, len, &text_rc, DT_NOPREFIX | DT_SINGLELINE | DT_END_ELLIPSIS | DT_CALCRECT );
+	if ( buf != NULL )
+	{
+		len = ( int )_SendMessageW( hWnd, WM_GETTEXT, len, ( LPARAM )buf );
 
-	int text_height = text_rc.bottom - text_rc.top;
-	int text_width = text_rc.right - text_rc.left;
+		RECT text_rc;
+		text_rc.left = client_rc.left;
+		text_rc.right = client_rc.right;
+		text_rc.top = client_rc.top;
+		text_rc.bottom = client_rc.bottom;
 
-	// Vertically center the text.
-	rc.left = client_rc.left + 13 + 3;
-	rc.top = client_rc.top + ( ( height - text_height ) / 2 );
-	rc.right = rc.left + text_width;
-	rc.bottom = rc.top + text_height;
+		_DrawTextW( hdcMem, buf, len, &text_rc, DT_NOPREFIX | DT_SINGLELINE | DT_END_ELLIPSIS | DT_CALCRECT );
 
-	_DrawTextW( hdcMem, buf, len, &rc, DT_NOPREFIX | DT_SINGLELINE | DT_END_ELLIPSIS );
+		int text_height = text_rc.bottom - text_rc.top;
+		int text_width = text_rc.right - text_rc.left;
+
+		// Vertically center the text.
+		rc.left = client_rc.left + 13 + 3;
+		rc.top = client_rc.top + ( ( height - text_height ) / 2 );
+		rc.right = rc.left + text_width;
+		rc.bottom = rc.top + text_height;
+
+		_DrawTextW( hdcMem, buf, len, &rc, DT_NOPREFIX | DT_SINGLELINE | DT_END_ELLIPSIS );
+
+		if ( buf != tbuf )
+		{
+			GlobalFree( buf );
+		}
+	}
 
 	DWORD ui_state = ( DWORD )_SendMessageW( hWnd, WM_QUERYUISTATE, 0, 0 );
 	if ( !( ui_state & UISF_HIDEFOCUS ) && hWnd == _GetFocus() )
@@ -1011,16 +1032,36 @@ LRESULT CALLBACK DMGBSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam,
 			_SetBkMode( hdcMem, OPAQUE );
 			_SetBkColor( hdcMem, dm_color_window_background );
 
-			wchar_t buf[ 128 ];
-			int len = ( int )_SendMessageW( hWnd, WM_GETTEXT, 128, ( LPARAM )buf );
-
 			RECT rc;
 			rc.left = client_rc.left + 7;
 			rc.top = client_rc.top;
 			rc.right = client_rc.right;
 			rc.bottom = client_rc.bottom;
-			_DrawTextW( hdcMem, buf, len, &rc, DT_NOPREFIX | DT_SINGLELINE | DT_CALCRECT );
-			_DrawTextW( hdcMem, buf, len, &rc, DT_NOPREFIX | DT_SINGLELINE );
+
+			wchar_t *buf;
+			wchar_t tbuf[ 128 ];
+			int len = ( int )_SendMessageW( hWnd, WM_GETTEXTLENGTH, 0, 0 ) + 1;	// Include the NULL character.
+			if ( len > 128 )
+			{
+				buf = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * len );
+			}
+			else
+			{
+				buf = tbuf;
+			}
+
+			if ( buf != NULL )
+			{
+				len = ( int )_SendMessageW( hWnd, WM_GETTEXT, len, ( LPARAM )buf );
+
+				_DrawTextW( hdcMem, buf, len, &rc, DT_NOPREFIX | DT_SINGLELINE | DT_CALCRECT );
+				_DrawTextW( hdcMem, buf, len, &rc, DT_NOPREFIX | DT_SINGLELINE );
+
+				if ( buf != tbuf )
+				{
+					GlobalFree( buf );
+				}
+			}
 
 			_SelectObject( hdcMem, ohf );
 
@@ -3052,10 +3093,6 @@ LRESULT CALLBACK DMStatusBarSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 					if ( g_sb_tracking_x >= rc.left && g_sb_tracking_x <= rc.right &&
 						 g_sb_tracking_y >= rc.top && g_sb_tracking_y <= rc.bottom )
 					{
-						//_SendMessageW( g_hWnd_status, SB_GETTIPTEXT, MAKEWPARAM( i, sizeof( wchar_t ) * 64 ), ( LPARAM )status_bar_tooltip_text );
-						DWORD ret = ( DWORD )_SendMessageW( g_hWnd_status, SB_GETTEXT, i, ( LPARAM )status_bar_tooltip_text );
-						status_bar_tooltip_text[ 63 ] = 0;
-
 						rc.right -= 2;	// We move the text left by 2px when drawing it. So the bounding width is essentially 2px less.
 
 						HDC hDC = _GetDC( hWnd );
@@ -3066,7 +3103,30 @@ LRESULT CALLBACK DMStatusBarSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 						rc_text.right = rc.right;
 						rc_text.top = rc.top;
 						rc_text.bottom = rc.bottom;
-						_DrawTextW( hDC, status_bar_tooltip_text, LOWORD( ret ), &rc_text, DT_NOPREFIX | DT_SINGLELINE | DT_VCENTER | DT_CALCRECT );
+
+						//_SendMessageW( g_hWnd_status, SB_GETTIPTEXT, MAKEWPARAM( i, sizeof( wchar_t ) * 64 ), ( LPARAM )status_bar_tooltip_text );
+						wchar_t *buf;
+						int len = ( int )_SendMessageW( hWnd, SB_GETTEXTLENGTH, i, 0 ) + 1;	// Include the NULL character.
+						if ( len > 64 )
+						{
+							buf = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * len );
+						}
+						else
+						{
+							buf = status_bar_tooltip_text;
+						}
+
+						if ( buf != NULL )
+						{
+							DWORD ret = ( DWORD )_SendMessageW( g_hWnd_status, SB_GETTEXT, i, ( LPARAM )buf );
+
+							_DrawTextW( hDC, buf, LOWORD( ret ), &rc_text, DT_NOPREFIX | DT_SINGLELINE | DT_VCENTER | DT_CALCRECT );
+
+							if ( buf != status_bar_tooltip_text )
+							{
+								GlobalFree( buf );
+							}
+						}
 
 						_SelectObject( hDC, ohf );
 						_ReleaseDC( hWnd, hDC );
@@ -3149,10 +3209,29 @@ LRESULT CALLBACK DMStatusBarSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 				// Transparent background for text.
 				_SetBkMode( hdcMem, TRANSPARENT );
 
-				wchar_t buf[ 64 ];
-				DWORD ret = ( DWORD )_SendMessageW( hWnd, SB_GETTEXT, i, ( LPARAM )buf );
-				buf[ 63 ] = 0;
-				_DrawTextW( hdcMem, buf, LOWORD( ret ), &rc, DT_NOPREFIX | DT_SINGLELINE | DT_VCENTER );
+				wchar_t *buf;
+				wchar_t tbuf[ 64 ];
+				int len = ( int )_SendMessageW( hWnd, SB_GETTEXTLENGTH, i, 0 ) + 1;	// Include the NULL character.
+				if ( len > 64 )
+				{
+					buf = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * len );
+				}
+				else
+				{
+					buf = tbuf;
+				}
+
+				if ( buf != NULL )
+				{
+					DWORD ret = ( DWORD )_SendMessageW( hWnd, SB_GETTEXT, i, ( LPARAM )buf );
+
+					_DrawTextW( hdcMem, buf, LOWORD( ret ), &rc, DT_NOPREFIX | DT_SINGLELINE | DT_VCENTER );
+
+					if ( buf != tbuf )
+					{
+						GlobalFree( buf );
+					}
+				}
 
 				_SelectObject( hdcMem, ohf );
 			}
@@ -3288,15 +3367,34 @@ LRESULT CALLBACK DMControlColorSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 				// Transparent background for text.
 				_SetBkMode( dis->hDC, TRANSPARENT );
 
-				wchar_t buf[ 128 ];
-				int len = ( int )_SendMessageW( dis->hwndItem, ( dis->CtlType == ODT_COMBOBOX ? CB_GETLBTEXT : LB_GETTEXT ), dis->itemID, ( LPARAM )buf );
+				wchar_t *buf;
+				wchar_t tbuf[ 128 ];
+				int len = ( int )_SendMessageW( hWnd, ( dis->CtlType == ODT_COMBOBOX ? CB_GETLBTEXTLEN : LB_GETTEXTLEN ), dis->itemID, 0 ) + 1;	// Include the NULL character.
+				if ( len > 128 )
+				{
+					buf = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * len );
+				}
+				else
+				{
+					buf = tbuf;
+				}
 
-				RECT rc;
-				rc.left = dis->rcItem.left + ( dis->CtlType == ODT_COMBOBOX ? 4 : 2 );
-				rc.top = dis->rcItem.top;
-				rc.right = dis->rcItem.right;
-				rc.bottom = dis->rcItem.bottom;
-				_DrawTextW( dis->hDC, buf, len, &rc, DT_NOPREFIX | DT_SINGLELINE | DT_VCENTER );
+				if ( buf != NULL )
+				{
+					int len = ( int )_SendMessageW( dis->hwndItem, ( dis->CtlType == ODT_COMBOBOX ? CB_GETLBTEXT : LB_GETTEXT ), dis->itemID, ( LPARAM )buf );
+
+					RECT rc;
+					rc.left = dis->rcItem.left + ( dis->CtlType == ODT_COMBOBOX ? 4 : 2 );
+					rc.top = dis->rcItem.top;
+					rc.right = dis->rcItem.right;
+					rc.bottom = dis->rcItem.bottom;
+					_DrawTextW( dis->hDC, buf, len, &rc, DT_NOPREFIX | DT_SINGLELINE | DT_VCENTER );
+
+					if ( buf != tbuf )
+					{
+						GlobalFree( buf );
+					}
+				}
 			}
 			else
 			{

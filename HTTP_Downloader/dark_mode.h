@@ -278,7 +278,8 @@ typedef HRGN ( WINAPI *pCreateRectRgnIndirect )( const RECT *lprect );
 
 // ntdll.dll
 // Undocumented
-typedef void ( WINAPIV *pRtlGetNtVersionNumbers )( LPDWORD major, LPDWORD minor, LPDWORD build );		// In ntdll.dll
+// Why does the 32-bit version crash when using WINAPIV?
+typedef void ( WINAPI *pRtlGetNtVersionNumbers )( LPDWORD major, LPDWORD minor, LPDWORD build );		// In ntdll.dll
 
 // Undocumented
 extern pRtlGetNtVersionNumbers					_RtlGetNtVersionNumbers;
