@@ -6089,21 +6089,49 @@ char GetHTTPRequestContent( SOCKET_CONTEXT *context, char *request_buffer, unsig
 
 				if ( context->post_info->directory != NULL && *context->post_info->directory != NULL )
 				{
-					int directory_length = MultiByteToWideChar( CP_UTF8, 0, context->post_info->directory, -1, NULL, 0 );	// Include the NULL terminator.
-					download_directory = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * directory_length );
-					MultiByteToWideChar( CP_UTF8, 0, context->post_info->directory, -1, download_directory, directory_length );
+					char *directory = context->post_info->directory;
+					int directory_length = MultiByteToWideChar( CP_UTF8, 0, directory, -1, NULL, 0 ) - 1;
+
+					// Remove any quotes.
+					if ( directory_length > 0 && directory[ 0 ] == '\"' )
+					{
+						--directory_length;
+						++directory;
+					}
+					if ( directory_length > 0 && directory[ directory_length - 1 ] == '\"' )
+					{
+						--directory_length;
+						directory[ directory_length ] = 0;	// Safe to zero out.
+					}
+
+					// Remove any trailing slash.
+					while ( directory_length > 0 )
+					{
+						if ( directory[ directory_length - 1 ] == '\\' )
+						{
+							--directory_length;
+							directory[ directory_length ] = 0;	// Safe to zero out.
+						}
+						else
+						{
+							break;
+						}
+					}
+
+					download_directory = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( directory_length + 1 ) );	// Include the NULL terminator.
+					MultiByteToWideChar( CP_UTF8, 0, directory, -1, download_directory, ( directory_length + 1 ) );
 
 					// See if the directory exits. If not, then we'll use the program's default.
-					if ( !( GetFileAttributesW( download_directory ) & FILE_ATTRIBUTE_DIRECTORY ) )
+					if ( CreateDirectoriesW( download_directory, NULL ) != FALSE )
+					{
+						use_download_directory = true;
+					}
+					else
 					{
 						GlobalFree( download_directory );
 						download_directory = NULL;
 
 						use_download_directory = false;
-					}
-					else
-					{
-						use_download_directory = true;
 					}
 				}
 				else

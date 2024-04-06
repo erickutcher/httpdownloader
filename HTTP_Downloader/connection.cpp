@@ -5284,10 +5284,22 @@ wchar_t *ParseURLSettings( wchar_t *url_list, ADD_INFO *ai )
 							}
 							else if ( *param_name_start == L'o' )
 							{
-								if ( GetFileAttributesW( param_value_start ) & FILE_ATTRIBUTE_DIRECTORY )
+								// Remove any quotes.
+								if ( param_value_start[ 0 ] == L'\"' )
+								{
+									--param_value_length;
+									++param_value_start;
+								}
+								if ( param_value_length > 0 && param_value_start[ param_value_length - 1 ] == L'\"' )
+								{
+									--param_value_length;
+									param_value_start[ param_value_length ] = 0;	// Safe to zero out.
+								}
+
+								if ( CreateDirectoriesW( param_value_start, NULL ) != FALSE )
 								{
 									// Remove any trailing slash.
-									while ( param_value_length != 0 )
+									while ( param_value_length > 0 )
 									{
 										if ( param_value_start[ param_value_length - 1 ] == L'\\' )
 										{

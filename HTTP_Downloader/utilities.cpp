@@ -1084,6 +1084,69 @@ int GetTemporaryFilePath( DOWNLOAD_INFO *di, wchar_t file_path[] )
 	return filename_length;
 }
 
+BOOL CreateDirectoriesW( LPWSTR lpPathName, LPSECURITY_ATTRIBUTES lpSecurityAttributes )
+{
+	BOOL ret = FALSE;
+
+	if ( lpPathName != NULL )
+	{
+		wchar_t *lpPathNamePtr = lpPathName;
+
+		while ( *lpPathNamePtr != NULL )
+		{
+			if ( *lpPathNamePtr == L':' && *( lpPathNamePtr + 1 ) == L'\\' )
+			{
+				lpPathNamePtr += 2;
+
+				break;
+			}
+
+			++lpPathNamePtr;
+		}
+
+		for ( ;; )
+		{
+			if ( *lpPathNamePtr == L'\\' || *lpPathNamePtr == L'/' || *lpPathNamePtr == NULL )
+			{
+				// We must replace forward slashes if we use "\\?\" at the beginning of the path.
+				if ( *lpPathNamePtr == L'/' )
+				{
+					*lpPathNamePtr = L'\\';
+				}
+
+				wchar_t tmp = *lpPathNamePtr;
+				*lpPathNamePtr = NULL;
+
+				DWORD gfa = GetFileAttributesW( lpPathName );
+				if ( gfa != INVALID_FILE_ATTRIBUTES && ( gfa & FILE_ATTRIBUTE_DIRECTORY ) )
+				{
+					ret = TRUE;
+				}
+				else
+				{
+					ret = CreateDirectoryW( lpPathName, lpSecurityAttributes );
+				}
+
+				*lpPathNamePtr = tmp;
+
+				if ( ret == FALSE )
+				{
+					break;
+				}
+			}
+
+			if ( *lpPathNamePtr == NULL )
+			{
+				break;
+			}
+
+			++lpPathNamePtr;
+		}
+	}
+
+	return ret;
+}
+
 int GetDomainParts( wchar_t *site, wchar_t *offsets[ 128 ] )
 {
 	int count = 0;

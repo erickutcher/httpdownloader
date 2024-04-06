@@ -268,7 +268,8 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 				{
 					++arg;	// Move to the supplied directory.
 
-					if ( GetFileAttributesW( szArgList[ arg ] ) & FILE_ATTRIBUTE_DIRECTORY )
+					DWORD gfa = GetFileAttributesW( szArgList[ arg ] );
+					if ( gfa != INVALID_FILE_ATTRIBUTES && ( gfa & FILE_ATTRIBUTE_DIRECTORY ) )
 					{
 						g_base_directory_length = lstrlenW( szArgList[ arg ] );
 						if ( g_base_directory_length >= MAX_PATH )
@@ -424,10 +425,10 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 						}
 						else if ( *arg_name == L'o' )
 						{
-							if ( GetFileAttributesW( szArgList[ arg + 1 ] ) & FILE_ATTRIBUTE_DIRECTORY )
+							if ( CreateDirectoriesW( szArgList[ arg + 1 ], NULL ) != FALSE )
 							{
 								// Remove any trailing slash.
-								while ( length != 0 )
+								while ( length > 0 )
 								{
 									if ( szArgList[ arg + 1 ][ length - 1 ] == L'\\' )
 									{

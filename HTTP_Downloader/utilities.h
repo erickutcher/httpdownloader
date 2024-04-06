@@ -69,6 +69,8 @@ unsigned long get_file_extension_offset( wchar_t *filename, unsigned long length
 void GetDownloadFilePath( DOWNLOAD_INFO *di, wchar_t file_path[] );
 int GetTemporaryFilePath( DOWNLOAD_INFO *di, wchar_t file_path[] );
 
+BOOL CreateDirectoriesW( LPWSTR lpPathName, LPSECURITY_ATTRIBUTES lpSecurityAttributes );
+
 wchar_t *GetDownloadInfoString( DOWNLOAD_INFO *di, int column, int root_index, int item_index, wchar_t *tbuf, unsigned short tbuf_size );
 
 char *escape_csv( const char *string );
