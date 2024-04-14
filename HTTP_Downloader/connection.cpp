@@ -5746,7 +5746,17 @@ DWORD WINAPI AddURL( void *add_info )
 		wchar_t *group_end = NULL;
 		wchar_t *next_url = NULL;	// The line after the group.
 
-		// See if we're overwriting the filename.
+		// Ignore anything before our URL/group (spaces, tabs, newlines, etc.)
+		while ( *url_list != 0 && ( *url_list == L'\r' ||
+									*url_list == L'\n' ||
+									*url_list == L' ' ||
+									*url_list == L'\t' ||
+									*url_list == L'\f' ) )
+		{
+			++url_list;
+		}
+
+		// See if we're overriding the filename.
 		wchar_t *filename_start = url_list;
 		wchar_t *filename_end;
 

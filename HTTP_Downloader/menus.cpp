@@ -1905,7 +1905,7 @@ void HandleCommand( HWND hWnd, WORD command )
 		{
 			if ( g_hWnd_add_urls == NULL )
 			{
-				g_hWnd_add_urls = _CreateWindowExW( ( g_is_windows_8_or_higher ? 0 : WS_EX_COMPOSITED ) | ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"class_add_urls", ST_V_Add_URL_s_, WS_CLIPCHILDREN | WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, 0, 600, 270, NULL, NULL, NULL, NULL );
+				g_hWnd_add_urls = _CreateWindowExW( ( g_is_windows_8_or_higher ? 0 : WS_EX_COMPOSITED ) | ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"class_add_urls", ST_V_Add_URL_s_, WS_CLIPCHILDREN | WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, 0, 620, 270, NULL, NULL, NULL, NULL );
 			}
 
 			_SendMessageW( g_hWnd_add_urls, WM_PROPAGATE, 0, 0 );
@@ -1982,7 +1982,7 @@ void HandleCommand( HWND hWnd, WORD command )
 		{
 			if ( g_hWnd_download_speed_limit == NULL )
 			{
-				g_hWnd_download_speed_limit = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"class_download_speed_limit", ST_V_Global_Download_Speed_Limit, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU, CW_USEDEFAULT, 0, 280, 123, NULL, NULL, NULL, NULL );
+				g_hWnd_download_speed_limit = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"class_download_speed_limit", ST_V_Global_Download_Speed_Limit, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU, CW_USEDEFAULT, 0, 330, 123, NULL, NULL, NULL, NULL );
 				_ShowWindow( g_hWnd_download_speed_limit, SW_SHOWNORMAL );
 			}
 			_SetForegroundWindow( g_hWnd_download_speed_limit );
@@ -2005,7 +2005,7 @@ void HandleCommand( HWND hWnd, WORD command )
 		{
 			if ( g_hWnd_options == NULL )
 			{
-				g_hWnd_options = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"class_options", ST_V_Options, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU /*| WS_THICKFRAME*/, CW_USEDEFAULT, 0, 735, 500, NULL, NULL, NULL, NULL );
+				g_hWnd_options = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"class_options", ST_V_Options, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU /*| WS_THICKFRAME*/, CW_USEDEFAULT, 0, 755, 500, NULL, NULL, NULL, NULL );
 				_ShowWindow( g_hWnd_options, SW_SHOWNORMAL );
 			}
 			_SetForegroundWindow( g_hWnd_options );
@@ -2042,7 +2042,7 @@ void HandleCommand( HWND hWnd, WORD command )
 
 			if ( g_hWnd_check_for_updates == NULL )
 			{
-				g_hWnd_check_for_updates = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"class_check_for_updates", ST_V_Check_For_Updates, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU, CW_USEDEFAULT, 0, 401, 137, NULL, NULL, NULL, NULL );
+				g_hWnd_check_for_updates = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"class_check_for_updates", ST_V_Check_For_Updates, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU, CW_USEDEFAULT, 0, 441, 137, NULL, NULL, NULL, NULL );
 
 				HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, CheckForUpdates, NULL, 0, NULL );
 				if ( thread != NULL )

@@ -6480,7 +6480,7 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 							rc.bottom = rc.left = rc.right = rc.top = 0;
 
 							SIZE size;
-							if ( _GetTextExtentPoint32W( hDC, hdi.pszText, lstrlenW( hdi.pszText ), &size ) == TRUE )
+							if ( _GetTextExtentPoint32W( hDC, hdi.pszText, lstrlenW( hdi.pszText ), &size ) != FALSE )
 							{
 								int width = size.cx + 12;	// 6 + 6 padding.
 								if ( width > largest_width )

@@ -208,7 +208,7 @@ LRESULT CALLBACK AdvancedTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 			/*HWND hWnd_static_hoz3 =*/ _CreateWindowW( WC_STATIC, NULL, SS_ETCHEDHORZ | WS_CHILD | WS_VISIBLE, 0, 471, rc.right - 10, 1, hWnd, NULL, NULL, NULL );
 
 
-			HWND hWnd_static_thread_count = _CreateWindowW( WC_STATIC, ST_V_Thread_pool_count_, WS_CHILD | WS_VISIBLE, 0, 486, 190, 15, hWnd, NULL, NULL, NULL );
+			HWND hWnd_static_thread_count = _CreateWindowW( WC_STATIC, ST_V_Thread_pool_count_, WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 			g_hWnd_thread_count = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 110, 482, 100, 23, hWnd, ( HMENU )EDIT_THREAD_COUNT, NULL, NULL );
 
 			g_hWnd_ud_thread_count = _CreateWindowW( UPDOWN_CLASS, NULL, UDS_ALIGNRIGHT | UDS_ARROWKEYS | UDS_NOTHOUSANDS | UDS_SETBUDDYINT | WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
@@ -223,6 +223,7 @@ LRESULT CALLBACK AdvancedTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 			_GetClientRect( g_hWnd_ud_thread_count, &rc_spinner );
 			int spinner_width = rc_spinner.right - rc_spinner.left;
 
+			_SetWindowPos( hWnd_static_thread_count, HWND_TOP, 0, 486, rc.right - ( 115 + spinner_width ), 15, SWP_NOZORDER );
 			_SetWindowPos( g_hWnd_thread_count, HWND_TOP, rc.right - ( 110 + spinner_width ), 482, 100, 23, SWP_NOZORDER );
 			_SetWindowPos( g_hWnd_ud_thread_count, HWND_TOP, rc.right - 10 - spinner_width, 482, 0, 0, SWP_NOZORDER | SWP_NOSIZE );
 

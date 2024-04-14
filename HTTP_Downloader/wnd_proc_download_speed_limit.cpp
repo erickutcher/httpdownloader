@@ -90,7 +90,7 @@ LRESULT CALLBACK DownloadSpeedLimitWndProc( HWND hWnd, UINT msg, WPARAM wParam, 
 			MONITORINFO mi;
 			mi.cbSize = sizeof( MONITORINFO );
 			_GetMonitorInfoW( hMon, &mi );
-			_SetWindowPos( hWnd, NULL, mi.rcMonitor.left + ( ( ( mi.rcMonitor.right - mi.rcMonitor.left ) - 280 ) / 2 ), mi.rcMonitor.top + ( ( ( mi.rcMonitor.bottom - mi.rcMonitor.top ) - height ) / 2 ), 280, height, 0 );
+			_SetWindowPos( hWnd, NULL, mi.rcMonitor.left + ( ( ( mi.rcMonitor.right - mi.rcMonitor.left ) - 330 ) / 2 ), mi.rcMonitor.top + ( ( ( mi.rcMonitor.bottom - mi.rcMonitor.top ) - height ) / 2 ), 330, height, 0 );
 
 #ifdef ENABLE_DARK_MODE
 			if ( g_use_dark_mode )

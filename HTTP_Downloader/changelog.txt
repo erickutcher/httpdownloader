@@ -1,3 +1,9 @@
+Version:	1.0.5.8
+Released:	2024-04-14
+
+Fixed rename override not working when newline is between URLs.
+Adjusted GUI layout to better fit long strings.
+
 Version:	1.0.5.7
 Released:	2024-04-06
 

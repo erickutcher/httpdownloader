@@ -112,7 +112,7 @@ VOID CALLBACK UpdateCheckTimerProc( HWND hWnd, UINT /*msg*/, UINT /*idTimer*/, D
 		// Create the update window so that our update check can send messages to it.
 		if ( g_hWnd_check_for_updates == NULL )
 		{
-			g_hWnd_check_for_updates = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"class_check_for_updates", ST_V_Check_For_Updates, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU, CW_USEDEFAULT, 0, 401, 137, NULL, NULL, NULL, NULL );
+			g_hWnd_check_for_updates = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"class_check_for_updates", ST_V_Check_For_Updates, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU, CW_USEDEFAULT, 0, 441, 137, NULL, NULL, NULL, NULL );
 
 			g_update_check_state = 2;	// Automatic update check.
 
@@ -2027,7 +2027,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 			{
 				if ( g_hWnd_add_urls == NULL )
 				{
-					g_hWnd_add_urls = _CreateWindowExW( ( g_is_windows_8_or_higher ? 0 : WS_EX_COMPOSITED ) | ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"class_add_urls", ST_V_Add_URL_s_, WS_CLIPCHILDREN | WS_OVERLAPPEDWINDOW, ( ( _GetSystemMetrics( SM_CXSCREEN ) - 600 ) / 2 ), ( ( _GetSystemMetrics( SM_CYSCREEN ) - 270 ) / 2 ), 600, 270, NULL, NULL, NULL, NULL );
+					g_hWnd_add_urls = _CreateWindowExW( ( g_is_windows_8_or_higher ? 0 : WS_EX_COMPOSITED ) | ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"class_add_urls", ST_V_Add_URL_s_, WS_CLIPCHILDREN | WS_OVERLAPPEDWINDOW, ( ( _GetSystemMetrics( SM_CXSCREEN ) - 620 ) / 2 ), ( ( _GetSystemMetrics( SM_CYSCREEN ) - 270 ) / 2 ), 620, 270, NULL, NULL, NULL, NULL );
 				}
 
 				_SendMessageW( g_hWnd_add_urls, WM_PROPAGATE, wParam, lParam );

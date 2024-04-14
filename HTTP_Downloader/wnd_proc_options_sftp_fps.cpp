@@ -275,9 +275,9 @@ LRESULT CALLBACK SFTPFpsTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 			HWND hWnd_static_sftp_fps_fingerprint = _CreateWindowW( WC_STATIC, ST_V_Fingerprint_, WS_CHILD | WS_VISIBLE, 350, 337, rc.right - 350, 15, hWnd, NULL, NULL, NULL );
 			g_hWnd_edit_sftp_fps_fingerprint = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 350, 355, rc.right - 350, 23, hWnd, ( HMENU )EDIT_SFH_FINGERPRINT, NULL, NULL );
 
-			g_hWnd_new_fps_host = _CreateWindowW( WC_BUTTON, ST_V_New, WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 388, 80, 23, hWnd, ( HMENU )BTN_SFH_NEW_HOST, NULL, NULL );
-			g_hWnd_save_fps_host = _CreateWindowW( WC_BUTTON, ST_V_Save, WS_CHILD | WS_TABSTOP | WS_VISIBLE, 85, 388, 80, 23, hWnd, ( HMENU )BTN_SFH_SAVE_HOST, NULL, NULL );
-			g_hWnd_remove_fps_host = _CreateWindowW( WC_BUTTON, ST_V_Remove, WS_CHILD | WS_DISABLED | WS_TABSTOP | WS_VISIBLE, 170, 388, 80, 23, hWnd, ( HMENU )BTN_SFH_REMOVE_HOST, NULL, NULL );
+			g_hWnd_new_fps_host = _CreateWindowW( WC_BUTTON, ST_V_New, WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 388, 105, 23, hWnd, ( HMENU )BTN_SFH_NEW_HOST, NULL, NULL );
+			g_hWnd_save_fps_host = _CreateWindowW( WC_BUTTON, ST_V_Save, WS_CHILD | WS_TABSTOP | WS_VISIBLE, 110, 388, 105, 23, hWnd, ( HMENU )BTN_SFH_SAVE_HOST, NULL, NULL );
+			g_hWnd_remove_fps_host = _CreateWindowW( WC_BUTTON, ST_V_Remove, WS_CHILD | WS_DISABLED | WS_TABSTOP | WS_VISIBLE, 220, 388, 105, 23, hWnd, ( HMENU )BTN_SFH_REMOVE_HOST, NULL, NULL );
 
 			_SendMessageW( g_hWnd_edit_sftp_fps_host, EM_LIMITTEXT, MAX_DOMAIN_LENGTH, 0 );
 

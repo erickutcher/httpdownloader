@@ -786,7 +786,7 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			MONITORINFO mi;
 			mi.cbSize = sizeof( MONITORINFO );
 			_GetMonitorInfoW( hMon, &mi );
-			_SetWindowPos( hWnd, NULL, mi.rcMonitor.left + ( ( ( mi.rcMonitor.right - mi.rcMonitor.left ) - 735 ) / 2 ), mi.rcMonitor.top + ( ( ( mi.rcMonitor.bottom - mi.rcMonitor.top ) - height ) / 2 ), 735, height, 0 );
+			_SetWindowPos( hWnd, NULL, mi.rcMonitor.left + ( ( ( mi.rcMonitor.right - mi.rcMonitor.left ) - 755 ) / 2 ), mi.rcMonitor.top + ( ( ( mi.rcMonitor.bottom - mi.rcMonitor.top ) - height ) / 2 ), 755, height, 0 );
 
 			_SetFocus( g_hWnd_options_tree );
 

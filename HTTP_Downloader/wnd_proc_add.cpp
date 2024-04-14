@@ -431,7 +431,7 @@ LRESULT CALLBACK AddTabSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 			// Allow our controls to move in relation to the parent window.
 			HDWP hdwp = _BeginDeferWindowPos( 1 );
 
-			_DeferWindowPos( hdwp, g_hWnd_btn_authentication, HWND_TOP, 250, ( rc_tab.bottom - rc_tab.top ) + 65, 232, 72, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_btn_authentication, HWND_TOP, 280, ( rc_tab.bottom - rc_tab.top ) + 65, 272, 72, SWP_NOZORDER );
 
 			_EndDeferWindowPos( hdwp );
 		}
@@ -527,7 +527,7 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 	{
 		case WM_CREATE:
 		{
-			HWND hWnd_static_urls = _CreateWindowW( WC_STATIC, ST_V_URL_s__, WS_CHILD | WS_VISIBLE, 10, 22, 70, 15, hWnd, NULL, NULL, NULL );
+			HWND hWnd_static_urls = _CreateWindowW( WC_STATIC, ST_V_URL_s__, WS_CHILD | WS_VISIBLE, 10, 22, 90, 15, hWnd, NULL, NULL, NULL );
 			g_hWnd_edit_add = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, WS_CHILD | WS_TABSTOP | ES_AUTOHSCROLL | ES_MULTILINE | WS_HSCROLL | WS_VSCROLL | WS_VISIBLE, 0, 0, 0, 0, hWnd, ( HMENU )EDIT_ADD_URLS, NULL, NULL );
 
 			_SendMessageW( g_hWnd_edit_add, EM_LIMITTEXT, 0, 0 );	// Maximum size.
@@ -562,7 +562,7 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 			g_hWnd_chk_add_enable_download_parts = _CreateWindowW( WC_BUTTON, ST_V_Download_parts_, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP, 0, 0, 0, 0, hWnd, ( HMENU )CHK_ADD_ENABLE_DOWNLOAD_PARTS, NULL, NULL );
 			// Needs dimensions so that the spinner control can size itself.
-			g_hWnd_download_parts = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_DISABLED, 20, 203, 85, 23, hWnd, ( HMENU )EDIT_DOWNLOAD_PARTS, NULL, NULL );
+			g_hWnd_download_parts = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_DISABLED, 20, 203, 100, 23, hWnd, ( HMENU )EDIT_DOWNLOAD_PARTS, NULL, NULL );
 
 			g_hWnd_ud_download_parts = _CreateWindowW( UPDOWN_CLASS, NULL, UDS_ALIGNRIGHT | UDS_ARROWKEYS | UDS_NOTHOUSANDS | UDS_SETBUDDYINT | WS_CHILD | WS_DISABLED, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 
@@ -720,7 +720,7 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			// Need these windows to be created last to preserve tab order.
 
 			DWORD enabled = ( pcre2_state == PCRE2_STATE_RUNNING ? 0 : WS_DISABLED );
-			g_hWnd_static_regex_filter = _CreateWindowW( WC_STATIC, ST_V_RegEx_filter_, /*SS_OWNERDRAW |*/ SS_RIGHT | WS_CHILD | WS_VISIBLE | enabled, 85, 14, 90, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_static_regex_filter = _CreateWindowW( WC_STATIC, ST_V_RegEx_filter_, /*SS_OWNERDRAW |*/ SS_RIGHT | WS_CHILD | WS_VISIBLE | enabled, 105, 14, 90, 15, hWnd, NULL, NULL, NULL );
 			// Needs dimensions so that list displays in XP.
 			g_hWnd_regex_filter_preset = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_COMBOBOX, NULL, CBS_AUTOHSCROLL | CBS_DROPDOWNLIST | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE | enabled | CBS_DARK_MODE, 0, 0, 100, 23, hWnd, ( HMENU )CB_REGEX_FILTER_PRESET, NULL, NULL );
 			_SendMessageW( g_hWnd_regex_filter_preset, CB_ADDSTRING, 0, ( LPARAM )ST_V_Custom );
@@ -882,7 +882,7 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			MONITORINFO mi;
 			mi.cbSize = sizeof( MONITORINFO );
 			_GetMonitorInfoW( hMon, &mi );
-			_SetWindowPos( hWnd, NULL, mi.rcMonitor.left + ( ( ( mi.rcMonitor.right - mi.rcMonitor.left ) - 600 ) / 2 ), mi.rcMonitor.top + ( ( ( mi.rcMonitor.bottom - mi.rcMonitor.top ) - MIN_SIMPLE_HEIGHT ) / 2 ), 600, MIN_SIMPLE_HEIGHT, 0 );
+			_SetWindowPos( hWnd, NULL, mi.rcMonitor.left + ( ( ( mi.rcMonitor.right - mi.rcMonitor.left ) - 620 ) / 2 ), mi.rcMonitor.top + ( ( ( mi.rcMonitor.bottom - mi.rcMonitor.top ) - MIN_SIMPLE_HEIGHT ) / 2 ), 620, MIN_SIMPLE_HEIGHT, 0 );
 
 #ifdef ENABLE_DARK_MODE
 			if ( g_use_dark_mode )
@@ -1019,8 +1019,8 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			// Allow our controls to move in relation to the parent window.
 			HDWP hdwp = _BeginDeferWindowPos( ( use_add_split ? 52 : 53 ) );
 
-			_DeferWindowPos( hdwp, g_hWnd_regex_filter_preset, HWND_TOP, 180, 10, 0, 0, SWP_NOZORDER | SWP_NOSIZE );
-			_DeferWindowPos( hdwp, g_hWnd_regex_filter, HWND_TOP, 285, 10, rc.right - 369, 23, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_regex_filter_preset, HWND_TOP, 200, 10, 0, 0, SWP_NOZORDER | SWP_NOSIZE );
+			_DeferWindowPos( hdwp, g_hWnd_regex_filter, HWND_TOP, 305, 10, rc.right - 389, 23, SWP_NOZORDER );
 			_DeferWindowPos( hdwp, g_hWnd_btn_apply_filter, HWND_TOP, rc.right - 80, 10, 70, 23, SWP_NOZORDER );
 
 			_DeferWindowPos( hdwp, g_hWnd_edit_add, HWND_BOTTOM, 10, 40, rc.right - 20, rc.bottom - ( g_show_advanced ? 326 : 83 ), 0 );
@@ -1033,20 +1033,20 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			_DeferWindowPos( hdwp, g_hWnd_download_directory, HWND_TOP, 20, tab_child_y_offset + 30, rc.right - 80, 23, SWP_NOZORDER );
 			_DeferWindowPos( hdwp, g_hWnd_btn_download_directory, HWND_TOP, rc.right - 55, tab_child_y_offset + 30, 35, 23, SWP_NOZORDER );
 
-			_DeferWindowPos( hdwp, g_hWnd_chk_add_enable_download_parts, HWND_TOP, 20, tab_child_y_offset + 63, 115, 20, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_download_parts, HWND_TOP, 20, tab_child_y_offset + 83, 85, 23, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_ud_download_parts, HWND_TOP, 105, tab_child_y_offset + 83, 0, 0, SWP_NOZORDER | SWP_NOSIZE );
+			_DeferWindowPos( hdwp, g_hWnd_chk_add_enable_download_parts, HWND_TOP, 20, tab_child_y_offset + 63, 120, 20, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_download_parts, HWND_TOP, 20, tab_child_y_offset + 83, 100, 23, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_ud_download_parts, HWND_TOP, 120, tab_child_y_offset + 83, 0, 0, SWP_NOZORDER | SWP_NOSIZE );
 
-			_DeferWindowPos( hdwp, g_hWnd_static_ssl_version, HWND_TOP, 140, tab_child_y_offset + 65, 115, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_ssl_version, HWND_TOP, 140, tab_child_y_offset + 83, 0, 0, SWP_NOZORDER | SWP_NOSIZE );
+			_DeferWindowPos( hdwp, g_hWnd_static_ssl_version, HWND_TOP, 164, tab_child_y_offset + 65, 125, 15, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_ssl_version, HWND_TOP, 164, tab_child_y_offset + 83, 0, 0, SWP_NOZORDER | SWP_NOSIZE );
 
-			_DeferWindowPos( hdwp, g_hWnd_chk_add_enable_speed_limit, HWND_TOP, 20, tab_child_y_offset + 116, 200, 20, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_chk_add_enable_speed_limit, HWND_TOP, 20, tab_child_y_offset + 116, 250, 20, SWP_NOZORDER );
 			_DeferWindowPos( hdwp, g_hWnd_add_speed_limit, HWND_TOP, 20, tab_child_y_offset + 136, 200, 23, SWP_NOZORDER );
 
-			_DeferWindowPos( hdwp, g_hWnd_static_username, HWND_TOP, 271, tab_child_y_offset + 84, 100, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_edit_username, HWND_TOP, 271, tab_child_y_offset + 102, 100, 23, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_static_password, HWND_TOP, 381, tab_child_y_offset + 84, 100, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_edit_password, HWND_TOP, 381, tab_child_y_offset + 102, 100, 23, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_static_username, HWND_TOP, 301, tab_child_y_offset + 84, 120, 15, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_edit_username, HWND_TOP, 301, tab_child_y_offset + 102, 120, 23, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_static_password, HWND_TOP, 431, tab_child_y_offset + 84, 120, 15, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_edit_password, HWND_TOP, 431, tab_child_y_offset + 102, 120, 23, SWP_NOZORDER );
 
 			_DeferWindowPos( hdwp, g_hWnd_chk_simulate_download, HWND_TOP, 20, tab_child_y_offset + 169, 400, 23, SWP_NOZORDER );
 
@@ -1090,7 +1090,7 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			_DeferWindowPos( hdwp, g_hWnd_static_add_auth_ident_username_socks, HWND_TOP, 20, tab_child_y_offset + 118, 400, 15, SWP_NOZORDER );
 			_DeferWindowPos( hdwp, g_hWnd_add_auth_ident_username_socks, HWND_TOP, 20, tab_child_y_offset + 136, 150, 23, SWP_NOZORDER );
 
-			_DeferWindowPos( hdwp, g_hWnd_chk_add_resolve_domain_names_v4a, HWND_TOP, 20, tab_child_y_offset + 164, 400, 20, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_chk_add_resolve_domain_names_v4a, HWND_TOP, 20, tab_child_y_offset + 164, rc.right - 40, 20, SWP_NOZORDER );
 
 
 			// v5
@@ -1103,7 +1103,7 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			_DeferWindowPos( hdwp, g_hWnd_static_add_auth_password_socks, HWND_TOP, 195, tab_child_y_offset + 138, 150, 15, SWP_NOZORDER );
 			_DeferWindowPos( hdwp, g_hWnd_add_auth_password_socks, HWND_TOP, 195, tab_child_y_offset + 156, 150, 23, SWP_NOZORDER );
 
-			_DeferWindowPos( hdwp, g_hWnd_chk_add_resolve_domain_names, HWND_TOP, 20, tab_child_y_offset + 184, 400, 20, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_chk_add_resolve_domain_names, HWND_TOP, 20, tab_child_y_offset + 184, rc.right - 40, 20, SWP_NOZORDER );
 
 			//
 
@@ -1134,7 +1134,7 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 		case WM_GETMINMAXINFO:
 		{
 			// Set the minimum dimensions that the window can be sized to.
-			( ( MINMAXINFO * )lParam )->ptMinTrackSize.x = 600;
+			( ( MINMAXINFO * )lParam )->ptMinTrackSize.x = 620;
 			( ( MINMAXINFO * )lParam )->ptMinTrackSize.y = ( g_show_advanced ? MIN_ADVANCED_HEIGHT : MIN_SIMPLE_HEIGHT );
 
 			return 0;

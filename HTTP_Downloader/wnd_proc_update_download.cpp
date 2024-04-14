@@ -406,7 +406,7 @@ LRESULT CALLBACK UpdateTabSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lP
 			// Allow our controls to move in relation to the parent window.
 			HDWP hdwp = _BeginDeferWindowPos( 1 );
 
-			_DeferWindowPos( hdwp, g_hWnd_btn_update_authentication, HWND_TOP, 250, ( rc_tab.bottom - rc_tab.top ) + 10, 232, 72, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_btn_update_authentication, HWND_TOP, 280, ( rc_tab.bottom - rc_tab.top ) + 10, 272, 72, SWP_NOZORDER );
 
 			_EndDeferWindowPos( hdwp );
 		}
@@ -528,7 +528,7 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 			// Owner draw the static control. It causes the entire window to flicker when it's disabled.
 			g_hWnd_static_update_download_parts = _CreateWindowW( WC_STATIC, ST_V_Download_parts_, /*SS_OWNERDRAW |*/ WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 			// Needs dimensions so that the spinner control can size itself.
-			g_hWnd_update_download_parts = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 85, 23, hWnd, ( HMENU )EDIT_UPDATE_DOWNLOAD_PARTS, NULL, NULL );
+			g_hWnd_update_download_parts = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 100, 23, hWnd, ( HMENU )EDIT_UPDATE_DOWNLOAD_PARTS, NULL, NULL );
 
 			g_hWnd_ud_update_download_parts = _CreateWindowW( UPDOWN_CLASS, NULL, UDS_ALIGNRIGHT | UDS_ARROWKEYS | UDS_NOTHOUSANDS | UDS_SETBUDDYINT | WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 
@@ -880,20 +880,20 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 
 			//
 
-			_DeferWindowPos( hdwp, g_hWnd_static_update_download_parts, HWND_TOP, 20, tab_child_y_offset + 10, 115, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_update_download_parts, HWND_TOP, 20, tab_child_y_offset + 28, 85, 23, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_ud_update_download_parts, HWND_TOP, 105, tab_child_y_offset + 28, 0, 0, SWP_NOZORDER | SWP_NOSIZE );
+			_DeferWindowPos( hdwp, g_hWnd_static_update_download_parts, HWND_TOP, 20, tab_child_y_offset + 10, 120, 15, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_update_download_parts, HWND_TOP, 20, tab_child_y_offset + 28, 100, 23, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_ud_update_download_parts, HWND_TOP, 120, tab_child_y_offset + 28, 0, 0, SWP_NOZORDER | SWP_NOSIZE );
 
-			_DeferWindowPos( hdwp, g_hWnd_static_update_ssl_version, HWND_TOP, 140, tab_child_y_offset + 10, 115, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_update_ssl_version, HWND_TOP, 140, tab_child_y_offset + 28, 0, 0, SWP_NOZORDER | SWP_NOSIZE );
+			_DeferWindowPos( hdwp, g_hWnd_static_update_ssl_version, HWND_TOP, 164, tab_child_y_offset + 10, 125, 15, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_update_ssl_version, HWND_TOP, 164, tab_child_y_offset + 28, 0, 0, SWP_NOZORDER | SWP_NOSIZE );
 
-			_DeferWindowPos( hdwp, g_hWnd_static_update_speed_limit, HWND_TOP, 20, tab_child_y_offset + 63, 200, 15, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_static_update_speed_limit, HWND_TOP, 20, tab_child_y_offset + 63, 250, 15, SWP_NOZORDER );
 			_DeferWindowPos( hdwp, g_hWnd_update_speed_limit, HWND_TOP, 20, tab_child_y_offset + 81, 200, 23, SWP_NOZORDER );
 
-			_DeferWindowPos( hdwp, g_hWnd_static_update_username, HWND_TOP, 271, tab_child_y_offset + 29, 100, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_edit_update_username, HWND_TOP, 271, tab_child_y_offset + 47, 100, 23, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_static_update_password, HWND_TOP, 381, tab_child_y_offset + 29, 100, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_edit_update_password, HWND_TOP, 381, tab_child_y_offset + 47, 100, 23, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_static_update_username, HWND_TOP, 301, tab_child_y_offset + 29, 120, 15, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_edit_update_username, HWND_TOP, 301, tab_child_y_offset + 47, 120, 23, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_static_update_password, HWND_TOP, 431, tab_child_y_offset + 29, 120, 15, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_edit_update_password, HWND_TOP, 431, tab_child_y_offset + 47, 120, 23, SWP_NOZORDER );
 
 			//
 
@@ -935,7 +935,7 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 			_DeferWindowPos( hdwp, g_hWnd_static_update_auth_ident_username_socks, HWND_TOP, 20, tab_child_y_offset + 118, 400, 15, SWP_NOZORDER );
 			_DeferWindowPos( hdwp, g_hWnd_update_auth_ident_username_socks, HWND_TOP, 20, tab_child_y_offset + 136, 150, 23, SWP_NOZORDER );
 
-			_DeferWindowPos( hdwp, g_hWnd_chk_update_resolve_domain_names_v4a, HWND_TOP, 20, tab_child_y_offset + 164, 400, 20, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_chk_update_resolve_domain_names_v4a, HWND_TOP, 20, tab_child_y_offset + 164, rc.right - 40, 20, SWP_NOZORDER );
 
 
 			// v5
@@ -948,7 +948,7 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 			_DeferWindowPos( hdwp, g_hWnd_static_update_auth_password_socks, HWND_TOP, 195, tab_child_y_offset + 138, 150, 15, SWP_NOZORDER );
 			_DeferWindowPos( hdwp, g_hWnd_update_auth_password_socks, HWND_TOP, 195, tab_child_y_offset + 156, 150, 23, SWP_NOZORDER );
 
-			_DeferWindowPos( hdwp, g_hWnd_chk_update_resolve_domain_names, HWND_TOP, 20, tab_child_y_offset + 184, 400, 20, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_chk_update_resolve_domain_names, HWND_TOP, 20, tab_child_y_offset + 184, rc.right - 40, 20, SWP_NOZORDER );
 
 			//
 

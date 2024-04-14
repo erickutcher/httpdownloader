@@ -56,10 +56,10 @@ LRESULT CALLBACK CheckForUpdatesWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPA
 			g_hWnd_static_current_version = _CreateWindowW( WC_STATIC, current_version, WS_CHILD | WS_VISIBLE, 10, 30, rc.right - 20, 15, hWnd, NULL, NULL, NULL );
 			g_hWnd_static_latest_version = _CreateWindowW( WC_STATIC, ST_V_Latest_version_, WS_CHILD | WS_VISIBLE, 10, 50, rc.right - 20, 15, hWnd, NULL, NULL, NULL );
 
-			g_hWnd_visit_home_page = _CreateWindowW( WC_BUTTON, ST_V_Visit_Home_Page, WS_CHILD | WS_TABSTOP, 10, 75, 155, 23, hWnd, ( HMENU )BTN_VISIT_HOME_PAGE, NULL, NULL );
-			g_hWnd_download_update = _CreateWindowW( WC_BUTTON, ST_V_Download_Update, WS_CHILD | WS_TABSTOP, 10, 75, 155, 23, hWnd, ( HMENU )BTN_DOWNLOAD_UPDATE, NULL, NULL );
-			g_hWnd_view_changelog = _CreateWindowW( WC_BUTTON, ST_V_View_Changelog, WS_CHILD | WS_TABSTOP | WS_VISIBLE, 170, 75, 130, 23, hWnd, ( HMENU )BTN_VIEW_CHANGELOG, NULL, NULL );
-			g_hWnd_check_updates_cancel = _CreateWindowW( WC_BUTTON, ST_V_Cancel, WS_CHILD | WS_TABSTOP | WS_VISIBLE, 305, 75, 80, 23, hWnd, ( HMENU )BTN_CHECK_UPDATES_CANCEL, NULL, NULL );
+			g_hWnd_visit_home_page = _CreateWindowW( WC_BUTTON, ST_V_Visit_Home_Page, WS_CHILD | WS_TABSTOP, 10, 75, 175, 23, hWnd, ( HMENU )BTN_VISIT_HOME_PAGE, NULL, NULL );
+			g_hWnd_download_update = _CreateWindowW( WC_BUTTON, ST_V_Download_Update, WS_CHILD | WS_TABSTOP, 10, 75, 175, 23, hWnd, ( HMENU )BTN_DOWNLOAD_UPDATE, NULL, NULL );
+			g_hWnd_view_changelog = _CreateWindowW( WC_BUTTON, ST_V_View_Changelog, WS_CHILD | WS_TABSTOP | WS_VISIBLE, 190, 75, 150, 23, hWnd, ( HMENU )BTN_VIEW_CHANGELOG, NULL, NULL );
+			g_hWnd_check_updates_cancel = _CreateWindowW( WC_BUTTON, ST_V_Cancel, WS_CHILD | WS_TABSTOP | WS_VISIBLE, 345, 75, 80, 23, hWnd, ( HMENU )BTN_CHECK_UPDATES_CANCEL, NULL, NULL );
 
 			_SendMessageW( g_hWnd_static_check_for_updates, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 			_SendMessageW( g_hWnd_static_current_version, WM_SETFONT, ( WPARAM )g_hFont, 0 );
@@ -77,7 +77,7 @@ LRESULT CALLBACK CheckForUpdatesWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPA
 			MONITORINFO mi;
 			mi.cbSize = sizeof( MONITORINFO );
 			_GetMonitorInfoW( hMon, &mi );
-			_SetWindowPos( hWnd, NULL, mi.rcMonitor.left + ( ( ( mi.rcMonitor.right - mi.rcMonitor.left ) - 401 ) / 2 ), mi.rcMonitor.top + ( ( ( mi.rcMonitor.bottom - mi.rcMonitor.top ) - height ) / 2 ), 401, height, 0 );
+			_SetWindowPos( hWnd, NULL, mi.rcMonitor.left + ( ( ( mi.rcMonitor.right - mi.rcMonitor.left ) - 441 ) / 2 ), mi.rcMonitor.top + ( ( ( mi.rcMonitor.bottom - mi.rcMonitor.top ) - height ) / 2 ), 441, height, 0 );
 
 #ifdef ENABLE_DARK_MODE
 			if ( g_use_dark_mode )
