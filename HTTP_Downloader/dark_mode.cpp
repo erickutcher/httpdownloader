@@ -5042,6 +5042,34 @@ BOOL CALLBACK EnumMsgBoxChildProc( HWND hWnd, LPARAM /*lParam*/ )
 	int ret = _GetClassNameW( hWnd, buf, 64 );
 	if ( ret == 6 && _StrCmpNW( buf, L"Button", 6 ) == 0 )
 	{
+		LONG_PTR style = _GetWindowLongPtrW( hWnd, GWL_STYLE );
+
+		if ( ( style & 0x0000000F ) == BS_AUTOCHECKBOX )
+		{
+			// Bits look like this (right to left):
+			// Bit 1 0x01: color state 1: hovered
+			// Bit 2 0x02: color state 2: down
+			// Bit 3 0x04: is hovered
+			// Bit 4 0x08: is down
+			// Bit 5 0x10: was enabled
+			// Bit 6 0x20: was disabled
+			// Bit 7 0x40: was checked
+			// Bit 8 0x80: in bounds
+			// Bit 9 0x100: only paint when we invalidate the region.
+			_SetPropW( hWnd, L"STATE", ( HANDLE )0x100 );
+
+			if ( hIL_buttons == NULL )
+			{
+				_wmemcpy_s( g_program_directory + g_program_directory_length, MAX_PATH - g_program_directory_length, L"\\buttons.bmp\0", 13 );
+				if ( GetFileAttributesW( g_program_directory ) != INVALID_FILE_ATTRIBUTES )
+				{
+					hIL_buttons = _ImageList_LoadImageW( NULL, g_program_directory, 13, 0, ( COLORREF )RGB( 0xFF, 0x00, 0xFF ), IMAGE_BITMAP, LR_LOADFROMFILE | LR_CREATEDIBSECTION );
+				}
+			}
+
+			SetSubclass( hWnd, &DMCBRBSubProc, &g_sci_cbrb );
+		}
+
 		_SetWindowTheme( hWnd, L"DarkMode_Explorer", NULL );
 	}
 
