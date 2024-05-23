@@ -643,12 +643,14 @@ RETRY_OPEN:
 
 									// Use Authentication
 									offset += sizeof( bool );
-									if ( offset >= read ) { goto CLEANUP; }
+									if ( offset > read ) { goto CLEANUP; }
 									_memcpy_s( &proxy_use_authentication, sizeof( bool ), p, sizeof( bool ) );
 									p += sizeof( bool );
 
 									if ( proxy_use_authentication )
 									{
+										//if ( offset == read ) { goto CLEANUP; }
+
 										// Proxy Username
 										offset += sizeof( unsigned short );
 										if ( offset >= read ) { goto CLEANUP; }

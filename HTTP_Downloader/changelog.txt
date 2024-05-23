@@ -1,3 +1,8 @@
+Version:	1.0.5.9
+Released:	2024-05-23
+
+Fixed Site Manager settings not saving correctly.
+
 Version:	1.0.5.8
 Released:	2024-04-14
 
