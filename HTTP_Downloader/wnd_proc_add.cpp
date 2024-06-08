@@ -59,35 +59,37 @@
 #define EDIT_ADD_URLS						1013
 
 #define BTN_ADD_DOWNLOAD					1014
+#define BTN_VERIFY_DOWNLOAD					1015
 
 //
 
-#define CB_ADD_PROXY_TYPE					1015
+#define CB_ADD_PROXY_TYPE					1016
 
-#define BTN_ADD_TYPE_HOST_SOCKS				1016
-#define BTN_ADD_TYPE_IP_ADDRESS_SOCKS		1017
-#define EDIT_ADD_HOST_SOCKS					1018
-#define EDIT_ADD_IP_ADDRESS_SOCKS			1019
-#define EDIT_ADD_PORT_SOCKS					1020
+#define BTN_ADD_TYPE_HOST_SOCKS				1017
+#define BTN_ADD_TYPE_IP_ADDRESS_SOCKS		1018
+#define EDIT_ADD_HOST_SOCKS					1019
+#define EDIT_ADD_IP_ADDRESS_SOCKS			1020
+#define EDIT_ADD_PORT_SOCKS					1021
 
-#define EDIT_ADD_PROXY_AUTH_USERNAME		1021
-#define EDIT_ADD_PROXY_AUTH_PASSWORD		1022
+#define EDIT_ADD_PROXY_AUTH_USERNAME		1022
+#define EDIT_ADD_PROXY_AUTH_PASSWORD		1023
 
-#define EDIT_ADD_AUTH_IDENT_USERNAME_SOCKS	1023
+#define EDIT_ADD_AUTH_IDENT_USERNAME_SOCKS	1024
 
-#define BTN_ADD_RESOLVE_DOMAIN_NAMES_V4A	1024
+#define BTN_ADD_RESOLVE_DOMAIN_NAMES_V4A	1025
 
-#define BTN_ADD_AUTHENTICATION_SOCKS		1025
+#define BTN_ADD_AUTHENTICATION_SOCKS		1026
 
-#define EDIT_ADD_AUTH_USERNAME_SOCKS		1026
-#define EDIT_ADD_AUTH_PASSWORD_SOCKS		1027
+#define EDIT_ADD_AUTH_USERNAME_SOCKS		1027
+#define EDIT_ADD_AUTH_PASSWORD_SOCKS		1028
 
-#define BTN_ADD_RESOLVE_DOMAIN_NAMES		1028
+#define BTN_ADD_RESOLVE_DOMAIN_NAMES		1029
 
 //
 
 #define MENU_ADD_SPLIT_DOWNLOAD				10000
 #define MENU_ADD_SPLIT_ADD					10001
+#define MENU_ADD_SPLIT_VERIFY				10002
 
 HWND g_hWnd_add_urls = NULL;
 
@@ -130,6 +132,7 @@ HWND g_hWnd_chk_show_advanced_options = NULL;
 
 HWND g_hWnd_btn_download = NULL;
 HWND g_hWnd_btn_add_download = NULL;
+HWND g_hWnd_btn_verify_download = NULL;
 HWND g_hWnd_cancel = NULL;
 
 HWND g_hWnd_static_regex_filter = NULL;
@@ -188,7 +191,7 @@ IDropTarget *Add_DropTarget;
 bool use_add_split = false;
 HMENU g_hMenu_add_split = NULL;
 
-unsigned char add_split_type = 0;	// 0 = Download, 1 = Add
+unsigned char add_split_type = 0;	// 0 = Download, 1 = Add, 2 = Verify
 
 HBRUSH g_add_tab_brush = NULL;
 int g_add_tab_width = 0;
@@ -713,6 +716,7 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			{
 				g_hWnd_btn_download = _CreateWindowW( WC_BUTTON, ST_V_Download, BS_DEFPUSHBUTTON | WS_CHILD | WS_DISABLED | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, ( HMENU )BTN_DOWNLOAD, NULL, NULL );
 				g_hWnd_btn_add_download = _CreateWindowW( WC_BUTTON, ST_V_Add, WS_CHILD | WS_DISABLED | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, ( HMENU )BTN_ADD_DOWNLOAD, NULL, NULL );
+				g_hWnd_btn_verify_download = _CreateWindowW( WC_BUTTON, ST_V_Verify, WS_CHILD | WS_DISABLED | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, ( HMENU )BTN_VERIFY_DOWNLOAD, NULL, NULL );
 			}
 
 			g_hWnd_cancel = _CreateWindowW( WC_BUTTON, ST_V_Cancel, WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, ( HMENU )BTN_ADD_CANCEL, NULL, NULL );
@@ -753,12 +757,18 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			mii.wID = MENU_ADD_SPLIT_ADD;
 			_InsertMenuItemW( g_hMenu_add_split, 1, TRUE, &mii );
 
+			mii.dwTypeData = ST_V_Verify;
+			mii.cch = ST_L_Verify;
+			mii.wID = MENU_ADD_SPLIT_VERIFY;
+			_InsertMenuItemW( g_hMenu_add_split, 2, TRUE, &mii );
+
 			_SetFocus( g_hWnd_edit_add );
 
 			_SendMessageW( g_hWnd_btn_download, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 			if ( !use_add_split )
 			{
 				_SendMessageW( g_hWnd_btn_add_download, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+				_SendMessageW( g_hWnd_btn_verify_download, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 			}
 			_SendMessageW( g_hWnd_cancel, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 			_SendMessageW( hWnd_static_urls, WM_SETFONT, ( WPARAM )g_hFont, 0 );
@@ -1017,7 +1027,7 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			int tab_child_y_offset = ( rc_tab.bottom - rc_tab.top ) + ( rc.bottom - 276 );
 
 			// Allow our controls to move in relation to the parent window.
-			HDWP hdwp = _BeginDeferWindowPos( ( use_add_split ? 52 : 53 ) );
+			HDWP hdwp = _BeginDeferWindowPos( ( use_add_split ? 52 : 54 ) );
 
 			_DeferWindowPos( hdwp, g_hWnd_regex_filter_preset, HWND_TOP, 200, 10, 0, 0, SWP_NOZORDER | SWP_NOSIZE );
 			_DeferWindowPos( hdwp, g_hWnd_regex_filter, HWND_TOP, 305, 10, rc.right - 389, 23, SWP_NOZORDER );
@@ -1115,8 +1125,9 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			}
 			else
 			{
-				_DeferWindowPos( hdwp, g_hWnd_btn_download, HWND_TOP, rc.right - 260, rc.bottom - 33, 80, 23, SWP_NOZORDER );
-				_DeferWindowPos( hdwp, g_hWnd_btn_add_download, HWND_TOP, rc.right - 175, rc.bottom - 33, 80, 23, SWP_NOZORDER );
+				_DeferWindowPos( hdwp, g_hWnd_btn_download, HWND_TOP, rc.right - 345, rc.bottom - 33, 80, 23, SWP_NOZORDER );
+				_DeferWindowPos( hdwp, g_hWnd_btn_add_download, HWND_TOP, rc.right - 260, rc.bottom - 33, 80, 23, SWP_NOZORDER );
+				_DeferWindowPos( hdwp, g_hWnd_btn_verify_download, HWND_TOP, rc.right - 175, rc.bottom - 33, 80, 23, SWP_NOZORDER );
 			}
 			_DeferWindowPos( hdwp, g_hWnd_cancel, HWND_TOP, rc.right - 90, rc.bottom - 33, 80, 23, SWP_NOZORDER );
 			_EndDeferWindowPos( hdwp );
@@ -1369,6 +1380,7 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 				case IDOK:
 				case BTN_DOWNLOAD:
 				case BTN_ADD_DOWNLOAD:
+				case BTN_VERIFY_DOWNLOAD:
 				{
 					unsigned int download_operations = ( _SendMessageW( g_hWnd_chk_simulate_download, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? DOWNLOAD_OPERATION_SIMULATE : DOWNLOAD_OPERATION_NONE );
 
@@ -1432,7 +1444,16 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 							ai->ssl_version = ( char )_SendMessageW( g_hWnd_ssl_version, CB_GETCURSEL, 0, 0 );
 
-							ai->download_operations = download_operations | ( LOWORD( wParam ) == BTN_ADD_DOWNLOAD || add_split_type == 1 ? DOWNLOAD_OPERATION_ADD_STOPPED : DOWNLOAD_OPERATION_NONE );
+							if ( LOWORD( wParam ) == BTN_ADD_DOWNLOAD || add_split_type == 1 )
+							{
+								download_operations |= DOWNLOAD_OPERATION_ADD_STOPPED;
+							}
+							else if ( LOWORD( wParam ) == BTN_VERIFY_DOWNLOAD || add_split_type == 2 )
+							{
+								download_operations |= DOWNLOAD_OPERATION_VERIFY;
+							}
+
+							ai->download_operations = download_operations;
 
 							int utf8_length;
 
@@ -1680,6 +1701,14 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 				}
 				break;
 
+				case MENU_ADD_SPLIT_VERIFY:
+				{
+					add_split_type = 2;
+
+					_SendMessageW( g_hWnd_btn_download, WM_SETTEXT, 0, ( LPARAM )ST_V_Verify );
+				}
+				break;
+
 				case EDIT_ADD_URLS:
 				{
 					if ( HIWORD( wParam ) == EN_UPDATE )
@@ -1689,6 +1718,7 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 						if ( !use_add_split )
 						{
 							_EnableWindow( g_hWnd_btn_add_download, enable );
+							_EnableWindow( g_hWnd_btn_verify_download, enable );
 						}
 					}
 				}
@@ -1992,7 +2022,13 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 					if ( use_add_split )
 					{
-						if ( cla->download_operations & DOWNLOAD_OPERATION_ADD_STOPPED )
+						if ( cla->download_operations & DOWNLOAD_OPERATION_VERIFY )
+						{
+							add_split_type = 2;
+
+							_SendMessageW( g_hWnd_btn_download, WM_SETTEXT, 0, ( LPARAM )ST_V_Verify );
+						}
+						else if ( cla->download_operations & DOWNLOAD_OPERATION_ADD_STOPPED )
 						{
 							add_split_type = 1;
 
@@ -2010,9 +2046,18 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 					else
 					{
 						// Adjust the default push button since SetFocus doesn't work.
-						if ( cla->download_operations & DOWNLOAD_OPERATION_ADD_STOPPED )
+						if ( cla->download_operations & DOWNLOAD_OPERATION_VERIFY )
 						{
 							_SetWindowLongPtrW( g_hWnd_btn_download, GWL_STYLE, _GetWindowLongPtrW( g_hWnd_btn_download, GWL_STYLE ) & ~BS_DEFPUSHBUTTON );
+							_SetWindowLongPtrW( g_hWnd_btn_add_download, GWL_STYLE, _GetWindowLongPtrW( g_hWnd_btn_add_download, GWL_STYLE ) & ~BS_DEFPUSHBUTTON );
+							_SetWindowLongPtrW( g_hWnd_btn_verify_download, GWL_STYLE, _GetWindowLongPtrW( g_hWnd_btn_verify_download, GWL_STYLE ) | BS_DEFPUSHBUTTON );
+
+							hWnd_focus = g_hWnd_btn_verify_download;
+						}
+						else if ( cla->download_operations & DOWNLOAD_OPERATION_ADD_STOPPED )
+						{
+							_SetWindowLongPtrW( g_hWnd_btn_download, GWL_STYLE, _GetWindowLongPtrW( g_hWnd_btn_download, GWL_STYLE ) & ~BS_DEFPUSHBUTTON );
+							_SetWindowLongPtrW( g_hWnd_btn_verify_download, GWL_STYLE, _GetWindowLongPtrW( g_hWnd_btn_verify_download, GWL_STYLE ) & ~BS_DEFPUSHBUTTON );
 							_SetWindowLongPtrW( g_hWnd_btn_add_download, GWL_STYLE, _GetWindowLongPtrW( g_hWnd_btn_add_download, GWL_STYLE ) | BS_DEFPUSHBUTTON );
 
 							hWnd_focus = g_hWnd_btn_add_download;
@@ -2020,6 +2065,7 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 						else
 						{
 							_SetWindowLongPtrW( g_hWnd_btn_add_download, GWL_STYLE, _GetWindowLongPtrW( g_hWnd_btn_add_download, GWL_STYLE ) & ~BS_DEFPUSHBUTTON );
+							_SetWindowLongPtrW( g_hWnd_btn_verify_download, GWL_STYLE, _GetWindowLongPtrW( g_hWnd_btn_verify_download, GWL_STYLE ) & ~BS_DEFPUSHBUTTON );
 							_SetWindowLongPtrW( g_hWnd_btn_download, GWL_STYLE, _GetWindowLongPtrW( g_hWnd_btn_download, GWL_STYLE ) | BS_DEFPUSHBUTTON );
 
 							hWnd_focus = g_hWnd_btn_download;
@@ -2216,8 +2262,10 @@ LRESULT CALLBACK AddURLsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			if ( !use_add_split )
 			{
 				_EnableWindow( g_hWnd_btn_add_download, FALSE );
+				_EnableWindow( g_hWnd_btn_verify_download, FALSE );
 
 				_SetWindowLongPtrW( g_hWnd_btn_add_download, GWL_STYLE, _GetWindowLongPtrW( g_hWnd_btn_add_download, GWL_STYLE ) & ~BS_DEFPUSHBUTTON );
+				_SetWindowLongPtrW( g_hWnd_btn_verify_download, GWL_STYLE, _GetWindowLongPtrW( g_hWnd_btn_verify_download, GWL_STYLE ) & ~BS_DEFPUSHBUTTON );
 				_SetWindowLongPtrW( g_hWnd_btn_download, GWL_STYLE, _GetWindowLongPtrW( g_hWnd_btn_download, GWL_STYLE ) | BS_DEFPUSHBUTTON );
 			}
 

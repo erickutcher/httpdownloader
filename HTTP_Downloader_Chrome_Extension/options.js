@@ -46,17 +46,36 @@ function RestoreOptions()
 	} );
 }
 
+function GetItems( item_type )
+{
+	var get_type = [ "get_images", "get_media", "get_links", "get_page" ];
+
+	chrome.runtime.sendMessage( { type: get_type[ item_type ] } );
+}
+
 document.addEventListener( "DOMContentLoaded", function()
 {
 	document.querySelectorAll( "[data-i18n]" ).forEach( el =>
 	{
-		el.innerText = chrome.i18n.getMessage( el.dataset.i18n );
+		if ( el.id == "get_images" || el.id == "get_media" || el.id == "get_links" || el.id == "get_page" )
+		{
+			el.title = chrome.i18n.getMessage( el.dataset.i18n );
+		}
+		else
+		{
+			el.innerText = chrome.i18n.getMessage( el.dataset.i18n );
+		}
 	} );
 
 	document.getElementById( "ok" ).addEventListener( "click", function(){ SaveOptions(); window.close(); } );
 	document.getElementById( "cancel" ).addEventListener( "click", function(){ window.close(); } );
 	document.getElementById( "apply" ).addEventListener( "click", SaveOptions );
 	document.getElementById( "override" ).addEventListener( "change", DisableCheckbox );
+
+	document.getElementById( "get_images" ).addEventListener( "click", () => { GetItems( 0 ); } );
+	document.getElementById( "get_media" ).addEventListener( "click", () => { GetItems( 1 ); } );
+	document.getElementById( "get_links" ).addEventListener( "click", () => { GetItems( 2 ); } );
+	document.getElementById( "get_page" ).addEventListener( "click", () => { GetItems( 3 ); } );
 
 	RestoreOptions();
 } );

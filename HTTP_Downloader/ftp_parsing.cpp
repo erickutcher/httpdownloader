@@ -980,49 +980,57 @@ char ProcessFTPFileInfo( SOCKET_CONTEXT *context )
 
 	char content_status = FTP_CONTENT_STATUS_NONE;
 
-	if ( context->download_info != NULL && !( context->download_info->shared_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
+	if ( context->download_info != NULL )
 	{
-		content_status = HandleLastModifiedPrompt( context );
-
-		if ( content_status != FTP_CONTENT_STATUS_NONE )
+		// This won't be true since it happens when we get the file status (213).
+		if ( context->download_info->shared_info->download_operations & DOWNLOAD_OPERATION_VERIFY )
 		{
-			return content_status;
+			return FTP_CONTENT_STATUS_FAILED;	// Bail before we download more.
 		}
-
-		content_status = HandleFileSizePrompt( context );
-
-		if ( content_status != FTP_CONTENT_STATUS_NONE )
+		else if ( !( context->download_info->shared_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
 		{
-			return content_status;
-		}
-
-		if ( !context->is_allocated )
-		{
-			// Returns either FTP_CONTENT_STATUS_FAILED, FTP_CONTENT_STATUS_ALLOCATE_FILE, or FTP_CONTENT_STATUS_NONE.
-			content_status = context->content_status = AllocateFile( context, IO_ResumeGetContent );
+			content_status = HandleLastModifiedPrompt( context );
 
 			if ( content_status != FTP_CONTENT_STATUS_NONE )
 			{
 				return content_status;
 			}
-		}
-		else
-		{
-			EnterCriticalSection( &context->download_info->di_cs );
 
-			context->download_info->status = STATUS_DOWNLOADING;
-			context->status = STATUS_DOWNLOADING;
+			content_status = HandleFileSizePrompt( context );
 
-			LeaveCriticalSection( &context->download_info->di_cs );
-
-			// For groups.
-			if ( IS_GROUP( context->download_info ) )
+			if ( content_status != FTP_CONTENT_STATUS_NONE )
 			{
-				EnterCriticalSection( &context->download_info->shared_info->di_cs );
+				return content_status;
+			}
 
-				context->download_info->shared_info->status = STATUS_DOWNLOADING;
+			if ( !context->is_allocated )
+			{
+				// Returns either FTP_CONTENT_STATUS_FAILED, FTP_CONTENT_STATUS_ALLOCATE_FILE, or FTP_CONTENT_STATUS_NONE.
+				content_status = context->content_status = AllocateFile( context, IO_ResumeGetContent );
 
-				LeaveCriticalSection( &context->download_info->shared_info->di_cs );
+				if ( content_status != FTP_CONTENT_STATUS_NONE )
+				{
+					return content_status;
+				}
+			}
+			else
+			{
+				EnterCriticalSection( &context->download_info->di_cs );
+
+				context->download_info->status = STATUS_DOWNLOADING;
+				context->status = STATUS_DOWNLOADING;
+
+				LeaveCriticalSection( &context->download_info->di_cs );
+
+				// For groups.
+				if ( IS_GROUP( context->download_info ) )
+				{
+					EnterCriticalSection( &context->download_info->shared_info->di_cs );
+
+					context->download_info->shared_info->status = STATUS_DOWNLOADING;
+
+					LeaveCriticalSection( &context->download_info->shared_info->di_cs );
+				}
 			}
 		}
 	}
@@ -1555,6 +1563,11 @@ char GetFTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, unsi
 										bad_content_length = true;
 									}
 								}
+							}
+
+							if ( context->download_info->shared_info->download_operations & DOWNLOAD_OPERATION_VERIFY )
+							{
+								bad_content_length = true;	// Bail before we download more.
 							}
 
 							LeaveCriticalSection( &context->download_info->shared_info->di_cs );

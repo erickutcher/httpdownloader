@@ -108,8 +108,8 @@
 
 #define CURRENT_VERSION_A	1
 #define CURRENT_VERSION_B	0
-#define CURRENT_VERSION_C	5
-#define CURRENT_VERSION_D	9
+#define CURRENT_VERSION_C	6
+#define CURRENT_VERSION_D	0
 
 #define CURRENT_VERSION		( ( CURRENT_VERSION_A << 24 ) | \
 							  ( CURRENT_VERSION_B << 16 ) | \
@@ -372,6 +372,7 @@ extern bool cfg_set_filetime;
 extern bool cfg_update_redirected;
 extern bool cfg_download_non_200_206;
 extern bool cfg_move_to_trash;
+extern bool cfg_override_list_prompts;
 extern bool cfg_use_one_instance;
 extern bool cfg_enable_drop_window;
 extern bool cfg_prevent_standby;

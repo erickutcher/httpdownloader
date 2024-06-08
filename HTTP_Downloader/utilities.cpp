@@ -99,6 +99,7 @@ bool cfg_set_filetime = true;
 bool cfg_update_redirected = false;
 bool cfg_download_non_200_206 = false;
 bool cfg_move_to_trash = false;
+bool cfg_override_list_prompts = false;
 bool cfg_use_one_instance = false;
 bool cfg_enable_drop_window = false;
 bool cfg_prevent_standby = true;

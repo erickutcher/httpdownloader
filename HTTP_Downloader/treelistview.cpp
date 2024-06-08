@@ -4801,11 +4801,21 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 					break;
 				}
 
-				if ( _GetKeyState( VK_SHIFT ) & 0x8000 && wParam == 'E' )
+				if ( _GetKeyState( VK_SHIFT ) & 0x8000 )
 				{
-					if ( !in_worker_thread )
+					if ( wParam == 'E' )
 					{
-						HandleCommand( hWnd, MENU_LIST_EDIT_MODE );
+						if ( !in_worker_thread )
+						{
+							HandleCommand( hWnd, MENU_LIST_EDIT_MODE );
+						}
+					}
+					else if ( wParam == 'R' )
+					{
+						if ( !in_worker_thread )
+						{
+							HandleCommand( hWnd, MENU_REMOVE_COMPLETED );
+						}
 					}
 				}
 			}

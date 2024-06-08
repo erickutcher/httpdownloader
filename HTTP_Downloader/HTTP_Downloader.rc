@@ -63,8 +63,8 @@ IDI_ICON_TRAY           ICON                    "icon_tray.ico"
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 1,0,5,9
- PRODUCTVERSION 1,0,5,9
+ FILEVERSION 1,0,6,0
+ PRODUCTVERSION 1,0,6,0
  FILEFLAGSMASK 0x17L
 #ifdef _DEBUG
  FILEFLAGS 0x1L
@@ -81,12 +81,12 @@ BEGIN
         BEGIN
             VALUE "Comments", "HTTP Downloader is made free under the GPLv3 license."
             VALUE "FileDescription", "HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections."
-            VALUE "FileVersion", "1, 0, 5, 9"
+            VALUE "FileVersion", "1, 0, 6, 0"
             VALUE "InternalName", "HTTP Downloader"
             VALUE "LegalCopyright", "Copyright © 2015-2024 Eric Kutcher"
             VALUE "OriginalFilename", "HTTP_Downloader.exe"
             VALUE "ProductName", "HTTP Downloader"
-            VALUE "ProductVersion", "1, 0, 5, 9"
+            VALUE "ProductVersion", "1, 0, 6, 0"
         END
     END
     BLOCK "VarFileInfo"

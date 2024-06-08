@@ -124,7 +124,7 @@ STRING_TABLE_DATA menu_string_table[] =
 	{ L"Remove", 6 },
 	{ L"Remove and Delete\tCtrl+Del", 26 },
 	{ L"Remove and Delete", 17 },
-	{ L"Remove Completed", 16 },
+	{ L"Remove Completed\tCtrl+Shift+R", 29 },
 	{ L"Rename\tF2", 9 },
 	{ L"Rename", 6 },
 	{ L"Restart", 7 },
@@ -188,6 +188,7 @@ STRING_TABLE_DATA options_advanced_string_table[] =
 	{ L"Log off", 7 },
 	{ L"Move deleted downloads to Recycle Bin", 37 },
 	{ L"None", 4 },
+	{ L"Override download list action prompts", 37 },
 	{ L"Overwrite File", 14 },
 	{ L"Prevent system standby while downloads are active", 49 },
 	{ L"Rename File", 11 },
@@ -382,6 +383,7 @@ STRING_TABLE_DATA add_urls_string_table[] =
 	{ L"URL(s):", 7 },
 	{ L"Use proxy:", 10 },
 	{ L"Username:", 9 },
+	{ L"Verify", 6 },
 	{ L"Videos", 6 }
 };
 
@@ -402,9 +404,9 @@ STRING_TABLE_DATA site_manager_string_table[] =
 	{ L"********", 8 },
 	{ L"[...]", 5 },
 	{ L"Add", 3 },
-	{ L"Add Stopped", 11 },
 	{ L"Close", 5 },
 	{ L"Disable", 7 },
+	{ L"Download operation:", 19 },
 	{ L"Download Operations", 19 },
 	{ L"Download Parts", 14 },
 	{ L"Empty Body", 10 },

@@ -337,7 +337,13 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 				}
 				else if ( arg_name_length == 11 && _StrCmpNIW( arg_name, L"add-stopped", 11 ) == 0 )	// Add the download in the Stopped state.
 				{
+					cla->download_operations &= ~DOWNLOAD_OPERATION_VERIFY;
 					cla->download_operations |= DOWNLOAD_OPERATION_ADD_STOPPED;
+				}
+				else if ( arg_name_length == 6 && _StrCmpNIW( arg_name, L"verify", 6 ) == 0 )	// Verify the URL can be downloaded.
+				{
+					cla->download_operations &= ~DOWNLOAD_OPERATION_ADD_STOPPED;
+					cla->download_operations |= DOWNLOAD_OPERATION_VERIFY;
 				}
 				else if ( arg_name_length == 9 && _StrCmpNIW( arg_name, L"immediate", 9 ) == 0 )	// Download immediately.
 				{

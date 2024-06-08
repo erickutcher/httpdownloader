@@ -81,7 +81,7 @@ Queue
 Remove
 Remove and Delete\tCtrl+Del
 Remove and Delete
-Remove Completed
+Remove Completed\tCtrl+Shift+R
 Rename\tF2
 Rename
 Restart
@@ -137,6 +137,7 @@ Lock
 Log off
 Move deleted downloads to Recycle Bin
 None
+Override download list action prompts
 Overwrite File
 Prevent system standby while downloads are active
 Rename File
@@ -295,6 +296,7 @@ SSL / TLS version:
 URL(s):
 Use proxy:
 Username:
+Verify
 Videos
 Match case
 Match whole word
@@ -307,9 +309,9 @@ Search Type
 ********
 [...]
 Add
-Add Stopped
 Close
 Disable
+Download operation:
 Download Operations
 Download Parts
 Empty Body

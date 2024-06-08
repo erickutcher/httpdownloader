@@ -1038,8 +1038,8 @@ void CreateMenus()
 	mii.wID = MENU_REMOVE;
 	_InsertMenuItemW( g_hMenuSub_edit, 14, TRUE, &mii );
 
-	mii.dwTypeData = ST_V_Remove_Completed;
-	mii.cch = ST_L_Remove_Completed;
+	mii.dwTypeData = ST_V_Remove_Completed_;
+	mii.cch = ST_L_Remove_Completed_;
 	mii.wID = MENU_REMOVE_COMPLETED;
 	_InsertMenuItemW( g_hMenuSub_edit, 15, TRUE, &mii );
 
@@ -1657,7 +1657,7 @@ void HandleCommand( HWND hWnd, WORD command )
 
 		case MENU_RESTART:
 		{
-			if ( CMessageBoxW( hWnd, ST_V_PROMPT_restart_selected_entries, PROGRAM_CAPTION, /*CMB_APPLMODAL |*/ CMB_ICONWARNING | CMB_YESNO ) == CMBIDYES )
+			if ( cfg_override_list_prompts || CMessageBoxW( hWnd, ST_V_PROMPT_restart_selected_entries, PROGRAM_CAPTION, /*CMB_APPLMODAL |*/ CMB_ICONWARNING | CMB_YESNO ) == CMBIDYES )
 			{
 				HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, handle_connection, ( void * )STATUS_RESTART, 0, NULL );
 				if ( thread != NULL )
@@ -1803,7 +1803,7 @@ void HandleCommand( HWND hWnd, WORD command )
 
 		case MENU_REMOVE:
 		{
-			if ( CMessageBoxW( hWnd, ST_V_PROMPT_remove_selected_entries, PROGRAM_CAPTION, /*CMB_APPLMODAL |*/ CMB_ICONWARNING | CMB_YESNO ) == CMBIDYES )
+			if ( cfg_override_list_prompts || CMessageBoxW( hWnd, ST_V_PROMPT_remove_selected_entries, PROGRAM_CAPTION, /*CMB_APPLMODAL |*/ CMB_ICONWARNING | CMB_YESNO ) == CMBIDYES )
 			{
 				HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, remove_items, ( void * )0, 0, NULL );
 				if ( thread != NULL )
@@ -1816,7 +1816,7 @@ void HandleCommand( HWND hWnd, WORD command )
 
 		case MENU_REMOVE_COMPLETED:
 		{
-			if ( CMessageBoxW( hWnd, ST_V_PROMPT_remove_completed_entries, PROGRAM_CAPTION, /*CMB_APPLMODAL |*/ CMB_ICONWARNING | CMB_YESNO ) == CMBIDYES )
+			if ( cfg_override_list_prompts || CMessageBoxW( hWnd, ST_V_PROMPT_remove_completed_entries, PROGRAM_CAPTION, /*CMB_APPLMODAL |*/ CMB_ICONWARNING | CMB_YESNO ) == CMBIDYES )
 			{
 				HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, handle_download_list, ( void * )2, 0, NULL );
 				if ( thread != NULL )
@@ -1829,7 +1829,7 @@ void HandleCommand( HWND hWnd, WORD command )
 
 		case MENU_REMOVE_AND_DELETE:
 		{
-			if ( CMessageBoxW( hWnd, ST_V_PROMPT_remove_and_delete_selected_entries, PROGRAM_CAPTION, /*CMB_APPLMODAL |*/ CMB_ICONWARNING | CMB_YESNO ) == CMBIDYES )
+			if ( cfg_override_list_prompts || CMessageBoxW( hWnd, ST_V_PROMPT_remove_and_delete_selected_entries, PROGRAM_CAPTION, /*CMB_APPLMODAL |*/ CMB_ICONWARNING | CMB_YESNO ) == CMBIDYES )
 			{
 				HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, remove_items, ( void * )1, 0, NULL );
 				if ( thread != NULL )
@@ -1852,7 +1852,7 @@ void HandleCommand( HWND hWnd, WORD command )
 
 		case MENU_DELETE:
 		{
-			if ( CMessageBoxW( hWnd, ST_V_PROMPT_delete_selected_files, PROGRAM_CAPTION, /*CMB_APPLMODAL |*/ CMB_ICONWARNING | CMB_YESNO ) == CMBIDYES )
+			if ( cfg_override_list_prompts || CMessageBoxW( hWnd, ST_V_PROMPT_delete_selected_files, PROGRAM_CAPTION, /*CMB_APPLMODAL |*/ CMB_ICONWARNING | CMB_YESNO ) == CMBIDYES )
 			{
 				HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, delete_files, ( void * )NULL, 0, NULL );
 				if ( thread != NULL )

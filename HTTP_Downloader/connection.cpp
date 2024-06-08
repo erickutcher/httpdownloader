@@ -5237,7 +5237,13 @@ wchar_t *ParseURLSettings( wchar_t *url_list, ADD_INFO *ai )
 				}
 				else if ( param_name_length == 11 && _StrCmpNIW( param_name_start, L"add-stopped", 11 ) == 0 )	// Add the download in the Stopped state.
 				{
+					ai->download_operations &= ~DOWNLOAD_OPERATION_VERIFY;
 					ai->download_operations |= DOWNLOAD_OPERATION_ADD_STOPPED;
+				}
+				else if ( param_name_length == 6 && _StrCmpNIW( param_name_start, L"verify", 6 ) == 0 )	// Verify the URL can be downloaded.
+				{
+					ai->download_operations &= ~DOWNLOAD_OPERATION_ADD_STOPPED;
+					ai->download_operations |= DOWNLOAD_OPERATION_VERIFY;
 				}
 				else if ( ( param_name_length == 13 && _StrCmpNIW( param_name_start, L"cookie-string", 13 ) == 0 ) ||
 						  ( param_name_length == 9 && _StrCmpNIW( param_name_start, L"post-data", 9 ) == 0 ) ||
@@ -7829,12 +7835,16 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 					incomplete_part = true;
 				}
 
+				// Don't retry the download if we're verifying it.
+				bool verifying_download = ( di->shared_info->download_operations & DOWNLOAD_OPERATION_VERIFY ? true : false );
+
 				// Connecting, Downloading, Paused.
-				if ( incomplete_part &&
-					 context->retries < cfg_retry_parts_count &&
-				   ( IS_STATUS( context->status,
-						STATUS_CONNECTING |
-						STATUS_DOWNLOADING ) ) )
+				if ( !verifying_download &&
+					  incomplete_part &&
+					  context->retries < cfg_retry_parts_count &&
+				    ( IS_STATUS( context->status,
+						 STATUS_CONNECTING |
+						 STATUS_DOWNLOADING ) ) )
 				{
 					++context->retries;
 
@@ -8213,7 +8223,8 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 							{
 								if ( incomplete_download )
 								{
-									if ( di->retries < cfg_retry_downloads_count )
+									if ( !verifying_download &&
+										  di->retries < cfg_retry_downloads_count )
 									{
 										++di->retries;
 
@@ -8254,6 +8265,30 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 
 							bool free_shared_info = false;
 							EnterCriticalSection( &shared_info->di_cs );
+
+							// Remove the flag so we can resume downloading the file.
+							shared_info->download_operations &= ~DOWNLOAD_OPERATION_VERIFY;
+
+							// If we're verifying the download, then reset the range values so we can start at the beginning.
+							if ( verifying_download )
+							{
+								range_node = shared_info->range_list;
+
+								while ( range_node != NULL )
+								{
+									RANGE_INFO *ri = ( RANGE_INFO * )range_node->data;
+									if ( ri != NULL )
+									{
+										ri->content_length = 0;
+										ri->content_offset = 0;
+										ri->range_start = 0;
+										ri->range_end = 0;
+										ri->file_write_offset = 0;
+									}
+
+									range_node = range_node->next;
+								}
+							}
 
 							// For groups.
 							if ( is_group )

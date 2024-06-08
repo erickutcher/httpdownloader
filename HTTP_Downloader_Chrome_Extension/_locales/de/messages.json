@@ -103,6 +103,10 @@
 		"message": "Hinzufügen"
 	},
 
+	"verify": {
+		"message": "Überprüfen"
+	},
+
 	"cancel": {
 		"message": "Abbrechen"
 	},

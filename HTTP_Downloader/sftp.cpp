@@ -35,49 +35,56 @@ char SFTP_ProcessFileInfo( SOCKET_CONTEXT *context )
 
 	char content_status = SFTP_CONTENT_STATUS_NONE;
 
-	if ( context->download_info != NULL && !( context->download_info->shared_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
+	if ( context->download_info != NULL )
 	{
-		content_status = HandleLastModifiedPrompt( context );
-
-		if ( content_status != SFTP_CONTENT_STATUS_NONE )
+		if ( context->download_info->shared_info->download_operations & DOWNLOAD_OPERATION_VERIFY )
 		{
-			return content_status;
+			return SFTP_CONTENT_STATUS_FAILED;	// Bail before we download more.
 		}
-
-		content_status = HandleFileSizePrompt( context );
-
-		if ( content_status != SFTP_CONTENT_STATUS_NONE )
+		else if ( !( context->download_info->shared_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
 		{
-			return content_status;
-		}
-
-		if ( !context->is_allocated )
-		{
-			// Returns either SFTP_CONTENT_STATUS_FAILED, SFTP_CONTENT_STATUS_ALLOCATE_FILE, or SFTP_CONTENT_STATUS_NONE.
-			content_status = context->content_status = AllocateFile( context, IO_SFTPResumeReadContent );
+			content_status = HandleLastModifiedPrompt( context );
 
 			if ( content_status != SFTP_CONTENT_STATUS_NONE )
 			{
 				return content_status;
 			}
-		}
-		else
-		{
-			EnterCriticalSection( &context->download_info->di_cs );
 
-			context->download_info->status = STATUS_DOWNLOADING;
-			context->status = STATUS_DOWNLOADING;
+			content_status = HandleFileSizePrompt( context );
 
-			LeaveCriticalSection( &context->download_info->di_cs );
-
-			// For groups.
-			if ( IS_GROUP( context->download_info ) )
+			if ( content_status != SFTP_CONTENT_STATUS_NONE )
 			{
-				EnterCriticalSection( &context->download_info->shared_info->di_cs );
+				return content_status;
+			}
 
-				context->download_info->shared_info->status = STATUS_DOWNLOADING;
+			if ( !context->is_allocated )
+			{
+				// Returns either SFTP_CONTENT_STATUS_FAILED, SFTP_CONTENT_STATUS_ALLOCATE_FILE, or SFTP_CONTENT_STATUS_NONE.
+				content_status = context->content_status = AllocateFile( context, IO_SFTPResumeReadContent );
 
-				LeaveCriticalSection( &context->download_info->shared_info->di_cs );
+				if ( content_status != SFTP_CONTENT_STATUS_NONE )
+				{
+					return content_status;
+				}
+			}
+			else
+			{
+				EnterCriticalSection( &context->download_info->di_cs );
+
+				context->download_info->status = STATUS_DOWNLOADING;
+				context->status = STATUS_DOWNLOADING;
+
+				LeaveCriticalSection( &context->download_info->di_cs );
+
+				// For groups.
+				if ( IS_GROUP( context->download_info ) )
+				{
+					EnterCriticalSection( &context->download_info->shared_info->di_cs );
+
+					context->download_info->shared_info->status = STATUS_DOWNLOADING;
+
+					LeaveCriticalSection( &context->download_info->shared_info->di_cs );
+				}
 			}
 		}
 	}

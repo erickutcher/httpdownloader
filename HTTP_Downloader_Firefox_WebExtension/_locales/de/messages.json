@@ -103,6 +103,10 @@
 		"message": "Hinzufügen"
 	},
 
+	"verify": {
+		"message": "Überprüfen"
+	},
+
 	"cancel": {
 		"message": "Abbrechen"
 	},
@@ -139,7 +143,7 @@
 		"message": "Vor dem Download URL(s) hinzufügen anzeigen"
 	},
 
-	"save": {
+	"save_options": {
 		"message": "Speichern"
 	},
 

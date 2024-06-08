@@ -77,7 +77,7 @@
 #define EDIT_SM_SPEED_LIMIT					1015
 
 #define CHK_SM_SIMULATE_DOWNLOAD			1016
-#define CHK_SM_ADD_STOPPED					1017
+#define CB_SM_DOWNLOAD_OPERATION			1017
 
 //
 
@@ -160,7 +160,8 @@ HWND g_hWnd_static_sm_password = NULL;
 HWND g_hWnd_edit_sm_password = NULL;
 
 HWND g_hWnd_chk_sm_simulate_download = NULL;
-HWND g_hWnd_chk_sm_add_in_stopped_state = NULL;
+HWND g_hWnd_static_sm_download_operation = NULL;
+HWND g_hWnd_sm_download_operation = NULL;
 
 HWND g_hWnd_new_site = NULL;
 HWND g_hWnd_save_site = NULL;
@@ -336,7 +337,27 @@ wchar_t *GetSiteInfoString( SITE_INFO *si, int column, int item_index, wchar_t *
 					buf[ buf_offset++ ] = L' ';
 				}
 
-				buf_offset = __snwprintf( buf + buf_offset, tbuf_size - buf_offset, L"%s", ST_V_Add_Stopped );
+				buf_offset = __snwprintf( buf + buf_offset, tbuf_size - buf_offset, L"%s", ST_V_Add );
+			}
+			else if ( si->download_operations & DOWNLOAD_OPERATION_VERIFY )
+			{
+				if ( buf_offset > 0 )
+				{
+					buf[ buf_offset++ ] = L',';
+					buf[ buf_offset++ ] = L' ';
+				}
+
+				buf_offset = __snwprintf( buf + buf_offset, tbuf_size - buf_offset, L"%s", ST_V_Verify );
+			}
+			else
+			{
+				if ( buf_offset > 0 )
+				{
+					buf[ buf_offset++ ] = L',';
+					buf[ buf_offset++ ] = L' ';
+				}
+
+				buf_offset = __snwprintf( buf + buf_offset, tbuf_size - buf_offset, L"%s", ST_V_Download );
 			}
 
 			if ( buf_offset == 0 )
@@ -831,7 +852,8 @@ void ShowHideSMTabs( int sw_type )
 				_ShowWindow( g_hWnd_sm_speed_limit, sw_type );
 
 				_ShowWindow( g_hWnd_chk_sm_simulate_download, sw_type );
-				_ShowWindow( g_hWnd_chk_sm_add_in_stopped_state, sw_type );
+				_ShowWindow( g_hWnd_static_sm_download_operation, sw_type );
+				_ShowWindow( g_hWnd_sm_download_operation, sw_type );
 
 				_ShowWindow( g_hWnd_btn_sm_authentication, sw_type );
 				_ShowWindow( g_hWnd_static_sm_username, sw_type );
@@ -920,7 +942,7 @@ void ResetSMTabPages()
 	_SendMessageW( g_hWnd_edit_sm_password, WM_SETTEXT, 0, NULL );
 
 	_SendMessageW( g_hWnd_chk_sm_simulate_download, BM_SETCHECK, BST_UNCHECKED, 0 );
-	_SendMessageW( g_hWnd_chk_sm_add_in_stopped_state, BM_SETCHECK, BST_UNCHECKED, 0 );
+	_SendMessageW( g_hWnd_sm_download_operation, CB_SETCURSEL, 0, 0 );
 
 	///////////
 
@@ -1147,7 +1169,11 @@ void SelectSiteItem( int index )
 
 
 		_SendMessageW( g_hWnd_chk_sm_simulate_download, BM_SETCHECK, ( si->download_operations & DOWNLOAD_OPERATION_SIMULATE ? BST_CHECKED : BST_UNCHECKED ), 0 );
-		_SendMessageW( g_hWnd_chk_sm_add_in_stopped_state, BM_SETCHECK, ( si->download_operations & DOWNLOAD_OPERATION_ADD_STOPPED ? BST_CHECKED : BST_UNCHECKED ), 0 );
+		unsigned char download_operation_index;
+		if ( si->download_operations & DOWNLOAD_OPERATION_ADD_STOPPED ) { download_operation_index = 1; }
+		else if ( si->download_operations & DOWNLOAD_OPERATION_VERIFY ) { download_operation_index = 2; }
+		else															{ download_operation_index = 0; }
+		_SendMessageW( g_hWnd_sm_download_operation, CB_SETCURSEL, download_operation_index, 0 );
 
 		//////////
 
@@ -1385,7 +1411,15 @@ LRESULT CALLBACK SiteManagerWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 
 
 			g_hWnd_chk_sm_simulate_download = _CreateWindowW( WC_BUTTON, ST_V_Simulate_download, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, ( HMENU )CHK_SM_SIMULATE_DOWNLOAD, NULL, NULL );
-			g_hWnd_chk_sm_add_in_stopped_state = _CreateWindowW( WC_BUTTON, ST_V_Add_in_Stopped_state, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, ( HMENU )CHK_SM_ADD_STOPPED, NULL, NULL );
+			
+			g_hWnd_static_sm_download_operation = _CreateWindowW( WC_STATIC, ST_V_Download_operation_, WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+			// Needs dimensions so that list displays in XP.
+			g_hWnd_sm_download_operation = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_COMBOBOX, NULL, CBS_AUTOHSCROLL | CBS_DROPDOWNLIST | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE | CBS_DARK_MODE, 0, 0, 100, 23, hWnd, ( HMENU )CB_SM_DOWNLOAD_OPERATION, NULL, NULL );
+			_SendMessageW( g_hWnd_sm_download_operation, CB_ADDSTRING, 0, ( LPARAM )ST_V_Download );
+			_SendMessageW( g_hWnd_sm_download_operation, CB_ADDSTRING, 0, ( LPARAM )ST_V_Add );
+			_SendMessageW( g_hWnd_sm_download_operation, CB_ADDSTRING, 0, ( LPARAM )ST_V_Verify );
+
+			_SendMessageW( g_hWnd_sm_download_operation, CB_SETCURSEL, 0, 0 );
 
 
 
@@ -1688,7 +1722,8 @@ LRESULT CALLBACK SiteManagerWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 			_SendMessageW( g_hWnd_edit_sm_password, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 
 			_SendMessageW( g_hWnd_chk_sm_simulate_download, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_chk_sm_add_in_stopped_state, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_static_sm_download_operation, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_sm_download_operation, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 
 			_SendMessageW( g_hWnd_new_site, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 			_SendMessageW( g_hWnd_save_site, WM_SETFONT, ( WPARAM )g_hFont, 0 );
@@ -2114,7 +2149,12 @@ LRESULT CALLBACK SiteManagerWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 								}
 
 								si->download_operations = ( _SendMessageW( g_hWnd_chk_sm_simulate_download, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? DOWNLOAD_OPERATION_SIMULATE : DOWNLOAD_OPERATION_NONE );
-								si->download_operations |= ( _SendMessageW( g_hWnd_chk_sm_add_in_stopped_state, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? DOWNLOAD_OPERATION_ADD_STOPPED : DOWNLOAD_OPERATION_NONE );
+								
+								unsigned int download_operation = ( unsigned int )_SendMessageW( g_hWnd_sm_download_operation, CB_GETCURSEL, 0, 0 );
+								if ( download_operation == 1 )		{ download_operation = DOWNLOAD_OPERATION_ADD_STOPPED; }
+								else if ( download_operation == 2 )	{ download_operation = DOWNLOAD_OPERATION_VERIFY; }
+								else								{ download_operation = DOWNLOAD_OPERATION_NONE; }
+								si->download_operations |= download_operation;
 
 								//
 
@@ -2946,7 +2986,7 @@ LRESULT CALLBACK SiteManagerWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 					 ( HWND )lParam == g_hWnd_static_sm_username ||
 					 ( HWND )lParam == g_hWnd_static_sm_password ||
 					 ( HWND )lParam == g_hWnd_chk_sm_simulate_download ||
-					 ( HWND )lParam == g_hWnd_chk_sm_add_in_stopped_state ||
+					 ( HWND )lParam == g_hWnd_static_sm_download_operation ||
 					 ( HWND )lParam == g_hWnd_static_sm_cookies ||
 					 ( HWND )lParam == g_hWnd_static_sm_headers ||
 					 ( HWND )lParam == g_hWnd_chk_sm_send_data ||
@@ -2992,7 +3032,7 @@ LRESULT CALLBACK SiteManagerWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 			RECT rc, rc_tab;
 			_GetClientRect( hWnd, &rc );
 
-			int tab_height = 244;
+			int tab_height = 247;
 
 			// This brush is refreshed whenever the tab changes size.
 			// It's used to paint the background of static controls.
@@ -3029,14 +3069,14 @@ LRESULT CALLBACK SiteManagerWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 
 			_SendMessageW( g_hWnd_sm_tab, TCM_GETITEMRECT, 0, ( LPARAM )&rc_tab );
 
-			int tab_child_y_offset = ( rc_tab.bottom - rc_tab.top ) + ( rc.bottom - 335 );
+			int tab_child_y_offset = ( rc_tab.bottom - rc_tab.top ) + ( rc.bottom - 338 );
 
 			// Allow our listview to resize in proportion to the main window.
-			HDWP hdwp = _BeginDeferWindowPos( 54 );
+			HDWP hdwp = _BeginDeferWindowPos( 55 );
 
-			_DeferWindowPos( hdwp, g_hWnd_site_list, HWND_BOTTOM, 10, 10, rc.right - 20, rc.bottom - 355, 0 );
+			_DeferWindowPos( hdwp, g_hWnd_site_list, HWND_BOTTOM, 10, 10, rc.right - 20, rc.bottom - 358, 0 );
 
-			_DeferWindowPos( hdwp, g_hWnd_sm_tab, HWND_BOTTOM, 10, rc.bottom - 335, rc.right - 20, tab_height, 0 );
+			_DeferWindowPos( hdwp, g_hWnd_sm_tab, HWND_BOTTOM, 10, rc.bottom - 338, rc.right - 20, tab_height, 0 );
 
 			//
 
@@ -3060,7 +3100,8 @@ LRESULT CALLBACK SiteManagerWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 			_DeferWindowPos( hdwp, g_hWnd_edit_sm_password, HWND_TOP, 431, tab_child_y_offset + 102, 120, 23, SWP_NOZORDER );
 
 			_DeferWindowPos( hdwp, g_hWnd_chk_sm_simulate_download, HWND_TOP, 20, tab_child_y_offset + 169, 400, 23, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_chk_sm_add_in_stopped_state, HWND_TOP, 20, tab_child_y_offset + 192, 400, 23, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_static_sm_download_operation, HWND_TOP, 20, tab_child_y_offset + 196, 180, 15, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_sm_download_operation, HWND_TOP, 205, tab_child_y_offset + 192, 0, 0, SWP_NOZORDER | SWP_NOSIZE );
 
 			//
 

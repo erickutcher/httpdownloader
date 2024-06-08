@@ -147,6 +147,10 @@
 		"message": "添加"
 	},
 
+	"verify": {
+		"message": "验证"
+	},
+
 	"cancel": {
 		"message": "取消"
 	},
@@ -183,40 +187,56 @@
 		"message": "启用主题支持"
 	},
 
-	"save": {
+	"save_options": {
 		"message": "保存"
 	},
 
-	"menu_download_link": {
+	"menu_download_link_": {
 		"message": "下载链接..."
 	},
 
-	"menu_download_image": {
+	"menu_download_image_": {
 		"message": "下载图像..."
 	},
 
-	"menu_download_audio": {
+	"menu_download_audio_": {
 		"message": "下载音频..."
 	},
 
-	"menu_download_video": {
+	"menu_download_video_": {
 		"message": "下载视频..."
 	},
 
-	"menu_download_all_images": {
+	"menu_download_all_images_": {
 		"message": "下载所有图像..."
 	},
 
-	"menu_download_all_media": {
+	"menu_download_all_media_": {
 		"message": "下载所有媒体..."
 	},
 
-	"menu_download_all_links": {
+	"menu_download_all_links_": {
 		"message": "下载所有链接..."
 	},
 
-	"menu_download_page": {
+	"menu_download_page_": {
 		"message": "下载页面..."
+	},
+
+	"menu_download_all_images": {
+		"message": "下载所有图像"
+	},
+
+	"menu_download_all_media": {
+		"message": "下载所有媒体"
+	},
+
+	"menu_download_all_links": {
+		"message": "下载所有链接"
+	},
+
+	"menu_download_page": {
+		"message": "下载页面"
 	},
 
 	"SEND_FAILED": {

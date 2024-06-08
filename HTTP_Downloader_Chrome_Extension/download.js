@@ -474,6 +474,7 @@ document.addEventListener( "DOMContentLoaded", function()
 	document.getElementById( "advanced" ).addEventListener( "click", AdvancedOptions );
 	document.getElementById( "download" ).addEventListener( "click", () => { SendDownloadToClient( 0 ); } );
 	document.getElementById( "add" ).addEventListener( "click", () => { SendDownloadToClient( 4 ); } );
+	document.getElementById( "verify" ).addEventListener( "click", () => { SendDownloadToClient( 1024 ); } );
 	document.getElementById( "cancel" ).addEventListener( "click", CloseWindow );
 
 	g_initial_height = document.body.clientHeight;

@@ -81,7 +81,7 @@ Warteschlange
 Entfernen
 Entfernen und Löschen\tStrg+Entf
 Entfernen und Löschen
-Entfernen von Fertiggestellten
+Entfernen von Fertiggestellten\tStrg+Shift+R
 Umbenennen\tF2
 Umbenennen
 Neustart
@@ -137,6 +137,7 @@ Sperren
 Abmelden
 Gelöschte Downloads in den Papierkorb verschieben
 Nichts
+Downloadliste überschreiben Aktionsaufforderungen
 Datei überschreiben
 Standby während aktiven Downloads verhindern
 Datei umbenennen
@@ -295,6 +296,7 @@ SSL / TLS Version:
 URL(s):
 Proxy verwenden:
 Benutzername:
+Überprüfen
 Videos
 Groß-/Kleinschreibung
 Nur ganze Wörter
@@ -307,9 +309,9 @@ Suchtyp
 ********
 [...]
 Hinzufügen
-Gestoppt hinzufügen
 Schließen
 Deaktivieren
+Downloadaktion:
 Downloadaktionen
 Downloadteile
 Leerer Inhalt

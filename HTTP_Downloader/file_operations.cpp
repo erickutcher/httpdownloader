@@ -99,7 +99,7 @@ RETRY_OPEN:
 
 					if ( read == fz && _memcmp( cfg_buf, MAGIC_ID_SETTINGS, 4 ) == 0 )
 					{
-						reserved = 1024 - 720;
+						reserved = 1024 - 721;
 
 						char *next = cfg_buf + 4;
 
@@ -509,6 +509,9 @@ RETRY_OPEN:
 						next += sizeof( bool );
 
 						_memcpy_s( &cfg_enable_sparse_file_allocation, sizeof( bool ), next, sizeof( bool ) );
+						next += sizeof( bool );
+
+						_memcpy_s( &cfg_override_list_prompts, sizeof( bool ), next, sizeof( bool ) );
 						next += sizeof( bool );
 
 						//
@@ -1249,11 +1252,11 @@ RETRY_OPEN:
 		_memzero( &lfo, sizeof( OVERLAPPED ) );
 		LockFileEx( hFile_cfg, LOCKFILE_EXCLUSIVE_LOCK, 0, MAXDWORD, MAXDWORD, &lfo );
 
-		int reserved = 1024 - 720;
+		int reserved = 1024 - 721;
 		int size = ( sizeof( int ) * 25 ) +
 				   ( sizeof( unsigned short ) * 7 ) +
 				   ( sizeof( char ) * ( 50 + KEX_ALGORITHM_COUNT + HOST_KEY_COUNT + ENCRYPTION_CIPHER_COUNT ) ) +
-				   ( sizeof( bool ) * 47 ) +
+				   ( sizeof( bool ) * 48 ) +
 				   ( sizeof( unsigned long ) * 7 ) +
 				   ( sizeof( LONG ) * 4 ) +
 				   ( sizeof( BYTE ) * 6 ) +
@@ -1673,6 +1676,9 @@ RETRY_OPEN:
 		pos += sizeof( bool );
 
 		_memcpy_s( write_buf + pos, size - pos, &cfg_enable_sparse_file_allocation, sizeof( bool ) );
+		pos += sizeof( bool );
+
+		_memcpy_s( write_buf + pos, size - pos, &cfg_override_list_prompts, sizeof( bool ) );
 		pos += sizeof( bool );
 
 		//

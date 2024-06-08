@@ -71,10 +71,17 @@
 			<input type="checkbox" id="override_prompts"><label for="override_prompts" data-i18n="override_prompts">Override HTTP Downloader prompts</label>
 		</div>
 		<div class="section-separator" style="margin: 10px 0px 10px 0px;"></div>
-		<div style="float:right; padding-bottom: 10px;">
+		<div style="display: flex; flex-direction: row; justify-content: right; gap: 10px;">
 			<button type="button" id="ok" data-i18n="ok">OK</button>
 			<button type="button" id="cancel" data-i18n="cancel">Cancel</button>
 			<button type="button" id="apply" data-i18n="apply">Apply</button>
+		</div>
+		<div class="section-separator" style="margin: 10px 0px 10px 0px;"></div>
+		<div style="display: flex; flex-direction: row; justify-content: center; gap: 10px;">
+			<div><button type="button" id="get_images" title="Download All Images" data-i18n="menu_download_all_images"><img src="icons/images.svg" /></button></div>
+			<div><button type="button" id="get_media" title="Download All Media" data-i18n="menu_download_all_media"><img src="icons/media.svg" /></button></div>
+			<div><button type="button" id="get_links" title="Download All Links" data-i18n="menu_download_all_links"><img src="icons/links.svg" /></button></div>
+			<div><button type="button" id="get_page" title="Download Page" data-i18n="menu_download_page"><img src="icons/page.svg" /></button></div>
 		</div>
 	</body>
 </html>

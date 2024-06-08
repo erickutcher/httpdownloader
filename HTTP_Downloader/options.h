@@ -259,6 +259,7 @@ extern HWND g_hWnd_chk_use_one_instance;
 extern HWND g_hWnd_chk_prevent_standby;
 extern HWND g_hWnd_chk_resume_downloads;
 extern HWND g_hWnd_chk_move_to_trash;
+extern HWND g_hWnd_chk_override_list_prompts;
 
 extern HWND g_hWnd_drag_and_drop_action;
 

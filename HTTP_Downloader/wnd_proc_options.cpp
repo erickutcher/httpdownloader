@@ -993,6 +993,8 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 					cfg_move_to_trash = ( _SendMessageW( g_hWnd_chk_move_to_trash, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
 
+					cfg_override_list_prompts = ( _SendMessageW( g_hWnd_chk_override_list_prompts, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
+
 					cfg_use_one_instance = ( _SendMessageW( g_hWnd_chk_use_one_instance, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
 
 					cfg_enable_drop_window = ( _SendMessageW( g_hWnd_chk_enable_drop_window, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );

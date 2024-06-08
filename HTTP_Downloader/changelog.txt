@@ -1,3 +1,16 @@
+Version:	1.0.6.0
+Released:	2024-06-08
+
+Added shortcut to remove completed downloads.
+Added the ability to verify URL(s) file size and filename before downloading.
+Fixed downloading of files that have blank Content-Disposition attachment names.
+Added option to override download list action prompts (restart, delete, remove, etc.).
+Adjusted GUI layout to better fit long strings.
+Updated extensions to filter duplicate URLs.
+Added Verify button to extensions Add URL(s) window.
+Added download buttons to extensions Options menu.
+Forced the size and position of extensions Add URL(s) window.
+
 Version:	1.0.5.9
 Released:	2024-05-23
 

@@ -147,6 +147,10 @@
 		"message": "Add"
 	},
 
+	"verify": {
+		"message": "Verify"
+	},
+
 	"cancel": {
 		"message": "Cancel"
 	},
@@ -187,31 +191,31 @@
 		"message": "Apply"
 	},
 
-	"menu_download_link": {
+	"menu_download_link_": {
 		"message": "Download Link..."
 	},
 
-	"menu_download_image": {
+	"menu_download_image_": {
 		"message": "Download Image..."
 	},
 
-	"menu_download_audio": {
+	"menu_download_audio_": {
 		"message": "Download Audio..."
 	},
 
-	"menu_download_video": {
+	"menu_download_video_": {
 		"message": "Download Video..."
 	},
 
-	"menu_download_all_images": {
+	"menu_download_all_images_": {
 		"message": "Download All Images..."
 	},
 
-	"menu_download_all_media": {
+	"menu_download_all_media_": {
 		"message": "Download All Media..."
 	},
 
-	"menu_download_all_links": {
+	"menu_download_all_links_": {
 		"message": "Download All Links..."
 	},
 
@@ -219,12 +223,28 @@
 		"message": "From Current Domain"
 	},
 
-	"menu_download_page": {
+	"menu_download_page_": {
 		"message": "Download Page..."
 	},
 
+	"menu_download_all_images": {
+		"message": "Download All Images"
+	},
+
+	"menu_download_all_media": {
+		"message": "Download All Media"
+	},
+
+	"menu_download_all_links": {
+		"message": "Download All Links"
+	},
+
+	"menu_download_page": {
+		"message": "Download Page"
+	},
+
 	"SEND_FAILED": {
-		"message": "An error occurred while sending the download request."
+		"message": "An error occurred while sending the download request.\r\n\r\nMake sure that HTTP Downloader is running and the server is enabled in its options."
 	},
 
 	"CONNECTION_TIMEOUT": {

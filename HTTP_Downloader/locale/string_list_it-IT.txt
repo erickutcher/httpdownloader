@@ -81,7 +81,7 @@ Coda
 Rimuovere
 Rimuovi ed elimina\tCtrl+Canc
 Rimuovi ed elimina
-Rimuovi completati
+Rimuovi completati\tCtrl+Maiusc+R
 Rinomina\tF2
 Rinomina
 Riavvia
@@ -137,6 +137,7 @@ Blocca
 Disconnessione
 Sposta i download eliminati nel Cestino
 Nessuna
+Ignorare le richieste di azione dell'elenco di download
 Sovrascrivi file
 Impedisci standby del sistema mentre i download sono attivi
 Rinomina file
@@ -295,6 +296,7 @@ Versione SSL/TLS:
 URL:
 Usa proxy:
 Nome utente:
+Verifica
 Video
 Corrispondenza maiuscole/minuscole
 Corrispondenza parola intera
@@ -307,9 +309,9 @@ Tipo ricerca
 ********
 [...]
 Aggiungi
-Aggiungi come arrestato
 Chiudi
 Disattiva
+Operazione di download:
 Operazioni download
 Parti download
 Corpo vuoto

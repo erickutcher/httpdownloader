@@ -3,7 +3,7 @@
 	"description": "__MSG_extension_description__",
 	"manifest_version": 2,
 	"name": "HTTP Downloader",
-	"version": "1.0.2.5",
+	"version": "1.0.2.6",
 	"homepage_url": "https://erickutcher.github.io/#HTTP_Downloader",
 
 	"applications":
