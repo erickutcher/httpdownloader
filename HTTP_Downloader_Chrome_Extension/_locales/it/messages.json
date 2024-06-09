@@ -1,0 +1,257 @@
+{
+	"extension_description": {
+		"message": "Download file con HTTP Downloader."
+	},
+
+	"title": {
+		"message": "HTTP Downloader - Aggiungi URL"
+	},
+
+	"url_s__": {
+		"message": "URL:"
+	},
+
+	"regex_filter_": {
+		"message": "Filtro RegEx:"
+	},
+
+	"custom": {
+		"message": "Personalizzato"
+	},
+
+	"images": {
+		"message": "Immagini"
+	},
+
+	"music": {
+		"message": "Musica"
+	},
+
+	"videos": {
+		"message": "Video"
+	},
+
+	"apply": {
+		"message": "Applica"
+	},
+
+	"revert": {
+		"message": "Ripristina"
+	},
+
+	"download_directory_": {
+		"message": "Cartella download:"
+	},
+
+	"_use_program_default_": {
+		"message": "[Usa predefinito programma]"
+	},
+
+	"download_parts_": {
+		"message": "Download parti:"
+	},
+
+	"ssl_tls_version_": {
+		"message": "Versione SSL/TLS:"
+	},
+
+	"authentication": {
+		"message": "Autenticazione"
+	},
+
+	"username_": {
+		"message": "Utente:"
+	},
+
+	"password_": {
+		"message": "Password:"
+	},
+
+	"download_speed_limit_": {
+		"message": "Limite velocità download (byte/s):"
+	},
+
+	"simulate_download": {
+		"message": "Simula download"
+	},
+
+	"general": {
+		"message": "Generale"
+	},
+
+	"cookies": {
+		"message": "Cookie"
+	},
+
+	"headers": {
+		"message": "Intestazioni"
+	},
+
+	"post_data": {
+		"message": "Dati POST"
+	},
+
+	"proxy": {
+		"message": "Proxy"
+	},
+
+	"cookies_": {
+		"message": "Cookie:"
+	},
+
+	"headers_": {
+		"message": "Intestazioni:"
+	},
+
+	"send_post_data_": {
+		"message": "Invia dati POST:"
+	},
+
+	"proxy_": {
+		"message": "Usa proxy:"
+	},
+
+	"default": {
+		"message": "Predefinito"
+	},
+
+	"hostname_ip_": {
+		"message": "Nome host/Indirizzo IP:"
+	},
+
+	"port_": {
+		"message": "Porta:"
+	},
+
+	"resolve_dn_v4a": {
+		"message": "Consenti al proxy di risolvere i nomi dominio (usa SOCKS v4a)"
+	},
+
+	"resolve_dn": {
+		"message": "Consenti al proxy di risolvere i nomi dominio"
+	},
+
+	"use_authentication_": {
+		"message": "Usa autenticazione:"
+	},
+
+	"advanced_options": {
+		"message": "Opzioni avanzate"
+	},
+
+	"download": {
+		"message": "Download"
+	},
+
+	"add": {
+		"message": "Aggiungi"
+	},
+
+	"verify": {
+		"message": "Verifica"
+	},
+
+	"cancel": {
+		"message": "Annulla"
+	},
+
+	"server_": {
+		"message": "Server:"
+	},
+
+	"server_authentication": {
+		"message": "Autenticazione server"
+	},
+
+	"send_user_agent_header": {
+		"message": "Invia intestazione user-agent"
+	},
+
+	"send_referer_header": {
+		"message": "Invia intestazione refer"
+	},
+
+	"override_browsers_download_manager": {
+		"message": "Sostituisci gestore download browser"
+	},
+
+	"show_add_urls_window_before_download": {
+		"message": "Visualizza finestra 'Aggiungi URL' prima del download"
+	},
+
+	"override_prompts": {
+		"message": "Sovrascrivi richieste di HTTP Downloader"
+	},
+
+	"ok": {
+		"message": "OK"
+	},
+
+	"apply": {
+		"message": "Applica"
+	},
+
+	"menu_download_link_": {
+		"message": "Collegamento download..."
+	},
+
+	"menu_download_image_": {
+		"message": "Download immagine..."
+	},
+
+	"menu_download_audio_": {
+		"message": "Download audio..."
+	},
+
+	"menu_download_video_": {
+		"message": "Download video..."
+	},
+
+	"menu_download_all_images_": {
+		"message": "Download di tutte le immagini..."
+	},
+
+	"menu_download_all_media_": {
+		"message": "Download di tutti i media..."
+	},
+
+	"menu_download_all_links_": {
+		"message": "Download tutti i collegamenti..."
+	},
+
+	"menu_from_current_domain": {
+		"message": "Dal dominio attuale"
+	},
+
+	"menu_download_page_": {
+		"message": "Pagina download..."
+	},
+
+	"menu_download_all_images": {
+		"message": "Download tutte le immagini"
+	},
+
+	"menu_download_all_media": {
+		"message": "Download tutti i media"
+	},
+
+	"menu_download_all_links": {
+		"message": "Download tutti i collegamenti"
+	},
+
+	"menu_download_page": {
+		"message": "Pagina download"
+	},
+
+	"SEND_FAILED": {
+		"message": "Si è verificato un errore durante l'invio della richiesta di download.\r\n\r\nAssicurati che HTTP Downloader sia in esecuzione e che il server sia abilitato nelle sue opzioni."
+	},
+
+	"CONNECTION_TIMEOUT": {
+		"message": "La connessione è scaduta durante l'invio della richiesta di download."
+	},
+
+	"INVALID_RESPONSE": {
+		"message": "Il server ha restituito una risposta non valida alla richiesta di download."
+	}
+}
