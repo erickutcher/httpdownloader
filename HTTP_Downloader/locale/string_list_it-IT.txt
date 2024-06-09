@@ -137,7 +137,7 @@ Blocca
 Disconnessione
 Sposta i download eliminati nel Cestino
 Nessuna
-Ignorare le richieste di azione dell'elenco di download
+Ignora richieste azione elenco download
 Sovrascrivi file
 Impedisci standby del sistema mentre i download sono attivi
 Rinomina file
@@ -310,8 +310,8 @@ Tipo ricerca
 [...]
 Aggiungi
 Chiudi
-Disattiva
-Operazione di download:
+Disabilita
+Operazione download:
 Operazioni download
 Parti download
 Corpo vuoto
