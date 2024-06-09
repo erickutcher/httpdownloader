@@ -137,7 +137,7 @@ Sperren
 Abmelden
 Gelöschte Downloads in den Papierkorb verschieben
 Nichts
-Downloadliste überschreiben Aktionsaufforderungen
+Abfragedialoge zu Aktionen in der Downloadliste unterbinden
 Datei überschreiben
 Standby während aktiven Downloads verhindern
 Datei umbenennen
@@ -296,7 +296,7 @@ SSL / TLS Version:
 URL(s):
 Proxy verwenden:
 Benutzername:
-Überprüfen
+Verifizieren
 Videos
 Groß-/Kleinschreibung
 Nur ganze Wörter
@@ -386,7 +386,7 @@ Zeit überschritten
 TLS 1.0
 TLS 1.1
 TLS 1.2
-Heruntergeladen: 
+Heruntergeladen:
 Unbegrenzt
 Aktualisieren
 Download aktualisieren
