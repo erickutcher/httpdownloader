@@ -2856,11 +2856,13 @@ char ParseHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int
 			{
 				// Remove directory paths.
 				char *tmp_filename = filename;
-				while ( filename_length > 0 )
+				unsigned int tmp_filename_length = filename_length;
+				while ( tmp_filename_length > 0 )
 				{
-					if ( filename[ --filename_length ] == '\\' || filename[ filename_length ] == '/' )
+					if ( filename[ --tmp_filename_length ] == '\\' || filename[ tmp_filename_length ] == '/' )
 					{
-						tmp_filename = filename + ( filename_length + 1 );
+						tmp_filename = filename + ( tmp_filename_length + 1 );
+						filename_length -= ( tmp_filename_length + 1 );
 						break;
 					}
 				}

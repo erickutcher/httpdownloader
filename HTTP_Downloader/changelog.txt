@@ -1,3 +1,8 @@
+Version:	1.0.6.1
+Released:	2024-06-12
+
+Fixed regression with Content-Disposition attachment names.
+
 Version:	1.0.6.0
 Released:	2024-06-08
 
