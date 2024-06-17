@@ -1,0 +1,257 @@
+{
+	"extension_description": {
+		"message": "Загружает файлы с помощью HTTP Downloader."
+	},
+
+	"title": {
+		"message": "HTTP Downloader - добавить URL(ы)"
+	},
+
+	"url_s__": {
+		"message": "URL(ы):"
+	},
+
+	"regex_filter_": {
+		"message": "Фильтр RegEx:"
+	},
+
+	"custom": {
+		"message": "Пользовательский"
+	},
+
+	"images": {
+		"message": "Изображения"
+	},
+
+	"music": {
+		"message": "Музыка"
+	},
+
+	"videos": {
+		"message": "Видео"
+	},
+
+	"apply": {
+		"message": "Применить"
+	},
+
+	"revert": {
+		"message": "Восстановить"
+	},
+
+	"download_directory_": {
+		"message": "Каталог загрузки:"
+	},
+
+	"_use_program_default_": {
+		"message": "[Используемый программой по умолчанию]"
+	},
+
+	"download_parts_": {
+		"message": "Частей загрузки:"
+	},
+
+	"ssl_tls_version_": {
+		"message": "Версия SSL/TLS:"
+	},
+
+	"authentication": {
+		"message": "Аутентификация"
+	},
+
+	"username_": {
+		"message": "Имя пользователя:"
+	},
+
+	"password_": {
+		"message": "Пароль:"
+	},
+
+	"download_speed_limit_": {
+		"message": "Ограничение скорости загрузки (байт/с):"
+	},
+
+	"simulate_download": {
+		"message": "Имитация загрузки"
+	},
+
+	"general": {
+		"message": "Общие"
+	},
+
+	"cookies": {
+		"message": "Куки"
+	},
+
+	"headers": {
+		"message": "Заголовки"
+	},
+
+	"post_data": {
+		"message": "POST-данные"
+	},
+
+	"proxy": {
+		"message": "Прокси"
+	},
+
+	"cookies_": {
+		"message": "Куки:"
+	},
+
+	"headers_": {
+		"message": "Заголовки:"
+	},
+
+	"send_post_data_": {
+		"message": "Отправить POST-данные:"
+	},
+
+	"proxy_": {
+		"message": "Использовать прокси:"
+	},
+
+	"default": {
+		"message": "По умолчанию"
+	},
+
+	"hostname_ip_": {
+		"message": "Имя хоста/IP-адрес:"
+	},
+
+	"port_": {
+		"message": "Порт:"
+	},
+
+	"resolve_dn_v4a": {
+		"message": "Разрешить прокси использовать доменные имена (использовать SOCKS v4a)"
+	},
+
+	"resolve_dn": {
+		"message": "Разрешить прокси использовать доменные имена"
+	},
+
+	"use_authentication_": {
+		"message": "Использовать аутентификацию:"
+	},
+
+	"advanced_options": {
+		"message": "Дополнительные параметры"
+	},
+
+	"download": {
+		"message": "Загрузить"
+	},
+
+	"add": {
+		"message": "Добавить"
+	},
+
+	"verify": {
+		"message": "Проверить"
+	},
+
+	"cancel": {
+		"message": "Отмена"
+	},
+
+	"server_": {
+		"message": "Сервер:"
+	},
+
+	"server_authentication": {
+		"message": "Аутентификация сервера"
+	},
+
+	"send_user_agent_header": {
+		"message": "Отправлять заголовок User-Agent"
+	},
+
+	"send_referer_header": {
+		"message": "Отправлять заголовок Referer"
+	},
+
+	"override_browsers_download_manager": {
+		"message": "Заменить менеджер загрузок браузера"
+	},
+
+	"show_add_urls_window_before_download": {
+		"message": "Показывать окно «Добавить URL» перед загрузкой"
+	},
+
+	"override_prompts": {
+		"message": "Переопределять запросы HTTP Downloader"
+	},
+
+	"ok": {
+		"message": "ОК"
+	},
+
+	"apply": {
+		"message": "Применить"
+	},
+
+	"menu_download_link_": {
+		"message": "Скачать по ссылке…"
+	},
+
+	"menu_download_image_": {
+		"message": "Скачать изображение…"
+	},
+
+	"menu_download_audio_": {
+		"message": "Скачать аудио…"
+	},
+
+	"menu_download_video_": {
+		"message": "Скачать видео…"
+	},
+
+	"menu_download_all_images_": {
+		"message": "Скачать все изображения…"
+	},
+
+	"menu_download_all_media_": {
+		"message": "Скачать все медиафайлы…"
+	},
+
+	"menu_download_all_links_": {
+		"message": "Скачать все ссылки…"
+	},
+
+	"menu_from_current_domain": {
+		"message": "Для текущего домена"
+	},
+
+	"menu_download_page_": {
+		"message": "Скачать страницу…"
+	},
+
+	"menu_download_all_images": {
+		"message": "Скачать все изображения"
+	},
+
+	"menu_download_all_media": {
+		"message": "Скачать все медиафайлы"
+	},
+
+	"menu_download_all_links": {
+		"message": "Скачать все ссылки"
+	},
+
+	"menu_download_page": {
+		"message": "Скачать страницу"
+	},
+
+	"SEND_FAILED": {
+		"message": "Произошла ошибка при отправке запроса на загрузку.\r\n\r\nУбедитесь, что HTTP Downloader запущен и включен сервер в настройках."
+	},
+
+	"CONNECTION_TIMEOUT": {
+		"message": "Время ожидания соединения истекло при отправке запроса на загрузку."
+	},
+
+	"INVALID_RESPONSE": {
+		"message": "Неверный ответ сервера на запрос на загрузку."
+	}
+}
