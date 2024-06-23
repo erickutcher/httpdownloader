@@ -475,7 +475,11 @@ function OnDownloadItemCreated( item )
 
 				if ( item.filename != "" )
 				{
-					var filepath_length = item.filename.lastIndexOf( "\\" );
+					var filepath_length = item.filename.lastIndexOf( "/" );		// Unix path.
+					if ( filepath_length == -1 )
+					{
+						filepath_length = item.filename.lastIndexOf( "\\" );	// Windows path.
+					}
 					filename = item.filename.substring( filepath_length + 1 );
 					directory = item.filename.substring( 0, filepath_length );
 				}

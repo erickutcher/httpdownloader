@@ -445,7 +445,11 @@ function OnDownloadItemChange( item )
 	{
 		if ( item.filename.current != "" )
 		{
-			var filepath_length = item.filename.current.lastIndexOf( "\\" );
+			var filepath_length = item.filename.current.lastIndexOf( "/" );		// Unix path.
+			if ( filepath_length == -1 )
+			{
+				filepath_length = item.filename.current.lastIndexOf( "\\" );	// Windows path.
+			}
 			download_info.filename = item.filename.current.substring( filepath_length + 1 );
 			download_info.directory = item.filename.current.substring( 0, filepath_length );
 		}
@@ -498,7 +502,7 @@ function OnDownloadItemCreated( item )
 			var headers = "";
 			var post_data = "";
 
-			var request_info = GetPOSTRequestInfo( item.url, 2 );
+			var request_info = GetPOSTRequestInfo( url, 2 );
 
 			if ( request_info != null )
 			{
@@ -515,7 +519,7 @@ function OnDownloadItemCreated( item )
 						post_data += "&" + values[ i ][ 0 ] + "=" + values[ i ][ 1 ];
 					}
 
-					request_info = GetPOSTRequestInfo( item.url, 3 );
+					request_info = GetPOSTRequestInfo( url, 3 );
 
 					if ( request_info != null )
 					{

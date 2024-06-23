@@ -364,37 +364,37 @@ void AdjustWindowDimensions( HWND hWnd, HWND static_msg, CMSGBOX_INFO *cmb_info,
 	if ( ( cmb_info->type & 0x0F ) == CMB_RENAMEOVERWRITESKIPALL ||
 		 ( cmb_info->type & 0x0F ) == CMB_CONTINUERESTARTSKIPALL )
 	{
-		if ( msgbox_width < ( 283 + cb_width ) )
+		if ( msgbox_width < ( 313 + cb_width ) )
 		{
-			msgbox_width = 283 + cb_width;	// ( 75 + 8 + 75 + 8 + 75 + 10 ) + 32
+			msgbox_width = 313 + cb_width;	// ( 85 + 8 + 85 + 8 + 85 + 10 ) + 32
 		}
 	}
 	else if ( ( cmb_info->type & 0x0F ) == CMB_YESNOALL )
 	{
-		if ( msgbox_width < ( 200 + cb_width ) )
+		if ( msgbox_width < ( 210 + cb_width ) )
 		{
-			msgbox_width = 200 + cb_width;
+			msgbox_width = 210 + cb_width;
 		}
 	}
 	else if ( ( cmb_info->type & 0x0F ) == CMB_YESNO )
 	{
-		if ( msgbox_width < 200 )
+		if ( msgbox_width < 210 )
 		{
-			msgbox_width = 200;	// ( 75 + 8 + 75 + 10 ) + 32
+			msgbox_width = 210;	// ( 80 + 8 + 80 + 10 ) + 32
 		}
 	}
 	else if ( ( cmb_info->type & 0x0F ) == CMB_OKALL )
 	{
-		if ( msgbox_width < ( 117 + cb_width ) )
+		if ( msgbox_width < ( 122 + cb_width ) )
 		{
-			msgbox_width = 117 + cb_width;
+			msgbox_width = 122 + cb_width;
 		}
 	}
 	else	// CMB_OK or anything that's unsupported.
 	{
-		if ( msgbox_width < 117 )
+		if ( msgbox_width < 122 )
 		{
-			msgbox_width = 117;	// ( 75 + 10 ) + 32
+			msgbox_width = 122;	// ( 80 + 10 ) + 32
 		}
 	}
 

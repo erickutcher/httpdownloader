@@ -1,3 +1,10 @@
+Version:	1.0.6.2
+Released:	2024-06-23
+
+Adjusted GUI layout to better fit long strings.
+Chrome extension: Fixed POST data being incorrectly set.
+Fixed Unix directory handling in extensions.
+
 Version:	1.0.6.1
 Released:	2024-06-12
 
