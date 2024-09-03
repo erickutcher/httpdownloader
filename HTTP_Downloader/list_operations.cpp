@@ -166,6 +166,7 @@ THREAD_RETURN remove_items( void *pArguments )
 
 	int sel_count = TLV_GetSelectedCount();
 	int item_count = TLV_GetExpandedItemCount();
+	int old_item_count = item_count;
 	int visible_item_count = TLV_GetVisibleItemCount();
 	int first_visible_index = TLV_GetFirstVisibleIndex();
 	int old_first_visible_index = first_visible_index;
@@ -321,17 +322,11 @@ THREAD_RETURN remove_items( void *pArguments )
 					GlobalFree( di->auth_info.username );
 					GlobalFree( di->auth_info.password );
 
-					if ( di->proxy_info != NULL )
+					if ( di->proxy_info != di->saved_proxy_info )
 					{
-						GlobalFree( di->proxy_info->hostname );
-						GlobalFree( di->proxy_info->punycode_hostname );
-						GlobalFree( di->proxy_info->w_username );
-						GlobalFree( di->proxy_info->w_password );
-						GlobalFree( di->proxy_info->username );
-						GlobalFree( di->proxy_info->password );
-						GlobalFree( di->proxy_info->auth_key );
-						GlobalFree( di->proxy_info );
+						FreeProxyInfo( &di->saved_proxy_info );
 					}
+					FreeProxyInfo( &di->proxy_info );
 
 					while ( di->range_list != NULL )
 					{
@@ -499,9 +494,15 @@ THREAD_RETURN remove_items( void *pArguments )
 				{
 					first_visible_index -= ( tln->child_count + 1 );
 				}
-				else
+				else if ( !tln->is_expanded && sel_index < old_first_visible_index )
+				{
+					--first_visible_index;
+				}
+				else	// The first visible is a child node.
 				{
 					first_visible_index -= ( old_first_visible_index - parent_index );
+
+					item_count -= ( ( tln->child_count - ( old_first_visible_index - parent_index ) ) + 1 );
 				}
 			}
 			else
@@ -549,6 +550,9 @@ THREAD_RETURN remove_items( void *pArguments )
 			}
 			else	// We can remove the item and the list will move up.
 			{
+				// Adjust this so that if the remaining items cause us to be at the end of the list, then it'll hit the if block above.
+				item_count -= sel_item_count;
+
 				if ( tln == first_visible_node )
 				{
 					if ( first_visible_node->parent != NULL )
@@ -560,19 +564,13 @@ THREAD_RETURN remove_items( void *pArguments )
 						first_visible_node = first_visible_node->next;
 					}
 				}
-				else
+				else if ( tln == first_visible_node->parent )	// We're a child item.
 				{
-					if ( first_visible_index > 0 )
-					{
-						--first_visible_index;
+					int parent_index = TLV_GetParentIndex( first_visible_node, old_first_visible_index );
 
-						if ( first_visible_node->parent == NULL )
-						{
-							--first_visible_root_index;
-						}
+					first_visible_index -= ( ( old_first_visible_index - parent_index ) );
 
-						first_visible_node = TLV_PrevNode( first_visible_node, false );
-					}
+					first_visible_node = tln->next;
 				}
 			}
 		}
@@ -598,6 +596,10 @@ THREAD_RETURN remove_items( void *pArguments )
 	}
 
 	// Update our internal values.
+	if ( expanded_item_count == old_item_count )
+	{
+		first_visible_node = NULL;
+	}
 	TLV_SetFirstVisibleRootIndex( first_visible_root_index );
 	TLV_SetFirstVisibleItem( first_visible_node );
 	TLV_SetFirstVisibleIndex( first_visible_index );
@@ -886,6 +888,7 @@ THREAD_RETURN handle_download_list( void *pArguments )
 		_SendMessageW( g_hWnd_tlv_files, TLVM_TOGGLE_DRAW, TRUE, NULL );
 
 		int item_count = TLV_GetExpandedItemCount();
+		int old_item_count = item_count;
 		int visible_item_count = TLV_GetVisibleItemCount();
 		int first_visible_index = TLV_GetFirstVisibleIndex();
 		int old_first_visible_index = first_visible_index;
@@ -918,6 +921,7 @@ THREAD_RETURN handle_download_list( void *pArguments )
 			DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )tln->data;
 			if ( di != NULL )
 			{
+				// Make sure the download is completed and subsequently cleaned up before we remove it.
 				EnterCriticalSection( &di->di_cs );
 
 				if ( di->status == STATUS_COMPLETED )
@@ -978,17 +982,11 @@ THREAD_RETURN handle_download_list( void *pArguments )
 						GlobalFree( di->auth_info.username );
 						GlobalFree( di->auth_info.password );
 
-						if ( di->proxy_info != NULL )
+						if ( di->proxy_info != di->saved_proxy_info )
 						{
-							GlobalFree( di->proxy_info->hostname );
-							GlobalFree( di->proxy_info->punycode_hostname );
-							GlobalFree( di->proxy_info->w_username );
-							GlobalFree( di->proxy_info->w_password );
-							GlobalFree( di->proxy_info->username );
-							GlobalFree( di->proxy_info->password );
-							GlobalFree( di->proxy_info->auth_key );
-							GlobalFree( di->proxy_info );
+							FreeProxyInfo( &di->saved_proxy_info );
 						}
+						FreeProxyInfo( &di->proxy_info );
 
 						while ( di->range_list != NULL )
 						{
@@ -1080,9 +1078,15 @@ THREAD_RETURN handle_download_list( void *pArguments )
 						{
 							first_visible_index -= ( tln->child_count + 1 );
 						}
-						else
+						else if ( !tln->is_expanded && item_index < old_first_visible_index )
+						{
+							--first_visible_index;
+						}
+						else	// The first visible is a child node.
 						{
 							first_visible_index -= ( old_first_visible_index - parent_index );
+
+							item_count -= ( ( tln->child_count - ( old_first_visible_index - parent_index ) ) + 1 );
 						}
 					}
 					else
@@ -1130,6 +1134,9 @@ THREAD_RETURN handle_download_list( void *pArguments )
 					}
 					else	// We can remove the item and the list will move up.
 					{
+						// Adjust this so that if the remaining items cause us to be at the end of the list, then it'll hit the if block above.
+						item_count -= sel_item_count;
+
 						if ( tln == first_visible_node )
 						{
 							if ( first_visible_node->parent != NULL )
@@ -1141,19 +1148,13 @@ THREAD_RETURN handle_download_list( void *pArguments )
 								first_visible_node = first_visible_node->next;
 							}
 						}
-						else
+						else if ( tln == first_visible_node->parent )	// We're a child item.
 						{
-							if ( first_visible_index > 0 )
-							{
-								--first_visible_index;
+							int parent_index = TLV_GetParentIndex( first_visible_node, old_first_visible_index );
 
-								if ( first_visible_node->parent == NULL )
-								{
-									--first_visible_root_index;
-								}
+							first_visible_index -= ( ( old_first_visible_index - parent_index ) );
 
-								first_visible_node = TLV_PrevNode( first_visible_node, false );
-							}
+							first_visible_node = tln->next;
 						}
 					}
 				}
@@ -1197,6 +1198,10 @@ THREAD_RETURN handle_download_list( void *pArguments )
 		}
 
 		// Update our internal values.
+		if ( expanded_item_count == old_item_count )
+		{
+			first_visible_node = NULL;
+		}
 		TLV_SetFirstVisibleRootIndex( first_visible_root_index );
 		TLV_SetFirstVisibleItem( first_visible_node );
 		TLV_SetFirstVisibleIndex( first_visible_index );
@@ -2554,6 +2559,15 @@ THREAD_RETURN handle_download_update( void *pArguments )
 				 di->ssl_version != ai->ssl_version ||
 				 di->method != ai->method )
 			{
+				if ( proxy_changed )
+				{
+					if ( di->proxy_info != di->saved_proxy_info )
+					{
+						FreeProxyInfo( &di->saved_proxy_info );
+					}
+					di->saved_proxy_info = di->proxy_info;
+				}
+
 				// Swap values and free below.
 				char *tmp_ptr = di->headers;
 				di->headers = ai->utf8_headers;

@@ -1538,13 +1538,13 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 
 				//
 
-				if ( di->proxy_info != NULL )
+				if ( di->saved_proxy_info != NULL )
 				{
-					if ( di->proxy_info->type != 0 )
+					if ( di->saved_proxy_info->type != 0 )
 					{
-						_SendMessageW( g_hWnd_update_proxy_type, CB_SETCURSEL, di->proxy_info->type, 0 );
+						_SendMessageW( g_hWnd_update_proxy_type, CB_SETCURSEL, di->saved_proxy_info->type, 0 );
 
-						if ( di->proxy_info->address_type == 0 )
+						if ( di->saved_proxy_info->address_type == 0 )
 						{
 							_SendMessageW( g_hWnd_chk_update_type_ip_address_socks, BM_SETCHECK, BST_UNCHECKED, 0 );
 							_SendMessageW( g_hWnd_chk_update_type_hostname_socks, BM_SETCHECK, BST_CHECKED, 0 );
@@ -1555,39 +1555,39 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 							_SendMessageW( g_hWnd_chk_update_type_ip_address_socks, BM_SETCHECK, BST_CHECKED, 0 );
 						}
 
-						if ( di->proxy_info->address_type == 0 )
+						if ( di->saved_proxy_info->address_type == 0 )
 						{
-							_SendMessageW( g_hWnd_update_hostname_socks, WM_SETTEXT, 0, ( LPARAM )di->proxy_info->hostname );
+							_SendMessageW( g_hWnd_update_hostname_socks, WM_SETTEXT, 0, ( LPARAM )di->saved_proxy_info->hostname );
 							_SendMessageW( g_hWnd_update_ip_address_socks, IPM_SETADDRESS, 0, 2130706433 );	// 127.0.0.1
 						}
 						else
 						{
 							_SendMessageW( g_hWnd_update_hostname_socks, WM_SETTEXT, 0, ( LPARAM )L"localhost" );
-							_SendMessageW( g_hWnd_update_ip_address_socks, IPM_SETADDRESS, 0, ( LPARAM )di->proxy_info->ip_address );
+							_SendMessageW( g_hWnd_update_ip_address_socks, IPM_SETADDRESS, 0, ( LPARAM )di->saved_proxy_info->ip_address );
 						}
 
-						__snprintf( value, 6, "%hu", di->proxy_info->port );
+						__snprintf( value, 6, "%hu", di->saved_proxy_info->port );
 						_SendMessageA( g_hWnd_update_port_socks, WM_SETTEXT, 0, ( LPARAM )value );
 
-						if ( di->proxy_info->type == 1 || di->proxy_info->type == 2 )	// HTTP and HTTPS
+						if ( di->saved_proxy_info->type == 1 || di->saved_proxy_info->type == 2 )	// HTTP and HTTPS
 						{
-							_SendMessageW( g_hWnd_edit_update_proxy_auth_username, WM_SETTEXT, 0, ( LPARAM )di->proxy_info->w_username );
-							_SendMessageW( g_hWnd_edit_update_proxy_auth_password, WM_SETTEXT, 0, ( LPARAM )di->proxy_info->w_password );
+							_SendMessageW( g_hWnd_edit_update_proxy_auth_username, WM_SETTEXT, 0, ( LPARAM )di->saved_proxy_info->w_username );
+							_SendMessageW( g_hWnd_edit_update_proxy_auth_password, WM_SETTEXT, 0, ( LPARAM )di->saved_proxy_info->w_password );
 						}
-						else if ( di->proxy_info->type == 3 )	// SOCKS v4
+						else if ( di->saved_proxy_info->type == 3 )	// SOCKS v4
 						{
-							_SendMessageW( g_hWnd_update_auth_ident_username_socks, WM_SETTEXT, 0, ( LPARAM )di->proxy_info->w_username );
+							_SendMessageW( g_hWnd_update_auth_ident_username_socks, WM_SETTEXT, 0, ( LPARAM )di->saved_proxy_info->w_username );
 
-							_SendMessageW( g_hWnd_chk_update_resolve_domain_names_v4a, BM_SETCHECK, ( di->proxy_info->resolve_domain_names ? BST_CHECKED : BST_UNCHECKED ), 0 );
+							_SendMessageW( g_hWnd_chk_update_resolve_domain_names_v4a, BM_SETCHECK, ( di->saved_proxy_info->resolve_domain_names ? BST_CHECKED : BST_UNCHECKED ), 0 );
 						}
-						else if ( di->proxy_info->type == 4 )	// SOCKS v5
+						else if ( di->saved_proxy_info->type == 4 )	// SOCKS v5
 						{
-							_SendMessageW( g_hWnd_chk_update_use_authentication_socks, BM_SETCHECK, ( di->proxy_info->use_authentication ? BST_CHECKED : BST_UNCHECKED ), 0 );
+							_SendMessageW( g_hWnd_chk_update_use_authentication_socks, BM_SETCHECK, ( di->saved_proxy_info->use_authentication ? BST_CHECKED : BST_UNCHECKED ), 0 );
 
-							if ( di->proxy_info->use_authentication )
+							if ( di->saved_proxy_info->use_authentication )
 							{
-								_SendMessageW( g_hWnd_update_auth_username_socks, WM_SETTEXT, 0, ( LPARAM )di->proxy_info->w_username );
-								_SendMessageW( g_hWnd_update_auth_password_socks, WM_SETTEXT, 0, ( LPARAM )di->proxy_info->w_password );
+								_SendMessageW( g_hWnd_update_auth_username_socks, WM_SETTEXT, 0, ( LPARAM )di->saved_proxy_info->w_username );
+								_SendMessageW( g_hWnd_update_auth_password_socks, WM_SETTEXT, 0, ( LPARAM )di->saved_proxy_info->w_password );
 
 								enable = ( is_group ? FALSE : TRUE );
 							}
@@ -1601,13 +1601,13 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 							_EnableWindow( g_hWnd_static_update_auth_password_socks, enable );
 							_EnableWindow( g_hWnd_update_auth_password_socks, enable );
 
-							_SendMessageW( g_hWnd_chk_update_resolve_domain_names, BM_SETCHECK, ( di->proxy_info->resolve_domain_names ? BST_CHECKED : BST_UNCHECKED ), 0 );
+							_SendMessageW( g_hWnd_chk_update_resolve_domain_names, BM_SETCHECK, ( di->saved_proxy_info->resolve_domain_names ? BST_CHECKED : BST_UNCHECKED ), 0 );
 						}
 					}
 
 					if ( _SendMessageW( g_hWnd_update_tab, TCM_GETCURSEL, 0, 0 ) == 4 )
 					{
-						ShowHideUpdateProxyWindows( di->proxy_info->type );
+						ShowHideUpdateProxyWindows( di->saved_proxy_info->type );
 					}
 				}
 				else

@@ -21,6 +21,7 @@
 #include "globals.h"
 #include "utilities.h"
 #include "dllrbt.h"
+#include "site_manager_utilities.h"
 
 #include "lite_ole32.h"
 #include "lite_zlib1.h"
@@ -3745,8 +3746,12 @@ char HandleRedirect( SOCKET_CONTEXT *context )
 
 		//
 
+		bool is_absolute_uri = false;
+
 		if ( context->header_info.url_location.host != NULL )	// Handle absolute URIs.
 		{
+			is_absolute_uri = true;
+
 			redirect_context->request_info.host = context->header_info.url_location.host;
 			redirect_context->request_info.port = context->header_info.url_location.port;
 			redirect_context->request_info.resource = context->header_info.url_location.resource;
@@ -3830,6 +3835,137 @@ char HandleRedirect( SOCKET_CONTEXT *context )
 
 			redirect_context->parts_node.data = redirect_context;
 			DLL_AddNode( &redirect_context->download_info->parts_list, &redirect_context->parts_node, -1 );
+
+			// Absolute URI redirection. See if the protocol, host, and port have changed.
+			if ( is_absolute_uri &&
+			   ( redirect_context->request_info.port != context->request_info.port ||
+				 redirect_context->request_info.protocol != context->request_info.protocol ||
+				 lstrcmpiA( redirect_context->request_info.host, context->request_info.host ) != 0 ) )
+			{
+				DOWNLOAD_INFO *di = redirect_context->download_info;
+
+				if ( di->proxy_info == di->saved_proxy_info )
+				{
+					di->proxy_info = NULL;
+				}
+				else
+				{
+					FreeProxyInfo( &di->proxy_info );
+				}
+
+				int host_length = MultiByteToWideChar( CP_UTF8, 0, redirect_context->request_info.host, -1, NULL, 0 );	// Include the NULL terminator.
+				wchar_t *host = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * host_length );
+				MultiByteToWideChar( CP_UTF8, 0, redirect_context->request_info.host, -1, host, host_length );
+
+				SITE_INFO tsi;
+				tsi.host = host;
+				tsi.protocol = redirect_context->request_info.protocol;
+				tsi.port = redirect_context->request_info.port;
+				
+				SITE_INFO *si = ( SITE_INFO * )dllrbt_find( g_site_info, ( void * )&tsi, true );
+
+				GlobalFree( host );
+
+				if ( si != NULL && si->enable && si->proxy_info.type != 0 )
+				{
+					int proxy_username_length;
+					int proxy_password_length;
+
+					di->proxy_info = ( PROXY_INFO * )GlobalAlloc( GPTR, sizeof( PROXY_INFO ) );
+
+					di->proxy_info->type = si->proxy_info.type;
+					di->proxy_info->ip_address = si->proxy_info.ip_address;
+					di->proxy_info->port = si->proxy_info.port;
+					di->proxy_info->address_type = si->proxy_info.address_type;
+					di->proxy_info->use_authentication = si->proxy_info.use_authentication;
+					di->proxy_info->resolve_domain_names = si->proxy_info.resolve_domain_names;
+
+					if ( si->proxy_info.hostname != NULL )
+					{
+						int proxy_hostname_length = lstrlenW( si->proxy_info.hostname );
+						di->proxy_info->hostname = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( proxy_hostname_length + 1 ) );
+						_wmemcpy_s( di->proxy_info->hostname, proxy_hostname_length + 1, si->proxy_info.hostname, proxy_hostname_length + 1 );
+					}
+					else
+					{
+						di->proxy_info->hostname = NULL;
+					}
+
+					if ( si->proxy_info.punycode_hostname != NULL )
+					{
+						int proxy_punycode_hostname_length = lstrlenW( si->proxy_info.punycode_hostname );
+						di->proxy_info->punycode_hostname = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( proxy_punycode_hostname_length + 1 ) );
+						_wmemcpy_s( di->proxy_info->punycode_hostname, proxy_punycode_hostname_length + 1, si->proxy_info.punycode_hostname, proxy_punycode_hostname_length + 1 );
+					}
+					else
+					{
+						di->proxy_info->punycode_hostname = NULL;
+					}
+
+					if ( si->proxy_info.w_username != NULL )
+					{
+						int proxy_w_username_length = lstrlenW( si->proxy_info.w_username );
+						di->proxy_info->w_username = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( proxy_w_username_length + 1 ) );
+						_wmemcpy_s( di->proxy_info->w_username, proxy_w_username_length + 1, si->proxy_info.w_username, proxy_w_username_length + 1 );
+					}
+					else
+					{
+						di->proxy_info->w_username = NULL;
+					}
+
+					if ( si->proxy_info.w_password != NULL )
+					{
+						int proxy_w_password_length = lstrlenW( si->proxy_info.w_password );
+						di->proxy_info->w_password = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( proxy_w_password_length + 1 ) );
+						_wmemcpy_s( di->proxy_info->w_password, proxy_w_password_length + 1, si->proxy_info.w_password, proxy_w_password_length + 1 );
+					}
+					else
+					{
+						di->proxy_info->w_password = NULL;
+					}
+
+					if ( si->proxy_info.username != NULL )
+					{
+						proxy_username_length = lstrlenA( si->proxy_info.username );
+						di->proxy_info->username = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( proxy_username_length + 1 ) );
+						_memcpy_s( di->proxy_info->username, proxy_username_length + 1, si->proxy_info.username, proxy_username_length + 1 );
+					}
+					else
+					{
+						di->proxy_info->username = NULL;
+						proxy_username_length = 0;
+					}
+
+					if ( si->proxy_info.password != NULL )
+					{
+						proxy_password_length = lstrlenA( si->proxy_info.password );
+						di->proxy_info->password = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( proxy_password_length + 1 ) );
+						_memcpy_s( di->proxy_info->password, proxy_password_length + 1, si->proxy_info.password, proxy_password_length + 1 );
+					}
+					else
+					{
+						di->proxy_info->password = NULL;
+						proxy_password_length = 0;
+					}
+
+					if ( ( si->proxy_info.type == 1 || si->proxy_info.type == 2 ) && ( di->proxy_info->username != NULL && di->proxy_info->password != NULL ) )
+					{
+						CreateBasicAuthorizationKey( di->proxy_info->username, proxy_username_length, di->proxy_info->password, proxy_password_length, &di->proxy_info->auth_key, &di->proxy_info->auth_key_length );
+					}
+					else
+					{
+						di->proxy_info->auth_key = NULL;
+						di->proxy_info->auth_key_length = 0;
+					}
+
+					if ( cfg_update_redirected )
+					{
+						FreeProxyInfo( &di->saved_proxy_info );
+
+						di->saved_proxy_info = di->proxy_info;
+					}
+				}
+			}
 
 			LeaveCriticalSection( &context->download_info->di_cs );
 

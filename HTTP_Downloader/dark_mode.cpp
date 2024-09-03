@@ -4757,7 +4757,8 @@ BOOL CALLBACK EnumChildProc( HWND hWnd, LPARAM /*lParam*/ )
 		{
 			ret = _GetClassNameW( hWnd_parent, buf, 64 );
 			if ( ret == 8 && _StrCmpNW( buf, L"ComboBox", 8 ) == 0 ||
-				 ret == 14 && _StrCmpNW( buf, L"SysIPAddress32", 14 ) == 0 )
+				 ret == 14 && _StrCmpNW( buf, L"SysIPAddress32", 14 ) == 0 ||
+				 ret == 12 && _StrCmpNW( buf, L"TreeListView", 12 ) == 0 )
 			{
 				SetSubclass( hWnd, &DMChildEditSubProc, &g_sci_edit_child );
 
@@ -5007,7 +5008,8 @@ BOOL CALLBACK EnumTLWProc( HWND hWnd, LPARAM /*lParam*/ )
 			  ( ret == 18 && _StrCmpNW( buf, L"class_site_manager", 18 ) == 0 ) ||
 			  ( ret == 23 && _StrCmpNW( buf, L"class_check_for_updates", 23 ) == 0 ) ||
 			  ( ret == 18 && _StrCmpNW( buf, L"class_site_manager", 18 ) == 0 ) ||
-			  ( ret == 24 && _StrCmpNW( buf, L"class_fingerprint_prompt", 24 ) == 0 ) )
+			  ( ret == 24 && _StrCmpNW( buf, L"class_fingerprint_prompt", 24 ) == 0 ) ||
+			  ( ret == 12 && _StrCmpNW( buf, L"TreeListView", 12 ) == 0 ) )
 	{
 		BOOL dark = TRUE;
 		/*WINDOWCOMPOSITIONATTRIBDATA data = { WCA_USEDARKMODECOLORS, &dark, sizeof( dark ) };

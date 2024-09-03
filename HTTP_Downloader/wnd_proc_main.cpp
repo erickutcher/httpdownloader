@@ -2247,17 +2247,11 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 					GlobalFree( di->auth_info.username );
 					GlobalFree( di->auth_info.password );
 
-					if ( di->proxy_info != NULL )
+					if ( di->proxy_info != di->saved_proxy_info )
 					{
-						GlobalFree( di->proxy_info->hostname );
-						GlobalFree( di->proxy_info->punycode_hostname );
-						GlobalFree( di->proxy_info->w_username );
-						GlobalFree( di->proxy_info->w_password );
-						GlobalFree( di->proxy_info->username );
-						GlobalFree( di->proxy_info->password );
-						GlobalFree( di->proxy_info->auth_key );
-						GlobalFree( di->proxy_info );
+						FreeProxyInfo( &di->saved_proxy_info );
 					}
+					FreeProxyInfo( &di->proxy_info );
 
 					while ( di->range_list != NULL )
 					{

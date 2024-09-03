@@ -2757,6 +2757,7 @@ int dllrbt_compare_sftp_keys_host_info( void *a, void *b )
 
 	return ret;
 }
+
 THREAD_RETURN handle_sftp_keys_host_list( void *pArguments )
 {
 	SFTP_KEYS_HOST_UPDATE_INFO *skhui = ( SFTP_KEYS_HOST_UPDATE_INFO * )pArguments;

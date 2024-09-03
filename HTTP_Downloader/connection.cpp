@@ -5061,7 +5061,7 @@ ICON_INFO *CacheIcon( DOWNLOAD_INFO *di, SHFILEINFO *sfi )
 				_CoUninitialize();
 			}
 
-			ii = ( ICON_INFO * )GlobalAlloc( GMEM_FIXED, sizeof( DOWNLOAD_INFO ) );
+			ii = ( ICON_INFO * )GlobalAlloc( GMEM_FIXED, sizeof( ICON_INFO ) );
 			if ( ii != NULL )
 			{
 				ii->file_extension = GlobalStrDupW( di->file_path + di->file_extension_offset );
@@ -6686,7 +6686,7 @@ DWORD WINAPI AddURL( void *add_info )
 
 						if ( proxy_info.type != 0 )
 						{
-							di->proxy_info = ( PROXY_INFO * )GlobalAlloc( GPTR, sizeof( PROXY_INFO ) );
+							di->proxy_info = di->saved_proxy_info = ( PROXY_INFO * )GlobalAlloc( GPTR, sizeof( PROXY_INFO ) );
 
 							di->proxy_info->type = proxy_info.type;
 							di->proxy_info->ip_address = proxy_info.ip_address;
@@ -6737,7 +6737,6 @@ DWORD WINAPI AddURL( void *add_info )
 
 							if ( proxy_info.username != NULL )
 							{
-								proxy_username_length = lstrlenA( proxy_info.username );
 								di->proxy_info->username = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( proxy_username_length + 1 ) );
 								_memcpy_s( di->proxy_info->username, proxy_username_length + 1, proxy_info.username, proxy_username_length + 1 );
 							}
@@ -6748,7 +6747,6 @@ DWORD WINAPI AddURL( void *add_info )
 
 							if ( proxy_info.password != NULL )
 							{
-								proxy_password_length = lstrlenA( proxy_info.password );
 								di->proxy_info->password = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( proxy_password_length + 1 ) );
 								_memcpy_s( di->proxy_info->password, proxy_password_length + 1, proxy_info.password, proxy_password_length + 1 );
 							}
@@ -8159,17 +8157,11 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 								GlobalFree( di->auth_info.username );
 								GlobalFree( di->auth_info.password );
 
-								if ( di->proxy_info != NULL )
+								if ( di->proxy_info != di->saved_proxy_info )
 								{
-									GlobalFree( di->proxy_info->hostname );
-									GlobalFree( di->proxy_info->punycode_hostname );
-									GlobalFree( di->proxy_info->w_username );
-									GlobalFree( di->proxy_info->w_password );
-									GlobalFree( di->proxy_info->username );
-									GlobalFree( di->proxy_info->password );
-									GlobalFree( di->proxy_info->auth_key );
-									GlobalFree( di->proxy_info );
+									FreeProxyInfo( &di->saved_proxy_info );
 								}
+								FreeProxyInfo( &di->proxy_info );
 
 								// Safe to free this here since the listview item will have been removed.
 								while ( di->range_list != NULL )
@@ -8570,6 +8562,24 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 		}
 
 		LeaveCriticalSection( &cleanup_cs );
+	}
+}
+
+void FreeProxyInfo( PROXY_INFO **proxy_info )
+{
+	if ( *proxy_info != NULL )
+	{
+		if ( ( *proxy_info )->hostname != NULL ) { GlobalFree( ( *proxy_info )->hostname ); }
+		if ( ( *proxy_info )->punycode_hostname != NULL ) { GlobalFree( ( *proxy_info )->punycode_hostname ); }
+		if ( ( *proxy_info )->w_username != NULL ) { GlobalFree( ( *proxy_info )->w_username ); }
+		if ( ( *proxy_info )->w_password != NULL ) { GlobalFree( ( *proxy_info )->w_password ); }
+		if ( ( *proxy_info )->username != NULL ) { GlobalFree( ( *proxy_info )->username ); }
+		if ( ( *proxy_info )->password != NULL ) { GlobalFree( ( *proxy_info )->password ); }
+		if ( ( *proxy_info )->auth_key != NULL ) { GlobalFree( ( *proxy_info )->auth_key ); }
+
+		GlobalFree( *proxy_info );
+
+		*proxy_info = NULL;
 	}
 }
 

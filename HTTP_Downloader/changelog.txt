@@ -1,3 +1,11 @@
+Version:	1.0.6.3
+Released:	2024-09-03
+
+Memory optimization for cached icons.
+Fixed TreeListView edit box missing dark mode style.
+Site Manager proxy settings are now applied to redirected URL(s).
+Fixed scrolling issue when TreeListView items are removed and group host is first visible item.
+
 Version:	1.0.6.2
 Released:	2024-06-23
 

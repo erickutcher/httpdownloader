@@ -641,7 +641,7 @@ LRESULT CALLBACK TreeViewSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPa
 					LRESULT ret = _CallWindowProcW( TreeViewProc, hWnd, msg, wParam, lParam );
 
 					// Can't do SetFocus() here otherwise it focuses on the listview in the appearance tab instead of the window itself.
-					_PostMessageW( *( HWND * )tvi.lParam, WM_PROPAGATE, 0, 0 );
+					_PostMessageW( hWnd_next, WM_PROPAGATE, 0, 0 );
 
 					return ret;
 				}
@@ -677,22 +677,22 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			tvis.hParent = TVI_ROOT;
 			tvis.hInsertAfter = TVI_FIRST;
 
-			HTREEITEM hti = ( HTREEITEM )_SendMessageW( g_hWnd_options_tree, TVM_INSERTITEM, 0, ( LPARAM )&tvis );
+			_SendMessageW( g_hWnd_options_tree, TVM_INSERTITEM, 0, ( LPARAM )&tvis );
 
 			tvis.item.state = TVIS_EXPANDED;
 			tvis.item.pszText = ST_V_Appearance;
 			tvis.item.lParam = ( LPARAM )&g_hWnd_appearance_tab;
 
-			tvis.hParent = NULL;
-			tvis.hInsertAfter = hti;
+			tvis.hParent = TVI_ROOT;
+			tvis.hInsertAfter = TVI_LAST;
 
-			hti = ( HTREEITEM )_SendMessageW( g_hWnd_options_tree, TVM_INSERTITEM, 0, ( LPARAM )&tvis );
+			_SendMessageW( g_hWnd_options_tree, TVM_INSERTITEM, 0, ( LPARAM )&tvis );
 
 			tvis.item.pszText = ST_V_Connection;
 			tvis.item.lParam = ( LPARAM )&g_hWnd_connection_tab;
 
-			tvis.hParent = NULL;
-			tvis.hInsertAfter = hti;
+			tvis.hParent = TVI_ROOT;
+			tvis.hInsertAfter = TVI_LAST;
 
 			HTREEITEM hti_connection = ( HTREEITEM )_SendMessageW( g_hWnd_options_tree, TVM_INSERTITEM, 0, ( LPARAM )&tvis );
 
@@ -700,15 +700,15 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			tvis.item.lParam = ( LPARAM )&g_hWnd_ftp_tab;
 
 			tvis.hParent = hti_connection;
-			tvis.hInsertAfter = hti_connection;
+			tvis.hInsertAfter = TVI_LAST;
 
-			hti = ( HTREEITEM )_SendMessageW( g_hWnd_options_tree, TVM_INSERTITEM, 0, ( LPARAM )&tvis );
+			_SendMessageW( g_hWnd_options_tree, TVM_INSERTITEM, 0, ( LPARAM )&tvis );
 
 			tvis.item.pszText = ST_V_SFTP;
 			tvis.item.lParam = ( LPARAM )&g_hWnd_sftp_tab;
 
 			tvis.hParent = hti_connection;
-			tvis.hInsertAfter = hti;
+			tvis.hInsertAfter = TVI_LAST;
 
 			HTREEITEM hti_sftp = ( HTREEITEM )_SendMessageW( g_hWnd_options_tree, TVM_INSERTITEM, 0, ( LPARAM )&tvis );
 
@@ -716,39 +716,39 @@ LRESULT CALLBACK OptionsWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			tvis.item.lParam = ( LPARAM )&g_hWnd_sftp_fps_tab;
 
 			tvis.hParent = hti_sftp;
-			tvis.hInsertAfter = hti_sftp;
+			tvis.hInsertAfter = TVI_LAST;
 
-			hti = ( HTREEITEM )_SendMessageW( g_hWnd_options_tree, TVM_INSERTITEM, 0, ( LPARAM )&tvis );
+			_SendMessageW( g_hWnd_options_tree, TVM_INSERTITEM, 0, ( LPARAM )&tvis );
 
 			tvis.item.pszText = ST_V_Private_Keys;
 			tvis.item.lParam = ( LPARAM )&g_hWnd_sftp_keys_tab;
 
 			tvis.hParent = hti_sftp;
-			tvis.hInsertAfter = hti;
+			tvis.hInsertAfter = TVI_LAST;
 
-			hti = ( HTREEITEM )_SendMessageW( g_hWnd_options_tree, TVM_INSERTITEM, 0, ( LPARAM )&tvis );
+			_SendMessageW( g_hWnd_options_tree, TVM_INSERTITEM, 0, ( LPARAM )&tvis );
 
 			tvis.item.pszText = ST_V_Proxy;
 			tvis.item.lParam = ( LPARAM )&g_hWnd_proxy_tab;
 
 			tvis.hParent = hti_connection;
-			tvis.hInsertAfter = hti;
+			tvis.hInsertAfter = TVI_LAST;
 
-			hti = ( HTREEITEM )_SendMessageW( g_hWnd_options_tree, TVM_INSERTITEM, 0, ( LPARAM )&tvis );
+			_SendMessageW( g_hWnd_options_tree, TVM_INSERTITEM, 0, ( LPARAM )&tvis );
 
 			tvis.item.pszText = ST_V_Server;
 			tvis.item.lParam = ( LPARAM )&g_hWnd_web_server_tab;
 
 			tvis.hParent = hti_connection;
-			tvis.hInsertAfter = hti;
+			tvis.hInsertAfter = TVI_LAST;
 
-			hti = ( HTREEITEM )_SendMessageW( g_hWnd_options_tree, TVM_INSERTITEM, 0, ( LPARAM )&tvis );
+			_SendMessageW( g_hWnd_options_tree, TVM_INSERTITEM, 0, ( LPARAM )&tvis );
 
 			tvis.item.pszText = ST_V_Advanced;
 			tvis.item.lParam = ( LPARAM )&g_hWnd_advanced_tab;
 
-			tvis.hParent = NULL;
-			tvis.hInsertAfter = hti;
+			tvis.hParent = TVI_ROOT;
+			tvis.hInsertAfter = TVI_LAST;
 
 			_SendMessageW( g_hWnd_options_tree, TVM_INSERTITEM, 0, ( LPARAM )&tvis );
 

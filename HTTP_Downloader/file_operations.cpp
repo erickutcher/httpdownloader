@@ -2398,16 +2398,6 @@ RETRY_OPEN:
 
 								//
 
-								// Cache our file's icon.
-								ICON_INFO *ii = CacheIcon( shared_info, sfi );
-
-								if ( ii != NULL )
-								{
-									shared_info->icon = &ii->icon;
-								}
-
-								//
-
 								SYSTEMTIME st;
 								FILETIME ft;
 								ft.dwHighDateTime = shared_info->add_time.HighPart;
@@ -2995,7 +2985,7 @@ RETRY_OPEN:
 												}
 											}
 
-											di->proxy_info = pi;
+											di->proxy_info = di->saved_proxy_info = pi;
 										}
 
 										//
@@ -3042,6 +3032,16 @@ RETRY_OPEN:
 								}
 
 								SetSharedInfoStatus( shared_info );
+
+								//
+
+								// Cache our file's icon.
+								ICON_INFO *ii = CacheIcon( shared_info, sfi );
+
+								if ( ii != NULL )
+								{
+									shared_info->icon = &ii->icon;
+								}
 
 								continue;
 							}
@@ -3097,17 +3097,12 @@ RETRY_OPEN:
 										GlobalFree( di->auth_info.username );
 										GlobalFree( di->auth_info.password );
 
-										if ( di->proxy_info != NULL )
+										// saved_proxy_info equals proxy_info here.
+										/*if ( di->proxy_info != di->saved_proxy_info )
 										{
-											GlobalFree( di->proxy_info->hostname );
-											GlobalFree( di->proxy_info->punycode_hostname );
-											GlobalFree( di->proxy_info->w_username );
-											GlobalFree( di->proxy_info->w_password );
-											GlobalFree( di->proxy_info->username );
-											GlobalFree( di->proxy_info->password );
-											GlobalFree( di->proxy_info->auth_key );
-											GlobalFree( di->proxy_info );
-										}
+											FreeProxyInfo( &di->saved_proxy_info );
+										}*/
+										FreeProxyInfo( &di->proxy_info );
 
 										while ( di->range_list != NULL )
 										{
@@ -3356,7 +3351,7 @@ RETRY_OPEN:
 					int proxy_password_length = 0;
 					int proxy_address_length = 0;
 
-					PROXY_INFO *pi = di->proxy_info;
+					PROXY_INFO *pi = di->saved_proxy_info;
 					if ( pi != NULL && pi->type != 0 )
 					{
 						optional_extra_length += sizeof( unsigned char );

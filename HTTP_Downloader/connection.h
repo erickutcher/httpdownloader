@@ -427,6 +427,7 @@ struct DOWNLOAD_INFO
 	unsigned long long	download_speed_limit;
 	DOWNLOAD_INFO		*shared_info;
 	PROXY_INFO			*proxy_info;
+	PROXY_INFO			*saved_proxy_info;
 	wchar_t				*url;
 	DoublyLinkedList	*host_list;			// Other hosts that are downloading the file.
 	DoublyLinkedList	*range_list;
@@ -514,6 +515,7 @@ void RemoveCachedIcon( DOWNLOAD_INFO *di, wchar_t *file_extension = NULL );
 
 void SetSharedInfoStatus( DOWNLOAD_INFO *shared_info );
 
+void FreeProxyInfo( PROXY_INFO **proxy_info );
 void FreePOSTInfo( POST_INFO **post_info );
 void FreeAuthInfo( AUTH_INFO **auth_info );
 void FreeAddInfo( ADD_INFO **add_info );

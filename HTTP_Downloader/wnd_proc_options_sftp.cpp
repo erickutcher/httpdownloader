@@ -190,7 +190,7 @@ LRESULT CALLBACK SFTPTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			tvis.item.mask = TVIF_TEXT | TVIF_PARAM | TVIF_STATE;
 			tvis.item.stateMask = TVIS_EXPANDED | TVIS_STATEIMAGEMASK;
 			tvis.hParent = TVI_ROOT;
-			tvis.hInsertAfter = TVI_FIRST;
+			tvis.hInsertAfter = TVI_LAST;
 			for ( char i = 0; i < KEX_ALGORITHM_COUNT; ++i )
 			{
 				g_priority_kex_algorithm[ i ] = cfg_priority_kex_algorithm[ i ];
@@ -198,12 +198,11 @@ LRESULT CALLBACK SFTPTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 				tvis.item.state = TVIS_EXPANDED | INDEXTOSTATEIMAGEMASK( ( ( cfg_priority_kex_algorithm[ i ] & 0x40 ) ? 2 : 1 ) );
 				tvis.item.pszText = sftp_kex_string_table[ ( cfg_priority_kex_algorithm[ i ] & 0x3F ) - 1 ].value;
 				tvis.item.lParam = ( LPARAM )cfg_priority_kex_algorithm[ i ];
-				HTREEITEM hti = ( HTREEITEM )_SendMessageW( g_hWnd_sftp_kex_algorithm, TVM_INSERTITEM, 0, ( LPARAM )&tvis );
-				tvis.hInsertAfter = hti;
+				_SendMessageW( g_hWnd_sftp_kex_algorithm, TVM_INSERTITEM, 0, ( LPARAM )&tvis );
 			}
 
 			tvis.hParent = TVI_ROOT;
-			tvis.hInsertAfter = TVI_FIRST;
+			tvis.hInsertAfter = TVI_LAST;
 			for ( char i = 0; i < HOST_KEY_COUNT; ++i )
 			{
 				g_priority_host_key[ i ] = cfg_priority_host_key[ i ];
@@ -211,12 +210,11 @@ LRESULT CALLBACK SFTPTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 				tvis.item.state = TVIS_EXPANDED | INDEXTOSTATEIMAGEMASK( ( ( cfg_priority_host_key[ i ] & 0x40 ) ? 2 : 1 ) );
 				tvis.item.pszText = sftp_hk_string_table[ ( cfg_priority_host_key[ i ] & 0x3F ) - 1 ].value;
 				tvis.item.lParam = ( LPARAM )cfg_priority_host_key[ i ];
-				HTREEITEM hti = ( HTREEITEM )_SendMessageW( g_hWnd_sftp_host_key, TVM_INSERTITEM, 0, ( LPARAM )&tvis );
-				tvis.hInsertAfter = hti;
+				_SendMessageW( g_hWnd_sftp_host_key, TVM_INSERTITEM, 0, ( LPARAM )&tvis );
 			}
 
 			tvis.hParent = TVI_ROOT;
-			tvis.hInsertAfter = TVI_FIRST;
+			tvis.hInsertAfter = TVI_LAST;
 			for ( char i = 0; i < ENCRYPTION_CIPHER_COUNT; ++i )
 			{
 				g_priority_encryption_cipher[ i ] = cfg_priority_encryption_cipher[ i ];
@@ -224,8 +222,7 @@ LRESULT CALLBACK SFTPTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 				tvis.item.state = TVIS_EXPANDED | INDEXTOSTATEIMAGEMASK( ( ( cfg_priority_encryption_cipher[ i ] & 0x40 ) ? 2 : 1 ) );
 				tvis.item.pszText = sftp_ec_string_table[ ( cfg_priority_encryption_cipher[ i ] & 0x3F ) - 1 ].value;
 				tvis.item.lParam = ( LPARAM )cfg_priority_encryption_cipher[ i ];
-				HTREEITEM hti = ( HTREEITEM )_SendMessageW( g_hWnd_sftp_encryption_cipher, TVM_INSERTITEM, 0, ( LPARAM )&tvis );
-				tvis.hInsertAfter = hti;
+				_SendMessageW( g_hWnd_sftp_encryption_cipher, TVM_INSERTITEM, 0, ( LPARAM )&tvis );
 			}
 
 			HWND hWnd_static_drag_order = _CreateWindowW( WC_STATIC, ST_V_Drag_items_to_reorder_priority, WS_CHILD | WS_VISIBLE, 11, 179, rc.right - 22, 15, hWnd, NULL, NULL, NULL );

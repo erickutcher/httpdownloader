@@ -3210,6 +3210,14 @@ void CreateEditBox( HWND hWnd )
 	EditBoxProc = ( WNDPROC )_GetWindowLongPtrW( g_hWnd_edit_box, GWLP_WNDPROC );
 	_SetWindowLongPtrW( g_hWnd_edit_box, GWLP_WNDPROC, ( LONG_PTR )EditBoxSubProc );
 
+#ifdef ENABLE_DARK_MODE
+	if ( g_use_dark_mode )
+	{
+		EnumChildProc( g_hWnd_edit_box, NULL );
+		EnumTLWProc( hWnd, NULL );
+	}
+#endif
+
 	if ( g_base_selected_node != NULL && g_base_selected_node->data != NULL )
 	{
 		DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )g_base_selected_node->data;
@@ -3289,7 +3297,7 @@ void __DrawTextW( HDC hdc, int x, int y, UINT options, const RECT *lprect, LPCWS
 		if ( size.cx > width )
 		{
 			// Measure the size of our ellipsis.
-			if ( _GetTextExtentExPointW( hdc, L"...", 3, width, NULL, NULL, &e_size ) == TRUE )
+			if ( _GetTextExtentExPointW( hdc, ELLIPSISW, ELLIPSISW_LENGTH, width, NULL, NULL, &e_size ) == TRUE )
 			{
 				if ( e_size.cx > width )
 				{
@@ -3383,7 +3391,7 @@ void __DrawTextW( HDC hdc, int x, int y, UINT options, const RECT *lprect, LPCWS
 			rc.left = rc.right;
 			rc.right += e_size.cx;
 
-			_ExtTextOutW( hdc, x + hpos + adj_size.cx, y + vpos, ETO_CLIPPED, &rc, L"...", 3, NULL );
+			_ExtTextOutW( hdc, x + hpos + adj_size.cx, y + vpos, ETO_CLIPPED, &rc, ELLIPSISW, ELLIPSISW_LENGTH, NULL );
 		}
 	}
 }
