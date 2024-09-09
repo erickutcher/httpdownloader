@@ -1492,9 +1492,9 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 			{
 				case NM_RCLICK:
 				{
-					NMITEMACTIVATE *nmitem = ( NMITEMACTIVATE * )lParam;
+					NMMOUSE *nmm = ( NMMOUSE * )lParam;
 
-					if ( nmitem->hdr.hwndFrom == g_hWnd_toolbar || nmitem->hdr.hwndFrom == g_hWnd_status )
+					if ( nmm->hdr.hwndFrom == g_hWnd_toolbar || nmm->hdr.hwndFrom == g_hWnd_status )
 					{
 						POINT p;
 						_GetCursorPos( &p );
@@ -1506,17 +1506,17 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 
 				case NM_CLICK:
 				{
-					NMMOUSE *nm = ( NMMOUSE * )lParam;
+					NMMOUSE *nmm = ( NMMOUSE * )lParam;
 
 					// Change the format of the panel if Ctrl is held while clicking the panel.
 					if ( GetKeyState( VK_CONTROL ) & 0x8000 )
 					{
-						if ( nm->hdr.hwndFrom == g_hWnd_status )
+						if ( nmm->hdr.hwndFrom == g_hWnd_status )
 						{
 							wchar_t status_bar_buf[ 128 ];
 							unsigned char buf_length;
 
-							if ( nm->dwItemSpec == 1 )
+							if ( nmm->dwItemSpec == 1 )
 							{
 								if ( cfg_t_status_down_speed >= SIZE_FORMAT_AUTO )
 								{
@@ -1539,7 +1539,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 								_SendMessageW( g_hWnd_status, SB_SETTIPTEXT, 1, ( LPARAM )status_bar_buf );
 								_SendMessageW( g_hWnd_status, SB_SETTEXT, MAKEWPARAM( 1, 0 ), ( LPARAM )status_bar_buf );
 							}
-							else if ( nm->dwItemSpec == 2 )
+							else if ( nmm->dwItemSpec == 2 )
 							{
 								if ( cfg_t_status_downloaded >= SIZE_FORMAT_AUTO )
 								{
@@ -1560,7 +1560,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 								_SendMessageW( g_hWnd_status, SB_SETTIPTEXT, 2, ( LPARAM )status_bar_buf );
 								_SendMessageW( g_hWnd_status, SB_SETTEXT, MAKEWPARAM( 2, 0 ), ( LPARAM )status_bar_buf );
 							}
-							else if ( nm->dwItemSpec == 3 )
+							else if ( nmm->dwItemSpec == 3 )
 							{
 								buf_length = ( unsigned char )( ST_L_Global_download_speed_limit_ > 102 ? 102 : ST_L_Global_download_speed_limit_ ); // Let's not overflow. 128 - ( ' ' + 22 +  '/' + 's' + NULL ) = 102 remaining bytes for our string.
 								_wmemcpy_s( status_bar_buf, 128, ST_V_Global_download_speed_limit_, buf_length );

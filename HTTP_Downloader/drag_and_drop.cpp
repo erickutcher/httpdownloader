@@ -624,45 +624,20 @@ HRESULT STDMETHODCALLTYPE DragEnter( IDropTarget *This, IDataObject *pDataObj, D
 	_This->m_ClipFormat = 0;
 
 	FORMATETC fetc;
-	fetc.cfFormat = ( CLIPFORMAT )CF_HTML;
 	fetc.ptd = NULL;
 	fetc.dwAspect = DVASPECT_CONTENT;
 	fetc.lindex = -1;
 	fetc.tymed = TYMED_HGLOBAL;
 
-	// See if the data is unicode text.
-	if ( pDataObj->QueryGetData( &fetc ) == S_OK )
+	UINT clip_formats[ 4 ] = { CF_HTML, CF_UNICODETEXT, CF_HDROP, CF_TEXT };
+	for ( char i = 0; i < 4; ++i )
 	{
-		_This->m_ClipFormat = CF_HTML;
-	}
-	else
-	{
-		fetc.cfFormat = CF_UNICODETEXT;
-
-		// See if the data is unicode text.
+		fetc.cfFormat = ( CLIPFORMAT )clip_formats[ i ];
 		if ( pDataObj->QueryGetData( &fetc ) == S_OK )
 		{
-			_This->m_ClipFormat = CF_UNICODETEXT;
-		}
-		else
-		{
-			fetc.cfFormat = CF_HDROP;
+			_This->m_ClipFormat = clip_formats[ i ];
 
-			// See if the data is a list of files.
-			if ( pDataObj->QueryGetData( &fetc ) == S_OK )
-			{
-				_This->m_ClipFormat = CF_HDROP;
-			}
-			else
-			{
-				fetc.cfFormat = CF_TEXT;
-
-				// See if the data is ascii text.
-				if ( pDataObj->QueryGetData( &fetc ) == S_OK )
-				{
-					_This->m_ClipFormat = CF_TEXT;
-				}
-			}
+			break;
 		}
 	}
 
@@ -721,14 +696,12 @@ HRESULT STDMETHODCALLTYPE Drop( IDropTarget *This, IDataObject *pDataObj, DWORD 
 {
 	_IDropTarget *_This = ( _IDropTarget * )This;
 
-	CLIPFORMAT cfFormat = ( CLIPFORMAT )_This->m_ClipFormat;
-
-	if ( cfFormat != 0 )
+	if ( _This->m_ClipFormat != 0 )
 	{
 		PositionCursor( _This->m_hWnd, pt );
 
 		FORMATETC fetc;
-		fetc.cfFormat = cfFormat;
+		fetc.cfFormat = ( CLIPFORMAT )_This->m_ClipFormat;
 		fetc.ptd = NULL;
 		fetc.dwAspect = DVASPECT_CONTENT;
 		fetc.lindex = -1;
@@ -740,7 +713,7 @@ HRESULT STDMETHODCALLTYPE Drop( IDropTarget *This, IDataObject *pDataObj, DWORD 
 		{
 			PVOID data = GlobalLock( stgm.hGlobal );
 
-			if ( data != NULL && cfFormat == CF_HTML )
+			if ( data != NULL && _This->m_ClipFormat == CF_HTML )
 			{
 				// Reallocate the data buffer since it doesn't include a NULL terminator. (STUPID!!!)
 				size_t data_size = GlobalSize( stgm.hGlobal );
@@ -766,7 +739,7 @@ HRESULT STDMETHODCALLTYPE Drop( IDropTarget *This, IDataObject *pDataObj, DWORD 
 
 					_ReleaseStgMedium( &stgm );
 
-					fetc.cfFormat = cfFormat = CF_UNICODETEXT;
+					_This->m_ClipFormat = fetc.cfFormat = CF_UNICODETEXT;
 
 					if ( pDataObj->GetData( &fetc, &stgm ) == S_OK )
 					{
@@ -774,7 +747,7 @@ HRESULT STDMETHODCALLTYPE Drop( IDropTarget *This, IDataObject *pDataObj, DWORD 
 					}
 					else
 					{
-						fetc.cfFormat = cfFormat = CF_TEXT;
+						_This->m_ClipFormat = fetc.cfFormat = CF_TEXT;
 
 						if ( pDataObj->GetData( &fetc, &stgm ) == S_OK )
 						{
@@ -786,7 +759,7 @@ HRESULT STDMETHODCALLTYPE Drop( IDropTarget *This, IDataObject *pDataObj, DWORD 
 
 			if ( data != NULL )
 			{
-				if ( cfFormat == CF_HDROP )
+				if ( _This->m_ClipFormat == CF_HDROP )
 				{
 					HandleFileList( ( HDROP )data );
 				}
@@ -795,15 +768,15 @@ HRESULT STDMETHODCALLTYPE Drop( IDropTarget *This, IDataObject *pDataObj, DWORD 
 					// g_hWnd_add_urls might be NULL. We just want to make sure we're not dropping something into its URL edit control (g_hWnd_edit_add).
 					if ( cfg_drag_and_drop_action != DRAG_AND_DROP_ACTION_NONE && ( g_hWnd_add_urls == NULL || _GetParent( _This->m_hWnd ) != g_hWnd_add_urls ) )
 					{
-						HandleAddInfo( cfFormat, data );
+						HandleAddInfo( _This->m_ClipFormat, data );
 					}
 					else
 					{
-						_SendMessageW( ( g_hWnd_add_urls != NULL ? g_hWnd_add_urls : g_hWnd_main ), WM_PROPAGATE, cfFormat, ( LPARAM )data );
+						_SendMessageW( ( g_hWnd_add_urls != NULL ? g_hWnd_add_urls : g_hWnd_main ), WM_PROPAGATE, _This->m_ClipFormat, ( LPARAM )data );
 					}
 				}
 
-				if ( cfFormat == CF_HTML )
+				if ( _This->m_ClipFormat == CF_HTML )
 				{
 					GlobalFree( data );
 				}

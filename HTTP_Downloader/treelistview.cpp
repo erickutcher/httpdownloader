@@ -185,24 +185,6 @@ void ClearDrag()
 	}
 }
 
-void ClearTooltip( HWND hWnd, HWND hWnd_tooltip )
-{
-	if ( _SendMessageW( hWnd_tooltip, TTM_GETCURRENTTOOL, 0, NULL ) != 0 )
-	{
-		g_tlv_is_tracking = FALSE;
-
-		g_tlv_last_tooltip_item = -1;
-
-		TOOLINFO tti;
-		_memzero( &tti, sizeof( TOOLINFO ) );
-		tti.cbSize = sizeof( TOOLINFO );
-		tti.hwnd = hWnd;
-		tti.uId = ( UINT_PTR )hWnd;
-		//tti.lpszText = NULL;
-		_SendMessageW( hWnd_tooltip, TTM_TRACKACTIVATE, FALSE, ( LPARAM )&tti );
-	}
-}
-
 int TLV_GetParentIndex( TREELISTNODE *tln, int index )
 {
 	if ( tln != NULL && tln->parent != NULL && index > 0 )
@@ -5226,8 +5208,6 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 					{
 						ClearDrag();
 
-						ClearTooltip( hWnd, g_hWnd_tlv_tooltip );
-
 						// If the base selected node is NULL, then so is the focused node. The opposite is not necessarily true.
 						if ( g_base_selected_node == NULL )
 						{
@@ -5544,8 +5524,6 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 
 			ClearDrag();
 
-			ClearTooltip( hWnd, g_hWnd_tlv_tooltip );
-
 			SCROLLINFO si;
 			_memzero( &si, sizeof( SCROLLINFO ) );
 			si.cbSize = sizeof( SCROLLINFO );
@@ -5654,9 +5632,26 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 
 					_SendMessageW( g_hWnd_tlv_tooltip, TTM_SETTOOLINFO, 0, ( LPARAM )&tti );
 					_SendMessageW( g_hWnd_tlv_tooltip, TTM_TRACKACTIVATE, TRUE, ( LPARAM )&tti );
-
-					g_tlv_is_tracking = FALSE;
 				}
+			}
+		}
+		break;
+
+		case WM_MOUSELEAVE:
+		{
+			if ( g_tlv_is_tracking == TRUE && !g_is_dragging )
+			{
+				g_tlv_is_tracking = FALSE;
+
+				g_tlv_last_tooltip_item = -1;
+
+				TOOLINFO tti;
+				_memzero( &tti, sizeof( TOOLINFO ) );
+				tti.cbSize = sizeof( TOOLINFO );
+				tti.hwnd = hWnd;
+				tti.uId = ( UINT_PTR )hWnd;
+				//tti.lpszText = NULL;
+				_SendMessageW( g_hWnd_tlv_tooltip, TTM_TRACKACTIVATE, FALSE, ( LPARAM )&tti );
 			}
 		}
 		break;
@@ -5690,7 +5685,7 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 
 				TRACKMOUSEEVENT tmi;
 				tmi.cbSize = sizeof( TRACKMOUSEEVENT );
-				tmi.dwFlags = TME_HOVER;
+				tmi.dwFlags = TME_HOVER | TME_LEAVE;
 				tmi.hwndTrack = hWnd;
 				tmi.dwHoverTime = 2000;
 				g_tlv_is_tracking = _TrackMouseEvent( &tmi );
@@ -5703,8 +5698,6 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 		case WM_MBUTTONDOWN:
 		{
 			_SetFocus( hWnd );
-
-			ClearTooltip( hWnd, g_hWnd_tlv_tooltip );
 
 			HandleMouseClick( hWnd, ( msg == WM_LBUTTONDOWN ? false : true ) );
 		}
@@ -6195,10 +6188,6 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 				{
 					HandleCommand( hWnd, MENU_OPEN_DIRECTORY );
 				}
-			}
-			else// if ( msg == WM_KILLFOCUS )
-			{
-				ClearTooltip( hWnd, g_hWnd_tlv_tooltip );
 			}
 
 			return 0;
@@ -6721,7 +6710,7 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 			if ( cfg_show_toolbar )
 			{
 				RECT rc;
-				_GetClientRect( hWnd, &rc );
+				_GetWindowRect( hWnd, &rc );
 
 				HDC hDC = _GetWindowDC( hWnd );
 				HPEN line_color;
@@ -6740,7 +6729,7 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 				_DeleteObject( old_color );
 
 				_MoveToEx( hDC, 0, 0, NULL );
-				_LineTo( hDC, rc.right + _GetSystemMetrics( SM_CXVSCROLL ), 0 );
+				_LineTo( hDC, rc.right - rc.left, 0 );
 				_DeleteObject( line_color );
 
 				_ReleaseDC( hWnd, hDC );

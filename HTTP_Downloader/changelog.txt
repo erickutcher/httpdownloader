@@ -1,3 +1,9 @@
+Version:	1.0.6.4
+Released:	2024-09-09
+
+Fixed TreeListView tooltip not disappearing when main window focus is lost.
+Various optimizations.
+
 Version:	1.0.6.3
 Released:	2024-09-03
 
