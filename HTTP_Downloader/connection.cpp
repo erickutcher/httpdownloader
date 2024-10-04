@@ -5247,7 +5247,7 @@ wchar_t *ParseURLSettings( wchar_t *url_list, ADD_INFO *ai )
 				}
 				else if ( ( param_name_length == 13 && _StrCmpNIW( param_name_start, L"cookie-string", 13 ) == 0 ) ||
 						  ( param_name_length == 9 && _StrCmpNIW( param_name_start, L"post-data", 9 ) == 0 ) ||
-						  ( param_name_length == 16 && _StrCmpNIW( param_name_start, L"output-directory", 16 ) == 0 ) ||
+						  ( param_name_length == 18 && _StrCmpNIW( param_name_start, L"download-directory", 18 ) == 0 ) ||
 						  ( param_name_length == 8 && _StrCmpNIW( param_name_start, L"username", 8 ) == 0 ) ||
 						  ( param_name_length == 8 && _StrCmpNIW( param_name_start, L"password", 8 ) == 0 ) ||
 						  ( param_name_length == 14 && _StrCmpNIW( param_name_start, L"proxy-hostname", 14 ) == 0 ) ||
@@ -5288,7 +5288,7 @@ wchar_t *ParseURLSettings( wchar_t *url_list, ADD_INFO *ai )
 									param_value = &password;
 								}
 							}
-							else if ( *param_name_start == L'o' )
+							else if ( *param_name_start == L'd' )
 							{
 								// Remove any quotes.
 								if ( param_value_start[ 0 ] == L'\"' )

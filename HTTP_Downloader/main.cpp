@@ -400,7 +400,7 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 				else if ( ( arg + 1 ) < argCount &&
 						  ( arg_name_length == 13 && _StrCmpNIW( arg_name, L"cookie-string", 13 ) == 0 ) ||
 						  ( arg_name_length == 9 && _StrCmpNIW( arg_name, L"post-data", 9 ) == 0 ) ||
-						  ( arg_name_length == 16 && _StrCmpNIW( arg_name, L"output-directory", 16 ) == 0 ) ||
+						  ( arg_name_length == 18 && _StrCmpNIW( arg_name, L"download-directory", 18 ) == 0 ) ||
 						  ( arg_name_length == 16 && _StrCmpNIW( arg_name, L"download-history", 16 ) == 0 ) ||
 						  ( arg_name_length == 8 && _StrCmpNIW( arg_name, L"url-list", 8 ) == 0 ) ||
 						  ( arg_name_length == 8 && _StrCmpNIW( arg_name, L"username", 8 ) == 0 ) ||
@@ -429,38 +429,41 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 								cla->password_length = length;
 							}
 						}
-						else if ( *arg_name == L'o' )
-						{
-							if ( CreateDirectoriesW( szArgList[ arg + 1 ], NULL ) != FALSE )
-							{
-								// Remove any trailing slash.
-								while ( length > 0 )
-								{
-									if ( szArgList[ arg + 1 ][ length - 1 ] == L'\\' )
-									{
-										--length;
-									}
-									else
-									{
-										break;
-									}
-								}
-
-								cl_val = &cla->download_directory;
-								cla->download_directory_length = length;
-								cla->use_download_directory = true;
-							}
-							else
-							{
-								++arg;
-
-								continue;
-							}
-						}
 						else if ( *arg_name == L'd' )
 						{
-							cl_val = &cla->download_history_file;
-							cla->download_history_file_length = length;
+							if ( arg_name_length == 18 )	// Download Directory
+							{
+								if ( CreateDirectoriesW( szArgList[ arg + 1 ], NULL ) != FALSE )
+								{
+									// Remove any trailing slash.
+									while ( length > 0 )
+									{
+										if ( szArgList[ arg + 1 ][ length - 1 ] == L'\\' )
+										{
+											--length;
+										}
+										else
+										{
+											break;
+										}
+									}
+
+									cl_val = &cla->download_directory;
+									cla->download_directory_length = length;
+									cla->use_download_directory = true;
+								}
+								else
+								{
+									++arg;
+
+									continue;
+								}
+							}
+							else// if ( arg_name_length == 16 )	// Download History
+							{
+								cl_val = &cla->download_history_file;
+								cla->download_history_file_length = length;
+							}
 						}
 						else if ( arg_name[ 0 ] == L'u' )
 						{

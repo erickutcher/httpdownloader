@@ -1,4 +1,4 @@
-16778756
-https://github.com/erickutcher/httpdownloader/releases/download/v1.0.6.4/HTTP_Downloader_DM_32.zip
-16778756
-https://github.com/erickutcher/httpdownloader/releases/download/v1.0.6.4/HTTP_Downloader_DM_64.zip
+16778757
+https://github.com/erickutcher/httpdownloader/releases/download/v1.0.6.5/HTTP_Downloader_DM_32.zip
+16778757
+https://github.com/erickutcher/httpdownloader/releases/download/v1.0.6.5/HTTP_Downloader_DM_64.zip

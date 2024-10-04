@@ -1,3 +1,9 @@
+Version:	1.0.6.5
+Released:	2024-10-04
+
+Changed output-directory command-line parameter to download-directory.
+Fixed prompts not displaying for redirected URLs.
+
 Version:	1.0.6.4
 Released:	2024-09-09
 

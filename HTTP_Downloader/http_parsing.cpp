@@ -3744,6 +3744,21 @@ char HandleRedirect( SOCKET_CONTEXT *context )
 		redirect_context->part = context->part;
 		redirect_context->parts = context->parts;
 
+		if ( context->got_filename == 2 )
+		{
+			redirect_context->got_filename = context->got_filename;
+		}
+
+		if ( context->got_last_modified == 2 )
+		{
+			redirect_context->got_last_modified = context->got_last_modified;
+		}
+
+		//if ( context->show_file_size_prompt )
+		//{
+			redirect_context->show_file_size_prompt = context->show_file_size_prompt;
+		//}
+
 		//
 
 		bool is_absolute_uri = false;
