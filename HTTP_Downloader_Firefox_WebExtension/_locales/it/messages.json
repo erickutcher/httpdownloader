@@ -39,6 +39,10 @@
 		"message": "Ripristina"
 	},
 
+	"category_": {
+		"message": "Categoria:"
+	},
+
 	"download_directory_": {
 		"message": "Cartella download:"
 	},
@@ -79,6 +83,10 @@
 		"message": "Generale"
 	},
 
+	"comments": {
+		"message": "Commenti"
+	},
+
 	"cookies": {
 		"message": "Cookie"
 	},
@@ -93,6 +101,10 @@
 
 	"proxy": {
 		"message": "Proxy"
+	},
+
+	"comments_": {
+		"message": "Commenti:"
 	},
 
 	"cookies_": {
