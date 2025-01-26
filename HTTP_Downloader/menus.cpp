@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
-	Copyright (C) 2015-2024 Eric Kutcher
+	Copyright (C) 2015-2025 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -24,6 +24,7 @@
 #include "menus.h"
 #include "utilities.h"
 #include "treelistview.h"
+#include "categories.h"
 
 #include "connection.h"
 #include "list_operations.h"
@@ -705,95 +706,14 @@ void CreateMenus()
 
 	//
 
-	mii.dwTypeData = ST_V_NUM;
-	mii.cch = ST_L_NUM;
-	mii.wID = MENU_NUM;
-	mii.fState = ( cfg_column_order1 != -1 ? MFS_CHECKED | ( g_total_columns > 1 ? MFS_ENABLED : MFS_DISABLED ) : MFS_UNCHECKED );
-	_InsertMenuItemW( g_hMenuSub_column, 0, TRUE, &mii );
-
-	mii.dwTypeData = ST_V_Active_Parts;
-	mii.cch = ST_L_Active_Parts;
-	mii.wID = MENU_ACTIVE_PARTS;
-	mii.fState = ( cfg_column_order2 != -1 ? MFS_CHECKED | ( g_total_columns > 1 ? MFS_ENABLED : MFS_DISABLED ) : MFS_UNCHECKED );
-	_InsertMenuItemW( g_hMenuSub_column, 1, TRUE, &mii );
-
-	mii.dwTypeData = ST_V_Date_and_Time_Added;
-	mii.cch = ST_L_Date_and_Time_Added;
-	mii.wID = MENU_DATE_AND_TIME_ADDED;
-	mii.fState = ( cfg_column_order3 != -1 ? MFS_CHECKED | ( g_total_columns > 1 ? MFS_ENABLED : MFS_DISABLED ) : MFS_UNCHECKED );
-	_InsertMenuItemW( g_hMenuSub_column, 2, TRUE, &mii );
-
-	mii.dwTypeData = ST_V_Download_Directory;
-	mii.cch = ST_L_Download_Directory;
-	mii.wID = MENU_DOWNLOAD_DIRECTORY;
-	mii.fState = ( cfg_column_order4 != -1 ? MFS_CHECKED | ( g_total_columns > 1 ? MFS_ENABLED : MFS_DISABLED ) : MFS_UNCHECKED );
-	_InsertMenuItemW( g_hMenuSub_column, 3, TRUE, &mii );
-
-	mii.dwTypeData = ST_V_Download_Speed;
-	mii.cch = ST_L_Download_Speed;
-	mii.wID = MENU_DOWNLOAD_SPEED;
-	mii.fState = ( cfg_column_order5 != -1 ? MFS_CHECKED | ( g_total_columns > 1 ? MFS_ENABLED : MFS_DISABLED ) : MFS_UNCHECKED );
-	_InsertMenuItemW( g_hMenuSub_column, 4, TRUE, &mii );
-
-	mii.dwTypeData = ST_V_Download_Speed_Limit;
-	mii.cch = ST_L_Download_Speed_Limit;
-	mii.wID = MENU_DOWNLOAD_SPEED_LIMIT;
-	mii.fState = ( cfg_column_order6 != -1 ? MFS_CHECKED | ( g_total_columns > 1 ? MFS_ENABLED : MFS_DISABLED ) : MFS_UNCHECKED );
-	_InsertMenuItemW( g_hMenuSub_column, 5, TRUE, &mii );
-
-	mii.dwTypeData = ST_V_Downloaded;
-	mii.cch = ST_L_Downloaded;
-	mii.wID = MENU_DOWNLOADED;
-	mii.fState = ( cfg_column_order7 != -1 ? MFS_CHECKED | ( g_total_columns > 1 ? MFS_ENABLED : MFS_DISABLED ) : MFS_UNCHECKED );
-	_InsertMenuItemW( g_hMenuSub_column, 6, TRUE, &mii );
-
-	mii.dwTypeData = ST_V_File_Size;
-	mii.cch = ST_L_File_Size;
-	mii.wID = MENU_FILE_SIZE;
-	mii.fState = ( cfg_column_order8 != -1 ? MFS_CHECKED | ( g_total_columns > 1 ? MFS_ENABLED : MFS_DISABLED ) : MFS_UNCHECKED );
-	_InsertMenuItemW( g_hMenuSub_column, 7, TRUE, &mii );
-
-	mii.dwTypeData = ST_V_File_Type;
-	mii.cch = ST_L_File_Type;
-	mii.wID = MENU_FILE_TYPE;
-	mii.fState = ( cfg_column_order9 != -1 ? MFS_CHECKED | ( g_total_columns > 1 ? MFS_ENABLED : MFS_DISABLED ) : MFS_UNCHECKED );
-	_InsertMenuItemW( g_hMenuSub_column, 8, TRUE, &mii );
-
-	mii.dwTypeData = ST_V_Filename;
-	mii.cch = ST_L_Filename;
-	mii.wID = MENU_FILENAME;
-	mii.fState = ( cfg_column_order10 != -1 ? MFS_CHECKED | ( g_total_columns > 1 ? MFS_ENABLED : MFS_DISABLED ) : MFS_UNCHECKED );
-	_InsertMenuItemW( g_hMenuSub_column, 9, TRUE, &mii );
-
-	mii.dwTypeData = ST_V_Progress;
-	mii.cch = ST_L_Progress;
-	mii.wID = MENU_PROGRESS;
-	mii.fState = ( cfg_column_order11 != -1 ? MFS_CHECKED | ( g_total_columns > 1 ? MFS_ENABLED : MFS_DISABLED ) : MFS_UNCHECKED );
-	_InsertMenuItemW( g_hMenuSub_column, 10, TRUE, &mii );
-
-	mii.dwTypeData = ST_V_SSL___TLS_Version;
-	mii.cch = ST_L_SSL___TLS_Version;
-	mii.wID = MENU_SSL_TLS_VERSION;
-	mii.fState = ( cfg_column_order12 != -1 ? MFS_CHECKED | ( g_total_columns > 1 ? MFS_ENABLED : MFS_DISABLED ) : MFS_UNCHECKED );
-	_InsertMenuItemW( g_hMenuSub_column, 11, TRUE, &mii );
-
-	mii.dwTypeData = ST_V_Time_Elapsed;
-	mii.cch = ST_L_Time_Elapsed;
-	mii.wID = MENU_TIME_ELAPSED;
-	mii.fState = ( cfg_column_order13 != -1 ? MFS_CHECKED | ( g_total_columns > 1 ? MFS_ENABLED : MFS_DISABLED ) : MFS_UNCHECKED );
-	_InsertMenuItemW( g_hMenuSub_column, 12, TRUE, &mii );
-
-	mii.dwTypeData = ST_V_Time_Remaining;
-	mii.cch = ST_L_Time_Remaining;
-	mii.wID = MENU_TIME_REMAINING;
-	mii.fState = ( cfg_column_order14 != -1 ? MFS_CHECKED | ( g_total_columns > 1 ? MFS_ENABLED : MFS_DISABLED ) : MFS_UNCHECKED );
-	_InsertMenuItemW( g_hMenuSub_column, 13, TRUE, &mii );
-
-	mii.dwTypeData = ST_V_URL;
-	mii.cch = ST_L_URL;
-	mii.wID = MENU_URL;
-	mii.fState = ( cfg_column_order15 != -1 ? MFS_CHECKED | ( g_total_columns > 1 ? MFS_ENABLED : MFS_DISABLED ) : MFS_UNCHECKED );
-	_InsertMenuItemW( g_hMenuSub_column, 14, TRUE, &mii );
+	for ( char i = 0; i < NUM_COLUMNS; ++i )
+	{
+		mii.dwTypeData = download_string_table[ i ].value;
+		mii.cch = download_string_table[ i ].length;
+		mii.wID = MENU_COLUMNS + i;
+		mii.fState = ( *download_columns[ i ] != -1 ? MFS_CHECKED | ( g_total_columns > 1 ? MFS_ENABLED : MFS_DISABLED ) : MFS_UNCHECKED );
+		_InsertMenuItemW( g_hMenuSub_column, i, TRUE, &mii );
+	}
 
 	//
 
@@ -1088,17 +1008,23 @@ void CreateMenus()
 	mii.fState = ( cfg_show_toolbar ? MFS_CHECKED : MFS_UNCHECKED );
 	_InsertMenuItemW( g_hMenuSub_view, 0, TRUE, &mii );
 
+	mii.dwTypeData = ST_V_C_ategories;
+	mii.cch = ST_L_C_ategories;
+	mii.wID = MENU_SHOW_CATEGORIES;
+	mii.fState = ( cfg_show_categories ? MFS_CHECKED : MFS_UNCHECKED );
+	_InsertMenuItemW( g_hMenuSub_view, 1, TRUE, &mii );
+
 	mii.dwTypeData = ST_V__Column_Headers;
 	mii.cch = ST_L__Column_Headers;
 	mii.wID = MENU_SHOW_COLUMN_HEADERS;
 	mii.fState = ( cfg_show_column_headers ? MFS_CHECKED : MFS_UNCHECKED );
-	_InsertMenuItemW( g_hMenuSub_view, 1, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_view, 2, TRUE, &mii );
 
 	mii.dwTypeData = ST_V__Status_Bar;
 	mii.cch = ST_L__Status_Bar;
 	mii.wID = MENU_SHOW_STATUS_BAR;
 	mii.fState = ( cfg_show_status_bar ? MFS_CHECKED : MFS_UNCHECKED );
-	_InsertMenuItemW( g_hMenuSub_view, 2, TRUE, &mii );
+	_InsertMenuItemW( g_hMenuSub_view, 3, TRUE, &mii );
 
 
 	// TOOLS MENU
@@ -1223,6 +1149,8 @@ void UpdateColumns( WORD menu_id )
 				break;
 
 				case COLUMN_ACTIVE_PARTS:
+				case COLUMN_CATEGORY:
+				case COLUMN_COMMENTS:
 				case COLUMN_DATE_AND_TIME_ADDED:
 				case COLUMN_DOWNLOAD_DIRECTORY:
 				case COLUMN_DOWNLOAD_SPEED:
@@ -1305,6 +1233,8 @@ void UpdateColumns( WORD menu_id )
 				break;
 
 				case COLUMN_ACTIVE_PARTS:
+				case COLUMN_CATEGORY:
+				case COLUMN_COMMENTS:
 				case COLUMN_DATE_AND_TIME_ADDED:
 				case COLUMN_DOWNLOAD_DIRECTORY:
 				case COLUMN_DOWNLOAD_SPEED:
@@ -1883,6 +1813,8 @@ void HandleCommand( HWND hWnd, WORD command )
 
 		case MENU_NUM:
 		case MENU_ACTIVE_PARTS:
+		case MENU_CATEGORY:
+		case MENU_COMMENTS:
 		case MENU_DATE_AND_TIME_ADDED:
 		case MENU_DOWNLOAD_DIRECTORY:
 		case MENU_DOWNLOAD_SPEED:
@@ -1926,6 +1858,28 @@ void HandleCommand( HWND hWnd, WORD command )
 				_CheckMenuItem( g_hMenuSub_view, MENU_SHOW_TOOLBAR, MF_UNCHECKED );
 				_ShowWindow( g_hWnd_toolbar, SW_HIDE );
 			}
+
+			_SendMessageW( hWnd, WM_SIZE, 0, 0 );
+		}
+		break;
+
+		case MENU_SHOW_CATEGORIES:
+		{
+			cfg_show_categories = !cfg_show_categories;
+
+			if ( cfg_show_categories )
+			{
+				_CheckMenuItem( g_hMenuSub_view, MENU_SHOW_CATEGORIES, MF_CHECKED );
+				_ShowWindow( g_hWnd_categories, SW_SHOW );
+			}
+			else
+			{
+				_CheckMenuItem( g_hMenuSub_view, MENU_SHOW_CATEGORIES, MF_UNCHECKED );
+				_ShowWindow( g_hWnd_categories, SW_HIDE );
+			}
+
+			HTREEITEM hti = ( HTREEITEM )_SendMessageW( g_hWnd_categories, TVM_GETNEXTITEM, TVGN_ROOT, NULL );
+			_SendMessageW( g_hWnd_categories, TVM_SELECTITEM, TVGN_CARET, ( LPARAM )hti );
 
 			_SendMessageW( hWnd, WM_SIZE, 0, 0 );
 		}
@@ -1996,8 +1950,8 @@ void HandleCommand( HWND hWnd, WORD command )
 				// Painting issues and slowness with WS_EX_COMPOSITED on XP. I think the listview has something to do with it.
 				g_hWnd_site_manager = _CreateWindowExW( /*( g_is_windows_8_or_higher ? 0 : WS_EX_COMPOSITED ) |*/ ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"class_site_manager", ST_V_Site_Manager, WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN, CW_USEDEFAULT, 0, MIN_WIDTH, MIN_HEIGHT, NULL, NULL, NULL, NULL );
 			}
-			_ShowWindow( g_hWnd_site_manager, SW_SHOWNORMAL );
-			_SetForegroundWindow( g_hWnd_site_manager );
+
+			_SendMessageW( g_hWnd_site_manager, WM_PROPAGATE, 0, 0 );
 		}
 		break;
 
@@ -2059,13 +2013,18 @@ void HandleCommand( HWND hWnd, WORD command )
 		{
 			wchar_t msg[ 512 ];
 			int msg_length = __snwprintf( msg, 512, L"%s\r\n\r\n" \
-												    L"%s %lu.%lu.%lu.%lu (%u-bit)\r\n\r\n" \
+												    L"%s %lu.%lu.%lu.%lu%c%s%c%.0lu (%u-bit)\r\n\r\n" \
 												    L"%s %s, %s %d, %04d %d:%02d:%02d %s (UTC)\r\n\r\n" \
-												    L"%s \xA9 2015-2024 Eric Kutcher\r\n\r\n" \
+												    L"%s \xA9 2015-2025 Eric Kutcher\r\n\r\n" \
 												    L"%s ",
 												    ST_V_LICENSE,
 												    ST_V_VERSION,
 													CURRENT_VERSION_A, CURRENT_VERSION_B, CURRENT_VERSION_C, CURRENT_VERSION_D,
+#ifdef IS_BETA
+													L' ', ST_V_BETA, L' ', BETA_VERSION,
+#else
+													L'', L"", L'', 0,
+#endif
 #ifdef _WIN64
 												    64,
 #else
@@ -2109,6 +2068,104 @@ void HandleCommand( HWND hWnd, WORD command )
 		case MENU_EXIT:
 		{
 			_SendMessageW( hWnd, WM_EXIT, 0, 0 );
+		}
+		break;
+
+		case MENU_CAT_ADD:
+		case MENU_CAT_UPDATE:
+		{
+			if ( g_hWnd_add_category == NULL )
+			{
+				g_hWnd_add_category = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"class_add_category", ST_V_Add_Category, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU, CW_USEDEFAULT, 0, 430, 196, NULL, NULL, NULL, NULL );
+			}
+
+			unsigned char type;
+			HTREEITEM hti;
+
+			if ( command == MENU_CAT_UPDATE )
+			{
+				type = 1;
+				hti = ( HTREEITEM )_SendMessageW( g_hWnd_categories, TVM_GETNEXTITEM, TVGN_CARET, NULL );
+			}
+			else
+			{
+				type = 0;
+				hti = NULL;
+			}
+
+			_SendMessageW( g_hWnd_add_category, WM_PROPAGATE, type, ( LPARAM )hti );
+		}
+		break;
+
+		case MENU_CAT_REMOVE:
+		{
+			CATEGORY_UPDATE_INFO *cui = ( CATEGORY_UPDATE_INFO * )GlobalAlloc( GMEM_FIXED, sizeof( CATEGORY_UPDATE_INFO ) );
+			if ( cui != NULL )
+			{
+				cui->ci = NULL;
+				cui->old_ci = NULL;
+				cui->update_type = 2;	// Remove
+				cui->hti = ( HTREEITEM )_SendMessageW( g_hWnd_categories, TVM_GETNEXTITEM, TVGN_CARET, NULL );
+
+				// cui is freed in handle_category_list.
+				HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, handle_category_list, ( void * )cui, 0, NULL );
+				if ( thread != NULL )
+				{
+					CloseHandle( thread );
+				}
+				else
+				{
+					//FreeCategoryInfo( &cui->ci );	// Already NULL.
+					GlobalFree( cui );
+				}
+			}
+		}
+		break;
+
+		case MENU_CAT_OPEN:
+		{
+			bool destroy = true;
+			#ifndef OLE32_USE_STATIC_LIB
+				if ( ole32_state == OLE32_STATE_SHUTDOWN )
+				{
+					destroy = InitializeOle32();
+				}
+			#endif
+
+			if ( destroy )
+			{
+				_CoInitializeEx( NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE );
+			}
+
+			HTREEITEM hti = ( HTREEITEM )_SendMessageW( g_hWnd_categories, TVM_GETNEXTITEM, TVGN_CARET, NULL );
+
+			TVITEM tvi;
+			_memzero( &tvi, sizeof( TVITEM ) );
+			tvi.mask = TVIF_PARAM;
+			tvi.hItem = hti;
+			_SendMessageW( g_hWnd_categories, TVM_GETITEM, 0, ( LPARAM )&tvi );
+
+			DoublyLinkedList *dll_node = ( DoublyLinkedList * )tvi.lParam;
+			if ( dll_node != NULL )
+			{
+				CATEGORY_TREE_INFO *cti = ( CATEGORY_TREE_INFO * )dll_node->data;
+				if ( cti != NULL && cti->type == CATEGORY_TREE_INFO_TYPE_CATEGORY_INFO && cti->data != NULL )
+				{
+					CATEGORY_INFO_ *ci = ( CATEGORY_INFO_ * )cti->data;
+
+					HINSTANCE hInst = _ShellExecuteW( NULL, L"open", ci->download_directory, NULL, NULL, SW_SHOWNORMAL );
+
+					if ( hInst == ( HINSTANCE )ERROR_FILE_NOT_FOUND )	// We're opening a folder, but it uses the same error code as a file if it's not found.
+					{
+						CMessageBoxW( hWnd, ST_V_The_specified_path_was_not_found, PROGRAM_CAPTION, /*CMB_APPLMODAL |*/ CMB_ICONWARNING );
+					}
+				}
+			}
+
+			if ( destroy )
+			{
+				_CoUninitialize();
+			}
 		}
 		break;
 	}

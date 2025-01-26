@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
-	Copyright (C) 2015-2024 Eric Kutcher
+	Copyright (C) 2015-2025 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -50,6 +50,62 @@ COLORREF last_drop_progress_color = 0;
 
 bool show_drop_progress = false;
 
+LONG g_dw_width = DW_WIDTH;
+LONG g_dw_height = DW_HEIGHT;
+
+UINT current_dpi_url_drop = USER_DEFAULT_SCREEN_DPI;
+UINT last_dpi_url_drop = 0;
+
+#define _SCALE_URLD_( x )						_SCALE_( ( x ), dpi_url_drop )
+
+HBITMAP UpdateDropIcon( HWND hWnd )
+{
+	HBITMAP hBmp;
+
+	_wmemcpy_s( g_program_directory + g_program_directory_length, MAX_PATH - g_program_directory_length, L"\\drop.bmp\0", 10 );
+	if ( GetFileAttributesW( g_program_directory ) != INVALID_FILE_ATTRIBUTES )
+	{
+		hBmp = ( HBITMAP )_LoadImageW( NULL, g_program_directory, IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE );
+	}
+	else
+	{
+		hBmp = ( HBITMAP )_LoadImageW( GetModuleHandleW( NULL ), MAKEINTRESOURCE( IDB_BITMAP_DROP ), IMAGE_BITMAP, 0, 0, 0 );
+	}
+
+	HDC hDC = _GetDC( hWnd );
+
+	HDC hdcMem_bmp = _CreateCompatibleDC( hDC );
+	HBITMAP ohbm = ( HBITMAP )_SelectObject( hdcMem_bmp, hBmp );
+	_DeleteObject( ohbm );
+
+	BITMAP bmp;
+	_memzero( &bmp, sizeof( BITMAP ) );
+	_GetObjectW( hBmp, sizeof( BITMAP ), &bmp );
+
+	g_dw_width = bmp.bmWidth;
+	g_dw_height = bmp.bmHeight;
+
+	int res_width = _SCALE_URLD_( g_dw_width );
+	int res_height = _SCALE_URLD_( g_dw_height );
+
+	HBITMAP hBmp_scaled = _CreateCompatibleBitmap( hDC, res_width, res_height );
+
+	HDC hdcMem_scaled = _CreateCompatibleDC( hDC );
+	ohbm = ( HBITMAP )_SelectObject( hdcMem_scaled, hBmp_scaled );
+	_DeleteObject( ohbm );
+
+	_SetStretchBltMode( hdcMem_scaled, COLORONCOLOR );
+	_StretchBlt( hdcMem_scaled, 0, 0, res_width, res_height, hdcMem_bmp, 0, 0, g_dw_width, g_dw_height, SRCCOPY );
+
+	_DeleteDC( hdcMem_scaled );
+	_DeleteDC( hdcMem_bmp );
+	_ReleaseDC( hWnd, hDC );
+
+	_DeleteObject( hBmp );
+
+	return hBmp_scaled;
+}
+
 void UpdateDropWindow( unsigned long long start, unsigned long long end, COLORREF border_color, COLORREF progress_color, bool show_progress )
 {
 	int i_percentage;
@@ -91,6 +147,9 @@ LRESULT CALLBACK URLDropWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 	{
 		case WM_CREATE:
 		{
+			current_dpi_url_drop = __GetDpiForWindow( hWnd );
+			last_dpi_url_drop = 0;
+
 			window_settings.window_position.x = 0;
 			window_settings.window_position.y = 0;
 			window_settings.drag_position.x = 0;
@@ -102,20 +161,7 @@ LRESULT CALLBACK URLDropWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			window_settings.tme.dwHoverTime = HOVER_DEFAULT;
 			window_settings.tme.hwndTrack = hWnd;
 
-			if ( hbm_background == NULL )
-			{
-				_wmemcpy_s( g_program_directory + g_program_directory_length, MAX_PATH - g_program_directory_length, L"\\drop.bmp\0", 10 );
-				if ( GetFileAttributesW( g_program_directory ) != INVALID_FILE_ATTRIBUTES )
-				{
-					// Need to delete the object when destroying this window.
-					hbm_background = ( HBITMAP )_LoadImageW( GetModuleHandleW( NULL ), g_program_directory, IMAGE_BITMAP, DW_WIDTH, DW_HEIGHT, LR_LOADFROMFILE );
-				}
-				else
-				{
-					// Need to delete the object when destroying this window.
-					hbm_background = ( HBITMAP )_LoadImageW( GetModuleHandleW( NULL ), MAKEINTRESOURCE( IDB_BITMAP_DROP ), IMAGE_BITMAP, DW_WIDTH, DW_HEIGHT, 0 );
-				}
-			}
+			hbm_background = UpdateDropIcon( hWnd );
 
 			#ifndef OLE32_USE_STATIC_LIB
 				if ( ole32_state == OLE32_STATE_SHUTDOWN )
@@ -131,22 +177,85 @@ LRESULT CALLBACK URLDropWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 				RegisterDropWindow( hWnd, &URL_DropTarget );
 			}
 
-			HMONITOR hMon = _MonitorFromWindow( g_hWnd_main, MONITOR_DEFAULTTONEAREST );	// This is a popup window and we can't use CW_USEDEFAULT. We'll place this window on the same monitor as the main window.
+			int width = _SCALE_URLD_( g_dw_width );
+			int height = _SCALE_URLD_( g_dw_height );
+
+			RECT rc_mon;
+			rc_mon.left = cfg_drop_pos_x;
+			rc_mon.top = cfg_drop_pos_y;
+			rc_mon.right = rc_mon.left + width;
+			rc_mon.bottom = rc_mon.top + height;
+			HMONITOR hMon = MonitorFromRect( &rc_mon, MONITOR_DEFAULTTONEAREST );	// This is a popup window and we can't use CW_USEDEFAULT. We'll place this window on the same monitor as the main window.
 			MONITORINFO mi;
 			mi.cbSize = sizeof( MONITORINFO );
 			_GetMonitorInfoW( hMon, &mi );
 			int pos_x = cfg_drop_pos_x;
 			int pos_y = cfg_drop_pos_y;
 			// If the window is offscreen, then move it into the current monitor.
-			if ( pos_x + DW_WIDTH <= mi.rcMonitor.left ||
+			if ( pos_x + width <= mi.rcMonitor.left ||
 				 pos_x >= mi.rcMonitor.right ||
-				 pos_y + DW_HEIGHT <= mi.rcMonitor.top ||
+				 pos_y + height <= mi.rcMonitor.top ||
 				 pos_y >= mi.rcMonitor.bottom )
 			{
-				pos_x = mi.rcMonitor.left + ( ( ( mi.rcMonitor.right - mi.rcMonitor.left ) - DW_WIDTH ) / 2 );
-				pos_y = mi.rcMonitor.top + ( ( ( mi.rcMonitor.bottom - mi.rcMonitor.top ) - DW_HEIGHT ) / 2 );
+				pos_x = mi.rcMonitor.left + ( ( ( mi.rcMonitor.right - mi.rcMonitor.left ) - width ) / 2 );
+				pos_y = mi.rcMonitor.top + ( ( ( mi.rcMonitor.bottom - mi.rcMonitor.top ) - height ) / 2 );
 			}
-			_SetWindowPos( hWnd, NULL, pos_x, pos_y, DW_WIDTH, DW_HEIGHT, SWP_NOACTIVATE | SWP_NOOWNERZORDER );
+			_SetWindowPos( hWnd, NULL, pos_x, pos_y, width, height, SWP_NOACTIVATE | SWP_NOOWNERZORDER );
+
+			return 0;
+		}
+		break;
+
+		case WM_DPICHANGED:
+		{
+			UINT last_dpi = current_dpi_url_drop;
+			current_dpi_url_drop = HIWORD( wParam );
+
+			if ( hbm_background != NULL )
+			{
+				_DeleteObject( hbm_background );
+			}
+			hbm_background = UpdateDropIcon( hWnd );
+
+			RECT *rc = ( RECT * )lParam;
+
+			// Resize the window based on the resource width/height.
+			// It's possible that it gets deleted before the update and so we'll want to adjust the width/height for the default resource.
+			int width = _SCALE_URLD_( g_dw_width );
+			int height = _SCALE_URLD_( g_dw_height );
+
+			if ( last_dpi_url_drop == 0 )
+			{
+				RECT rc_mon;
+				rc_mon.left = cfg_drop_pos_x;
+				rc_mon.top = cfg_drop_pos_y;
+				rc_mon.right = rc_mon.left + width;
+				rc_mon.bottom = rc_mon.top + height;
+				HMONITOR hMon = MonitorFromRect( &rc_mon, MONITOR_DEFAULTTONEAREST );	// This is a popup window and we can't use CW_USEDEFAULT. We'll place this window on the same monitor as the main window.
+				MONITORINFO mi;
+				mi.cbSize = sizeof( MONITORINFO );
+				_GetMonitorInfoW( hMon, &mi );
+				int pos_x = cfg_drop_pos_x;
+				int pos_y = cfg_drop_pos_y;
+				// If the window is offscreen, then move it into the current monitor.
+				if ( pos_x + width <= mi.rcMonitor.left ||
+					 pos_x >= mi.rcMonitor.right ||
+					 pos_y + height <= mi.rcMonitor.top ||
+					 pos_y >= mi.rcMonitor.bottom )
+				{
+					pos_x = mi.rcMonitor.left + ( ( ( mi.rcMonitor.right - mi.rcMonitor.left ) - width ) / 2 );
+					pos_y = mi.rcMonitor.top + ( ( ( mi.rcMonitor.bottom - mi.rcMonitor.top ) - height ) / 2 );
+				}
+				_SetWindowPos( hWnd, NULL, pos_x, pos_y, width, height, SWP_NOACTIVATE | SWP_NOOWNERZORDER );
+			}
+			else
+			{
+				_SetWindowPos( hWnd, NULL, rc->left, rc->top, width, height, SWP_NOZORDER | SWP_NOACTIVATE );
+			}
+
+			last_dpi_url_drop = last_dpi;
+
+			_InvalidateRect( hWnd, NULL, TRUE );
 
 			return 0;
 		}
@@ -198,6 +307,9 @@ LRESULT CALLBACK URLDropWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			PAINTSTRUCT ps;
 			HDC hDC = _BeginPaint( hWnd, &ps );
 
+			RECT rc;
+			_GetClientRect( hWnd, &rc );
+
 			// Create a memory buffer to draw to.
 			HDC hdcMem = _CreateCompatibleDC( hDC );
 
@@ -205,41 +317,38 @@ LRESULT CALLBACK URLDropWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			_DeleteObject( ohbm );
 
 			// Draw our memory buffer to the main device context.
-			_BitBlt( hDC, 0, 0, DW_WIDTH, DW_HEIGHT, hdcMem, 0, 0, SRCCOPY );
+			_BitBlt( hDC, 0, 0, rc.right - rc.left, rc.bottom - rc.top, hdcMem, 0, 0, SRCCOPY );
 
 			if ( show_drop_progress )
 			{
 				RECT icon_rc;
-				icon_rc.top = 42;
-				icon_rc.left = 1;
-				icon_rc.right = 47;
-				icon_rc.bottom = 47;
+				icon_rc.top = rc.bottom - _SCALE_URLD_( 6 );
+				icon_rc.left = _SCALE_URLD_( 1 );
+				icon_rc.right = rc.right - _SCALE_URLD_( 1 );
+				icon_rc.bottom = rc.bottom - _SCALE_URLD_( 1 );
 
 				HBRUSH color = _CreateSolidBrush( last_drop_border_color );
 				_FillRect( hDC, &icon_rc, color );
 				_DeleteObject( color );
 
-				icon_rc.top = 43;
-				icon_rc.left = 2;
-				icon_rc.right = 2 + last_drop_percent;
-				icon_rc.bottom = 46;
+				icon_rc.top = rc.bottom - _SCALE_URLD_( 5 );
+				icon_rc.left = _SCALE_URLD_( 2 );
+				icon_rc.right = _SCALE_URLD_( 2 + last_drop_percent );
+				icon_rc.bottom = rc.bottom - _SCALE_URLD_( 2 );
 
 				color = _CreateSolidBrush( last_drop_progress_color );
 				_FillRect( hDC, &icon_rc, color );
 				_DeleteObject( color );
 			}
 
-			RECT frame_rc;
-			frame_rc.top = 0;
-			frame_rc.left = 0;
-			frame_rc.right = DW_WIDTH;
-			frame_rc.bottom = DW_HEIGHT;
-
 			if ( !window_on_top )
 			{
 				// Create a border.
 				HBRUSH color = _CreateSolidBrush( ( COLORREF )RGB( 0x00, 0xFF, 0xFF ) );
-				_FrameRect( hDC, &frame_rc, color );
+				//_FrameRect( hDC, &rc, color );
+				HRGN hRgn = _CreateRectRgn( rc.left, rc.top, rc.right, rc.bottom );
+				_FrameRgn( hDC, hRgn, color, _SCALE_URLD_( 1 ), _SCALE_URLD_( 1 ) );
+				_DeleteObject( hRgn );
 				_DeleteObject( color );
 			}
 

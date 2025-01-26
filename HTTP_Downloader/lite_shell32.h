@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
-	Copyright (C) 2015-2024 Eric Kutcher
+	Copyright (C) 2015-2025 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -24,6 +24,8 @@
 #include <windows.h>
 
 #include <shellapi.h>
+#include <initguid.h>
+#include <knownfolders.h>
 #include <shlobj.h>
 
 //#define SHELL32_USE_STATIC_LIB
@@ -70,6 +72,10 @@
 	#define _DragQueryFileW		DragQueryFileW
 	//#define _DragFinish			DragFinish
 
+	#define _SHCreateStdEnumFmtEtc	SHCreateStdEnumFmtEtc
+
+	#define _ExtractIconExW		ExtractIconExW
+
 #else
 
 	#define SHELL32_STATE_SHUTDOWN		0
@@ -110,6 +116,10 @@
 	typedef UINT ( WINAPI *pDragQueryFileW )( HDROP hDrop, UINT iFile, LPTSTR lpszFile, UINT cch );
 	//typedef VOID ( WINAPI *pDragFinish )( HDROP hDrop );
 
+	typedef HRESULT ( WINAPI *pSHCreateStdEnumFmtEtc )( UINT cfmt, const FORMATETC afmt[], IEnumFORMATETC **ppenumFormatEtc );
+
+	typedef UINT ( WINAPI *pExtractIconExW )( LPCWSTR lpszFile, int nIconIndex, HICON *phiconLarge, HICON *phiconSmall, UINT nIcons );
+
 	extern pShell_NotifyIconW	_Shell_NotifyIconW;
 	extern pShellExecuteW		_ShellExecuteW;
 
@@ -145,6 +155,10 @@
 	extern pDragQueryFileW		_DragQueryFileW;
 	//extern pDragFinish			_DragFinish;
 
+	extern pSHCreateStdEnumFmtEtc	_SHCreateStdEnumFmtEtc;
+
+	extern pExtractIconExW		_ExtractIconExW;
+
 	extern unsigned char shell32_state;
 
 	bool InitializeShell32();
@@ -154,7 +168,14 @@
 
 extern HMODULE hModule_shell32;
 
+/*const GUID _FOLDERID_Desktop = { 0xb4bfcc3a, 0xdb2c, 0x424c, { 0xb0, 0x29, 0x7f, 0xe9, 0x9a, 0x87, 0xc6, 0x41 } };
+const GUID _FOLDERID_Documents = { 0xfdd39ad0, 0x238f, 0x46af, { 0xad, 0xb4, 0x6c, 0x85, 0x48, 0x03, 0x69, 0xc7 } };
+
 const GUID _FOLDERID_Downloads = { 0x374de290, 0x123f, 0x4565, { 0x91, 0x64, 0x39, 0xc4, 0x92, 0x5e, 0x46, 0x7b } };
+
+const GUID _FOLDERID_Music = { 0x4bd8d571, 0x6d19, 0x48d3, { 0xbe, 0x97, 0x42, 0x22, 0x20, 0x08, 0x0e, 0x43 } };
+const GUID _FOLDERID_Pictures = { 0x33e28130, 0x4e1e, 0x4676, { 0x83, 0x5a, 0x98, 0x39, 0x5c, 0x3b, 0xc3, 0xbb } };
+const GUID _FOLDERID_Videos = { 0x18989b1d, 0x99b5, 0x455b, { 0x84, 0x1c, 0xab, 0x7c, 0x74, 0xe4, 0xdd, 0xfc } };*/
 
 int _StrCmpA( PCSTR psz1, PCSTR psz2 );
 int _StrCmpW( PCWSTR psz1, PCWSTR psz2 );

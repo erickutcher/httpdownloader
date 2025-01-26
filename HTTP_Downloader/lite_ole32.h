@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
-	Copyright (C) 2015-2024 Eric Kutcher
+	Copyright (C) 2015-2025 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -46,6 +46,8 @@ const IID _IID_IUnknown =		{ 0x00000000, 0x0000, 0x0000, { 0xC0, 0x00, 0x00, 0x0
 	#define _RevokeDragDrop RevokeDragDrop
 	#define _ReleaseStgMedium ReleaseStgMedium
 
+	#define _DoDragDrop DoDragDrop
+
 	#define _CoCreateInstance CoCreateInstance
 
 #else
@@ -66,6 +68,8 @@ const IID _IID_IUnknown =		{ 0x00000000, 0x0000, 0x0000, { 0xC0, 0x00, 0x00, 0x0
 	typedef HRESULT ( WINAPI *pRevokeDragDrop )( HWND hwnd );
 	typedef void ( WINAPI *pReleaseStgMedium )( LPSTGMEDIUM pMedium );
 
+	typedef HRESULT ( WINAPI *pDoDragDrop )( LPDATAOBJECT pDataObj, LPDROPSOURCE pDropSource, DWORD dwOKEffects, LPDWORD pdwEffect );
+
 	typedef HRESULT ( WINAPI *pCoCreateInstance )( REFCLSID rclsid, LPUNKNOWN pUnkOuter, DWORD dwClsContext, REFIID riid, LPVOID *ppv );
 
 	extern pCoTaskMemFree	_CoTaskMemFree;
@@ -80,6 +84,8 @@ const IID _IID_IUnknown =		{ 0x00000000, 0x0000, 0x0000, { 0xC0, 0x00, 0x00, 0x0
 	extern pRegisterDragDrop _RegisterDragDrop;
 	extern pRevokeDragDrop _RevokeDragDrop;
 	extern pReleaseStgMedium _ReleaseStgMedium;
+
+	extern pDoDragDrop _DoDragDrop;
 
 	extern pCoCreateInstance _CoCreateInstance;
 

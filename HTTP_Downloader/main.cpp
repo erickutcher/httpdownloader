@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
-	Copyright (C) 2015-2024 Eric Kutcher
+	Copyright (C) 2015-2025 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -50,6 +50,7 @@
 #include "site_manager_utilities.h"
 #include "ftp_parsing.h"
 #include "sftp.h"
+#include "categories.h"
 
 #include "system_tray.h"
 
@@ -82,10 +83,10 @@ LOGFONT g_default_log_font;
 HFONT g_hFont = NULL;			// Handle to our font object.
 
 UINT CF_HTML = 0;
+UINT CF_TREELISTVIEW = 0;
 
 COLORREF g_CustColors[ 16 ];
 
-int g_row_height = 0;
 int g_default_row_height = 0;
 
 wchar_t *g_base_directory = NULL;
@@ -99,6 +100,7 @@ dllrbt_tree *g_icon_handles = NULL;
 dllrbt_tree *g_site_info = NULL;
 dllrbt_tree *g_sftp_fps_host_info = NULL;
 dllrbt_tree *g_sftp_keys_host_info = NULL;
+dllrbt_tree *g_category_info = NULL;
 
 bool g_can_fast_allocate = false;
 
@@ -208,6 +210,11 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 			UnInitializeKernel32();
 		}
 	#endif
+
+	if ( !InitializeDPIFunctions() )
+	{
+		UnInitializeDPIFunctions();
+	}
 
 #ifdef ENABLE_LOGGING
 	InitLogging();
@@ -349,6 +356,10 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 				{
 					cla->download_immediately = 1;
 				}
+				else if ( arg_name_length == 9 && _StrCmpNIW( arg_name, L"clipboard", 9 ) == 0 )	// Use any URL(s) on the clipboard.
+				{
+					cla->use_clipboard = true;
+				}
 				else if ( ( arg + 1 ) < argCount &&
 						  ( arg_name_length == 3 && _StrCmpNIW( arg_name, L"url", 3 ) == 0 ) ||
 						  ( arg_name_length == 12 && _StrCmpNIW( arg_name, L"header-field", 12 ) == 0 ) )	// A URL or header field was supplied.
@@ -398,8 +409,10 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 					}
 				}
 				else if ( ( arg + 1 ) < argCount &&
+						  ( arg_name_length == 8 && _StrCmpNIW( arg_name, L"comments", 8 ) == 0 ) ||
 						  ( arg_name_length == 13 && _StrCmpNIW( arg_name, L"cookie-string", 13 ) == 0 ) ||
 						  ( arg_name_length == 9 && _StrCmpNIW( arg_name, L"post-data", 9 ) == 0 ) ||
+						  ( arg_name_length == 8 && _StrCmpNIW( arg_name, L"category", 8 ) == 0 ) ||
 						  ( arg_name_length == 18 && _StrCmpNIW( arg_name, L"download-directory", 18 ) == 0 ) ||
 						  ( arg_name_length == 16 && _StrCmpNIW( arg_name, L"download-history", 16 ) == 0 ) ||
 						  ( arg_name_length == 8 && _StrCmpNIW( arg_name, L"url-list", 8 ) == 0 ) ||
@@ -413,8 +426,25 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 					{
 						if ( *arg_name == L'c' )
 						{
-							cl_val = &cla->cookies;
-							cla->cookies_length = length;
+							if ( arg_name[ 1 ] == L'a' )	// Category
+							{
+								cl_val = &cla->category;
+								cla->category_length = length;
+							}
+							else
+							{
+								if ( arg_name[ 2 ] == L'o' )	// Cookies
+								{
+									cl_val = &cla->cookies;
+									cla->cookies_length = length;
+								}
+								else	// Comments
+								{
+									cl_val = &cla->comments;
+									cla->comments_length = length;
+								}
+							}
+							
 						}
 						else if ( arg_name[ 0 ] == L'p' )
 						{
@@ -736,6 +766,7 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 	InitializeCriticalSection( &move_file_queue_cs );
 	InitializeCriticalSection( &cleanup_cs );
 	InitializeCriticalSection( &update_check_timeout_cs );
+	InitializeCriticalSection( &file_allocation_cs );
 
 	// Get the default message system font.
 	NONCLIENTMETRICS ncm;
@@ -805,13 +836,11 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 	}
 
 	CF_HTML = _RegisterClipboardFormatW( L"HTML Format" );
+	CF_TREELISTVIEW = _RegisterClipboardFormatW( L"TreeListView Format" );
 
 	InitializeLocaleValues();
 
 	read_config();
-
-	// Once we read in our font settings, we can measure their heights to set the row height of our listview control.
-	AdjustRowHeight();
 
 	if ( !override_shutdown_action )
 	{
@@ -837,11 +866,13 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 				{
 					unsigned int data_offset = 0;
 					unsigned int data_size = sizeof( CL_ARGS );
+					if ( cla->category_length > 0 ) { data_size += ( sizeof( wchar_t ) * ( cla->category_length + 1 ) ); }
 					if ( cla->download_directory > 0 ) { data_size += ( sizeof( wchar_t ) * ( cla->download_directory_length + 1 ) ); }
 					if ( cla->download_history_file > 0 ) { data_size += ( sizeof( wchar_t ) * ( cla->download_history_file_length + 1 ) ); }
+					if ( cla->comments_length > 0 ) { data_size += ( sizeof( wchar_t ) * ( cla->comments_length + 1 ) ); }
 					if ( cla->cookies_length > 0 ) { data_size += ( sizeof( wchar_t ) * ( cla->cookies_length + 1 ) ); }
-					if ( cla->data_length > 0 ) { data_size += ( sizeof( wchar_t ) * ( cla->data_length + 1 ) ); }
 					if ( cla->headers_length > 0 ) { data_size += ( sizeof( wchar_t ) * ( cla->headers_length + 1 ) ); }
+					if ( cla->data_length > 0 ) { data_size += ( sizeof( wchar_t ) * ( cla->data_length + 1 ) ); }
 					if ( cla->url_list_file_length > 0 ) { data_size += ( sizeof( wchar_t ) * ( cla->url_list_file_length + 1 ) ); }
 					if ( cla->urls_length > 0 ) { data_size += ( sizeof( wchar_t ) * ( cla->urls_length + 1 ) ); }
 					if ( cla->username_length > 0 ) { data_size += ( sizeof( wchar_t ) * ( cla->username_length + 1 ) ); }
@@ -855,6 +886,13 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 					_memcpy_s( cla_data, sizeof( CL_ARGS ), cla, sizeof( CL_ARGS ) );
 
 					wchar_t *wbyte_buf = ( wchar_t * )( ( char * )cla_data + sizeof( CL_ARGS ) );
+
+					cla_data->category = ( wchar_t * )data_offset;
+					if ( cla->category_length > 0 )
+					{
+						_wmemcpy_s( wbyte_buf + data_offset, data_size - data_offset, cla->category, cla->category_length + 1 );
+						data_offset += ( cla->category_length + 1 );
+					}
 
 					cla_data->download_directory = ( wchar_t * )data_offset;
 					if ( cla->download_directory_length > 0 )
@@ -882,6 +920,13 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 					{
 						_wmemcpy_s( wbyte_buf + data_offset, data_size - data_offset, cla->urls, cla->urls_length + 1 );
 						data_offset += ( cla->urls_length + 1 );
+					}
+
+					cla_data->comments = ( wchar_t * )data_offset;
+					if ( cla->comments_length > 0 )
+					{
+						_wmemcpy_s( wbyte_buf + data_offset, data_size - data_offset, cla->comments, cla->comments_length + 1 );
+						data_offset += ( cla->comments_length + 1 );
 					}
 
 					cla_data->cookies = ( wchar_t * )data_offset;
@@ -1129,7 +1174,7 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 		}
 	}
 
-	if ( cfg_play_sound )
+	if ( cfg_play_sound || cfg_play_sound_fail )
 	{
 		#ifndef WINMM_USE_STATIC_LIB
 			InitializeWinMM();
@@ -1227,15 +1272,19 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 		auth_username_length = WideCharToMultiByte( CP_UTF8, 0, cfg_proxy_auth_ident_username_socks, -1, g_proxy_auth_ident_username_socks, auth_username_length, NULL, NULL ) - 1;
 	}
 
-	g_icon_handles = dllrbt_create( dllrbt_compare_w );
+	g_icon_handles = dllrbt_create( dllrbt_compare_i_w );
+	g_shared_categories = dllrbt_create( dllrbt_compare_w );
+	g_category_file_extensions = dllrbt_create( dllrbt_compare_i_w );
 
 	g_site_info = dllrbt_create( dllrbt_compare_site_info );
 	g_sftp_fps_host_info = dllrbt_create( dllrbt_compare_sftp_fps_host_info );
 	g_sftp_keys_host_info = dllrbt_create( dllrbt_compare_sftp_keys_host_info );
+	g_category_info = dllrbt_create( dllrbt_compare_category_info );
 
 	read_site_info();
 	read_sftp_fps_host_info();
 	read_sftp_keys_host_info();
+	read_category_info();
 
 	if ( psftp_state == PSFTP_STATE_RUNNING )
 	{
@@ -1360,6 +1409,15 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 
 	wcex.lpfnWndProc	= DownloadSpeedLimitWndProc;
 	wcex.lpszClassName	= L"class_download_speed_limit";
+
+	if ( !_RegisterClassExW( &wcex ) )
+	{
+		fail_type = 1;
+		goto CLEANUP;
+	}
+
+	wcex.lpfnWndProc	= AddCategoryWndProc;
+	wcex.lpszClassName	= L"class_add_category";
 
 	if ( !_RegisterClassExW( &wcex ) )
 	{
@@ -1556,20 +1614,10 @@ CLEANUP:
 
 	save_config();
 
-	if ( site_list_changed )
-	{
-		save_site_info();
-	}
-
-	if ( sftp_fps_host_list_changed )
-	{
-		save_sftp_fps_host_info();
-	}
-
-	if ( sftp_keys_host_list_changed )
-	{
-		save_sftp_keys_host_info();
-	}
+	if ( site_list_changed ) { save_site_info(); }
+	if ( sftp_fps_host_list_changed ) { save_sftp_fps_host_info(); }
+	if ( sftp_keys_host_list_changed ) { save_sftp_keys_host_info(); }
+	if ( category_list_changed ) { save_category_info(); }
 
 	FreeCommandLineArgs( &cla );
 
@@ -1578,6 +1626,7 @@ CLEANUP:
 	if ( cfg_default_download_directory != NULL ) { GlobalFree( cfg_default_download_directory ); }
 	if ( cfg_temp_download_directory != NULL ) { GlobalFree( cfg_temp_download_directory ); }
 	if ( cfg_sound_file_path != NULL ) { GlobalFree( cfg_sound_file_path ); }
+	if ( cfg_sound_fail_file_path != NULL ) { GlobalFree( cfg_sound_fail_file_path ); }
 
 	// FTP
 	if ( cfg_ftp_hostname != NULL ) { GlobalFree( cfg_ftp_hostname ); }
@@ -1644,6 +1693,38 @@ CLEANUP:
 
 	dllrbt_delete_recursively( g_icon_handles );
 
+	node = dllrbt_get_head( g_shared_categories );
+	while ( node != NULL )
+	{
+		SHARED_CATEGORY_INFO *sci = ( SHARED_CATEGORY_INFO * )node->val;
+
+		if ( sci != NULL )
+		{
+			GlobalFree( sci->category );
+			GlobalFree( sci );
+		}
+
+		node = node->next;
+	}
+
+	dllrbt_delete_recursively( g_shared_categories );
+
+	node = dllrbt_get_head( g_category_file_extensions );
+	while ( node != NULL )
+	{
+		CATEGORY_FILE_EXTENSION_INFO *cfei = ( CATEGORY_FILE_EXTENSION_INFO * )node->val;
+
+		if ( cfei != NULL )
+		{
+			GlobalFree( cfei->file_extension );
+			GlobalFree( cfei );
+		}
+
+		node = node->next;
+	}
+
+	dllrbt_delete_recursively( g_category_file_extensions );
+
 	node = dllrbt_get_head( g_site_info );
 	while ( node != NULL )
 	{
@@ -1690,6 +1771,20 @@ CLEANUP:
 
 	//
 
+	node = dllrbt_get_head( g_category_info );
+	while ( node != NULL )
+	{
+		FreeCategoryInfo( ( CATEGORY_INFO_ ** )&( node->val ) );
+
+		node = node->next;
+	}
+
+	dllrbt_delete_recursively( g_category_info );
+
+	CleanupCategoryList();
+
+	//
+
 	if ( cfg_even_row_font_settings.font != NULL ){ _DeleteObject( cfg_even_row_font_settings.font ); }
 	if ( cfg_odd_row_font_settings.font != NULL ){ _DeleteObject( cfg_odd_row_font_settings.font ); }
 
@@ -1731,6 +1826,7 @@ CLEANUP:
 	DeleteCriticalSection( &move_file_queue_cs );
 	DeleteCriticalSection( &cleanup_cs );
 	DeleteCriticalSection( &update_check_timeout_cs );
+	DeleteCriticalSection( &file_allocation_cs );
 
 	DeleteCriticalSection( &ftp_listen_info_cs );
 
@@ -1809,6 +1905,8 @@ CLEANUP:
 	#endif
 
 UNLOAD_DLLS:
+
+	UnInitializeDPIFunctions();
 
 	#ifndef PSFTP_USE_STATIC_LIB
 		UnInitializePSFTP();

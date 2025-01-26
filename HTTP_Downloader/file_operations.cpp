@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
-	Copyright (C) 2015-2024 Eric Kutcher
+	Copyright (C) 2015-2025 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -26,10 +26,12 @@
 #include "file_operations.h"
 #include "menus.h"
 #include "utilities.h"
+#include "string_tables.h"
 
 #include "ftp_parsing.h"
 #include "connection.h"
 
+#include "categories.h"
 #include "treelistview.h"
 
 wchar_t *UTF8StringToWideString( char *utf8_string, int string_length )
@@ -87,993 +89,1075 @@ RETRY_OPEN:
 		// Our config file is going to be small. If it's something else, we're not going to read it.
 		if ( fz >= 1024 && fz < 10240 )
 		{
-			char *cfg_buf = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * fz + 1 );
-			if ( cfg_buf != NULL )
+			unsigned char magic_identifier[ 4 ];
+			BOOL bRet = ReadFile( hFile_cfg, magic_identifier, sizeof( unsigned char ) * 4, &read, NULL );
+			if ( bRet != FALSE )
 			{
-				BOOL bRet = ReadFile( hFile_cfg, cfg_buf, sizeof( char ) * fz, &read, NULL );
+				unsigned char version = magic_identifier[ 3 ];// - 0x00;
 
-				// Read the config. It must be in the order specified below.
-				if ( bRet != FALSE )
+				if ( read == 4 && _memcmp( magic_identifier, MAGIC_ID_SETTINGS, 3 ) == 0 && version <= 0x0F )
 				{
-					cfg_buf[ fz ] = 0;	// Guarantee a NULL terminated buffer.
+					fz -= 4;
 
-					if ( read == fz && _memcmp( cfg_buf, MAGIC_ID_SETTINGS, 4 ) == 0 )
+					char *cfg_buf = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * fz + 1 );
+					if ( cfg_buf != NULL )
 					{
-						reserved = 1024 - 721;
+						BOOL bRet = ReadFile( hFile_cfg, cfg_buf, sizeof( char ) * fz, &read, NULL );
 
-						char *next = cfg_buf + 4;
-
-						// Main Window
-
-						_memcpy_s( &cfg_pos_x, sizeof( int ), next, sizeof( int ) );
-						next += sizeof( int );
-						_memcpy_s( &cfg_pos_y, sizeof( int ), next, sizeof( int ) );
-						next += sizeof( int );
-						_memcpy_s( &cfg_width, sizeof( int ), next, sizeof( int ) );
-						next += sizeof( int );
-						_memcpy_s( &cfg_height, sizeof( int ), next, sizeof( int ) );
-						next += sizeof( int );
-
-						_memcpy_s( &cfg_min_max, sizeof( unsigned char ), next, sizeof( unsigned char ) );
-						next += sizeof( unsigned char );
-
-						for ( i = 0; i < NUM_COLUMNS; ++i )
+						// Read the config. It must be in the order specified below.
+						if ( bRet != FALSE && read == fz )
 						{
-							_memcpy_s( download_columns_width[ i ], sizeof( int ), next, sizeof( int ) );
+							cfg_buf[ fz ] = 0;	// Guarantee a NULL terminated buffer.
+
+							reserved = 1024 - 749;
+
+							char *next = cfg_buf;
+
+							// Main Window
+
+							_memcpy_s( &cfg_pos_x, sizeof( int ), next, sizeof( int ) );
 							next += sizeof( int );
-						}
+							_memcpy_s( &cfg_pos_y, sizeof( int ), next, sizeof( int ) );
+							next += sizeof( int );
+							_memcpy_s( &cfg_width, sizeof( int ), next, sizeof( int ) );
+							next += sizeof( int );
+							_memcpy_s( &cfg_height, sizeof( int ), next, sizeof( int ) );
+							next += sizeof( int );
 
-						for ( i = 0; i < NUM_COLUMNS; ++i )
-						{
-							_memcpy_s( download_columns[ i ], sizeof( char ), next, sizeof( char ) );
-							next += sizeof( char );
-						}
+							_memcpy_s( &cfg_min_max, sizeof( unsigned char ), next, sizeof( unsigned char ) );
+							next += sizeof( unsigned char );
 
-						_memcpy_s( &cfg_show_column_headers, sizeof( bool ), next, sizeof( bool ) );
-						next += sizeof( bool );
+							if ( version >= 0x09 )
+							{
+								for ( i = 0; i < NUM_COLUMNS; ++i )
+								{
+									_memcpy_s( download_columns_width[ i ], sizeof( int ), next, sizeof( int ) );
+									next += sizeof( int );
+								}
 
-						_memcpy_s( &cfg_sorted_column_index, sizeof( int ), next, sizeof( int ) );
-						next += sizeof( int );
+								for ( i = 0; i < NUM_COLUMNS; ++i )
+								{
+									_memcpy_s( download_columns[ i ], sizeof( char ), next, sizeof( char ) );
+									next += sizeof( char );
+								}
+							}
+							else	// Reset for older versions.
+							{
+								next += ( ( sizeof( int ) + sizeof( char ) ) * ( NUM_COLUMNS - 1 ) );
+							}
 
-						_memcpy_s( &cfg_sorted_direction, sizeof( unsigned char ), next, sizeof( unsigned char ) );
-						next += sizeof( unsigned char );
+							_memcpy_s( &cfg_show_column_headers, sizeof( bool ), next, sizeof( bool ) );
+							next += sizeof( bool );
 
-						_memcpy_s( &cfg_show_toolbar, sizeof( bool ), next, sizeof( bool ) );
-						next += sizeof( bool );
+							_memcpy_s( &cfg_sorted_column_index, sizeof( int ), next, sizeof( int ) );
+							next += sizeof( int );
 
-						_memcpy_s( &cfg_show_status_bar, sizeof( bool ), next, sizeof( bool ) );
-						next += sizeof( bool );
+							_memcpy_s( &cfg_sorted_direction, sizeof( unsigned char ), next, sizeof( unsigned char ) );
+							next += sizeof( unsigned char );
 
-						_memcpy_s( &cfg_t_down_speed, sizeof( unsigned char ), next, sizeof( unsigned char ) );
-						next += sizeof( unsigned char );
-						_memcpy_s( &cfg_t_downloaded, sizeof( unsigned char ), next, sizeof( unsigned char ) );
-						next += sizeof( unsigned char );
-						_memcpy_s( &cfg_t_file_size, sizeof( unsigned char ), next, sizeof( unsigned char ) );
-						next += sizeof( unsigned char );
-						_memcpy_s( &cfg_t_speed_limit, sizeof( unsigned char ), next, sizeof( unsigned char ) );
-						next += sizeof( unsigned char );
+							_memcpy_s( &cfg_show_toolbar, sizeof( bool ), next, sizeof( bool ) );
+							next += sizeof( bool );
 
-						_memcpy_s( &cfg_t_status_downloaded, sizeof( unsigned char ), next, sizeof( unsigned char ) );
-						next += sizeof( unsigned char );
-						_memcpy_s( &cfg_t_status_down_speed, sizeof( unsigned char ), next, sizeof( unsigned char ) );
-						next += sizeof( unsigned char );
-						_memcpy_s( &cfg_t_status_speed_limit, sizeof( unsigned char ), next, sizeof( unsigned char ) );
-						next += sizeof( unsigned char );
+							_memcpy_s( &cfg_show_status_bar, sizeof( bool ), next, sizeof( bool ) );
+							next += sizeof( bool );
 
-						// Global Speed Limit
+							if ( version >= 0x09 )
+							{
+								_memcpy_s( &cfg_show_categories, sizeof( bool ), next, sizeof( bool ) );
+								next += sizeof( bool );
 
-						_memcpy_s( &cfg_download_speed_limit, sizeof( unsigned long long ), next, sizeof( unsigned long long ) );
-						next += sizeof( unsigned long long );
+								_memcpy_s( &cfg_splitter_pos_x, sizeof( int ), next, sizeof( int ) );
+								next += sizeof( int );
+							}
 
-						//
+							_memcpy_s( &cfg_t_down_speed, sizeof( unsigned char ), next, sizeof( unsigned char ) );
+							next += sizeof( unsigned char );
+							_memcpy_s( &cfg_t_downloaded, sizeof( unsigned char ), next, sizeof( unsigned char ) );
+							next += sizeof( unsigned char );
+							_memcpy_s( &cfg_t_file_size, sizeof( unsigned char ), next, sizeof( unsigned char ) );
+							next += sizeof( unsigned char );
+							_memcpy_s( &cfg_t_speed_limit, sizeof( unsigned char ), next, sizeof( unsigned char ) );
+							next += sizeof( unsigned char );
 
-						_memcpy_s( &cfg_total_downloaded, sizeof( unsigned long long ), next, sizeof( unsigned long long ) );
-						next += sizeof( unsigned long long );
+							_memcpy_s( &cfg_t_status_downloaded, sizeof( unsigned char ), next, sizeof( unsigned char ) );
+							next += sizeof( unsigned char );
+							_memcpy_s( &cfg_t_status_down_speed, sizeof( unsigned char ), next, sizeof( unsigned char ) );
+							next += sizeof( unsigned char );
+							_memcpy_s( &cfg_t_status_speed_limit, sizeof( unsigned char ), next, sizeof( unsigned char ) );
+							next += sizeof( unsigned char );
 
-						// Options General
+							// Global Speed Limit
 
-						_memcpy_s( &cfg_tray_icon, sizeof( bool ), next, sizeof( bool ) );
-						next += sizeof( bool );
-						_memcpy_s( &cfg_minimize_to_tray, sizeof( bool ), next, sizeof( bool ) );
-						next += sizeof( bool );
-						_memcpy_s( &cfg_close_to_tray, sizeof( bool ), next, sizeof( bool ) );
-						next += sizeof( bool );
-						_memcpy_s( &cfg_start_in_tray, sizeof( bool ), next, sizeof( bool ) );
-						next += sizeof( bool );
-						_memcpy_s( &cfg_show_notification, sizeof( bool ), next, sizeof( bool ) );
-						next += sizeof( bool );
-						_memcpy_s( &cfg_show_tray_progress, sizeof( bool ), next, sizeof( bool ) );
-						next += sizeof( bool );
+							_memcpy_s( &cfg_download_speed_limit, sizeof( unsigned long long ), next, sizeof( unsigned long long ) );
+							next += sizeof( unsigned long long );
 
-						_memcpy_s( &cfg_always_on_top, sizeof( bool ), next, sizeof( bool ) );
-						next += sizeof( bool );
-						_memcpy_s( &cfg_check_for_updates, sizeof( bool ), next, sizeof( bool ) );
-						next += sizeof( bool );
+							//
 
-						_memcpy_s( &cfg_enable_drop_window, sizeof( bool ), next, sizeof( bool ) );
-						next += sizeof( bool );
-						_memcpy_s( &cfg_drop_window_transparency, sizeof( unsigned char ), next, sizeof( unsigned char ) );
-						next += sizeof( unsigned char );
-						_memcpy_s( &cfg_show_drop_window_progress, sizeof( bool ), next, sizeof( bool ) );
-						next += sizeof( bool );
-						_memcpy_s( &cfg_drop_pos_x, sizeof( int ), next, sizeof( int ) );
-						next += sizeof( int );
-						_memcpy_s( &cfg_drop_pos_y, sizeof( int ), next, sizeof( int ) );
-						next += sizeof( int );
+							_memcpy_s( &cfg_total_downloaded, sizeof( unsigned long long ), next, sizeof( unsigned long long ) );
+							next += sizeof( unsigned long long );
 
-						_memcpy_s( &cfg_play_sound, sizeof( bool ), next, sizeof( bool ) );
-						next += sizeof( bool );
+							// Options General
 
-						// Options Appearance
+							_memcpy_s( &cfg_tray_icon, sizeof( bool ), next, sizeof( bool ) );
+							next += sizeof( bool );
+							_memcpy_s( &cfg_minimize_to_tray, sizeof( bool ), next, sizeof( bool ) );
+							next += sizeof( bool );
+							_memcpy_s( &cfg_close_to_tray, sizeof( bool ), next, sizeof( bool ) );
+							next += sizeof( bool );
+							_memcpy_s( &cfg_start_in_tray, sizeof( bool ), next, sizeof( bool ) );
+							next += sizeof( bool );
+							_memcpy_s( &cfg_show_notification, sizeof( bool ), next, sizeof( bool ) );
+							next += sizeof( bool );
+							_memcpy_s( &cfg_show_tray_progress, sizeof( bool ), next, sizeof( bool ) );
+							next += sizeof( bool );
 
-						_memcpy_s( &cfg_show_gridlines, sizeof( bool ), next, sizeof( bool ) );
-						next += sizeof( bool );
-						_memcpy_s( &cfg_draw_full_rows, sizeof( bool ), next, sizeof( bool ) );
-						next += sizeof( bool );
-						_memcpy_s( &cfg_draw_all_rows, sizeof( bool ), next, sizeof( bool ) );
-						next += sizeof( bool );
-						_memcpy_s( &cfg_show_part_progress, sizeof( bool ), next, sizeof( bool ) );
-						next += sizeof( bool );
-						_memcpy_s( &cfg_sort_added_and_updating_items, sizeof( bool ), next, sizeof( bool ) );
-						next += sizeof( bool );
-						_memcpy_s( &cfg_expand_added_group_items, sizeof( bool ), next, sizeof( bool ) );
-						next += sizeof( bool );
-						_memcpy_s( &cfg_scroll_to_last_item, sizeof( bool ), next, sizeof( bool ) );
-						next += sizeof( bool );
+							_memcpy_s( &cfg_always_on_top, sizeof( bool ), next, sizeof( bool ) );
+							next += sizeof( bool );
+							_memcpy_s( &cfg_check_for_updates, sizeof( bool ), next, sizeof( bool ) );
+							next += sizeof( bool );
 
-						_memcpy_s( &cfg_background_color, sizeof( COLORREF ), next, sizeof( COLORREF ) );
-						next += sizeof( COLORREF );
-						_memcpy_s( &cfg_gridline_color, sizeof( COLORREF ), next, sizeof( COLORREF ) );
-						next += sizeof( COLORREF );
-						_memcpy_s( &cfg_selection_marquee_color, sizeof( COLORREF ), next, sizeof( COLORREF ) );
-						next += sizeof( COLORREF );
+							_memcpy_s( &cfg_enable_drop_window, sizeof( bool ), next, sizeof( bool ) );
+							next += sizeof( bool );
+							_memcpy_s( &cfg_drop_window_transparency, sizeof( unsigned char ), next, sizeof( unsigned char ) );
+							next += sizeof( unsigned char );
+							_memcpy_s( &cfg_show_drop_window_progress, sizeof( bool ), next, sizeof( bool ) );
+							next += sizeof( bool );
+							_memcpy_s( &cfg_drop_pos_x, sizeof( int ), next, sizeof( int ) );
+							next += sizeof( int );
+							_memcpy_s( &cfg_drop_pos_y, sizeof( int ), next, sizeof( int ) );
+							next += sizeof( int );
 
-						_memcpy_s( &cfg_odd_row_font_settings.font_color, sizeof( COLORREF ), next, sizeof( COLORREF ) );
-						next += sizeof( COLORREF );
-						_memcpy_s( &cfg_odd_row_font_settings.lf.lfHeight, sizeof( LONG ), next, sizeof( LONG ) );
-						next += sizeof( LONG );
-						_memcpy_s( &cfg_odd_row_font_settings.lf.lfWeight, sizeof( LONG ), next, sizeof( LONG ) );
-						next += sizeof( LONG );
-						_memcpy_s( &cfg_odd_row_font_settings.lf.lfItalic, sizeof( BYTE ), next, sizeof( BYTE ) );
-						next += sizeof( BYTE );
-						_memcpy_s( &cfg_odd_row_font_settings.lf.lfUnderline, sizeof( BYTE ), next, sizeof( BYTE ) );
-						next += sizeof( BYTE );
-						_memcpy_s( &cfg_odd_row_font_settings.lf.lfStrikeOut, sizeof( BYTE ), next, sizeof( BYTE ) );
-						next += sizeof( BYTE );
+							_memcpy_s( &cfg_play_sound, sizeof( bool ), next, sizeof( bool ) );
+							next += sizeof( bool );
 
-						_memcpy_s( &cfg_odd_row_background_color, sizeof( COLORREF ), next, sizeof( COLORREF ) );
-						next += sizeof( COLORREF );
-						_memcpy_s( &cfg_odd_row_highlight_color, sizeof( COLORREF ), next, sizeof( COLORREF ) );
-						next += sizeof( COLORREF );
-						_memcpy_s( &cfg_odd_row_highlight_font_color, sizeof( COLORREF ), next, sizeof( COLORREF ) );
-						next += sizeof( COLORREF );
+							if ( version >= 0x09 )
+							{
+								_memcpy_s( &cfg_play_sound_fail, sizeof( bool ), next, sizeof( bool ) );
+								next += sizeof( bool );
+							}
 
-						_memcpy_s( &cfg_even_row_font_settings.font_color, sizeof( COLORREF ), next, sizeof( COLORREF ) );
-						next += sizeof( COLORREF );
-						_memcpy_s( &cfg_even_row_font_settings.lf.lfHeight, sizeof( LONG ), next, sizeof( LONG ) );
-						next += sizeof( LONG );
-						_memcpy_s( &cfg_even_row_font_settings.lf.lfWeight, sizeof( LONG ), next, sizeof( LONG ) );
-						next += sizeof( LONG );
-						_memcpy_s( &cfg_even_row_font_settings.lf.lfItalic, sizeof( BYTE ), next, sizeof( BYTE ) );
-						next += sizeof( BYTE );
-						_memcpy_s( &cfg_even_row_font_settings.lf.lfUnderline, sizeof( BYTE ), next, sizeof( BYTE ) );
-						next += sizeof( BYTE );
-						_memcpy_s( &cfg_even_row_font_settings.lf.lfStrikeOut, sizeof( BYTE ), next, sizeof( BYTE ) );
-						next += sizeof( BYTE );
+							// Options Appearance
 
-						_memcpy_s( &cfg_even_row_background_color, sizeof( COLORREF ), next, sizeof( COLORREF ) );
-						next += sizeof( COLORREF );
-						_memcpy_s( &cfg_even_row_highlight_color, sizeof( COLORREF ), next, sizeof( COLORREF ) );
-						next += sizeof( COLORREF );
-						_memcpy_s( &cfg_even_row_highlight_font_color, sizeof( COLORREF ), next, sizeof( COLORREF ) );
-						next += sizeof( COLORREF );
+							_memcpy_s( &cfg_show_gridlines, sizeof( bool ), next, sizeof( bool ) );
+							next += sizeof( bool );
+							_memcpy_s( &cfg_draw_full_rows, sizeof( bool ), next, sizeof( bool ) );
+							next += sizeof( bool );
+							_memcpy_s( &cfg_draw_all_rows, sizeof( bool ), next, sizeof( bool ) );
+							next += sizeof( bool );
+							_memcpy_s( &cfg_show_part_progress, sizeof( bool ), next, sizeof( bool ) );
+							next += sizeof( bool );
+							_memcpy_s( &cfg_sort_added_and_updating_items, sizeof( bool ), next, sizeof( bool ) );
+							next += sizeof( bool );
+							_memcpy_s( &cfg_expand_added_group_items, sizeof( bool ), next, sizeof( bool ) );
+							next += sizeof( bool );
+							_memcpy_s( &cfg_scroll_to_last_item, sizeof( bool ), next, sizeof( bool ) );
+							next += sizeof( bool );
 
-						for ( i = 0; i < NUM_COLORS; ++i )
-						{
-							_memcpy_s( progress_colors[ i ], sizeof( COLORREF ), next, sizeof( COLORREF ) );
+							if ( version >= 0x09 )
+							{
+								_memcpy_s( &cfg_show_embedded_icon, sizeof( bool ), next, sizeof( bool ) );
+								next += sizeof( bool );
+							}
+
+							_memcpy_s( &cfg_background_color, sizeof( COLORREF ), next, sizeof( COLORREF ) );
 							next += sizeof( COLORREF );
-						}
-
-						// Tray and URL Drop window progress colors.
-
-						for ( i = 0; i < TD_NUM_COLORS; ++i )
-						{
-							_memcpy_s( td_progress_colors[ i ], sizeof( COLORREF ), next, sizeof( COLORREF ) );
+							_memcpy_s( &cfg_gridline_color, sizeof( COLORREF ), next, sizeof( COLORREF ) );
 							next += sizeof( COLORREF );
-						}
-
-						// Options Connection
-
-						_memcpy_s( &cfg_max_downloads, sizeof( unsigned char ), next, sizeof( unsigned char ) );
-						next += sizeof( unsigned char );
-
-						_memcpy_s( &cfg_default_download_parts, sizeof( unsigned char ), next, sizeof( unsigned char ) );
-						next += sizeof( unsigned char );
-
-						_memcpy_s( &cfg_retry_downloads_count, sizeof( unsigned char ), next, sizeof( unsigned char ) );
-						next += sizeof( unsigned char );
-
-						_memcpy_s( &cfg_retry_parts_count, sizeof( unsigned char ), next, sizeof( unsigned char ) );
-						next += sizeof( unsigned char );
-
-						_memcpy_s( &cfg_timeout, sizeof( unsigned short ), next, sizeof( unsigned short ) );
-						next += sizeof( unsigned short );
-
-						_memcpy_s( &cfg_max_redirects, sizeof( unsigned char ), next, sizeof( unsigned char ) );
-						next += sizeof( unsigned char );
-
-						_memcpy_s( &cfg_default_speed_limit, sizeof( unsigned long long ), next, sizeof( unsigned long long ) );
-						next += sizeof( unsigned long long );
-
-						_memcpy_s( &cfg_default_ssl_version, sizeof( unsigned char ), next, sizeof( unsigned char ) );
-						next += sizeof( unsigned char );
-
-						// Options FTP
-
-						_memcpy_s( &cfg_ftp_mode_type, sizeof( unsigned char ), next, sizeof( unsigned char ) );
-						next += sizeof( unsigned char );
-
-						_memcpy_s( &cfg_ftp_enable_fallback_mode, sizeof( bool ), next, sizeof( bool ) );
-						next += sizeof( bool );
-
-						_memcpy_s( &cfg_ftp_address_type, sizeof( unsigned char ), next, sizeof( unsigned char ) );
-						next += sizeof( unsigned char );
-
-						_memcpy_s( &cfg_ftp_ip_address, sizeof( unsigned long ), next, sizeof( unsigned long ) );
-						next += sizeof( unsigned long );
-
-						_memcpy_s( &cfg_ftp_port_start, sizeof( unsigned short ), next, sizeof( unsigned short ) );
-						next += sizeof( unsigned short );
-
-						_memcpy_s( &cfg_ftp_port_end, sizeof( unsigned short ), next, sizeof( unsigned short ) );
-						next += sizeof( unsigned short );
-
-						_memcpy_s( &cfg_ftp_send_keep_alive, sizeof( bool ), next, sizeof( bool ) );
-						next += sizeof( bool );
-
-						// Options Proxy
-
-						_memcpy_s( &cfg_enable_proxy, sizeof( bool ), next, sizeof( bool ) );
-						next += sizeof( bool );
-
-						_memcpy_s( &cfg_address_type, sizeof( unsigned char ), next, sizeof( unsigned char ) );
-						next += sizeof( unsigned char );
-
-						_memcpy_s( &cfg_ip_address, sizeof( unsigned long ), next, sizeof( unsigned long ) );
-						next += sizeof( unsigned long );
-
-						_memcpy_s( &cfg_port, sizeof( unsigned short ), next, sizeof( unsigned short ) );
-						next += sizeof( unsigned short );
-
-						//
-
-						_memcpy_s( &cfg_enable_proxy_s, sizeof( bool ), next, sizeof( bool ) );
-						next += sizeof( bool );
-
-						_memcpy_s( &cfg_address_type_s, sizeof( unsigned char ), next, sizeof( unsigned char ) );
-						next += sizeof( unsigned char );
-
-						_memcpy_s( &cfg_ip_address_s, sizeof( unsigned long ), next, sizeof( unsigned long ) );
-						next += sizeof( unsigned long );
-
-						_memcpy_s( &cfg_port_s, sizeof( unsigned short ), next, sizeof( unsigned short ) );
-						next += sizeof( unsigned short );
-
-						//
-
-						_memcpy_s( &cfg_enable_proxy_socks, sizeof( bool ), next, sizeof( bool ) );
-						next += sizeof( bool );
-
-						_memcpy_s( &cfg_socks_type, sizeof( unsigned char ), next, sizeof( unsigned char ) );
-						next += sizeof( unsigned char );
-
-						_memcpy_s( &cfg_address_type_socks, sizeof( unsigned char ), next, sizeof( unsigned char ) );
-						next += sizeof( unsigned char );
-
-						_memcpy_s( &cfg_ip_address_socks, sizeof( unsigned long ), next, sizeof( unsigned long ) );
-						next += sizeof( unsigned long );
-
-						_memcpy_s( &cfg_port_socks, sizeof( unsigned short ), next, sizeof( unsigned short ) );
-						next += sizeof( unsigned short );
-
-						_memcpy_s( &cfg_use_authentication_socks, sizeof( bool ), next, sizeof( bool ) );
-						next += sizeof( bool );
-
-						_memcpy_s( &cfg_resolve_domain_names_v4a, sizeof( bool ), next, sizeof( bool ) );
-						next += sizeof( bool );
-
-						_memcpy_s( &cfg_resolve_domain_names, sizeof( bool ), next, sizeof( bool ) );
-						next += sizeof( bool );
-
-						// Options Server
-
-						_memcpy_s( &cfg_enable_server, sizeof( bool ), next, sizeof( bool ) );
-						next += sizeof( bool );
-
-						_memcpy_s( &cfg_server_address_type, sizeof( unsigned char ), next, sizeof( unsigned char ) );
-						next += sizeof( unsigned char );
-
-						_memcpy_s( &cfg_server_ip_address, sizeof( unsigned long ), next, sizeof( unsigned long ) );
-						next += sizeof( unsigned long );
-
-						_memcpy_s( &cfg_server_port, sizeof( unsigned short ), next, sizeof( unsigned short ) );
-						next += sizeof( unsigned short );
-
-						_memcpy_s( &cfg_use_authentication, sizeof( bool ), next, sizeof( bool ) );
-						next += sizeof( bool );
-
-						_memcpy_s( &cfg_authentication_type, sizeof( unsigned char ), next, sizeof( unsigned char ) );
-						next += sizeof( unsigned char );
-
-						_memcpy_s( &cfg_server_enable_ssl, sizeof( bool ), next, sizeof( bool ) );
-						next += sizeof( bool );
-
-						_memcpy_s( &cfg_certificate_type, sizeof( unsigned char ), next, sizeof( unsigned char ) );
-						next += sizeof( unsigned char );
-
-						_memcpy_s( &cfg_server_ssl_version, sizeof( unsigned char ), next, sizeof( unsigned char ) );
-						next += sizeof( unsigned char );
-
-						// Options Advanced
-
-						_memcpy_s( &cfg_enable_download_history, sizeof( bool ), next, sizeof( bool ) );
-						next += sizeof( bool );
-
-						_memcpy_s( &cfg_enable_quick_allocation, sizeof( bool ), next, sizeof( bool ) );
-						next += sizeof( bool );
-
-						_memcpy_s( &cfg_set_filetime, sizeof( bool ), next, sizeof( bool ) );
-						next += sizeof( bool );
-
-						_memcpy_s( &cfg_update_redirected, sizeof( bool ), next, sizeof( bool ) );
-						next += sizeof( bool );
-
-						_memcpy_s( &cfg_use_one_instance, sizeof( bool ), next, sizeof( bool ) );
-						next += sizeof( bool );
-
-						_memcpy_s( &cfg_prevent_standby, sizeof( bool ), next, sizeof( bool ) );
-						next += sizeof( bool );
-
-						_memcpy_s( &cfg_resume_downloads, sizeof( bool ), next, sizeof( bool ) );
-						next += sizeof( bool );
-
-						_memcpy_s( &cfg_drag_and_drop_action, sizeof( unsigned char ), next, sizeof( unsigned char ) );
-						next += sizeof( unsigned char );
-
-						_memcpy_s( &cfg_prompt_last_modified, sizeof( unsigned char ), next, sizeof( unsigned char ) );
-						next += sizeof( unsigned char );
-
-						_memcpy_s( &cfg_prompt_rename, sizeof( unsigned char ), next, sizeof( unsigned char ) );
-						next += sizeof( unsigned char );
-
-						_memcpy_s( &cfg_prompt_file_size, sizeof( unsigned char ), next, sizeof( unsigned char ) );
-						next += sizeof( unsigned char );
-						_memcpy_s( &cfg_max_file_size, sizeof( unsigned long long ), next, sizeof( unsigned long long ) );
-						next += sizeof( unsigned long long );
-
-						_memcpy_s( &cfg_shutdown_action, sizeof( unsigned char ), next, sizeof( unsigned char ) );
-						next += sizeof( unsigned char );
-
-						_memcpy_s( &cfg_use_temp_download_directory, sizeof( bool ), next, sizeof( bool ) );
-						next += sizeof( bool );
-
-						_memcpy_s( &cfg_thread_count, sizeof( unsigned long ), next, sizeof( unsigned long ) );
-						next += sizeof( unsigned long );
-
-						// Options SFTP
-
-						_memcpy_s( &cfg_sftp_enable_compression, sizeof( bool ), next, sizeof( bool ) );
-						next += sizeof( bool );
-
-						_memcpy_s( &cfg_sftp_attempt_gssapi_authentication, sizeof( bool ), next, sizeof( bool ) );
-						next += sizeof( bool );
-						_memcpy_s( &cfg_sftp_attempt_gssapi_key_exchange, sizeof( bool ), next, sizeof( bool ) );
-						next += sizeof( bool );
-
-						_memcpy_s( &cfg_sftp_keep_alive_time, sizeof( int ), next, sizeof( int ) );
-						next += sizeof( int );
-						_memcpy_s( &cfg_sftp_rekey_time, sizeof( int ), next, sizeof( int ) );
-						next += sizeof( int );
-						_memcpy_s( &cfg_sftp_gss_rekey_time, sizeof( int ), next, sizeof( int ) );
-						next += sizeof( int );
-						_memcpy_s( &cfg_sftp_rekey_data_limit, sizeof( unsigned long ), next, sizeof( unsigned long ) );
-						next += sizeof( unsigned long );
-
-						for ( i = 0; i < KEX_ALGORITHM_COUNT; ++i )
-						{
-							_memcpy_s( &cfg_priority_kex_algorithm[ i ], sizeof( unsigned char ), next, sizeof( unsigned char ) );
+							_memcpy_s( &cfg_selection_marquee_color, sizeof( COLORREF ), next, sizeof( COLORREF ) );
+							next += sizeof( COLORREF );
+
+							_memcpy_s( &cfg_odd_row_font_settings.font_color, sizeof( COLORREF ), next, sizeof( COLORREF ) );
+							next += sizeof( COLORREF );
+							_memcpy_s( &cfg_odd_row_font_settings.lf.lfHeight, sizeof( LONG ), next, sizeof( LONG ) );
+							next += sizeof( LONG );
+							_memcpy_s( &cfg_odd_row_font_settings.lf.lfWeight, sizeof( LONG ), next, sizeof( LONG ) );
+							next += sizeof( LONG );
+							_memcpy_s( &cfg_odd_row_font_settings.lf.lfItalic, sizeof( BYTE ), next, sizeof( BYTE ) );
+							next += sizeof( BYTE );
+							_memcpy_s( &cfg_odd_row_font_settings.lf.lfUnderline, sizeof( BYTE ), next, sizeof( BYTE ) );
+							next += sizeof( BYTE );
+							_memcpy_s( &cfg_odd_row_font_settings.lf.lfStrikeOut, sizeof( BYTE ), next, sizeof( BYTE ) );
+							next += sizeof( BYTE );
+
+							_memcpy_s( &cfg_odd_row_background_color, sizeof( COLORREF ), next, sizeof( COLORREF ) );
+							next += sizeof( COLORREF );
+							_memcpy_s( &cfg_odd_row_highlight_color, sizeof( COLORREF ), next, sizeof( COLORREF ) );
+							next += sizeof( COLORREF );
+							_memcpy_s( &cfg_odd_row_highlight_font_color, sizeof( COLORREF ), next, sizeof( COLORREF ) );
+							next += sizeof( COLORREF );
+
+							_memcpy_s( &cfg_even_row_font_settings.font_color, sizeof( COLORREF ), next, sizeof( COLORREF ) );
+							next += sizeof( COLORREF );
+							_memcpy_s( &cfg_even_row_font_settings.lf.lfHeight, sizeof( LONG ), next, sizeof( LONG ) );
+							next += sizeof( LONG );
+							_memcpy_s( &cfg_even_row_font_settings.lf.lfWeight, sizeof( LONG ), next, sizeof( LONG ) );
+							next += sizeof( LONG );
+							_memcpy_s( &cfg_even_row_font_settings.lf.lfItalic, sizeof( BYTE ), next, sizeof( BYTE ) );
+							next += sizeof( BYTE );
+							_memcpy_s( &cfg_even_row_font_settings.lf.lfUnderline, sizeof( BYTE ), next, sizeof( BYTE ) );
+							next += sizeof( BYTE );
+							_memcpy_s( &cfg_even_row_font_settings.lf.lfStrikeOut, sizeof( BYTE ), next, sizeof( BYTE ) );
+							next += sizeof( BYTE );
+
+							_memcpy_s( &cfg_even_row_background_color, sizeof( COLORREF ), next, sizeof( COLORREF ) );
+							next += sizeof( COLORREF );
+							_memcpy_s( &cfg_even_row_highlight_color, sizeof( COLORREF ), next, sizeof( COLORREF ) );
+							next += sizeof( COLORREF );
+							_memcpy_s( &cfg_even_row_highlight_font_color, sizeof( COLORREF ), next, sizeof( COLORREF ) );
+							next += sizeof( COLORREF );
+
+							for ( i = 0; i < NUM_COLORS; ++i )
+							{
+								_memcpy_s( progress_colors[ i ], sizeof( COLORREF ), next, sizeof( COLORREF ) );
+								next += sizeof( COLORREF );
+							}
+
+							// Tray and URL Drop window progress colors.
+
+							for ( i = 0; i < TD_NUM_COLORS; ++i )
+							{
+								_memcpy_s( td_progress_colors[ i ], sizeof( COLORREF ), next, sizeof( COLORREF ) );
+								next += sizeof( COLORREF );
+							}
+
+							// Options Connection
+
+							_memcpy_s( &cfg_max_downloads, sizeof( unsigned char ), next, sizeof( unsigned char ) );
 							next += sizeof( unsigned char );
-						}
 
-						for ( i = 0; i < HOST_KEY_COUNT; ++i )
-						{
-							_memcpy_s( &cfg_priority_host_key[ i ], sizeof( unsigned char ), next, sizeof( unsigned char ) );
+							_memcpy_s( &cfg_default_download_parts, sizeof( unsigned char ), next, sizeof( unsigned char ) );
 							next += sizeof( unsigned char );
-						}
 
-						for ( i = 0; i < ENCRYPTION_CIPHER_COUNT; ++i )
-						{
-							_memcpy_s( &cfg_priority_encryption_cipher[ i ], sizeof( unsigned char ), next, sizeof( unsigned char ) );
+							_memcpy_s( &cfg_retry_downloads_count, sizeof( unsigned char ), next, sizeof( unsigned char ) );
 							next += sizeof( unsigned char );
-						}
 
-						//
+							_memcpy_s( &cfg_retry_parts_count, sizeof( unsigned char ), next, sizeof( unsigned char ) );
+							next += sizeof( unsigned char );
 
-						_memcpy_s( &cfg_reallocate_parts, sizeof( bool ), next, sizeof( bool ) );
-						next += sizeof( bool );
-
-						_memcpy_s( &cfg_download_non_200_206, sizeof( bool ), next, sizeof( bool ) );
-						next += sizeof( bool );
-
-						_memcpy_s( &cfg_move_to_trash, sizeof( bool ), next, sizeof( bool ) );
-						next += sizeof( bool );
-
-						_memcpy_s( &cfg_enable_sparse_file_allocation, sizeof( bool ), next, sizeof( bool ) );
-						next += sizeof( bool );
-
-						_memcpy_s( &cfg_override_list_prompts, sizeof( bool ), next, sizeof( bool ) );
-						next += sizeof( bool );
-
-						//
-
-
-						next += reserved;	// Skip past reserved bytes.
-
-						int string_length = 0;
-						int cfg_val_length = 0;
-
-
-						//
-
-
-						// Options General
-
-						if ( ( DWORD )( next - cfg_buf ) < read )
-						{
-							string_length = lstrlenA( next ) + 1;
-
-							if ( string_length > 1 )
-							{
-								cfg_sound_file_path = UTF8StringToWideString( next, string_length );
-							}
-
-							next += string_length;
-						}
-
-						// Options Appearance
-
-						if ( ( DWORD )( next - cfg_buf ) < read )
-						{
-							string_length = lstrlenA( next ) + 1;
-
-							if ( string_length > 1 && string_length <= LF_FACESIZE )
-							{
-								cfg_val_length = MultiByteToWideChar( CP_UTF8, 0, next, string_length, NULL, 0 );	// Include the NULL terminator.
-								MultiByteToWideChar( CP_UTF8, 0, next, string_length, cfg_odd_row_font_settings.lf.lfFaceName, cfg_val_length );
-							}
-
-							next += string_length;
-						}
-
-						if ( ( DWORD )( next - cfg_buf ) < read )
-						{
-							string_length = lstrlenA( next ) + 1;
-
-							if ( string_length > 1 && string_length <= LF_FACESIZE )
-							{
-								cfg_val_length = MultiByteToWideChar( CP_UTF8, 0, next, string_length, NULL, 0 );	// Include the NULL terminator.
-								MultiByteToWideChar( CP_UTF8, 0, next, string_length, cfg_even_row_font_settings.lf.lfFaceName, cfg_val_length );
-							}
-
-							next += string_length;
-						}
-
-						// Options FTP
-
-						if ( ( DWORD )( next - cfg_buf ) < read )
-						{
-							string_length = lstrlenA( next ) + 1;
-
-							cfg_ftp_hostname = UTF8StringToWideString( next, string_length );
-
-							next += string_length;
-						}
-
-						// Options Proxy
-
-						if ( ( DWORD )( next - cfg_buf ) < read )
-						{
-							string_length = lstrlenA( next ) + 1;
-
-							cfg_hostname = UTF8StringToWideString( next, string_length );
-
-							next += string_length;
-						}
-
-						if ( ( DWORD )( next - cfg_buf ) < read )
-						{
-							// Length of the string - not including the NULL character.
-							_memcpy_s( &string_length, sizeof( unsigned short ), next, sizeof( unsigned short ) );
+							_memcpy_s( &cfg_timeout, sizeof( unsigned short ), next, sizeof( unsigned short ) );
 							next += sizeof( unsigned short );
 
-							if ( string_length > 0 )
+							_memcpy_s( &cfg_max_redirects, sizeof( unsigned char ), next, sizeof( unsigned char ) );
+							next += sizeof( unsigned char );
+
+							_memcpy_s( &cfg_default_speed_limit, sizeof( unsigned long long ), next, sizeof( unsigned long long ) );
+							next += sizeof( unsigned long long );
+
+							_memcpy_s( &cfg_default_ssl_version, sizeof( unsigned char ), next, sizeof( unsigned char ) );
+							next += sizeof( unsigned char );
+
+							// Options FTP
+
+							_memcpy_s( &cfg_ftp_mode_type, sizeof( unsigned char ), next, sizeof( unsigned char ) );
+							next += sizeof( unsigned char );
+
+							_memcpy_s( &cfg_ftp_enable_fallback_mode, sizeof( bool ), next, sizeof( bool ) );
+							next += sizeof( bool );
+
+							_memcpy_s( &cfg_ftp_address_type, sizeof( unsigned char ), next, sizeof( unsigned char ) );
+							next += sizeof( unsigned char );
+
+							_memcpy_s( &cfg_ftp_ip_address, sizeof( unsigned long ), next, sizeof( unsigned long ) );
+							next += sizeof( unsigned long );
+
+							_memcpy_s( &cfg_ftp_port_start, sizeof( unsigned short ), next, sizeof( unsigned short ) );
+							next += sizeof( unsigned short );
+
+							_memcpy_s( &cfg_ftp_port_end, sizeof( unsigned short ), next, sizeof( unsigned short ) );
+							next += sizeof( unsigned short );
+
+							_memcpy_s( &cfg_ftp_send_keep_alive, sizeof( bool ), next, sizeof( bool ) );
+							next += sizeof( bool );
+
+							// Options Proxy
+
+							_memcpy_s( &cfg_enable_proxy, sizeof( bool ), next, sizeof( bool ) );
+							next += sizeof( bool );
+
+							_memcpy_s( &cfg_address_type, sizeof( unsigned char ), next, sizeof( unsigned char ) );
+							next += sizeof( unsigned char );
+
+							_memcpy_s( &cfg_ip_address, sizeof( unsigned long ), next, sizeof( unsigned long ) );
+							next += sizeof( unsigned long );
+
+							_memcpy_s( &cfg_port, sizeof( unsigned short ), next, sizeof( unsigned short ) );
+							next += sizeof( unsigned short );
+
+							//
+
+							_memcpy_s( &cfg_enable_proxy_s, sizeof( bool ), next, sizeof( bool ) );
+							next += sizeof( bool );
+
+							_memcpy_s( &cfg_address_type_s, sizeof( unsigned char ), next, sizeof( unsigned char ) );
+							next += sizeof( unsigned char );
+
+							_memcpy_s( &cfg_ip_address_s, sizeof( unsigned long ), next, sizeof( unsigned long ) );
+							next += sizeof( unsigned long );
+
+							_memcpy_s( &cfg_port_s, sizeof( unsigned short ), next, sizeof( unsigned short ) );
+							next += sizeof( unsigned short );
+
+							//
+
+							_memcpy_s( &cfg_enable_proxy_socks, sizeof( bool ), next, sizeof( bool ) );
+							next += sizeof( bool );
+
+							_memcpy_s( &cfg_socks_type, sizeof( unsigned char ), next, sizeof( unsigned char ) );
+							next += sizeof( unsigned char );
+
+							_memcpy_s( &cfg_address_type_socks, sizeof( unsigned char ), next, sizeof( unsigned char ) );
+							next += sizeof( unsigned char );
+
+							_memcpy_s( &cfg_ip_address_socks, sizeof( unsigned long ), next, sizeof( unsigned long ) );
+							next += sizeof( unsigned long );
+
+							_memcpy_s( &cfg_port_socks, sizeof( unsigned short ), next, sizeof( unsigned short ) );
+							next += sizeof( unsigned short );
+
+							_memcpy_s( &cfg_use_authentication_socks, sizeof( bool ), next, sizeof( bool ) );
+							next += sizeof( bool );
+
+							_memcpy_s( &cfg_resolve_domain_names_v4a, sizeof( bool ), next, sizeof( bool ) );
+							next += sizeof( bool );
+
+							_memcpy_s( &cfg_resolve_domain_names, sizeof( bool ), next, sizeof( bool ) );
+							next += sizeof( bool );
+
+							// Options Server
+
+							_memcpy_s( &cfg_enable_server, sizeof( bool ), next, sizeof( bool ) );
+							next += sizeof( bool );
+
+							_memcpy_s( &cfg_server_address_type, sizeof( unsigned char ), next, sizeof( unsigned char ) );
+							next += sizeof( unsigned char );
+
+							_memcpy_s( &cfg_server_ip_address, sizeof( unsigned long ), next, sizeof( unsigned long ) );
+							next += sizeof( unsigned long );
+
+							_memcpy_s( &cfg_server_port, sizeof( unsigned short ), next, sizeof( unsigned short ) );
+							next += sizeof( unsigned short );
+
+							_memcpy_s( &cfg_use_authentication, sizeof( bool ), next, sizeof( bool ) );
+							next += sizeof( bool );
+
+							_memcpy_s( &cfg_authentication_type, sizeof( unsigned char ), next, sizeof( unsigned char ) );
+							next += sizeof( unsigned char );
+
+							_memcpy_s( &cfg_server_enable_ssl, sizeof( bool ), next, sizeof( bool ) );
+							next += sizeof( bool );
+
+							_memcpy_s( &cfg_certificate_type, sizeof( unsigned char ), next, sizeof( unsigned char ) );
+							next += sizeof( unsigned char );
+
+							_memcpy_s( &cfg_server_ssl_version, sizeof( unsigned char ), next, sizeof( unsigned char ) );
+							next += sizeof( unsigned char );
+
+							if ( version >= 0x09 )
 							{
-								if ( ( ( DWORD )( next - cfg_buf ) + string_length < read ) )
+								_memcpy_s( &cfg_show_remote_connection_notification, sizeof( bool ), next, sizeof( bool ) );
+								next += sizeof( bool );
+							}
+
+							// Options Advanced
+
+							_memcpy_s( &cfg_enable_download_history, sizeof( bool ), next, sizeof( bool ) );
+							next += sizeof( bool );
+
+							_memcpy_s( &cfg_enable_quick_allocation, sizeof( bool ), next, sizeof( bool ) );
+							next += sizeof( bool );
+
+							_memcpy_s( &cfg_set_filetime, sizeof( bool ), next, sizeof( bool ) );
+							next += sizeof( bool );
+
+							_memcpy_s( &cfg_update_redirected, sizeof( bool ), next, sizeof( bool ) );
+							next += sizeof( bool );
+
+							_memcpy_s( &cfg_use_one_instance, sizeof( bool ), next, sizeof( bool ) );
+							next += sizeof( bool );
+
+							_memcpy_s( &cfg_prevent_standby, sizeof( bool ), next, sizeof( bool ) );
+							next += sizeof( bool );
+
+							_memcpy_s( &cfg_resume_downloads, sizeof( bool ), next, sizeof( bool ) );
+							next += sizeof( bool );
+
+							_memcpy_s( &cfg_drag_and_drop_action, sizeof( unsigned char ), next, sizeof( unsigned char ) );
+							next += sizeof( unsigned char );
+
+							_memcpy_s( &cfg_prompt_last_modified, sizeof( unsigned char ), next, sizeof( unsigned char ) );
+							next += sizeof( unsigned char );
+
+							_memcpy_s( &cfg_prompt_rename, sizeof( unsigned char ), next, sizeof( unsigned char ) );
+							next += sizeof( unsigned char );
+
+							_memcpy_s( &cfg_prompt_file_size, sizeof( unsigned char ), next, sizeof( unsigned char ) );
+							next += sizeof( unsigned char );
+							_memcpy_s( &cfg_max_file_size, sizeof( unsigned long long ), next, sizeof( unsigned long long ) );
+							next += sizeof( unsigned long long );
+
+							_memcpy_s( &cfg_shutdown_action, sizeof( unsigned char ), next, sizeof( unsigned char ) );
+							next += sizeof( unsigned char );
+
+							_memcpy_s( &cfg_use_temp_download_directory, sizeof( bool ), next, sizeof( bool ) );
+							next += sizeof( bool );
+
+							_memcpy_s( &cfg_thread_count, sizeof( unsigned long ), next, sizeof( unsigned long ) );
+							next += sizeof( unsigned long );
+
+							// Options SFTP
+
+							_memcpy_s( &cfg_sftp_enable_compression, sizeof( bool ), next, sizeof( bool ) );
+							next += sizeof( bool );
+
+							_memcpy_s( &cfg_sftp_attempt_gssapi_authentication, sizeof( bool ), next, sizeof( bool ) );
+							next += sizeof( bool );
+							_memcpy_s( &cfg_sftp_attempt_gssapi_key_exchange, sizeof( bool ), next, sizeof( bool ) );
+							next += sizeof( bool );
+
+							_memcpy_s( &cfg_sftp_keep_alive_time, sizeof( int ), next, sizeof( int ) );
+							next += sizeof( int );
+							_memcpy_s( &cfg_sftp_rekey_time, sizeof( int ), next, sizeof( int ) );
+							next += sizeof( int );
+							_memcpy_s( &cfg_sftp_gss_rekey_time, sizeof( int ), next, sizeof( int ) );
+							next += sizeof( int );
+							_memcpy_s( &cfg_sftp_rekey_data_limit, sizeof( unsigned long ), next, sizeof( unsigned long ) );
+							next += sizeof( unsigned long );
+
+							for ( i = 0; i < KEX_ALGORITHM_COUNT; ++i )
+							{
+								_memcpy_s( &cfg_priority_kex_algorithm[ i ], sizeof( unsigned char ), next, sizeof( unsigned char ) );
+								next += sizeof( unsigned char );
+							}
+
+							for ( i = 0; i < HOST_KEY_COUNT; ++i )
+							{
+								_memcpy_s( &cfg_priority_host_key[ i ], sizeof( unsigned char ), next, sizeof( unsigned char ) );
+								next += sizeof( unsigned char );
+							}
+
+							for ( i = 0; i < ENCRYPTION_CIPHER_COUNT; ++i )
+							{
+								_memcpy_s( &cfg_priority_encryption_cipher[ i ], sizeof( unsigned char ), next, sizeof( unsigned char ) );
+								next += sizeof( unsigned char );
+							}
+
+							//
+
+							_memcpy_s( &cfg_reallocate_parts, sizeof( bool ), next, sizeof( bool ) );
+							next += sizeof( bool );
+
+							if ( version >= 0x09 )
+							{
+								_memcpy_s( &cfg_reallocate_threshold_size, sizeof( unsigned long long ), next, sizeof( unsigned long long ) );
+								next += sizeof( unsigned long long );
+							}
+
+							_memcpy_s( &cfg_download_non_200_206, sizeof( bool ), next, sizeof( bool ) );
+							next += sizeof( bool );
+
+							_memcpy_s( &cfg_move_to_trash, sizeof( bool ), next, sizeof( bool ) );
+							next += sizeof( bool );
+
+							_memcpy_s( &cfg_enable_sparse_file_allocation, sizeof( bool ), next, sizeof( bool ) );
+							next += sizeof( bool );
+
+							_memcpy_s( &cfg_override_list_prompts, sizeof( bool ), next, sizeof( bool ) );
+							next += sizeof( bool );
+
+							_memcpy_s( &cfg_apply_initial_proxy, sizeof( bool ), next, sizeof( bool ) );
+							next += sizeof( bool );
+
+							_memcpy_s( &cfg_category_move, sizeof( bool ), next, sizeof( bool ) );
+							next += sizeof( bool );
+
+
+							//
+
+
+							next += reserved;	// Skip past reserved bytes.
+
+							int string_length = 0;
+							int cfg_val_length = 0;
+
+
+							//
+
+
+							// Options General
+
+							if ( ( DWORD )( next - cfg_buf ) < read )
+							{
+								string_length = lstrlenA( next ) + 1;
+
+								if ( string_length > 1 )
 								{
-									// string_length does not contain the NULL character of the string.
-									char *proxy_auth_username = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( string_length + 1 ) );
-									_memcpy_s( proxy_auth_username, string_length, next, string_length );
-									proxy_auth_username[ string_length ] = 0; // Sanity;
+									cfg_sound_file_path = UTF8StringToWideString( next, string_length );
+								}
 
-									decode_cipher( proxy_auth_username, string_length );
+								next += string_length;
+							}
 
-									// Read username.
-									cfg_proxy_auth_username = UTF8StringToWideString( proxy_auth_username, string_length + 1 );
+							if ( version >= 0x09 )
+							{
+								if ( ( DWORD )( next - cfg_buf ) < read )
+								{
+									string_length = lstrlenA( next ) + 1;
 
-									GlobalFree( proxy_auth_username );
+									if ( string_length > 1 )
+									{
+										cfg_sound_fail_file_path = UTF8StringToWideString( next, string_length );
+									}
 
 									next += string_length;
 								}
-								else
-								{
-									read = 0;
-								}
 							}
-						}
 
-						if ( ( DWORD )( next - cfg_buf ) < read )
-						{
-							// Length of the string - not including the NULL character.
-							_memcpy_s( &string_length, sizeof( unsigned short ), next, sizeof( unsigned short ) );
-							next += sizeof( unsigned short );
+							// Options Appearance
 
-							if ( string_length > 0 )
+							if ( ( DWORD )( next - cfg_buf ) < read )
 							{
-								if ( ( ( DWORD )( next - cfg_buf ) + string_length < read ) )
+								string_length = lstrlenA( next ) + 1;
+
+								if ( string_length > 1 && string_length <= LF_FACESIZE )
 								{
-									// string_length does not contain the NULL character of the string.
-									char *proxy_auth_password = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( string_length + 1 ) );
-									_memcpy_s( proxy_auth_password, string_length, next, string_length );
-									proxy_auth_password[ string_length ] = 0; // Sanity;
-
-									decode_cipher( proxy_auth_password, string_length );
-
-									// Read password.
-									cfg_proxy_auth_password = UTF8StringToWideString( proxy_auth_password, string_length + 1 );
-
-									GlobalFree( proxy_auth_password );
-
-									next += string_length;
+									cfg_val_length = MultiByteToWideChar( CP_UTF8, 0, next, string_length, NULL, 0 );	// Include the NULL terminator.
+									MultiByteToWideChar( CP_UTF8, 0, next, string_length, cfg_odd_row_font_settings.lf.lfFaceName, cfg_val_length );
 								}
-								else
-								{
-									read = 0;
-								}
+
+								next += string_length;
 							}
-						}
 
-						//
-
-						if ( ( DWORD )( next - cfg_buf ) < read )
-						{
-							string_length = lstrlenA( next ) + 1;
-
-							cfg_hostname_s = UTF8StringToWideString( next, string_length );
-
-							next += string_length;
-						}
-
-						if ( ( DWORD )( next - cfg_buf ) < read )
-						{
-							// Length of the string - not including the NULL character.
-							_memcpy_s( &string_length, sizeof( unsigned short ), next, sizeof( unsigned short ) );
-							next += sizeof( unsigned short );
-
-							if ( string_length > 0 )
+							if ( ( DWORD )( next - cfg_buf ) < read )
 							{
-								if ( ( ( DWORD )( next - cfg_buf ) + string_length < read ) )
+								string_length = lstrlenA( next ) + 1;
+
+								if ( string_length > 1 && string_length <= LF_FACESIZE )
 								{
-									// string_length does not contain the NULL character of the string.
-									char *proxy_auth_username_s = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( string_length + 1 ) );
-									_memcpy_s( proxy_auth_username_s, string_length, next, string_length );
-									proxy_auth_username_s[ string_length ] = 0; // Sanity;
-
-									decode_cipher( proxy_auth_username_s, string_length );
-
-									// Read username.
-									cfg_proxy_auth_username_s = UTF8StringToWideString( proxy_auth_username_s, string_length + 1 );
-
-									GlobalFree( proxy_auth_username_s );
-
-									next += string_length;
+									cfg_val_length = MultiByteToWideChar( CP_UTF8, 0, next, string_length, NULL, 0 );	// Include the NULL terminator.
+									MultiByteToWideChar( CP_UTF8, 0, next, string_length, cfg_even_row_font_settings.lf.lfFaceName, cfg_val_length );
 								}
-								else
-								{
-									read = 0;
-								}
+
+								next += string_length;
 							}
-						}
 
-						if ( ( DWORD )( next - cfg_buf ) < read )
-						{
-							// Length of the string - not including the NULL character.
-							_memcpy_s( &string_length, sizeof( unsigned short ), next, sizeof( unsigned short ) );
-							next += sizeof( unsigned short );
+							// Options FTP
 
-							if ( string_length > 0 )
+							if ( ( DWORD )( next - cfg_buf ) < read )
 							{
-								if ( ( ( DWORD )( next - cfg_buf ) + string_length < read ) )
-								{
-									// string_length does not contain the NULL character of the string.
-									char *proxy_auth_password_s = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( string_length + 1 ) );
-									_memcpy_s( proxy_auth_password_s, string_length, next, string_length );
-									proxy_auth_password_s[ string_length ] = 0; // Sanity;
+								string_length = lstrlenA( next ) + 1;
 
-									decode_cipher( proxy_auth_password_s, string_length );
+								cfg_ftp_hostname = UTF8StringToWideString( next, string_length );
 
-									// Read password.
-									cfg_proxy_auth_password_s = UTF8StringToWideString( proxy_auth_password_s, string_length + 1 );
-
-									GlobalFree( proxy_auth_password_s );
-
-									next += string_length;
-								}
-								else
-								{
-									read = 0;
-								}
+								next += string_length;
 							}
-						}
 
-						//
+							// Options Proxy
 
-						if ( ( DWORD )( next - cfg_buf ) < read )
-						{
-							string_length = lstrlenA( next ) + 1;
-
-							cfg_hostname_socks = UTF8StringToWideString( next, string_length );
-
-							next += string_length;
-						}
-
-						if ( ( DWORD )( next - cfg_buf ) < read )
-						{
-							// Length of the string - not including the NULL character.
-							_memcpy_s( &string_length, sizeof( unsigned short ), next, sizeof( unsigned short ) );
-							next += sizeof( unsigned short );
-
-							if ( string_length > 0 )
+							if ( ( DWORD )( next - cfg_buf ) < read )
 							{
-								if ( ( ( DWORD )( next - cfg_buf ) + string_length < read ) )
-								{
-									// string_length does not contain the NULL character of the string.
-									char *proxy_auth_ident_username_socks = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( string_length + 1 ) );
-									_memcpy_s( proxy_auth_ident_username_socks, string_length, next, string_length );
-									proxy_auth_ident_username_socks[ string_length ] = 0; // Sanity;
+								string_length = lstrlenA( next ) + 1;
 
-									decode_cipher( proxy_auth_ident_username_socks, string_length );
+								cfg_hostname = UTF8StringToWideString( next, string_length );
 
-									// Read username.
-									cfg_proxy_auth_ident_username_socks = UTF8StringToWideString( proxy_auth_ident_username_socks, string_length + 1 );
-
-									GlobalFree( proxy_auth_ident_username_socks );
-
-									next += string_length;
-								}
-								else
-								{
-									read = 0;
-								}
+								next += string_length;
 							}
-						}
 
-						if ( ( DWORD )( next - cfg_buf ) < read )
-						{
-							// Length of the string - not including the NULL character.
-							_memcpy_s( &string_length, sizeof( unsigned short ), next, sizeof( unsigned short ) );
-							next += sizeof( unsigned short );
-
-							if ( string_length > 0 )
+							if ( ( DWORD )( next - cfg_buf ) < read )
 							{
-								if ( ( ( DWORD )( next - cfg_buf ) + string_length < read ) )
+								// Length of the string - not including the NULL character.
+								_memcpy_s( &string_length, sizeof( unsigned short ), next, sizeof( unsigned short ) );
+								next += sizeof( unsigned short );
+
+								if ( string_length > 0 )
 								{
-									// string_length does not contain the NULL character of the string.
-									char *proxy_auth_username_socks = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( string_length + 1 ) );
-									_memcpy_s( proxy_auth_username_socks, string_length, next, string_length );
-									proxy_auth_username_socks[ string_length ] = 0; // Sanity;
+									if ( ( ( DWORD )( next - cfg_buf ) + string_length < read ) )
+									{
+										// string_length does not contain the NULL character of the string.
+										char *proxy_auth_username = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( string_length + 1 ) );
+										_memcpy_s( proxy_auth_username, string_length, next, string_length );
+										proxy_auth_username[ string_length ] = 0; // Sanity;
 
-									decode_cipher( proxy_auth_username_socks, string_length );
+										decode_cipher( proxy_auth_username, string_length );
 
-									// Read username.
-									cfg_proxy_auth_username_socks = UTF8StringToWideString( proxy_auth_username_socks, string_length + 1 );
+										// Read username.
+										cfg_proxy_auth_username = UTF8StringToWideString( proxy_auth_username, string_length + 1 );
 
-									GlobalFree( proxy_auth_username_socks );
+										GlobalFree( proxy_auth_username );
 
-									next += string_length;
-								}
-								else
-								{
-									read = 0;
+										next += string_length;
+									}
+									else
+									{
+										read = 0;
+									}
 								}
 							}
-						}
 
-						if ( ( DWORD )( next - cfg_buf ) < read )
-						{
-							// Length of the string - not including the NULL character.
-							_memcpy_s( &string_length, sizeof( unsigned short ), next, sizeof( unsigned short ) );
-							next += sizeof( unsigned short );
-
-							if ( string_length > 0 )
+							if ( ( DWORD )( next - cfg_buf ) < read )
 							{
-								if ( ( ( DWORD )( next - cfg_buf ) + string_length < read ) )
+								// Length of the string - not including the NULL character.
+								_memcpy_s( &string_length, sizeof( unsigned short ), next, sizeof( unsigned short ) );
+								next += sizeof( unsigned short );
+
+								if ( string_length > 0 )
 								{
-									// string_length does not contain the NULL character of the string.
-									char *proxy_auth_password_socks = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( string_length + 1 ) );
-									_memcpy_s( proxy_auth_password_socks, string_length, next, string_length );
-									proxy_auth_password_socks[ string_length ] = 0; // Sanity;
+									if ( ( ( DWORD )( next - cfg_buf ) + string_length < read ) )
+									{
+										// string_length does not contain the NULL character of the string.
+										char *proxy_auth_password = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( string_length + 1 ) );
+										_memcpy_s( proxy_auth_password, string_length, next, string_length );
+										proxy_auth_password[ string_length ] = 0; // Sanity;
 
-									decode_cipher( proxy_auth_password_socks, string_length );
+										decode_cipher( proxy_auth_password, string_length );
 
-									// Read password.
-									cfg_proxy_auth_password_socks = UTF8StringToWideString( proxy_auth_password_socks, string_length + 1 );
+										// Read password.
+										cfg_proxy_auth_password = UTF8StringToWideString( proxy_auth_password, string_length + 1 );
 
-									GlobalFree( proxy_auth_password_socks );
+										GlobalFree( proxy_auth_password );
 
-									next += string_length;
-								}
-								else
-								{
-									read = 0;
+										next += string_length;
+									}
+									else
+									{
+										read = 0;
+									}
 								}
 							}
-						}
 
-						// Options Server
+							//
 
-						if ( ( DWORD )( next - cfg_buf ) < read )
-						{
-							string_length = lstrlenA( next ) + 1;
-
-							cfg_server_hostname = UTF8StringToWideString( next, string_length );
-
-							next += string_length;
-						}
-
-						if ( ( DWORD )( next - cfg_buf ) < read )
-						{
-							// Length of the string - not including the NULL character.
-							_memcpy_s( &string_length, sizeof( unsigned short ), next, sizeof( unsigned short ) );
-							next += sizeof( unsigned short );
-
-							if ( string_length > 0 )
+							if ( ( DWORD )( next - cfg_buf ) < read )
 							{
-								if ( ( ( DWORD )( next - cfg_buf ) + string_length < read ) )
-								{
-									// string_length does not contain the NULL character of the string.
-									char *authentication_username = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( string_length + 1 ) );
-									_memcpy_s( authentication_username, string_length, next, string_length );
-									authentication_username[ string_length ] = 0; // Sanity;
+								string_length = lstrlenA( next ) + 1;
 
-									decode_cipher( authentication_username, string_length );
+								cfg_hostname_s = UTF8StringToWideString( next, string_length );
 
-									// Read username.
-									cfg_authentication_username = UTF8StringToWideString( authentication_username, string_length + 1 );
-
-									GlobalFree( authentication_username );
-
-									next += string_length;
-								}
-								else
-								{
-									read = 0;
-								}
+								next += string_length;
 							}
-						}
 
-						if ( ( DWORD )( next - cfg_buf ) < read )
-						{
-							// Length of the string - not including the NULL character.
-							_memcpy_s( &string_length, sizeof( unsigned short ), next, sizeof( unsigned short ) );
-							next += sizeof( unsigned short );
-
-							if ( string_length > 0 )
+							if ( ( DWORD )( next - cfg_buf ) < read )
 							{
-								if ( ( ( DWORD )( next - cfg_buf ) + string_length < read ) )
+								// Length of the string - not including the NULL character.
+								_memcpy_s( &string_length, sizeof( unsigned short ), next, sizeof( unsigned short ) );
+								next += sizeof( unsigned short );
+
+								if ( string_length > 0 )
 								{
-									// string_length does not contain the NULL character of the string.
-									char *authentication_password = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( string_length + 1 ) );
-									_memcpy_s( authentication_password, string_length, next, string_length );
-									authentication_password[ string_length ] = 0; // Sanity;
+									if ( ( ( DWORD )( next - cfg_buf ) + string_length < read ) )
+									{
+										// string_length does not contain the NULL character of the string.
+										char *proxy_auth_username_s = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( string_length + 1 ) );
+										_memcpy_s( proxy_auth_username_s, string_length, next, string_length );
+										proxy_auth_username_s[ string_length ] = 0; // Sanity;
 
-									decode_cipher( authentication_password, string_length );
+										decode_cipher( proxy_auth_username_s, string_length );
 
-									// Read password.
-									cfg_authentication_password = UTF8StringToWideString( authentication_password, string_length + 1 );
+										// Read username.
+										cfg_proxy_auth_username_s = UTF8StringToWideString( proxy_auth_username_s, string_length + 1 );
 
-									GlobalFree( authentication_password );
+										GlobalFree( proxy_auth_username_s );
 
-									next += string_length;
-								}
-								else
-								{
-									read = 0;
+										next += string_length;
+									}
+									else
+									{
+										read = 0;
+									}
 								}
 							}
-						}
 
-						if ( ( DWORD )( next - cfg_buf ) < read )
-						{
-							// Length of the string - not including the NULL character.
-							_memcpy_s( &string_length, sizeof( unsigned short ), next, sizeof( unsigned short ) );
-							next += sizeof( unsigned short );
-
-							if ( string_length > 0 )
+							if ( ( DWORD )( next - cfg_buf ) < read )
 							{
-								if ( ( ( DWORD )( next - cfg_buf ) + string_length < read ) )
+								// Length of the string - not including the NULL character.
+								_memcpy_s( &string_length, sizeof( unsigned short ), next, sizeof( unsigned short ) );
+								next += sizeof( unsigned short );
+
+								if ( string_length > 0 )
 								{
-									// string_length does not contain the NULL character of the string.
-									char *certificate_password = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( string_length + 1 ) );
-									_memcpy_s( certificate_password, string_length, next, string_length );
-									certificate_password[ string_length ] = 0; // Sanity;
+									if ( ( ( DWORD )( next - cfg_buf ) + string_length < read ) )
+									{
+										// string_length does not contain the NULL character of the string.
+										char *proxy_auth_password_s = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( string_length + 1 ) );
+										_memcpy_s( proxy_auth_password_s, string_length, next, string_length );
+										proxy_auth_password_s[ string_length ] = 0; // Sanity;
 
-									decode_cipher( certificate_password, string_length );
+										decode_cipher( proxy_auth_password_s, string_length );
 
-									// Read password.
-									cfg_certificate_pkcs_password = UTF8StringToWideString( certificate_password, string_length + 1 );
+										// Read password.
+										cfg_proxy_auth_password_s = UTF8StringToWideString( proxy_auth_password_s, string_length + 1 );
 
-									GlobalFree( certificate_password );
+										GlobalFree( proxy_auth_password_s );
 
-									next += string_length;
+										next += string_length;
+									}
+									else
+									{
+										read = 0;
+									}
 								}
-								else
+							}
+
+							//
+
+							if ( ( DWORD )( next - cfg_buf ) < read )
+							{
+								string_length = lstrlenA( next ) + 1;
+
+								cfg_hostname_socks = UTF8StringToWideString( next, string_length );
+
+								next += string_length;
+							}
+
+							if ( ( DWORD )( next - cfg_buf ) < read )
+							{
+								// Length of the string - not including the NULL character.
+								_memcpy_s( &string_length, sizeof( unsigned short ), next, sizeof( unsigned short ) );
+								next += sizeof( unsigned short );
+
+								if ( string_length > 0 )
 								{
-									read = 0;
+									if ( ( ( DWORD )( next - cfg_buf ) + string_length < read ) )
+									{
+										// string_length does not contain the NULL character of the string.
+										char *proxy_auth_ident_username_socks = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( string_length + 1 ) );
+										_memcpy_s( proxy_auth_ident_username_socks, string_length, next, string_length );
+										proxy_auth_ident_username_socks[ string_length ] = 0; // Sanity;
+
+										decode_cipher( proxy_auth_ident_username_socks, string_length );
+
+										// Read username.
+										cfg_proxy_auth_ident_username_socks = UTF8StringToWideString( proxy_auth_ident_username_socks, string_length + 1 );
+
+										GlobalFree( proxy_auth_ident_username_socks );
+
+										next += string_length;
+									}
+									else
+									{
+										read = 0;
+									}
 								}
 							}
-						}
 
-						if ( ( DWORD )( next - cfg_buf ) < read )
-						{
-							string_length = lstrlenA( next ) + 1;
-
-							cfg_certificate_pkcs_file_name = UTF8StringToWideString( next, string_length );
-
-							next += string_length;
-						}
-
-						if ( ( DWORD )( next - cfg_buf ) < read )
-						{
-							string_length = lstrlenA( next ) + 1;
-
-							cfg_certificate_cer_file_name = UTF8StringToWideString( next, string_length );
-
-							next += string_length;
-						}
-
-						if ( ( DWORD )( next - cfg_buf ) < read )
-						{
-							string_length = lstrlenA( next ) + 1;
-
-							cfg_certificate_key_file_name = UTF8StringToWideString( next, string_length );
-
-							next += string_length;
-						}
-
-						// Options Advanced
-
-						if ( ( DWORD )( next - cfg_buf ) < read )
-						{
-							string_length = lstrlenA( next ) + 1;
-
-							if ( string_length > 1 )
+							if ( ( DWORD )( next - cfg_buf ) < read )
 							{
-								cfg_val_length = MultiByteToWideChar( CP_UTF8, 0, next, string_length, NULL, 0 );	// Include the NULL terminator.
-								cfg_default_download_directory = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * cfg_val_length );
-								MultiByteToWideChar( CP_UTF8, 0, next, string_length, cfg_default_download_directory, cfg_val_length );
+								// Length of the string - not including the NULL character.
+								_memcpy_s( &string_length, sizeof( unsigned short ), next, sizeof( unsigned short ) );
+								next += sizeof( unsigned short );
 
-								g_default_download_directory_length = cfg_val_length - 1;	// Store the base directory length.
+								if ( string_length > 0 )
+								{
+									if ( ( ( DWORD )( next - cfg_buf ) + string_length < read ) )
+									{
+										// string_length does not contain the NULL character of the string.
+										char *proxy_auth_username_socks = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( string_length + 1 ) );
+										_memcpy_s( proxy_auth_username_socks, string_length, next, string_length );
+										proxy_auth_username_socks[ string_length ] = 0; // Sanity;
+
+										decode_cipher( proxy_auth_username_socks, string_length );
+
+										// Read username.
+										cfg_proxy_auth_username_socks = UTF8StringToWideString( proxy_auth_username_socks, string_length + 1 );
+
+										GlobalFree( proxy_auth_username_socks );
+
+										next += string_length;
+									}
+									else
+									{
+										read = 0;
+									}
+								}
 							}
 
-							next += string_length;
-						}
-
-						if ( ( DWORD )( next - cfg_buf ) < read )
-						{
-							string_length = lstrlenA( next ) + 1;
-
-							if ( string_length > 1 )
+							if ( ( DWORD )( next - cfg_buf ) < read )
 							{
-								cfg_val_length = MultiByteToWideChar( CP_UTF8, 0, next, string_length, NULL, 0 );	// Include the NULL terminator.
-								cfg_temp_download_directory = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * cfg_val_length );
-								MultiByteToWideChar( CP_UTF8, 0, next, string_length, cfg_temp_download_directory, cfg_val_length );
+								// Length of the string - not including the NULL character.
+								_memcpy_s( &string_length, sizeof( unsigned short ), next, sizeof( unsigned short ) );
+								next += sizeof( unsigned short );
 
-								g_temp_download_directory_length = cfg_val_length - 1;	// Store the base directory length.
+								if ( string_length > 0 )
+								{
+									if ( ( ( DWORD )( next - cfg_buf ) + string_length < read ) )
+									{
+										// string_length does not contain the NULL character of the string.
+										char *proxy_auth_password_socks = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( string_length + 1 ) );
+										_memcpy_s( proxy_auth_password_socks, string_length, next, string_length );
+										proxy_auth_password_socks[ string_length ] = 0; // Sanity;
+
+										decode_cipher( proxy_auth_password_socks, string_length );
+
+										// Read password.
+										cfg_proxy_auth_password_socks = UTF8StringToWideString( proxy_auth_password_socks, string_length + 1 );
+
+										GlobalFree( proxy_auth_password_socks );
+
+										next += string_length;
+									}
+									else
+									{
+										read = 0;
+									}
+								}
 							}
 
-							next += string_length;
+							// Options Server
+
+							if ( ( DWORD )( next - cfg_buf ) < read )
+							{
+								string_length = lstrlenA( next ) + 1;
+
+								cfg_server_hostname = UTF8StringToWideString( next, string_length );
+
+								next += string_length;
+							}
+
+							if ( ( DWORD )( next - cfg_buf ) < read )
+							{
+								// Length of the string - not including the NULL character.
+								_memcpy_s( &string_length, sizeof( unsigned short ), next, sizeof( unsigned short ) );
+								next += sizeof( unsigned short );
+
+								if ( string_length > 0 )
+								{
+									if ( ( ( DWORD )( next - cfg_buf ) + string_length < read ) )
+									{
+										// string_length does not contain the NULL character of the string.
+										char *authentication_username = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( string_length + 1 ) );
+										_memcpy_s( authentication_username, string_length, next, string_length );
+										authentication_username[ string_length ] = 0; // Sanity;
+
+										decode_cipher( authentication_username, string_length );
+
+										// Read username.
+										cfg_authentication_username = UTF8StringToWideString( authentication_username, string_length + 1 );
+
+										GlobalFree( authentication_username );
+
+										next += string_length;
+									}
+									else
+									{
+										read = 0;
+									}
+								}
+							}
+
+							if ( ( DWORD )( next - cfg_buf ) < read )
+							{
+								// Length of the string - not including the NULL character.
+								_memcpy_s( &string_length, sizeof( unsigned short ), next, sizeof( unsigned short ) );
+								next += sizeof( unsigned short );
+
+								if ( string_length > 0 )
+								{
+									if ( ( ( DWORD )( next - cfg_buf ) + string_length < read ) )
+									{
+										// string_length does not contain the NULL character of the string.
+										char *authentication_password = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( string_length + 1 ) );
+										_memcpy_s( authentication_password, string_length, next, string_length );
+										authentication_password[ string_length ] = 0; // Sanity;
+
+										decode_cipher( authentication_password, string_length );
+
+										// Read password.
+										cfg_authentication_password = UTF8StringToWideString( authentication_password, string_length + 1 );
+
+										GlobalFree( authentication_password );
+
+										next += string_length;
+									}
+									else
+									{
+										read = 0;
+									}
+								}
+							}
+
+							if ( ( DWORD )( next - cfg_buf ) < read )
+							{
+								// Length of the string - not including the NULL character.
+								_memcpy_s( &string_length, sizeof( unsigned short ), next, sizeof( unsigned short ) );
+								next += sizeof( unsigned short );
+
+								if ( string_length > 0 )
+								{
+									if ( ( ( DWORD )( next - cfg_buf ) + string_length < read ) )
+									{
+										// string_length does not contain the NULL character of the string.
+										char *certificate_password = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( string_length + 1 ) );
+										_memcpy_s( certificate_password, string_length, next, string_length );
+										certificate_password[ string_length ] = 0; // Sanity;
+
+										decode_cipher( certificate_password, string_length );
+
+										// Read password.
+										cfg_certificate_pkcs_password = UTF8StringToWideString( certificate_password, string_length + 1 );
+
+										GlobalFree( certificate_password );
+
+										next += string_length;
+									}
+									else
+									{
+										read = 0;
+									}
+								}
+							}
+
+							if ( ( DWORD )( next - cfg_buf ) < read )
+							{
+								string_length = lstrlenA( next ) + 1;
+
+								cfg_certificate_pkcs_file_name = UTF8StringToWideString( next, string_length );
+
+								next += string_length;
+							}
+
+							if ( ( DWORD )( next - cfg_buf ) < read )
+							{
+								string_length = lstrlenA( next ) + 1;
+
+								cfg_certificate_cer_file_name = UTF8StringToWideString( next, string_length );
+
+								next += string_length;
+							}
+
+							if ( ( DWORD )( next - cfg_buf ) < read )
+							{
+								string_length = lstrlenA( next ) + 1;
+
+								cfg_certificate_key_file_name = UTF8StringToWideString( next, string_length );
+
+								next += string_length;
+							}
+
+							// Options Advanced
+
+							if ( ( DWORD )( next - cfg_buf ) < read )
+							{
+								string_length = lstrlenA( next ) + 1;
+
+								if ( string_length > 1 )
+								{
+									cfg_val_length = MultiByteToWideChar( CP_UTF8, 0, next, string_length, NULL, 0 );	// Include the NULL terminator.
+									cfg_default_download_directory = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * cfg_val_length );
+									MultiByteToWideChar( CP_UTF8, 0, next, string_length, cfg_default_download_directory, cfg_val_length );
+
+									g_default_download_directory_length = cfg_val_length - 1;	// Store the base directory length.
+								}
+
+								next += string_length;
+							}
+
+							if ( ( DWORD )( next - cfg_buf ) < read )
+							{
+								string_length = lstrlenA( next ) + 1;
+
+								if ( string_length > 1 )
+								{
+									cfg_val_length = MultiByteToWideChar( CP_UTF8, 0, next, string_length, NULL, 0 );	// Include the NULL terminator.
+									cfg_temp_download_directory = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * cfg_val_length );
+									MultiByteToWideChar( CP_UTF8, 0, next, string_length, cfg_temp_download_directory, cfg_val_length );
+
+									g_temp_download_directory_length = cfg_val_length - 1;	// Store the base directory length.
+								}
+
+								next += string_length;
+							}
+
+
+							// Set the default values for bad configuration values.
+
+							if ( cfg_splitter_pos_x < SPLITTER_WIDTH ) { cfg_splitter_pos_x = SPLITTER_POS_X; }
+
+							CheckColumnOrders( download_columns, NUM_COLUMNS );
+
+							// Revert column widths if they exceed our limits.
+							CheckColumnWidths();
+
+							if ( cfg_t_down_speed > SIZE_FORMAT_AUTO ) { cfg_t_down_speed = SIZE_FORMAT_AUTO; }
+							if ( cfg_t_downloaded > SIZE_FORMAT_AUTO ) { cfg_t_downloaded = SIZE_FORMAT_AUTO; }
+							if ( cfg_t_file_size > SIZE_FORMAT_AUTO ) { cfg_t_file_size = SIZE_FORMAT_AUTO; }
+							if ( cfg_t_speed_limit > SIZE_FORMAT_AUTO ) { cfg_t_speed_limit = SIZE_FORMAT_AUTO; }
+							if ( cfg_t_status_downloaded > SIZE_FORMAT_AUTO ) { cfg_t_status_downloaded = SIZE_FORMAT_AUTO; }
+							if ( cfg_t_status_down_speed > SIZE_FORMAT_AUTO ) { cfg_t_status_down_speed = SIZE_FORMAT_AUTO; }
+							if ( cfg_t_status_speed_limit > SIZE_FORMAT_AUTO ) { cfg_t_status_speed_limit = SIZE_FORMAT_AUTO; }
+
+							if ( cfg_max_downloads > 100 )
+							{
+								cfg_max_downloads = 100;
+							}
+							/*else if ( cfg_max_downloads == 0 )
+							{
+								cfg_max_downloads = 1;
+							}*/
+
+							if ( cfg_retry_downloads_count > 100 ) { cfg_retry_downloads_count = 100; }
+							if ( cfg_retry_parts_count > 100 ) { cfg_retry_parts_count = 100; }
+							if ( cfg_timeout > 300 || ( cfg_timeout > 0 && cfg_timeout < 10 ) ) { cfg_timeout = 60; }
+
+							if ( cfg_default_download_parts > 100 )
+							{
+								cfg_default_download_parts = 100;
+							}
+							else if ( cfg_default_download_parts == 0 )
+							{
+								cfg_default_download_parts = 1;
+							}
+
+							if ( cfg_max_redirects > 100 )
+							{
+								cfg_max_redirects = 100;
+							}
+
+							if ( cfg_reallocate_threshold_size < 1048576 )	// 1 MB
+							{
+								cfg_reallocate_threshold_size = 1048576;
+							}
+
+							if ( cfg_thread_count > g_max_threads )
+							{
+								cfg_thread_count = max( ( g_max_threads / 2 ), 1 );
+							}
+							else if ( cfg_thread_count == 0 )
+							{
+								cfg_thread_count = 1;
+							}
+
+							if ( cfg_default_ssl_version > 4 ) { cfg_default_ssl_version = 4; }	// TLS 1.2.
+
+							if ( cfg_server_port == 0 ) { cfg_server_port = 1; }
+							if ( cfg_server_ssl_version > 4 ) { cfg_server_ssl_version = 4; } // TLS 1.2.
+							if ( cfg_authentication_type != AUTH_TYPE_BASIC && cfg_authentication_type != AUTH_TYPE_DIGEST ) { cfg_authentication_type = AUTH_TYPE_BASIC; }
+
+							if ( cfg_port == 0 ) { cfg_port = 1; }
+							if ( cfg_port_s == 0 ) { cfg_port_s = 1; }
+							if ( cfg_port_socks == 0 ) { cfg_port_socks = 1; }
+
+							if ( cfg_max_file_size == 0 ) { cfg_max_file_size = MAX_FILE_SIZE; }
+
+							if ( cfg_shutdown_action == SHUTDOWN_ACTION_HYBRID_SHUT_DOWN && !g_is_windows_8_or_higher )
+							{
+								cfg_shutdown_action = SHUTDOWN_ACTION_NONE;
+							}
+						}
+						else
+						{
+							ret_status = -1;	// Can't open file for reading.
 						}
 
-
-						// Set the default values for bad configuration values.
-
-						CheckColumnOrders( download_columns, NUM_COLUMNS );
-
-						// Revert column widths if they exceed our limits.
-						CheckColumnWidths();
-
-						if ( cfg_t_down_speed > SIZE_FORMAT_AUTO ) { cfg_t_down_speed = SIZE_FORMAT_AUTO; }
-						if ( cfg_t_downloaded > SIZE_FORMAT_AUTO ) { cfg_t_downloaded = SIZE_FORMAT_AUTO; }
-						if ( cfg_t_file_size > SIZE_FORMAT_AUTO ) { cfg_t_file_size = SIZE_FORMAT_AUTO; }
-						if ( cfg_t_speed_limit > SIZE_FORMAT_AUTO ) { cfg_t_speed_limit = SIZE_FORMAT_AUTO; }
-						if ( cfg_t_status_downloaded > SIZE_FORMAT_AUTO ) { cfg_t_status_downloaded = SIZE_FORMAT_AUTO; }
-						if ( cfg_t_status_down_speed > SIZE_FORMAT_AUTO ) { cfg_t_status_down_speed = SIZE_FORMAT_AUTO; }
-						if ( cfg_t_status_speed_limit > SIZE_FORMAT_AUTO ) { cfg_t_status_speed_limit = SIZE_FORMAT_AUTO; }
-
-						if ( cfg_max_downloads > 100 )
-						{
-							cfg_max_downloads = 100;
-						}
-						/*else if ( cfg_max_downloads == 0 )
-						{
-							cfg_max_downloads = 1;
-						}*/
-
-						if ( cfg_retry_downloads_count > 100 ) { cfg_retry_downloads_count = 100; }
-						if ( cfg_retry_parts_count > 100 ) { cfg_retry_parts_count = 100; }
-						if ( cfg_timeout > 300 || ( cfg_timeout > 0 && cfg_timeout < 10 ) ) { cfg_timeout = 60; }
-
-						if ( cfg_default_download_parts > 100 )
-						{
-							cfg_default_download_parts = 100;
-						}
-						else if ( cfg_default_download_parts == 0 )
-						{
-							cfg_default_download_parts = 1;
-						}
-
-						if ( cfg_max_redirects > 100 )
-						{
-							cfg_max_redirects = 100;
-						}
-
-						if ( cfg_thread_count > g_max_threads )
-						{
-							cfg_thread_count = max( ( g_max_threads / 2 ), 1 );
-						}
-						else if ( cfg_thread_count == 0 )
-						{
-							cfg_thread_count = 1;
-						}
-
-						if ( cfg_default_ssl_version > 4 ) { cfg_default_ssl_version = 4; }	// TLS 1.2.
-
-						if ( cfg_server_port == 0 ) { cfg_server_port = 1; }
-						if ( cfg_server_ssl_version > 4 ) { cfg_server_ssl_version = 4; } // TLS 1.2.
-						if ( cfg_authentication_type != AUTH_TYPE_BASIC && cfg_authentication_type != AUTH_TYPE_DIGEST ) { cfg_authentication_type = AUTH_TYPE_BASIC; }
-
-						if ( cfg_port == 0 ) { cfg_port = 1; }
-						if ( cfg_port_s == 0 ) { cfg_port_s = 1; }
-						if ( cfg_port_socks == 0 ) { cfg_port_socks = 1; }
-
-						if ( cfg_max_file_size == 0 ) { cfg_max_file_size = MAX_FILE_SIZE; }
-
-						if ( cfg_shutdown_action == SHUTDOWN_ACTION_HYBRID_SHUT_DOWN && !g_is_windows_8_or_higher )
-						{
-							cfg_shutdown_action = SHUTDOWN_ACTION_NONE;
-						}
-					}
-					else
-					{
-						ret_status = -2;	// Bad file format.
+						GlobalFree( cfg_buf );
 					}
 				}
 				else
 				{
-					ret_status = -1;	// Can't open file for reading.
+					ret_status = -2;	// Bad file format.
 				}
-
-				GlobalFree( cfg_buf );
+			}
+			else
+			{
+				ret_status = -1;	// Can't open file for reading.
 			}
 		}
 		else
@@ -1135,7 +1219,7 @@ RETRY_OPEN:
 				if ( free_memory )
 				{
 					wchar_t *folder_path = NULL;
-					if ( _SHGetKnownFolderPath( ( REFKNOWNFOLDERID )_FOLDERID_Downloads, 0, ( HANDLE )NULL, &folder_path ) == S_OK )
+					if ( _SHGetKnownFolderPath( ( REFKNOWNFOLDERID )FOLDERID_Downloads, 0, ( HANDLE )NULL, &folder_path ) == S_OK )
 					{
 						g_default_download_directory_length = min( MAX_PATH - 1, lstrlenW( folder_path ) );
 						_wmemcpy_s( cfg_default_download_directory, MAX_PATH, folder_path, g_default_download_directory_length );
@@ -1156,9 +1240,9 @@ RETRY_OPEN:
 			_SHGetFolderPathW( NULL, CSIDL_MYDOCUMENTS, NULL, 0, cfg_default_download_directory );
 
 			g_default_download_directory_length = lstrlenW( cfg_default_download_directory );
-			_wmemcpy_s( cfg_default_download_directory + g_default_download_directory_length, MAX_PATH - g_default_download_directory_length, L"\\Downloads\0", 11 );
-			g_default_download_directory_length += 10;
-			//cfg_default_download_directory[ g_default_download_directory_length ] = 0;	// Sanity.
+			cfg_default_download_directory[ g_default_download_directory_length ] = L'\\';
+			_wmemcpy_s( cfg_default_download_directory + ( g_default_download_directory_length + 1 ), MAX_PATH - ( g_default_download_directory_length + 1 ), ST_V_Downloads, ST_L_Downloads + 1 );
+			cfg_default_download_directory[ MAX_PATH - 1 ] = 0;	// Sanity.
 		}
 
 		// Check to see if the new path exists and create it if it doesn't.
@@ -1252,16 +1336,16 @@ RETRY_OPEN:
 		_memzero( &lfo, sizeof( OVERLAPPED ) );
 		LockFileEx( hFile_cfg, LOCKFILE_EXCLUSIVE_LOCK, 0, MAXDWORD, MAXDWORD, &lfo );
 
-		int reserved = 1024 - 721;
-		int size = ( sizeof( int ) * 25 ) +
+		int reserved = 1024 - 749;
+		int size = ( sizeof( int ) * ( 11 + NUM_COLUMNS ) ) +
 				   ( sizeof( unsigned short ) * 7 ) +
-				   ( sizeof( char ) * ( 50 + KEX_ALGORITHM_COUNT + HOST_KEY_COUNT + ENCRYPTION_CIPHER_COUNT ) ) +
-				   ( sizeof( bool ) * 48 ) +
+				   ( sizeof( char ) * ( 35 + NUM_COLUMNS + KEX_ALGORITHM_COUNT + HOST_KEY_COUNT + ENCRYPTION_CIPHER_COUNT ) ) +
+				   ( sizeof( bool ) * 54 ) +
 				   ( sizeof( unsigned long ) * 7 ) +
 				   ( sizeof( LONG ) * 4 ) +
 				   ( sizeof( BYTE ) * 6 ) +
 				   ( sizeof( COLORREF ) * ( NUM_COLORS + 11 + TD_NUM_COLORS ) ) +
-				   ( sizeof( unsigned long long ) * 4 ) + reserved;
+				   ( sizeof( unsigned long long ) * 5 ) + reserved;
 		int pos = 0;
 		unsigned char i;
 
@@ -1310,6 +1394,12 @@ RETRY_OPEN:
 
 		_memcpy_s( write_buf + pos, size - pos, &cfg_show_status_bar, sizeof( bool ) );
 		pos += sizeof( bool );
+
+		_memcpy_s( write_buf + pos, size - pos, &cfg_show_categories, sizeof( bool ) );
+		pos += sizeof( bool );
+
+		_memcpy_s( write_buf + pos, size - pos, &cfg_splitter_pos_x, sizeof( int ) );
+		pos += sizeof( int );
 
 		_memcpy_s( write_buf + pos, size - pos, &cfg_t_down_speed, sizeof( unsigned char ) );
 		pos += sizeof( unsigned char );
@@ -1371,6 +1461,9 @@ RETRY_OPEN:
 		_memcpy_s( write_buf + pos, size - pos, &cfg_play_sound, sizeof( bool ) );
 		pos += sizeof( bool );
 
+		_memcpy_s( write_buf + pos, size - pos, &cfg_play_sound_fail, sizeof( bool ) );
+		pos += sizeof( bool );
+
 		// Options Appearance
 
 		_memcpy_s( write_buf + pos, size - pos, &cfg_show_gridlines, sizeof( bool ) );
@@ -1386,6 +1479,8 @@ RETRY_OPEN:
 		_memcpy_s( write_buf + pos, size - pos, &cfg_expand_added_group_items, sizeof( bool ) );
 		pos += sizeof( bool );
 		_memcpy_s( write_buf + pos, size - pos, &cfg_scroll_to_last_item, sizeof( bool ) );
+		pos += sizeof( bool );
+		_memcpy_s( write_buf + pos, size - pos, &cfg_show_embedded_icon, sizeof( bool ) );
 		pos += sizeof( bool );
 
 		_memcpy_s( write_buf + pos, size - pos, &cfg_background_color, sizeof( COLORREF ) );
@@ -1581,6 +1676,9 @@ RETRY_OPEN:
 		_memcpy_s( write_buf + pos, size - pos, &cfg_server_ssl_version, sizeof( unsigned char ) );
 		pos += sizeof( unsigned char );
 
+		_memcpy_s( write_buf + pos, size - pos, &cfg_show_remote_connection_notification, sizeof( bool ) );
+		pos += sizeof( bool );
+
 		// Options Advanced
 
 		_memcpy_s( write_buf + pos, size - pos, &cfg_enable_download_history, sizeof( bool ) );
@@ -1669,6 +1767,9 @@ RETRY_OPEN:
 		_memcpy_s( write_buf + pos, size - pos, &cfg_reallocate_parts, sizeof( bool ) );
 		pos += sizeof( bool );
 
+		_memcpy_s( write_buf + pos, size - pos, &cfg_reallocate_threshold_size, sizeof( unsigned long long ) );
+		pos += sizeof( unsigned long long );
+
 		_memcpy_s( write_buf + pos, size - pos, &cfg_download_non_200_206, sizeof( bool ) );
 		pos += sizeof( bool );
 
@@ -1679,6 +1780,12 @@ RETRY_OPEN:
 		pos += sizeof( bool );
 
 		_memcpy_s( write_buf + pos, size - pos, &cfg_override_list_prompts, sizeof( bool ) );
+		pos += sizeof( bool );
+
+		_memcpy_s( write_buf + pos, size - pos, &cfg_apply_initial_proxy, sizeof( bool ) );
+		pos += sizeof( bool );
+
+		_memcpy_s( write_buf + pos, size - pos, &cfg_category_move, sizeof( bool ) );
 		pos += sizeof( bool );
 
 		//
@@ -1707,6 +1814,20 @@ RETRY_OPEN:
 		if ( cfg_sound_file_path != NULL )
 		{
 			utf8_cfg_val = WideStringToUTF8String( cfg_sound_file_path, &cfg_val_length );
+			WriteFile( hFile_cfg, utf8_cfg_val, cfg_val_length, &write, NULL );
+			GlobalFree( utf8_cfg_val );
+		}
+		else
+		{
+			WriteFile( hFile_cfg, "\0", 1, &write, NULL );
+		}
+#ifdef ENABLE_LOGGING
+		lfz += write;
+#endif
+
+		if ( cfg_sound_fail_file_path != NULL )
+		{
+			utf8_cfg_val = WideStringToUTF8String( cfg_sound_fail_file_path, &cfg_val_length );
 			WriteFile( hFile_cfg, utf8_cfg_val, cfg_val_length, &write, NULL );
 			GlobalFree( utf8_cfg_val );
 		}
@@ -2143,6 +2264,8 @@ RETRY_OPEN:
 		unsigned long long	file_size;
 		unsigned long long	download_speed_limit;
 
+		char				*category = NULL;
+		unsigned int		category_length;
 		char				*download_directory = NULL;
 		unsigned int		download_directory_length;
 		char				*filename = NULL;
@@ -2154,6 +2277,9 @@ RETRY_OPEN:
 		unsigned char		parts_limit;
 		unsigned int		status;
 		int					code;
+
+		wchar_t				*comments = NULL;
+		unsigned int		comments_length;
 
 		char				*cookies = NULL;
 		char				*headers = NULL;
@@ -2200,23 +2326,21 @@ RETRY_OPEN:
 		int					root_item_count = 0;
 		//
 
-		char magic_identifier[ 4 ];
-		BOOL bRet = ReadFile( hFile_read, magic_identifier, sizeof( char ) * 4, &read, NULL );
+		unsigned char magic_identifier[ 4 ];
+		BOOL bRet = ReadFile( hFile_read, magic_identifier, sizeof( unsigned char ) * 4, &read, NULL );
 		if ( bRet != FALSE )
 		{
 #ifdef ENABLE_LOGGING
 			lfz += 4;
 #endif
-			if ( read == 4 && _memcmp( magic_identifier, MAGIC_ID_DOWNLOADS, 3 ) == 0 && ( int )magic_identifier[ 3 ] >= 0x15 )
+			unsigned char version = magic_identifier[ 3 ] - 0x10;
+
+			if ( read == 4 && _memcmp( magic_identifier, MAGIC_ID_DOWNLOADS, 3 ) == 0 && version <= 0x0F )
 			{
 				char *history_buf = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( 524288 + 1 ) );	// 512 KB buffer.
 				if ( history_buf != NULL )
 				{
-					char version = magic_identifier[ 3 ] - 0x10;
-
 					DWORD fz = GetFileSize( hFile_read, NULL ) - 4;
-
-					SHFILEINFO *sfi = ( SHFILEINFO * )GlobalAlloc( GMEM_FIXED, sizeof( SHFILEINFO ) );
 
 					while ( total_read < fz )
 					{
@@ -2254,6 +2378,7 @@ RETRY_OPEN:
 							//
 
 							url = NULL;
+							comments = NULL;
 							cookies = NULL;
 							headers = NULL;
 							data = NULL;
@@ -2272,6 +2397,8 @@ RETRY_OPEN:
 
 							//
 
+							category = NULL;
+							category_length = 0;
 							download_directory = NULL;
 							download_directory_length = 0;
 							filename = NULL;
@@ -2326,7 +2453,7 @@ RETRY_OPEN:
 							p += sizeof( bool );
 
 							// Download Operations
-							if ( version >= 7 )
+							if ( version >= 0x07 )
 							{
 								offset += sizeof( unsigned int );
 								if ( offset >= read ) { goto CLEANUP; }
@@ -2343,8 +2470,24 @@ RETRY_OPEN:
 								p += sizeof( unsigned char );
 							}
 
+							int string_length;
+
+							// Category
+							if ( version >= 0x08 )
+							{
+								string_length = lstrlenW( ( wchar_t * )p ) + 1;
+
+								offset += ( string_length * sizeof( wchar_t ) );
+								if ( offset >= read ) { goto CLEANUP; }
+
+								category = p;
+								category_length = string_length;
+
+								p += ( string_length * sizeof( wchar_t ) );
+							}
+
 							// Download Directory
-							int string_length = lstrlenW( ( wchar_t * )p ) + 1;
+							string_length = lstrlenW( ( wchar_t * )p ) + 1;
 
 							offset += ( string_length * sizeof( wchar_t ) );
 							if ( offset >= read ) { goto CLEANUP; }
@@ -2365,6 +2508,24 @@ RETRY_OPEN:
 
 							p += ( string_length * sizeof( wchar_t ) );
 
+							// Comments
+							if ( version >= 0x08 )
+							{
+								string_length = lstrlenW( ( wchar_t * )p ) + 1;
+
+								offset += ( string_length * sizeof( wchar_t ) );
+								if ( offset >= read ) { goto CLEANUP; }
+
+								comments = ( wchar_t * )p;
+								comments_length = string_length;
+
+								p += ( string_length * sizeof( wchar_t ) );
+							}
+							else
+							{
+								comments_length = 0;
+							}
+
 							////////////////
 
 							shared_info = ( DOWNLOAD_INFO * )GlobalAlloc( GPTR, sizeof( DOWNLOAD_INFO ) );
@@ -2380,6 +2541,11 @@ RETRY_OPEN:
 								shared_info->processed_header = processed_header;
 								shared_info->download_operations = download_operations;
 
+								if ( category_length > 1 )	// Don't cache the empty string.
+								{
+									shared_info->category = CacheCategory( ( wchar_t * )category );
+								}
+
 								_wmemcpy_s( shared_info->file_path, MAX_PATH, download_directory, download_directory_length );
 								shared_info->file_path[ download_directory_length ] = 0;	// Sanity.
 
@@ -2394,6 +2560,13 @@ RETRY_OPEN:
 								if ( shared_info->file_extension_offset == ( shared_info->filename_offset + filename_length ) )
 								{
 									shared_info->download_operations |= DOWNLOAD_OPERATION_GET_EXTENSION;
+								}
+
+								// Don't use empty string.
+								if ( comments_length > 1 )
+								{
+									shared_info->comments = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * comments_length );
+									_wmemcpy_s( shared_info->comments, comments_length, comments, comments_length );
 								}
 
 								//
@@ -2428,6 +2601,7 @@ RETRY_OPEN:
 								InitializeCriticalSection( &shared_info->di_cs );
 
 								tln_parent = ( TREELISTNODE * )GlobalAlloc( GPTR, sizeof( TREELISTNODE ) );
+								shared_info->tln = ( void * )tln_parent;
 								tln_parent->data = shared_info;
 								tln_parent->data_type = TLVDT_GROUP | ( host_count == 1 ? TLVDT_HOST : 0 );
 								tln_parent->is_expanded = is_expanded;
@@ -2443,6 +2617,7 @@ RETRY_OPEN:
 								for ( unsigned char i = 0; i < host_count; ++i )
 								{
 									url = NULL;
+									comments = NULL;
 									cookies = NULL;
 									headers = NULL;
 									data = NULL;
@@ -2519,7 +2694,7 @@ RETRY_OPEN:
 									_memcpy_s( &status, sizeof( unsigned int ), p, sizeof( unsigned int ) );
 									p += sizeof( unsigned int );
 
-									if ( version >= 6 )
+									if ( version >= 0x06 )
 									{
 										// Code
 										offset += sizeof( int );
@@ -2557,6 +2732,28 @@ RETRY_OPEN:
 									*( url + ( string_length - 1 ) ) = 0;	// Sanity
 
 									p += ( string_length * sizeof( wchar_t ) );
+
+									// Comments
+									if ( version >= 0x08 )
+									{
+										if ( host_count > 1 )
+										{
+											string_length = lstrlenW( ( wchar_t * )p ) + 1;
+
+											offset += ( string_length * sizeof( wchar_t ) );
+											if ( offset >= read ) { goto CLEANUP; }
+
+											comments = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * string_length );
+											_wmemcpy_s( comments, string_length, p, string_length );
+											*( comments + ( string_length - 1 ) ) = 0;	// Sanity
+
+											p += ( string_length * sizeof( wchar_t ) );
+										}
+										else
+										{
+											p += sizeof( wchar_t );
+										}
+									}
 
 									// Cookies
 									string_length = lstrlenA( ( char * )p ) + 1;
@@ -2907,7 +3104,7 @@ RETRY_OPEN:
 											tln->data_type = TLVDT_HOST;
 											tln->parent = tln_parent;
 
-											TLV_AddNode( &tln_parent->child, tln, -1 );
+											TLV_AddNode( &tln_parent->child, tln, -1, true );
 
 											if ( tln_parent->is_expanded )
 											{
@@ -2923,13 +3120,14 @@ RETRY_OPEN:
 										di->download_speed_limit = download_speed_limit;
 										di->parts = parts;
 										di->parts_limit = parts_limit;
-										di->status = status;
+										SetStatus( di, status );
 										di->code = code;
 										di->ssl_version = ssl_version;
 										di->processed_header = processed_header;
 										di->method = method;
 										di->last_modified.QuadPart = last_modified.QuadPart;
 										di->url = url;
+										di->comments = comments;
 										di->cookies = cookies;
 										di->headers = headers;
 										di->data = data;
@@ -2990,9 +3188,10 @@ RETRY_OPEN:
 
 										//
 
-										if ( IS_STATUS( di->status, STATUS_PAUSED ) )	// Paused
+										if ( di->status == STATUS_NONE ||
+											 IS_STATUS( di->status, STATUS_PAUSED ) )	// No status set, or Paused
 										{
-											di->status = STATUS_STOPPED;	// Stopped
+											SetStatus( di, STATUS_STOPPED );	// Stopped
 										}
 										else if ( IS_STATUS( di->status,
 													 STATUS_CONNECTING |
@@ -3003,18 +3202,18 @@ RETRY_OPEN:
 											{
 												g_download_history_changed = true;
 
-												di->status = STATUS_NONE;
+												SetStatus( di, STATUS_NONE );
 
 												StartDownload( di, START_TYPE_NONE, START_OPERATION_NONE );
 											}
 											else
 											{
-												di->status = STATUS_STOPPED;	// Stopped
+												SetStatus( di, STATUS_STOPPED );	// Stopped
 											}
 										}
 										else if ( di->status == STATUS_ALLOCATING_FILE )	// If we were allocating the file, then set it to a File IO Error.
 										{
-											di->status = STATUS_FILE_IO_ERROR;
+											SetStatus( di, STATUS_FILE_IO_ERROR );
 										}
 									}
 									else
@@ -3036,7 +3235,7 @@ RETRY_OPEN:
 								//
 
 								// Cache our file's icon.
-								ICON_INFO *ii = CacheIcon( shared_info, sfi );
+								ICON_INFO *ii = CacheIcon( shared_info );
 
 								if ( ii != NULL )
 								{
@@ -3048,6 +3247,7 @@ RETRY_OPEN:
 
 			CLEANUP:
 							GlobalFree( url );
+							GlobalFree( comments );
 							GlobalFree( cookies );
 							GlobalFree( headers );
 							GlobalFree( data );
@@ -3090,6 +3290,7 @@ RETRY_OPEN:
 									if ( di != NULL )
 									{
 										GlobalFree( di->url );
+										GlobalFree( di->comments );
 										GlobalFree( di->cookies );
 										GlobalFree( di->headers );
 										GlobalFree( di->data );
@@ -3122,7 +3323,9 @@ RETRY_OPEN:
 								DeleteCriticalSection( &shared_info->di_cs );
 
 								RemoveCachedIcon( shared_info );
-
+								RemoveCachedCategory( shared_info->category );
+								GlobalFree( shared_info->comments );
+								//GlobalFree( shared_info->new_file_path );	// Not set here.
 								GlobalFree( shared_info->w_add_time );
 
 								GlobalFree( shared_info );
@@ -3173,21 +3376,48 @@ RETRY_OPEN:
 						}
 					}
 
-					GlobalFree( sfi );
-
 					GlobalFree( history_buf );
 				}
 
 				//
 
-				TLV_SetTotalItemCount( TLV_GetTotalItemCount() + total_item_count );
-				TLV_SetExpandedItemCount( TLV_GetExpandedItemCount() + expanded_item_count );
-				TLV_SetRootItemCount( TLV_GetRootItemCount() + root_item_count );
-				if ( TLV_GetFirstVisibleItem() == NULL )
+				if ( g_status_filter != STATUS_NONE )
 				{
-					TLV_SetFirstVisibleRootIndex( 0 );
-					TLV_SetFirstVisibleItem( g_tree_list );
-					TLV_SetFirstVisibleIndex( 0 );
+					total_item_count = root_item_count = expanded_item_count = 0;
+
+					TREELISTNODE *node = g_tree_list;
+					while ( node != NULL )
+					{
+						DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )node->data;
+						if ( IsFilterSet( di, g_status_filter ) )
+						{
+							total_item_count += ( node->child_count + 1 );
+							++root_item_count;
+							++expanded_item_count;	// Include the parent.
+							if ( node->is_expanded )
+							{
+								expanded_item_count += node->child_count;
+							}
+						}
+
+						node = node->next;
+					}
+
+					TLV_SetTotalItemCount( total_item_count );
+					TLV_SetExpandedItemCount( expanded_item_count );
+					TLV_SetRootItemCount( root_item_count );
+				}
+				else
+				{
+					TLV_AddTotalItemCount( total_item_count );
+					TLV_AddExpandedItemCount( expanded_item_count );
+					TLV_AddRootItemCount( root_item_count );
+					if ( TLV_GetFirstVisibleItem() == NULL )
+					{
+						TLV_SetFirstVisibleRootIndex( 0 );
+						TLV_SetFirstVisibleItem( g_tree_list );
+						TLV_SetFirstVisibleIndex( 0 );
+					}
 				}
 
 				if ( cfg_sorted_column_index != COLUMN_NUM )		// #
@@ -3277,13 +3507,17 @@ RETRY_OPEN:
 			if ( di != NULL )
 			{
 				// lstrlen is safe for NULL values.
+				int category_length = ( lstrlenW( di->category ) + 1 ) * sizeof( wchar_t );
 				int download_directory_length = di->filename_offset * sizeof( wchar_t );	// Includes the NULL terminator.
 				int filename_length = ( lstrlenW( di->file_path + di->filename_offset ) + 1 ) * sizeof( wchar_t );
+				int comments_length =  ( lstrlenW( di->comments ) + 1 ) * sizeof( wchar_t );
 
 				// See if the next entry can fit in the buffer. If it can't, then we dump the buffer.
 				if ( ( signed )( pos +
+								 comments_length +
 								 filename_length +
 								 download_directory_length +
+								 category_length +
 								 sizeof( ULONGLONG ) +
 							   ( sizeof( unsigned long long ) * 3 ) +
 							   ( sizeof( bool ) * 2 ) +
@@ -3322,11 +3556,17 @@ RETRY_OPEN:
 				_memcpy_s( buf + pos, size - pos, &di->download_operations, sizeof( unsigned int ) );
 				pos += sizeof( unsigned int );
 
+				_memcpy_s( buf + pos, size - pos, di->category, category_length );
+				pos += category_length;
+
 				_memcpy_s( buf + pos, size - pos, di->file_path, download_directory_length );
 				pos += download_directory_length;
 
 				_memcpy_s( buf + pos, size - pos, di->file_path + di->filename_offset, filename_length );
 				pos += filename_length;
+
+				_memcpy_s( buf + pos, size - pos, di->shared_info->comments, comments_length );
+				pos += comments_length;
 
 				///////////////////
 
@@ -3337,6 +3577,8 @@ RETRY_OPEN:
 					di = ( DOWNLOAD_INFO * )host_node->data;
 
 					int url_length = ( lstrlenW( di->url ) + 1 ) * sizeof( wchar_t );
+
+					comments_length = ( lstrlenW( di->comments ) + 1 ) * sizeof( wchar_t );
 
 					int cookies_length = lstrlenA( di->cookies ) + 1;
 					int headers_length = lstrlenA( di->headers ) + 1;
@@ -3389,6 +3631,7 @@ RETRY_OPEN:
 					// See if the next entry can fit in the buffer. If it can't, then we dump the buffer.
 					if ( ( signed )( pos +
 									 url_length +
+									 comments_length +
 									 cookies_length +
 									 headers_length +
 									 data_length +
@@ -3451,6 +3694,17 @@ RETRY_OPEN:
 
 					_memcpy_s( buf + pos, size - pos, di->url, url_length );
 					pos += url_length;
+
+					if ( di->shared_info->hosts > 1 )
+					{
+						_memcpy_s( buf + pos, size - pos, di->comments, comments_length );
+						pos += comments_length;
+					}
+					else
+					{
+						_memset( buf + pos, 0, sizeof( wchar_t ) );
+						pos += sizeof( wchar_t );
+					}
 
 					_memcpy_s( buf + pos, size - pos, di->cookies, cookies_length );
 					pos += cookies_length;

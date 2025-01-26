@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
-	Copyright (C) 2015-2024 Eric Kutcher
+	Copyright (C) 2015-2025 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -22,6 +22,7 @@
 #include "lite_uxtheme.h"
 #include "lite_normaliz.h"
 
+#include "categories.h"
 #include "list_operations.h"
 #include "string_tables.h"
 #include "folder_browser.h"
@@ -33,22 +34,24 @@
 
 #define SM_COLUMN_NUM						0
 #define SM_COLUMN_SITE						1
-#define SM_COLUMN_DOWNLOAD_DIRECTORY		2
-#define SM_COLUMN_DOWNLOAD_PARTS			3
-#define SM_COLUMN_DOWNLOAD_SPEED_LIMIT		4
-#define SM_COLUMN_SSL_TLS_VERSION			5
-#define SM_COLUMN_USERNAME					6
-#define SM_COLUMN_PASSWORD					7
-#define SM_COLUMN_DOWNLOAD_OPERATIONS		8
-#define SM_COLUMN_COOKIES					9
-#define SM_COLUMN_HEADERS					10
-#define SM_COLUMN_POST_DATA					11
-#define SM_COLUMN_PROXY_TYPE				12
-#define SM_COLUMN_PROXY_SERVER				13
-#define SM_COLUMN_PROXY_PORT				14
-#define SM_COLUMN_PROXY_USERNAME			15
-#define SM_COLUMN_PROXY_PASSWORD			16
-#define SM_COLUMN_RESOLVE_DOMAIN_NAMES		17
+#define SM_COLUMN_CATEGORY					2
+#define SM_COLUMN_DOWNLOAD_DIRECTORY		3
+#define SM_COLUMN_DOWNLOAD_PARTS			4
+#define SM_COLUMN_DOWNLOAD_SPEED_LIMIT		5
+#define SM_COLUMN_SSL_TLS_VERSION			6
+#define SM_COLUMN_USERNAME					7
+#define SM_COLUMN_PASSWORD					8
+#define SM_COLUMN_DOWNLOAD_OPERATIONS		9
+#define SM_COLUMN_COMMENTS					10
+#define SM_COLUMN_COOKIES					11
+#define SM_COLUMN_HEADERS					12
+#define SM_COLUMN_POST_DATA					13
+#define SM_COLUMN_PROXY_TYPE				14
+#define SM_COLUMN_PROXY_SERVER				15
+#define SM_COLUMN_PROXY_PORT				16
+#define SM_COLUMN_PROXY_USERNAME			17
+#define SM_COLUMN_PROXY_PASSWORD			18
+#define SM_COLUMN_RESOLVE_DOMAIN_NAMES		19
 
 
 
@@ -67,46 +70,45 @@
 
 #define CHK_SM_SEND_DATA					1009
 
-#define CHK_SM_ENABLE_DOWNLOAD_DIRECTORY	1010
-#define BTN_SM_DOWNLOAD_DIRECTORY			1011
+#define CB_SM_CATEGORY						1010
 
-#define CHK_SM_ENABLE_DOWNLOAD_PARTS		1012
-#define EDIT_SM_DOWNLOAD_PARTS				1013
+#define CHK_SM_ENABLE_DOWNLOAD_DIRECTORY	1011
+#define BTN_SM_DOWNLOAD_DIRECTORY			1012
 
-#define CHK_SM_ENABLE_SPEED_LIMIT			1014
-#define EDIT_SM_SPEED_LIMIT					1015
+#define CHK_SM_ENABLE_DOWNLOAD_PARTS		1013
+#define EDIT_SM_DOWNLOAD_PARTS				1014
 
-#define CHK_SM_SIMULATE_DOWNLOAD			1016
-#define CB_SM_DOWNLOAD_OPERATION			1017
+#define CHK_SM_ENABLE_SPEED_LIMIT			1015
+#define EDIT_SM_SPEED_LIMIT					1016
 
-//
-
-#define CB_SM_PROXY_TYPE				1018
-
-#define BTN_SM_TYPE_HOST_SOCKS			1019
-#define BTN_SM_TYPE_IP_ADDRESS_SOCKS	1020
-#define EDIT_SM_HOST_SOCKS				1021
-#define EDIT_SM_IP_ADDRESS_SOCKS		1022
-#define EDIT_SM_PORT_SOCKS				1023
-
-#define EDIT_SM_PROXY_AUTH_USERNAME			1024
-#define EDIT_SM_PROXY_AUTH_PASSWORD			1025
-
-#define EDIT_SM_AUTH_IDENT_USERNAME_SOCKS	1026
-
-#define BTN_SM_RESOLVE_DOMAIN_NAMES_V4A	1027
-
-#define BTN_SM_AUTHENTICATION_SOCKS	1028
-
-#define EDIT_SM_AUTH_USERNAME_SOCKS	1029
-#define EDIT_SM_AUTH_PASSWORD_SOCKS	1030
-
-#define BTN_SM_RESOLVE_DOMAIN_NAMES	1031
+#define CHK_SM_SIMULATE_DOWNLOAD			1017
+#define CB_SM_DOWNLOAD_OPERATION			1018
 
 //
 
+#define CB_SM_PROXY_TYPE				1019
 
+#define BTN_SM_TYPE_HOST_SOCKS			1020
+#define BTN_SM_TYPE_IP_ADDRESS_SOCKS	1021
+#define EDIT_SM_HOST_SOCKS				1022
+#define EDIT_SM_IP_ADDRESS_SOCKS		1023
+#define EDIT_SM_PORT_SOCKS				1024
 
+#define EDIT_SM_PROXY_AUTH_USERNAME			1025
+#define EDIT_SM_PROXY_AUTH_PASSWORD			1026
+
+#define EDIT_SM_AUTH_IDENT_USERNAME_SOCKS	1027
+
+#define BTN_SM_RESOLVE_DOMAIN_NAMES_V4A	1028
+
+#define BTN_SM_AUTHENTICATION_SOCKS	1029
+
+#define EDIT_SM_AUTH_USERNAME_SOCKS	1030
+#define EDIT_SM_AUTH_PASSWORD_SOCKS	1031
+
+#define BTN_SM_RESOLVE_DOMAIN_NAMES	1032
+
+//
 
 #define MENU_SM_ENABLE_SEL			2000
 #define MENU_SM_DISABLE_SEL			2001
@@ -117,15 +119,18 @@ HWND g_hWnd_site_manager = NULL;
 HWND g_hWnd_site_list = NULL;
 
 
-
-
-
 HWND g_hWnd_sm_tab = NULL;
+
+
+HWND g_hWnd_static_sm_category = NULL;
+HWND g_hWnd_sm_category = NULL;
 
 HWND g_hWnd_chk_sm_enable_download_directory = NULL;
 HWND g_hWnd_sm_download_directory = NULL;
 HWND g_hWnd_btn_sm_download_directory = NULL;
 
+HWND g_hWnd_static_sm_comments = NULL;
+HWND g_hWnd_edit_sm_comments = NULL;
 
 HWND g_hWnd_static_sm_cookies = NULL;
 HWND g_hWnd_edit_sm_cookies = NULL;
@@ -135,7 +140,6 @@ HWND g_hWnd_edit_sm_headers = NULL;
 
 HWND g_hWnd_chk_sm_send_data = NULL;
 HWND g_hWnd_edit_sm_data = NULL;
-
 
 
 HWND g_hWnd_chk_sm_enable_download_parts = NULL;
@@ -238,6 +242,15 @@ int g_selected_site_index = -1;
 
 bool g_sm_draw_tab_pane = false;
 
+int site_manager_spinner_width = 0;
+int site_manager_spinner_height = 0;
+
+UINT current_dpi_site_manager = USER_DEFAULT_SCREEN_DPI;
+UINT last_dpi_site_manager = 0;
+HFONT hFont_site_manager = NULL;
+
+#define _SCALE_SM_( x )						_SCALE_( ( x ), dpi_site_manager )
+
 wchar_t *GetSiteInfoString( SITE_INFO *si, int column, int item_index, wchar_t *tbuf, unsigned short tbuf_size )
 {
 	wchar_t *buf = NULL;
@@ -254,9 +267,15 @@ wchar_t *GetSiteInfoString( SITE_INFO *si, int column, int item_index, wchar_t *
 
 		case SM_COLUMN_SITE: { buf = si->w_host; } break;
 
+		case SM_COLUMN_CATEGORY: { buf = si->category; } break;
+
 		case SM_COLUMN_DOWNLOAD_DIRECTORY:
 		{
-			if ( si->use_download_directory )
+			if ( si->download_operations & DOWNLOAD_OPERATION_SIMULATE )
+			{
+				buf = ST_V__Simulated_;
+			}
+			else if ( si->use_download_directory )
 			{
 				buf = si->download_directory;
 			}
@@ -361,6 +380,36 @@ wchar_t *GetSiteInfoString( SITE_INFO *si, int column, int item_index, wchar_t *
 			}
 
 			if ( buf_offset == 0 )
+			{
+				buf = L"";
+			}
+		}
+		break;
+
+		case SM_COLUMN_COMMENTS:
+		{
+			if ( si->comments != NULL )
+			{
+				buf = tbuf;	// Reset the buffer pointer.
+
+				// tbuf_size is always 128, so this will never happen.
+				//if ( tbuf_size <= 4 )
+				//{
+				//	buf = L"...";
+				//}
+				//else
+				//{
+					int buf_length = __snwprintf( buf, tbuf_size, L"%.*s", tbuf_size, si->comments );
+					if ( buf_length >= tbuf_size )
+					{
+						buf[ tbuf_size - 4 ] = L'.';
+						buf[ tbuf_size - 3 ] = L'.';
+						buf[ tbuf_size - 2 ] = L'.';
+						buf[ tbuf_size - 1 ] = 0;	// Sanity.
+					}
+				//}
+			}
+			else
 			{
 				buf = L"";
 			}
@@ -656,7 +705,7 @@ LRESULT CALLBACK SMSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
 {
 	switch ( msg )
 	{
-		case WM_CHAR:
+		/*case WM_CHAR:
 		{
 			// Replace enter with "\r\n" instead of "\n".
 			if ( wParam == VK_RETURN )
@@ -677,7 +726,7 @@ LRESULT CALLBACK SMSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
 				}
 			}
 		}
-		break;
+		break;*/
 
 		case WM_GETDLGCODE:
 		{
@@ -714,7 +763,8 @@ LRESULT CALLBACK SMListSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 					}
 					else
 					{
-						largest_width = 26;	// 5 + 16 + 5.
+						// Need to scale each number for rounding purposes.
+						largest_width = _SCALE_SM_( 5 ) + _SCALE_SM_( 16 ) + _SCALE_SM_( 5 );
 
 						wchar_t tbuf[ 128 ];
 
@@ -726,7 +776,7 @@ LRESULT CALLBACK SMListSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 
 						RECT rc;
 						HDC hDC = _GetDC( hWnd );
-						HFONT ohf = ( HFONT )_SelectObject( hDC, g_hFont );
+						HFONT ohf = ( HFONT )_SelectObject( hDC, hFont_site_manager );
 						_DeleteObject( ohf );
 
 						for ( ; index <= index_end; ++index )
@@ -750,7 +800,8 @@ LRESULT CALLBACK SMListSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 
 									_DrawTextW( hDC, buf, -1, &rc, DT_SINGLELINE | DT_NOPREFIX | DT_CALCRECT );
 
-									int width = ( rc.right - rc.left ) + 10;	// 5 + 5 padding.
+									// Need to scale each number for rounding purposes.
+									int width = ( rc.right - rc.left ) + _SCALE_SM_( 5 ) + _SCALE_SM_( 5 );	// 5 + 5 padding.
 									if ( width > largest_width )
 									{
 										largest_width = width;
@@ -818,9 +869,15 @@ LRESULT CALLBACK SMTabSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam
 			// Allow our controls to move in relation to the parent window.
 			HDWP hdwp = _BeginDeferWindowPos( 1 );
 
-			_DeferWindowPos( hdwp, g_hWnd_btn_sm_authentication, HWND_TOP, 280, ( rc_tab.bottom - rc_tab.top ) + 65, 272, 72, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_btn_sm_authentication, HWND_TOP, _SCALE_SM_( 280 ), ( rc_tab.bottom - rc_tab.top ) + _SCALE_SM_( 65 ), _SCALE_SM_( 272 ), _SCALE_SM_( 72 ), SWP_NOZORDER );
 
 			_EndDeferWindowPos( hdwp );
+		}
+		break;
+
+		case WM_GET_DPI:
+		{
+			return current_dpi_site_manager;
 		}
 		break;
 	}
@@ -837,6 +894,9 @@ void ShowHideSMTabs( int sw_type )
 		{
 			case 0:
 			{
+				_ShowWindow( g_hWnd_static_sm_category, sw_type );
+				_ShowWindow( g_hWnd_sm_category, sw_type );
+
 				_ShowWindow( g_hWnd_chk_sm_enable_download_directory, sw_type );
 				_ShowWindow( g_hWnd_sm_download_directory, sw_type );
 				_ShowWindow( g_hWnd_btn_sm_download_directory, sw_type );
@@ -865,26 +925,33 @@ void ShowHideSMTabs( int sw_type )
 
 			case 1:
 			{
+				_ShowWindow( g_hWnd_static_sm_comments, sw_type );
+				_ShowWindow( g_hWnd_edit_sm_comments, sw_type );
+			}
+			break;
+
+			case 2:
+			{
 				_ShowWindow( g_hWnd_static_sm_cookies, sw_type );
 				_ShowWindow( g_hWnd_edit_sm_cookies, sw_type );
 			}
 			break;
 
-			case 2:
+			case 3:
 			{
 				_ShowWindow( g_hWnd_static_sm_headers, sw_type );
 				_ShowWindow( g_hWnd_edit_sm_headers, sw_type );
 			}
 			break;
 
-			case 3:
+			case 4:
 			{
 				_ShowWindow( g_hWnd_chk_sm_send_data, sw_type );
 				_ShowWindow( g_hWnd_edit_sm_data, sw_type );
 			}
 			break;
 
-			case 4:
+			case 5:
 			{
 				_ShowWindow( g_hWnd_static_sm_proxy_type, sw_type );
 				_ShowWindow( g_hWnd_sm_proxy_type, sw_type );
@@ -914,9 +981,12 @@ void ResetSMTabPages()
 {
 	_SendMessageW( g_hWnd_edit_sm_site, WM_SETTEXT, 0, NULL );
 
+	_SendMessageW( g_hWnd_sm_category, CB_SETCURSEL, 0, 0 );
+
 	_SendMessageW( g_hWnd_chk_sm_enable_download_directory, BM_SETCHECK, BST_UNCHECKED, 0 );
 	_SendMessageW( g_hWnd_sm_download_directory, WM_SETTEXT, 0, ( LPARAM )cfg_default_download_directory );
 
+	_EnableWindow( g_hWnd_chk_sm_enable_download_directory, TRUE );
 	_EnableWindow( g_hWnd_sm_download_directory, FALSE );
 	_EnableWindow( g_hWnd_btn_sm_download_directory, FALSE );
 
@@ -946,6 +1016,7 @@ void ResetSMTabPages()
 
 	///////////
 
+	_SendMessageA( g_hWnd_edit_sm_comments, WM_SETTEXT, 0, NULL );
 	_SendMessageA( g_hWnd_edit_sm_cookies, WM_SETTEXT, 0, NULL );
 	_SendMessageA( g_hWnd_edit_sm_headers, WM_SETTEXT, 0, NULL );
 	_SendMessageA( g_hWnd_edit_sm_data, WM_SETTEXT, 0, NULL );
@@ -998,6 +1069,7 @@ int CALLBACK LMCompareFunc( LPARAM lParam1, LPARAM lParam2, LPARAM lParamSort )
 		switch ( si->column )
 		{
 			case SM_COLUMN_SITE: { return lstrcmpW( si1->w_host, si2->w_host ); } break;
+			case SM_COLUMN_CATEGORY: { return lstrcmpW( si1->category, si2->category ); } break;
 			case SM_COLUMN_DOWNLOAD_DIRECTORY: { return _wcsicmp_s( si1->download_directory, si2->download_directory ); } break;
 
 			case SM_COLUMN_DOWNLOAD_PARTS: { return ( si1->parts > si2->parts ); } break;
@@ -1032,6 +1104,7 @@ int CALLBACK LMCompareFunc( LPARAM lParam1, LPARAM lParam2, LPARAM lParamSort )
 			}
 			break;
 
+			case SM_COLUMN_COMMENTS: { return _wcsicmp_s( si1->comments, si2->comments ); } break;
 			case SM_COLUMN_COOKIES: { return _stricmp_s( si1->utf8_cookies, si2->utf8_cookies ); } break;
 			case SM_COLUMN_HEADERS: { return _stricmp_s( si1->utf8_headers, si2->utf8_headers ); } break;
 			case SM_COLUMN_POST_DATA: { return _stricmp_s( si1->utf8_data, si2->utf8_data ); } break;
@@ -1136,10 +1209,35 @@ void SelectSiteItem( int index )
 
 		_SendMessageW( g_hWnd_edit_sm_site, WM_SETTEXT, 0, ( LPARAM )si->w_host );
 
-		_SendMessageW( g_hWnd_chk_sm_enable_download_directory, BM_SETCHECK, ( si->use_download_directory ? BST_CHECKED : BST_UNCHECKED ), 0 );
-		_SendMessageW( g_hWnd_sm_download_directory, WM_SETTEXT, 0, ( LPARAM )( si->download_directory != NULL ? si->download_directory : cfg_default_download_directory ) );
+		int sel_index = 0;
+		if ( si->category != NULL )
+		{
+			sel_index = ( int )_SendMessageW( g_hWnd_sm_category, CB_FINDSTRINGEXACT, 0, ( LPARAM )si->category );
+			if ( sel_index < 0 )
+			{
+				sel_index = 0;
+			}
+		}
+		_SendMessageW( g_hWnd_sm_category, CB_SETCURSEL, sel_index, 0 );
 
-		enable = ( si->use_download_directory ? TRUE : FALSE );
+		_SendMessageW( g_hWnd_chk_sm_enable_download_directory, BM_SETCHECK, ( si->use_download_directory ? BST_CHECKED : BST_UNCHECKED ), 0 );
+
+		if ( si->download_operations & DOWNLOAD_OPERATION_SIMULATE )
+		{
+			_SendMessageW( g_hWnd_sm_download_directory, WM_SETTEXT, 0, ( LPARAM )ST_V__Simulated_ );
+
+			_EnableWindow( g_hWnd_chk_sm_enable_download_directory, FALSE );
+
+			enable = FALSE;
+		}
+		else
+		{
+			_SendMessageW( g_hWnd_sm_download_directory, WM_SETTEXT, 0, ( LPARAM )( si->download_directory != NULL ? si->download_directory : cfg_default_download_directory ) );
+
+			_EnableWindow( g_hWnd_chk_sm_enable_download_directory, TRUE );
+
+			enable = ( si->use_download_directory ? TRUE : FALSE );
+		}
 
 		_EnableWindow( g_hWnd_sm_download_directory, enable );
 		_EnableWindow( g_hWnd_btn_sm_download_directory, enable );
@@ -1177,7 +1275,7 @@ void SelectSiteItem( int index )
 
 		//////////
 
-
+		_SendMessageW( g_hWnd_edit_sm_comments, WM_SETTEXT, 0, ( LPARAM )si->comments );
 		_SendMessageA( g_hWnd_edit_sm_cookies, WM_SETTEXT, 0, ( LPARAM )si->utf8_cookies );
 		_SendMessageA( g_hWnd_edit_sm_headers, WM_SETTEXT, 0, ( LPARAM )si->utf8_headers );
 		_SendMessageA( g_hWnd_edit_sm_data, WM_SETTEXT, 0, ( LPARAM )si->utf8_data );
@@ -1298,8 +1396,9 @@ LRESULT CALLBACK SiteManagerWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 	{
 		case WM_CREATE:
 		{
-			//RECT rc;
-			//_GetClientRect( hWnd, &rc );
+			current_dpi_site_manager = __GetDpiForWindow( hWnd );
+			last_dpi_site_manager = ( current_dpi_site_manager == current_dpi_main ? current_dpi_site_manager : 0 );
+			hFont_site_manager = UpdateFont( current_dpi_site_manager );
 
 			// If the main window is WS_EX_COMPOSITED, then this flickers like mad.
 			g_hWnd_site_list = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_LISTVIEW, NULL, LVS_REPORT | LVS_OWNERDRAWFIXED | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
@@ -1317,19 +1416,27 @@ LRESULT CALLBACK SiteManagerWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 			ti.pszText = ( LPWSTR )ST_V_General;
 			_SendMessageW( g_hWnd_sm_tab, TCM_INSERTITEM, 0, ( LPARAM )&ti );	// Insert a new tab at the end.
 
-			ti.pszText = ( LPWSTR )ST_V_Cookies;
+			ti.pszText = ( LPWSTR )ST_V_Comments;
 			_SendMessageW( g_hWnd_sm_tab, TCM_INSERTITEM, 1, ( LPARAM )&ti );	// Insert a new tab at the end.
 
-			ti.pszText = ( LPWSTR )ST_V_Headers;
+			ti.pszText = ( LPWSTR )ST_V_Cookies;
 			_SendMessageW( g_hWnd_sm_tab, TCM_INSERTITEM, 2, ( LPARAM )&ti );	// Insert a new tab at the end.
 
-			ti.pszText = ( LPWSTR )ST_V_POST_Data;
+			ti.pszText = ( LPWSTR )ST_V_Headers;
 			_SendMessageW( g_hWnd_sm_tab, TCM_INSERTITEM, 3, ( LPARAM )&ti );	// Insert a new tab at the end.
 
-			ti.pszText = ( LPWSTR )ST_V_Proxy;
+			ti.pszText = ( LPWSTR )ST_V_POST_Data;
 			_SendMessageW( g_hWnd_sm_tab, TCM_INSERTITEM, 4, ( LPARAM )&ti );	// Insert a new tab at the end.
 
+			ti.pszText = ( LPWSTR )ST_V_Proxy;
+			_SendMessageW( g_hWnd_sm_tab, TCM_INSERTITEM, 5, ( LPARAM )&ti );	// Insert a new tab at the end.
 
+
+			g_hWnd_static_sm_category = _CreateWindowW( WC_STATIC, ST_V_Category_, WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+			// Needs dimensions so that list displays in XP.
+			g_hWnd_sm_category = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_COMBOBOX, NULL, CBS_AUTOHSCROLL | CBS_DROPDOWNLIST | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE | CBS_DARK_MODE, 0, 0, 100, 23, hWnd, ( HMENU )CB_SM_CATEGORY, NULL, NULL );
+
+			_SendMessageW( g_hWnd_sm_category, CB_SETCURSEL, 0, 0 );
 
 			g_hWnd_chk_sm_enable_download_directory = _CreateWindowW( WC_BUTTON, ST_V_Download_directory_, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, ( HMENU )CHK_SM_ENABLE_DOWNLOAD_DIRECTORY, NULL, NULL );
 			g_hWnd_sm_download_directory = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, cfg_default_download_directory, ES_AUTOHSCROLL | ES_READONLY | WS_CHILD | WS_TABSTOP | WS_VISIBLE | WS_DISABLED, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
@@ -1348,6 +1455,10 @@ LRESULT CALLBACK SiteManagerWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 			_SendMessageW( g_hWnd_ud_sm_download_parts, UDM_SETRANGE32, 1, 100 );
 			_SendMessageW( g_hWnd_ud_sm_download_parts, UDM_SETPOS, 0, cfg_default_download_parts );
 
+			RECT rc_spinner;
+			_GetClientRect( g_hWnd_ud_sm_download_parts, &rc_spinner );
+			site_manager_spinner_width = rc_spinner.right - rc_spinner.left;
+			site_manager_spinner_height = rc_spinner.bottom - rc_spinner.top;
 
 
 			g_hWnd_chk_sm_enable_speed_limit = _CreateWindowW( WC_BUTTON, ST_V_Download_speed_limit_bytes_, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, ( HMENU )CHK_SM_ENABLE_SPEED_LIMIT, NULL, NULL );
@@ -1426,15 +1537,17 @@ LRESULT CALLBACK SiteManagerWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 
 			///////////////////////////////////
 
+			g_hWnd_static_sm_comments = _CreateWindowW( WC_STATIC, ST_V_Comments_, WS_CHILD, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+			g_hWnd_edit_sm_comments = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, WS_CHILD | WS_TABSTOP | ES_AUTOHSCROLL | ES_MULTILINE | ES_WANTRETURN | WS_HSCROLL | WS_VSCROLL, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 
 			g_hWnd_static_sm_cookies = _CreateWindowW( WC_STATIC, ST_V_Cookies_, WS_CHILD, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
-			g_hWnd_edit_sm_cookies = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, WS_CHILD | WS_TABSTOP | ES_AUTOHSCROLL | ES_MULTILINE | WS_HSCROLL | WS_VSCROLL, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+			g_hWnd_edit_sm_cookies = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, WS_CHILD | WS_TABSTOP | ES_AUTOHSCROLL | ES_MULTILINE | ES_WANTRETURN | WS_HSCROLL | WS_VSCROLL, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 
 			g_hWnd_static_sm_headers = _CreateWindowW( WC_STATIC, ST_V_Headers_, WS_CHILD, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
-			g_hWnd_edit_sm_headers = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, WS_CHILD | WS_TABSTOP | ES_AUTOHSCROLL | ES_MULTILINE | WS_HSCROLL | WS_VSCROLL, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+			g_hWnd_edit_sm_headers = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, WS_CHILD | WS_TABSTOP | ES_AUTOHSCROLL | ES_MULTILINE | ES_WANTRETURN | WS_HSCROLL | WS_VSCROLL, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 
 			g_hWnd_chk_sm_send_data = _CreateWindowW( WC_BUTTON, ST_V_Send_POST_Data_, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP, 0, 0, 0, 0, hWnd, ( HMENU )CHK_SM_SEND_DATA, NULL, NULL );
-			g_hWnd_edit_sm_data = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, WS_CHILD | WS_TABSTOP | ES_AUTOHSCROLL | ES_MULTILINE | WS_HSCROLL | WS_VSCROLL | WS_DISABLED, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+			g_hWnd_edit_sm_data = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, WS_CHILD | WS_TABSTOP | ES_AUTOHSCROLL | ES_MULTILINE | ES_WANTRETURN | WS_HSCROLL | WS_VSCROLL | WS_DISABLED, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 
 
 			///////////////////////////////////
@@ -1541,71 +1654,79 @@ LRESULT CALLBACK SiteManagerWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 			lvc.cx = 240;
 			_SendMessageW( g_hWnd_site_list, LVM_INSERTCOLUMN, 1, ( LPARAM )&lvc );
 
-			lvc.pszText = ST_V_Download_Directory;
+			lvc.pszText = ST_V_Category;
 			lvc.cx = 140;
 			_SendMessageW( g_hWnd_site_list, LVM_INSERTCOLUMN, 2, ( LPARAM )&lvc );
+
+			lvc.pszText = ST_V_Download_Directory;
+			lvc.cx = 140;
+			_SendMessageW( g_hWnd_site_list, LVM_INSERTCOLUMN, 3, ( LPARAM )&lvc );
 
 			lvc.pszText = ST_V_Download_Parts;
 			lvc.cx = 140;
 			lvc.fmt = LVCFMT_RIGHT;
-			_SendMessageW( g_hWnd_site_list, LVM_INSERTCOLUMN, 3, ( LPARAM )&lvc );
+			_SendMessageW( g_hWnd_site_list, LVM_INSERTCOLUMN, 4, ( LPARAM )&lvc );
 
 			lvc.pszText = ST_V_Download_Speed_Limit;
 			lvc.cx = 140;
-			_SendMessageW( g_hWnd_site_list, LVM_INSERTCOLUMN, 4, ( LPARAM )&lvc );
+			_SendMessageW( g_hWnd_site_list, LVM_INSERTCOLUMN, 5, ( LPARAM )&lvc );
 
 			lvc.pszText = ST_V_SSL___TLS_Version;
 			lvc.cx = 140;
 			lvc.fmt = LVCFMT_LEFT;
-			_SendMessageW( g_hWnd_site_list, LVM_INSERTCOLUMN, 5, ( LPARAM )&lvc );
+			_SendMessageW( g_hWnd_site_list, LVM_INSERTCOLUMN, 6, ( LPARAM )&lvc );
 
 			lvc.pszText = ST_V_Username;
 			lvc.cx = 140;
-			_SendMessageW( g_hWnd_site_list, LVM_INSERTCOLUMN, 6, ( LPARAM )&lvc );
+			_SendMessageW( g_hWnd_site_list, LVM_INSERTCOLUMN, 7, ( LPARAM )&lvc );
 
 			lvc.pszText = ST_V_Password;
 			lvc.cx = 140;
-			_SendMessageW( g_hWnd_site_list, LVM_INSERTCOLUMN, 7, ( LPARAM )&lvc );
+			_SendMessageW( g_hWnd_site_list, LVM_INSERTCOLUMN, 8, ( LPARAM )&lvc );
 
 			lvc.pszText = ST_V_Download_Operations;
 			lvc.cx = 140;
-			_SendMessageW( g_hWnd_site_list, LVM_INSERTCOLUMN, 8, ( LPARAM )&lvc );
-
-			lvc.pszText = ST_V_Cookies;
-			lvc.cx = 140;
 			_SendMessageW( g_hWnd_site_list, LVM_INSERTCOLUMN, 9, ( LPARAM )&lvc );
 
-			lvc.pszText = ST_V_Headers;
+			lvc.pszText = ST_V_Comments;
 			lvc.cx = 140;
 			_SendMessageW( g_hWnd_site_list, LVM_INSERTCOLUMN, 10, ( LPARAM )&lvc );
 
-			lvc.pszText = ST_V_POST_Data;
+			lvc.pszText = ST_V_Cookies;
 			lvc.cx = 140;
 			_SendMessageW( g_hWnd_site_list, LVM_INSERTCOLUMN, 11, ( LPARAM )&lvc );
 
-			lvc.pszText = ST_V_Proxy_Type;
+			lvc.pszText = ST_V_Headers;
 			lvc.cx = 140;
 			_SendMessageW( g_hWnd_site_list, LVM_INSERTCOLUMN, 12, ( LPARAM )&lvc );
 
-			lvc.pszText = ST_V_Proxy_Server;
+			lvc.pszText = ST_V_POST_Data;
 			lvc.cx = 140;
 			_SendMessageW( g_hWnd_site_list, LVM_INSERTCOLUMN, 13, ( LPARAM )&lvc );
 
-			lvc.pszText = ST_V_Proxy_Port;
+			lvc.pszText = ST_V_Proxy_Type;
 			lvc.cx = 140;
 			_SendMessageW( g_hWnd_site_list, LVM_INSERTCOLUMN, 14, ( LPARAM )&lvc );
 
-			lvc.pszText = ST_V_Proxy_Username;
+			lvc.pszText = ST_V_Proxy_Server;
 			lvc.cx = 140;
 			_SendMessageW( g_hWnd_site_list, LVM_INSERTCOLUMN, 15, ( LPARAM )&lvc );
 
-			lvc.pszText = ST_V_Proxy_Password;
+			lvc.pszText = ST_V_Proxy_Port;
 			lvc.cx = 140;
 			_SendMessageW( g_hWnd_site_list, LVM_INSERTCOLUMN, 16, ( LPARAM )&lvc );
 
-			lvc.pszText = ST_V_Resolve_Domain_Names;
+			lvc.pszText = ST_V_Proxy_Username;
 			lvc.cx = 140;
 			_SendMessageW( g_hWnd_site_list, LVM_INSERTCOLUMN, 17, ( LPARAM )&lvc );
+
+			lvc.pszText = ST_V_Proxy_Password;
+			lvc.cx = 140;
+			_SendMessageW( g_hWnd_site_list, LVM_INSERTCOLUMN, 18, ( LPARAM )&lvc );
+
+			lvc.pszText = ST_V_Resolve_Domain_Names;
+			lvc.cx = 140;
+			_SendMessageW( g_hWnd_site_list, LVM_INSERTCOLUMN, 19, ( LPARAM )&lvc );
 
 
 
@@ -1644,125 +1765,103 @@ LRESULT CALLBACK SiteManagerWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 			mii.wID = MENU_SM_SELECT_ALL;
 			_InsertMenuItemW( g_hMenuSub_site_manager, 5, TRUE, &mii );
 
-			_SetFocus( g_hWnd_edit_sm_site );
+			//_SetFocus( g_hWnd_edit_sm_site );
 
-			_SendMessageW( g_hWnd_site_list, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_site_list, WM_SETFONT, ( WPARAM )hFont_site_manager, 0 );
 
-			_SendMessageW( g_hWnd_sm_tab, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_sm_tab, WM_SETFONT, ( WPARAM )hFont_site_manager, 0 );
 
+			_SendMessageW( g_hWnd_static_sm_category, WM_SETFONT, ( WPARAM )hFont_site_manager, 0 );
+			_SendMessageW( g_hWnd_sm_category, WM_SETFONT, ( WPARAM )hFont_site_manager, 0 );
 
-			_SendMessageW( g_hWnd_chk_sm_enable_download_directory, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_sm_download_directory, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_btn_sm_download_directory, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_chk_sm_enable_download_directory, WM_SETFONT, ( WPARAM )hFont_site_manager, 0 );
+			_SendMessageW( g_hWnd_sm_download_directory, WM_SETFONT, ( WPARAM )hFont_site_manager, 0 );
+			_SendMessageW( g_hWnd_btn_sm_download_directory, WM_SETFONT, ( WPARAM )hFont_site_manager, 0 );
 
-			_SendMessageW( g_hWnd_chk_sm_enable_download_parts, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_sm_download_parts, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_chk_sm_enable_download_parts, WM_SETFONT, ( WPARAM )hFont_site_manager, 0 );
+			_SendMessageW( g_hWnd_sm_download_parts, WM_SETFONT, ( WPARAM )hFont_site_manager, 0 );
 
-			_SendMessageW( g_hWnd_static_sm_ssl_version, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_sm_ssl_version, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_static_sm_ssl_version, WM_SETFONT, ( WPARAM )hFont_site_manager, 0 );
+			_SendMessageW( g_hWnd_sm_ssl_version, WM_SETFONT, ( WPARAM )hFont_site_manager, 0 );
 
-			_SendMessageW( g_hWnd_chk_sm_enable_speed_limit, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_sm_speed_limit, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_chk_sm_enable_speed_limit, WM_SETFONT, ( WPARAM )hFont_site_manager, 0 );
+			_SendMessageW( g_hWnd_sm_speed_limit, WM_SETFONT, ( WPARAM )hFont_site_manager, 0 );
 
-			_SendMessageW( g_hWnd_static_sm_cookies, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_edit_sm_cookies, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_static_sm_headers, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_edit_sm_headers, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_chk_sm_send_data, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_edit_sm_data, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-
-			//
-
-			_SendMessageW( g_hWnd_static_sm_proxy_type, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_sm_proxy_type, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-
-			_SendMessageW( g_hWnd_chk_sm_type_hostname_socks, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_chk_sm_type_ip_address_socks, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-
-			_SendMessageW( g_hWnd_sm_hostname_socks, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-
-			_SendMessageW( g_hWnd_static_sm_colon_socks, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-
-			_SendMessageW( g_hWnd_static_sm_port_socks, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_sm_port_socks, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-
-
-
-			_SendMessageW( g_hWnd_static_sm_proxy_auth_username, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_edit_sm_proxy_auth_username, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_static_sm_proxy_auth_password, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_edit_sm_proxy_auth_password, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-
-
-			_SendMessageW( g_hWnd_static_sm_auth_ident_username_socks, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_sm_auth_ident_username_socks, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-
-			_SendMessageW( g_hWnd_chk_sm_resolve_domain_names_v4a, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-
-			_SendMessageW( g_hWnd_chk_sm_use_authentication_socks, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-
-			_SendMessageW( g_hWnd_static_sm_auth_username_socks, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_sm_auth_username_socks, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-
-			_SendMessageW( g_hWnd_static_sm_auth_password_socks, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_sm_auth_password_socks, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-
-			_SendMessageW( g_hWnd_chk_sm_resolve_domain_names, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_static_sm_comments, WM_SETFONT, ( WPARAM )hFont_site_manager, 0 );
+			_SendMessageW( g_hWnd_edit_sm_comments, WM_SETFONT, ( WPARAM )hFont_site_manager, 0 );
+			_SendMessageW( g_hWnd_static_sm_cookies, WM_SETFONT, ( WPARAM )hFont_site_manager, 0 );
+			_SendMessageW( g_hWnd_edit_sm_cookies, WM_SETFONT, ( WPARAM )hFont_site_manager, 0 );
+			_SendMessageW( g_hWnd_static_sm_headers, WM_SETFONT, ( WPARAM )hFont_site_manager, 0 );
+			_SendMessageW( g_hWnd_edit_sm_headers, WM_SETFONT, ( WPARAM )hFont_site_manager, 0 );
+			_SendMessageW( g_hWnd_chk_sm_send_data, WM_SETFONT, ( WPARAM )hFont_site_manager, 0 );
+			_SendMessageW( g_hWnd_edit_sm_data, WM_SETFONT, ( WPARAM )hFont_site_manager, 0 );
 
 			//
 
+			_SendMessageW( g_hWnd_static_sm_proxy_type, WM_SETFONT, ( WPARAM )hFont_site_manager, 0 );
+			_SendMessageW( g_hWnd_sm_proxy_type, WM_SETFONT, ( WPARAM )hFont_site_manager, 0 );
 
-			_SendMessageW( g_hWnd_static_sm_site, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_edit_sm_site, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_chk_sm_type_hostname_socks, WM_SETFONT, ( WPARAM )hFont_site_manager, 0 );
+			_SendMessageW( g_hWnd_chk_sm_type_ip_address_socks, WM_SETFONT, ( WPARAM )hFont_site_manager, 0 );
 
-			_SendMessageW( g_hWnd_btn_sm_authentication, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_static_sm_username, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_edit_sm_username, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_static_sm_password, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_edit_sm_password, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_sm_hostname_socks, WM_SETFONT, ( WPARAM )hFont_site_manager, 0 );
 
-			_SendMessageW( g_hWnd_chk_sm_simulate_download, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_static_sm_download_operation, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_sm_download_operation, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_static_sm_colon_socks, WM_SETFONT, ( WPARAM )hFont_site_manager, 0 );
 
-			_SendMessageW( g_hWnd_new_site, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_save_site, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_remove_site, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_static_sm_port_socks, WM_SETFONT, ( WPARAM )hFont_site_manager, 0 );
+			_SendMessageW( g_hWnd_sm_port_socks, WM_SETFONT, ( WPARAM )hFont_site_manager, 0 );
 
-			_SendMessageW( g_hWnd_chk_show_passwords, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_close_lm_wnd, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 
+
+			_SendMessageW( g_hWnd_static_sm_proxy_auth_username, WM_SETFONT, ( WPARAM )hFont_site_manager, 0 );
+			_SendMessageW( g_hWnd_edit_sm_proxy_auth_username, WM_SETFONT, ( WPARAM )hFont_site_manager, 0 );
+			_SendMessageW( g_hWnd_static_sm_proxy_auth_password, WM_SETFONT, ( WPARAM )hFont_site_manager, 0 );
+			_SendMessageW( g_hWnd_edit_sm_proxy_auth_password, WM_SETFONT, ( WPARAM )hFont_site_manager, 0 );
+
+
+			_SendMessageW( g_hWnd_static_sm_auth_ident_username_socks, WM_SETFONT, ( WPARAM )hFont_site_manager, 0 );
+			_SendMessageW( g_hWnd_sm_auth_ident_username_socks, WM_SETFONT, ( WPARAM )hFont_site_manager, 0 );
+
+			_SendMessageW( g_hWnd_chk_sm_resolve_domain_names_v4a, WM_SETFONT, ( WPARAM )hFont_site_manager, 0 );
+
+			_SendMessageW( g_hWnd_chk_sm_use_authentication_socks, WM_SETFONT, ( WPARAM )hFont_site_manager, 0 );
+
+			_SendMessageW( g_hWnd_static_sm_auth_username_socks, WM_SETFONT, ( WPARAM )hFont_site_manager, 0 );
+			_SendMessageW( g_hWnd_sm_auth_username_socks, WM_SETFONT, ( WPARAM )hFont_site_manager, 0 );
+
+			_SendMessageW( g_hWnd_static_sm_auth_password_socks, WM_SETFONT, ( WPARAM )hFont_site_manager, 0 );
+			_SendMessageW( g_hWnd_sm_auth_password_socks, WM_SETFONT, ( WPARAM )hFont_site_manager, 0 );
+
+			_SendMessageW( g_hWnd_chk_sm_resolve_domain_names, WM_SETFONT, ( WPARAM )hFont_site_manager, 0 );
+
+			//
+
+
+			_SendMessageW( g_hWnd_static_sm_site, WM_SETFONT, ( WPARAM )hFont_site_manager, 0 );
+			_SendMessageW( g_hWnd_edit_sm_site, WM_SETFONT, ( WPARAM )hFont_site_manager, 0 );
+
+			_SendMessageW( g_hWnd_btn_sm_authentication, WM_SETFONT, ( WPARAM )hFont_site_manager, 0 );
+			_SendMessageW( g_hWnd_static_sm_username, WM_SETFONT, ( WPARAM )hFont_site_manager, 0 );
+			_SendMessageW( g_hWnd_edit_sm_username, WM_SETFONT, ( WPARAM )hFont_site_manager, 0 );
+			_SendMessageW( g_hWnd_static_sm_password, WM_SETFONT, ( WPARAM )hFont_site_manager, 0 );
+			_SendMessageW( g_hWnd_edit_sm_password, WM_SETFONT, ( WPARAM )hFont_site_manager, 0 );
+
+			_SendMessageW( g_hWnd_chk_sm_simulate_download, WM_SETFONT, ( WPARAM )hFont_site_manager, 0 );
+			_SendMessageW( g_hWnd_static_sm_download_operation, WM_SETFONT, ( WPARAM )hFont_site_manager, 0 );
+			_SendMessageW( g_hWnd_sm_download_operation, WM_SETFONT, ( WPARAM )hFont_site_manager, 0 );
+
+			_SendMessageW( g_hWnd_new_site, WM_SETFONT, ( WPARAM )hFont_site_manager, 0 );
+			_SendMessageW( g_hWnd_save_site, WM_SETFONT, ( WPARAM )hFont_site_manager, 0 );
+			_SendMessageW( g_hWnd_remove_site, WM_SETFONT, ( WPARAM )hFont_site_manager, 0 );
+
+			_SendMessageW( g_hWnd_chk_show_passwords, WM_SETFONT, ( WPARAM )hFont_site_manager, 0 );
+			_SendMessageW( g_hWnd_close_lm_wnd, WM_SETFONT, ( WPARAM )hFont_site_manager, 0 );
 
 
 			// Stupid control likes to delete the font object. :-/
 			// We'll make a copy.
-			//LOGFONT lf;
-			//_memzero( &lf, sizeof( LOGFONT ) );
-			//_GetObjectW( g_hFont, sizeof( LOGFONT ), &lf );
-			hFont_copy_sm_proxy = _CreateFontIndirectW( &g_default_log_font );
+			hFont_copy_sm_proxy = UpdateFont( current_dpi_site_manager );
 			_SendMessageW( g_hWnd_sm_ip_address_socks, WM_SETFONT, ( WPARAM )hFont_copy_sm_proxy, 0 );
-
-
-
-			//
-
-			//_SendMessageW( g_hWnd_chk_sm_type_socks4, BM_SETCHECK, BST_CHECKED, 0 );
-			//_SendMessageW( g_hWnd_chk_sm_type_socks5, BM_SETCHECK, BST_UNCHECKED, 0 );
-
-			//_SendMessageW( g_hWnd_chk_sm_type_ip_address_socks, BM_SETCHECK, BST_UNCHECKED, 0 );
-
-			//_SendMessageW( g_hWnd_chk_sm_use_authentication_socks, BM_SETCHECK, BST_UNCHECKED, 0 );
-
-			/*_EnableWindow( g_hWnd_static_sm_auth_username_socks, FALSE );
-			_EnableWindow( g_hWnd_sm_auth_username_socks, FALSE );
-			_EnableWindow( g_hWnd_static_sm_auth_password_socks, FALSE );
-			_EnableWindow( g_hWnd_sm_auth_password_socks, FALSE );*/
-
-			//_SendMessageW( g_hWnd_sm_hostname_socks, WM_SETTEXT, 0, ( LPARAM )L"localhost" );
-			//_SendMessageW( g_hWnd_sm_ip_address_socks, IPM_SETADDRESS, 0, 2130706433 );	// 127.0.0.1
-
-
-
 
 
 			t_sm_download_directory = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * MAX_PATH );
@@ -1775,7 +1874,8 @@ LRESULT CALLBACK SiteManagerWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 			SMListProc = ( WNDPROC )_GetWindowLongPtrW( g_hWnd_site_list, GWLP_WNDPROC );
 			_SetWindowLongPtrW( g_hWnd_site_list, GWLP_WNDPROC, ( LONG_PTR )SMListSubProc );
 
-			SMProc = ( WNDPROC )_GetWindowLongPtrW( g_hWnd_edit_sm_cookies, GWLP_WNDPROC );
+			SMProc = ( WNDPROC )_GetWindowLongPtrW( g_hWnd_edit_sm_comments, GWLP_WNDPROC );
+			_SetWindowLongPtrW( g_hWnd_edit_sm_comments, GWLP_WNDPROC, ( LONG_PTR )SMSubProc );
 			_SetWindowLongPtrW( g_hWnd_edit_sm_cookies, GWLP_WNDPROC, ( LONG_PTR )SMSubProc );
 			_SetWindowLongPtrW( g_hWnd_edit_sm_headers, GWLP_WNDPROC, ( LONG_PTR )SMSubProc );
 			_SetWindowLongPtrW( g_hWnd_edit_sm_data, GWLP_WNDPROC, ( LONG_PTR )SMSubProc );
@@ -1797,11 +1897,14 @@ LRESULT CALLBACK SiteManagerWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 				CloseHandle( thread );
 			}
 
+			int width = _SCALE_SM_( MIN_WIDTH );
+			int height = _SCALE_SM_( MIN_HEIGHT );
+
 			HMONITOR hMon = _MonitorFromWindow( g_hWnd_main, MONITOR_DEFAULTTONEAREST );
 			MONITORINFO mi;
 			mi.cbSize = sizeof( MONITORINFO );
 			_GetMonitorInfoW( hMon, &mi );
-			_SetWindowPos( hWnd, NULL, mi.rcMonitor.left + ( ( ( mi.rcMonitor.right - mi.rcMonitor.left ) - MIN_WIDTH ) / 2 ), mi.rcMonitor.top + ( ( ( mi.rcMonitor.bottom - mi.rcMonitor.top ) - MIN_HEIGHT ) / 2 ), MIN_WIDTH, MIN_HEIGHT, 0 );
+			_SetWindowPos( hWnd, NULL, mi.rcMonitor.left + ( ( ( mi.rcMonitor.right - mi.rcMonitor.left ) - width ) / 2 ), mi.rcMonitor.top + ( ( ( mi.rcMonitor.bottom - mi.rcMonitor.top ) - height ) / 2 ), width, height, 0 );
 
 #ifdef ENABLE_DARK_MODE
 			if ( g_use_dark_mode )
@@ -1821,6 +1924,51 @@ LRESULT CALLBACK SiteManagerWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 		{
 			switch ( LOWORD( wParam ) )
 			{
+				case CB_SM_CATEGORY:
+				{
+					if ( HIWORD( wParam ) == CBN_SELCHANGE )
+					{
+						BOOL enable;
+
+						int cur_sel = ( int )_SendMessageW( g_hWnd_sm_category, CB_GETCURSEL, 0, 0 );
+						if ( cur_sel == 0 )
+						{
+							enable = FALSE;
+
+							GlobalFree( t_sm_download_directory );
+							t_sm_download_directory = GlobalStrDupW( cfg_default_download_directory );
+						}
+						else
+						{
+							enable = TRUE;
+
+							LRESULT ret = _SendMessageW( g_hWnd_sm_category, CB_GETITEMDATA, cur_sel, 0 );
+							if ( ret != CB_ERR )
+							{
+								CATEGORY_INFO_ *ci = ( CATEGORY_INFO_ * )ret;
+								if ( ci != NULL )
+								{
+									GlobalFree( t_sm_download_directory );
+									t_sm_download_directory = GlobalStrDupW( ci->download_directory );
+								}
+							}
+						}
+
+						if ( _SendMessageW( g_hWnd_chk_sm_simulate_download, BM_GETCHECK, 0, 0 ) == BST_UNCHECKED )
+						{
+							_EnableWindow( g_hWnd_chk_sm_enable_download_directory, TRUE );
+
+							_EnableWindow( g_hWnd_sm_download_directory, enable );
+							_EnableWindow( g_hWnd_btn_sm_download_directory, enable );
+
+							_SendMessageW( g_hWnd_chk_sm_enable_download_directory, BM_SETCHECK, ( enable == TRUE ? BST_CHECKED : BST_UNCHECKED ), 0 );
+
+							_SendMessageW( g_hWnd_sm_download_directory, WM_SETTEXT, 0, ( LPARAM )t_sm_download_directory );
+						}
+					}
+				}
+				break;
+
 				case CHK_SM_ENABLE_DOWNLOAD_DIRECTORY:
 				case BTN_SM_DOWNLOAD_DIRECTORY:
 				{
@@ -1934,6 +2082,24 @@ LRESULT CALLBACK SiteManagerWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 						ti.lpszText = sm_limit_tooltip_text;
 						_SendMessageW( g_hWnd_sm_limit_tooltip, TTM_UPDATETIPTEXT, 0, ( LPARAM )&ti );
 					}
+				}
+				break;
+
+				case CHK_SM_SIMULATE_DOWNLOAD:
+				{
+					BOOL enable = ( _SendMessageW( g_hWnd_chk_sm_simulate_download, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? FALSE : TRUE );
+
+					_EnableWindow( g_hWnd_chk_sm_enable_download_directory, enable );
+
+					_SendMessageW( g_hWnd_sm_download_directory, WM_SETTEXT, 0, ( LPARAM )( enable == FALSE ? ST_V__Simulated_ : t_sm_download_directory ) );
+
+					if ( enable == TRUE && _SendMessageW( g_hWnd_chk_sm_enable_download_directory, BM_GETCHECK, 0, 0 ) == BST_UNCHECKED )
+					{
+						enable = FALSE;
+					}
+
+					_EnableWindow( g_hWnd_sm_download_directory, enable );
+					_EnableWindow( g_hWnd_btn_sm_download_directory, enable );
 				}
 				break;
 
@@ -2079,6 +2245,8 @@ LRESULT CALLBACK SiteManagerWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 							si = ( SITE_INFO * )GlobalAlloc( GPTR, sizeof( SITE_INFO ) );
 							if ( si != NULL )
 							{
+								unsigned int download_operations = ( _SendMessageW( g_hWnd_chk_sm_simulate_download, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? DOWNLOAD_OPERATION_SIMULATE : DOWNLOAD_OPERATION_NONE );
+
 								si->enable = true;
 
 								si->w_host = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( edit_length + 1 ) );	// Include the NULL terminator.
@@ -2095,20 +2263,34 @@ LRESULT CALLBACK SiteManagerWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 								// GENERAL TAB
 
 
-								si->use_download_directory = ( _SendMessageW( g_hWnd_chk_sm_enable_download_directory, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
-
-								if ( si->use_download_directory )
+								int cur_sel = ( int )_SendMessageW( g_hWnd_sm_category, CB_GETCURSEL, 0, 0 );
+								LRESULT ret = _SendMessageW( g_hWnd_sm_category, CB_GETITEMDATA, cur_sel, 0 );
+								if ( ret != CB_ERR )
 								{
-									edit_length = ( unsigned int )_SendMessageW( g_hWnd_sm_download_directory, WM_GETTEXTLENGTH, 0, 0 );
-									if ( edit_length > 0 )
+									CATEGORY_INFO_ *ci = ( CATEGORY_INFO_ * )ret;
+									if ( ci != NULL )
 									{
-										++edit_length; // Include the NULL terminator.
-										si->download_directory = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * edit_length );
-										_SendMessageW( g_hWnd_sm_download_directory, WM_GETTEXT, edit_length, ( LPARAM )si->download_directory );
+										si->category = GlobalStrDupW( ci->category );
 									}
-									else
+								}
+
+								if ( !( download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
+								{
+									si->use_download_directory = ( _SendMessageW( g_hWnd_chk_sm_enable_download_directory, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
+
+									if ( si->use_download_directory )
 									{
-										si->use_download_directory = false;
+										edit_length = ( unsigned int )_SendMessageW( g_hWnd_sm_download_directory, WM_GETTEXTLENGTH, 0, 0 );
+										if ( edit_length > 0 )
+										{
+											++edit_length; // Include the NULL terminator.
+											si->download_directory = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * edit_length );
+											_SendMessageW( g_hWnd_sm_download_directory, WM_GETTEXT, edit_length, ( LPARAM )si->download_directory );
+										}
+										else
+										{
+											si->use_download_directory = false;
+										}
 									}
 								}
 
@@ -2148,20 +2330,26 @@ LRESULT CALLBACK SiteManagerWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 									_SendMessageW( g_hWnd_edit_sm_password, WM_GETTEXT, edit_length, ( LPARAM )si->w_password );
 								}
 
-								si->download_operations = ( _SendMessageW( g_hWnd_chk_sm_simulate_download, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? DOWNLOAD_OPERATION_SIMULATE : DOWNLOAD_OPERATION_NONE );
-								
 								unsigned int download_operation = ( unsigned int )_SendMessageW( g_hWnd_sm_download_operation, CB_GETCURSEL, 0, 0 );
 								if ( download_operation == 1 )		{ download_operation = DOWNLOAD_OPERATION_ADD_STOPPED; }
 								else if ( download_operation == 2 )	{ download_operation = DOWNLOAD_OPERATION_VERIFY; }
 								else								{ download_operation = DOWNLOAD_OPERATION_NONE; }
-								si->download_operations |= download_operation;
+
+								si->download_operations = ( download_operations | download_operation );
 
 								//
 
-								// COOKIES, HEADERS, DATA
+								// COMMENTS, COOKIES, HEADERS, DATA
 
 								wchar_t *edit;
 								int utf8_length;
+
+								edit_length = ( unsigned int )_SendMessageW( g_hWnd_edit_sm_comments, WM_GETTEXTLENGTH, 0, 0 );
+								if ( edit_length > 0 )
+								{
+									si->comments = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( edit_length + 1 ) );
+									_SendMessageW( g_hWnd_edit_sm_comments, WM_GETTEXT, edit_length + 1, ( LPARAM )si->comments );
+								}
 
 								edit_length = ( unsigned int )_SendMessageW( g_hWnd_edit_sm_cookies, WM_GETTEXTLENGTH, 0, 0 );
 								if ( edit_length > 0 )
@@ -2835,8 +3023,8 @@ LRESULT CALLBACK SiteManagerWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 					last_rc = dis->rcItem;
 
 					// This will adjust the text to fit nicely into the rectangle.
-					last_rc.left = 5 + last_left;
-					last_rc.right = lvc.cx + last_left - 5;
+					last_rc.left = _SCALE_SM_( 5 ) + last_left;
+					last_rc.right = lvc.cx + last_left - _SCALE_SM_( 5 );
 
 					// Save the last left position of our column.
 					last_left += lvc.cx;
@@ -2863,7 +3051,7 @@ LRESULT CALLBACK SiteManagerWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 					HBITMAP ohbm = ( HBITMAP )_SelectObject( hdcMem, hbm );
 					_DeleteObject( ohbm );
 					_DeleteObject( hbm );
-					HFONT ohf = ( HFONT )_SelectObject( hdcMem, g_hFont );
+					HFONT ohf = ( HFONT )_SelectObject( hdcMem, hFont_site_manager );
 					_DeleteObject( ohf );
 
 					// Transparent background for text.
@@ -2968,8 +3156,8 @@ LRESULT CALLBACK SiteManagerWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 		case WM_GETMINMAXINFO:
 		{
 			// Set the minimum dimensions that the window can be sized to.
-			( ( MINMAXINFO * )lParam )->ptMinTrackSize.x = MIN_WIDTH;
-			( ( MINMAXINFO * )lParam )->ptMinTrackSize.y = MIN_HEIGHT;
+			( ( MINMAXINFO * )lParam )->ptMinTrackSize.x = _SCALE_SM_( MIN_WIDTH );
+			( ( MINMAXINFO * )lParam )->ptMinTrackSize.y = _SCALE_SM_( MIN_HEIGHT );
 			
 			return 0;
 		}
@@ -2979,7 +3167,8 @@ LRESULT CALLBACK SiteManagerWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 		{
 			if ( g_sm_use_theme && _IsThemeActive() == TRUE )
 			{
-				if ( ( HWND )lParam == g_hWnd_chk_sm_enable_download_directory ||
+				if ( ( HWND )lParam == g_hWnd_static_sm_category ||
+					 ( HWND )lParam == g_hWnd_chk_sm_enable_download_directory ||
 					 ( HWND )lParam == g_hWnd_chk_sm_enable_download_parts ||
 					 ( HWND )lParam == g_hWnd_static_sm_ssl_version ||
 					 ( HWND )lParam == g_hWnd_chk_sm_enable_speed_limit ||
@@ -2987,6 +3176,7 @@ LRESULT CALLBACK SiteManagerWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 					 ( HWND )lParam == g_hWnd_static_sm_password ||
 					 ( HWND )lParam == g_hWnd_chk_sm_simulate_download ||
 					 ( HWND )lParam == g_hWnd_static_sm_download_operation ||
+					 ( HWND )lParam == g_hWnd_static_sm_comments ||
 					 ( HWND )lParam == g_hWnd_static_sm_cookies ||
 					 ( HWND )lParam == g_hWnd_static_sm_headers ||
 					 ( HWND )lParam == g_hWnd_chk_sm_send_data ||
@@ -3032,14 +3222,15 @@ LRESULT CALLBACK SiteManagerWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 			RECT rc, rc_tab;
 			_GetClientRect( hWnd, &rc );
 
-			int tab_height = 247;
+			int tab_width = rc.right - _SCALE_SM_( 20 );
+			int tab_height = _SCALE_SM_( 247 );
 
 			// This brush is refreshed whenever the tab changes size.
 			// It's used to paint the background of static controls.
 			// Windows XP has a gradient colored tab pane and setting the background of a static control to TRANSPARENT in WM_CTLCOLORSTATIC doesn't work well.
-			if ( g_sm_draw_tab_pane && ( wParam == SIZE_RESTORED || wParam == SIZE_MAXIMIZED ) && ( g_sm_tab_width != ( rc.right - 20 ) ) )
+			if ( g_sm_draw_tab_pane && ( wParam == SIZE_RESTORED || wParam == SIZE_MAXIMIZED ) && ( g_sm_tab_width != tab_width ) )
 			{
-				g_sm_tab_width = rc.right - 20;
+				g_sm_tab_width = tab_width;
 
 				HBRUSH old_brush = g_sm_tab_brush;
 
@@ -3069,108 +3260,169 @@ LRESULT CALLBACK SiteManagerWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 
 			_SendMessageW( g_hWnd_sm_tab, TCM_GETITEMRECT, 0, ( LPARAM )&rc_tab );
 
-			int tab_child_y_offset = ( rc_tab.bottom - rc_tab.top ) + ( rc.bottom - 338 );
+			int tab_child_y_offset = ( rc_tab.bottom - rc_tab.top ) + ( rc.bottom - _SCALE_SM_( 338 ) );
+
+			int spinner_width = _SCALE_SM_( site_manager_spinner_width );
+			int spinner_height = _SCALE_SM_( site_manager_spinner_height );
 
 			// Allow our listview to resize in proportion to the main window.
-			HDWP hdwp = _BeginDeferWindowPos( 55 );
+			HDWP hdwp = _BeginDeferWindowPos( 59 );
 
-			_DeferWindowPos( hdwp, g_hWnd_site_list, HWND_BOTTOM, 10, 10, rc.right - 20, rc.bottom - 358, 0 );
+			_DeferWindowPos( hdwp, g_hWnd_site_list, HWND_BOTTOM, _SCALE_SM_( 10 ), _SCALE_SM_( 10 ), rc.right - _SCALE_SM_( 20 ), rc.bottom - _SCALE_SM_( 358 ), 0 );
 
-			_DeferWindowPos( hdwp, g_hWnd_sm_tab, HWND_BOTTOM, 10, rc.bottom - 338, rc.right - 20, tab_height, 0 );
-
-			//
-
-			_DeferWindowPos( hdwp, g_hWnd_chk_sm_enable_download_directory, HWND_TOP, 20, tab_child_y_offset + 10, 400, 20, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_sm_download_directory, HWND_TOP, 20, tab_child_y_offset + 30, rc.right - 80, 23, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_btn_sm_download_directory, HWND_TOP, rc.right - 55, tab_child_y_offset + 30, 35, 23, SWP_NOZORDER );
-
-			_DeferWindowPos( hdwp, g_hWnd_chk_sm_enable_download_parts, HWND_TOP, 20, tab_child_y_offset + 63, 120, 20, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_sm_download_parts, HWND_TOP, 20, tab_child_y_offset + 83, 100, 23, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_ud_sm_download_parts, HWND_TOP, 120, tab_child_y_offset + 83, 0, 0, SWP_NOZORDER | SWP_NOSIZE );
-
-			_DeferWindowPos( hdwp, g_hWnd_static_sm_ssl_version, HWND_TOP, 164, tab_child_y_offset + 65, 125, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_sm_ssl_version, HWND_TOP, 164, tab_child_y_offset + 83, 0, 0, SWP_NOZORDER | SWP_NOSIZE );
-
-			_DeferWindowPos( hdwp, g_hWnd_chk_sm_enable_speed_limit, HWND_TOP, 20, tab_child_y_offset + 116, 250, 20, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_sm_speed_limit, HWND_TOP, 20, tab_child_y_offset + 136, 200, 23, SWP_NOZORDER );
-
-			_DeferWindowPos( hdwp, g_hWnd_static_sm_username, HWND_TOP, 301, tab_child_y_offset + 84, 120, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_edit_sm_username, HWND_TOP, 301, tab_child_y_offset + 102, 120, 23, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_static_sm_password, HWND_TOP, 431, tab_child_y_offset + 84, 120, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_edit_sm_password, HWND_TOP, 431, tab_child_y_offset + 102, 120, 23, SWP_NOZORDER );
-
-			_DeferWindowPos( hdwp, g_hWnd_chk_sm_simulate_download, HWND_TOP, 20, tab_child_y_offset + 169, 400, 23, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_static_sm_download_operation, HWND_TOP, 20, tab_child_y_offset + 196, 180, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_sm_download_operation, HWND_TOP, 205, tab_child_y_offset + 192, 0, 0, SWP_NOZORDER | SWP_NOSIZE );
+			_DeferWindowPos( hdwp, g_hWnd_sm_tab, HWND_BOTTOM, _SCALE_SM_( 10 ), rc.bottom - _SCALE_SM_( 338 ), rc.right - _SCALE_SM_( 20 ), tab_height, 0 );
 
 			//
 
-			_DeferWindowPos( hdwp, g_hWnd_static_sm_cookies, HWND_TOP, 20, tab_child_y_offset + 10, 400, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_edit_sm_cookies, HWND_TOP, 20, tab_child_y_offset + 28, rc.right - 40, ( tab_height - rc_tab.bottom ) - 38, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_static_sm_category, HWND_TOP, _SCALE_SM_( 20 ), tab_child_y_offset + _SCALE_SM_( 12 ), _SCALE_SM_( 120 ), _SCALE_SM_( 17 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_sm_category, HWND_TOP, _SCALE_SM_( 20 ), tab_child_y_offset + _SCALE_SM_( 30 ), _SCALE_SM_( 120 ), _SCALE_SM_( 23 ), SWP_NOZORDER );
 
-			_DeferWindowPos( hdwp, g_hWnd_static_sm_headers, HWND_TOP, 20, tab_child_y_offset + 10, 400, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_edit_sm_headers, HWND_TOP, 20, tab_child_y_offset + 28, rc.right - 40, ( tab_height - rc_tab.bottom ) - 38, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_chk_sm_enable_download_directory, HWND_TOP, _SCALE_SM_( 164 ), tab_child_y_offset + _SCALE_SM_( 10 ), _SCALE_SM_( 400 ), _SCALE_SM_( 20 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_sm_download_directory, HWND_TOP, _SCALE_SM_( 164 ), tab_child_y_offset + _SCALE_SM_( 30 ), rc.right - _SCALE_SM_( 224 ), _SCALE_SM_( 23 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_btn_sm_download_directory, HWND_TOP, rc.right - _SCALE_SM_( 55 ), tab_child_y_offset + _SCALE_SM_( 30 ), _SCALE_SM_( 35 ), _SCALE_SM_( 23 ), SWP_NOZORDER );
 
-			_DeferWindowPos( hdwp, g_hWnd_chk_sm_send_data, HWND_TOP, 20, tab_child_y_offset + 10, 400, 20, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_edit_sm_data, HWND_TOP, 20, tab_child_y_offset + 30, rc.right - 40, ( tab_height - rc_tab.bottom ) - 40, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_chk_sm_enable_download_parts, HWND_TOP, _SCALE_SM_( 20 ), tab_child_y_offset + _SCALE_SM_( 63 ), _SCALE_SM_( 120 ), _SCALE_SM_( 20 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_sm_download_parts, HWND_TOP, _SCALE_SM_( 20 ), tab_child_y_offset + _SCALE_SM_( 83 ), _SCALE_SM_( 100 ), _SCALE_SM_( 23 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_ud_sm_download_parts, HWND_TOP, _SCALE_SM_( 120 ), tab_child_y_offset + _SCALE_SM_( 83 ), spinner_width, spinner_height, SWP_NOZORDER );
+
+			_DeferWindowPos( hdwp, g_hWnd_static_sm_ssl_version, HWND_TOP, _SCALE_SM_( 164 ), tab_child_y_offset + _SCALE_SM_( 65 ), _SCALE_SM_( 125 ), _SCALE_SM_( 17 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_sm_ssl_version, HWND_TOP, _SCALE_SM_( 164 ), tab_child_y_offset + _SCALE_SM_( 83 ), _SCALE_SM_( 100 ), _SCALE_SM_( 23 ), SWP_NOZORDER );
+
+			_DeferWindowPos( hdwp, g_hWnd_chk_sm_enable_speed_limit, HWND_TOP, _SCALE_SM_( 20 ), tab_child_y_offset + _SCALE_SM_( 116 ), _SCALE_SM_( 250 ), _SCALE_SM_( 20 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_sm_speed_limit, HWND_TOP, _SCALE_SM_( 20 ), tab_child_y_offset + _SCALE_SM_( 136 ), _SCALE_SM_( 200 ), _SCALE_SM_( 23 ), SWP_NOZORDER );
+
+			_DeferWindowPos( hdwp, g_hWnd_static_sm_username, HWND_TOP, _SCALE_SM_( 301 ), tab_child_y_offset + _SCALE_SM_( 84 ), _SCALE_SM_( 120 ), _SCALE_SM_( 17 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_edit_sm_username, HWND_TOP, _SCALE_SM_( 301 ), tab_child_y_offset + _SCALE_SM_( 102 ), _SCALE_SM_( 120 ), _SCALE_SM_( 23 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_static_sm_password, HWND_TOP, _SCALE_SM_( 431 ), tab_child_y_offset + _SCALE_SM_( 84 ), _SCALE_SM_( 120 ), _SCALE_SM_( 17 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_edit_sm_password, HWND_TOP, _SCALE_SM_( 431 ), tab_child_y_offset + _SCALE_SM_( 102 ), _SCALE_SM_( 120 ), _SCALE_SM_( 23 ), SWP_NOZORDER );
+
+			_DeferWindowPos( hdwp, g_hWnd_chk_sm_simulate_download, HWND_TOP, _SCALE_SM_( 20 ), tab_child_y_offset + _SCALE_SM_( 169 ), _SCALE_SM_( 400 ), _SCALE_SM_( 20 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_static_sm_download_operation, HWND_TOP, _SCALE_SM_( 20 ), tab_child_y_offset + _SCALE_SM_( 196 ), _SCALE_SM_( 180 ), _SCALE_SM_( 17 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_sm_download_operation, HWND_TOP, _SCALE_SM_( 205 ), tab_child_y_offset + _SCALE_SM_( 192 ), _SCALE_SM_( 100 ), _SCALE_SM_( 23 ), SWP_NOZORDER );
+
+			//
+
+			_DeferWindowPos( hdwp, g_hWnd_static_sm_comments, HWND_TOP, _SCALE_SM_( 20 ), tab_child_y_offset + _SCALE_SM_( 10 ), _SCALE_SM_( 400 ), _SCALE_SM_( 17 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_edit_sm_comments, HWND_TOP, _SCALE_SM_( 20 ), tab_child_y_offset + _SCALE_SM_( 28 ), rc.right - _SCALE_SM_( 40 ), ( tab_height - rc_tab.bottom ) - _SCALE_SM_( 38 ), SWP_NOZORDER );
+
+			_DeferWindowPos( hdwp, g_hWnd_static_sm_cookies, HWND_TOP, _SCALE_SM_( 20 ), tab_child_y_offset + _SCALE_SM_( 10 ), _SCALE_SM_( 400 ), _SCALE_SM_( 17 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_edit_sm_cookies, HWND_TOP, _SCALE_SM_( 20 ), tab_child_y_offset + _SCALE_SM_( 28 ), rc.right - _SCALE_SM_( 40 ), ( tab_height - rc_tab.bottom ) - _SCALE_SM_( 38 ), SWP_NOZORDER );
+
+			_DeferWindowPos( hdwp, g_hWnd_static_sm_headers, HWND_TOP, _SCALE_SM_( 20 ), tab_child_y_offset + _SCALE_SM_( 10 ), _SCALE_SM_( 400 ), _SCALE_SM_( 17 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_edit_sm_headers, HWND_TOP, _SCALE_SM_( 20 ), tab_child_y_offset + _SCALE_SM_( 28 ), rc.right - _SCALE_SM_( 40 ), ( tab_height - rc_tab.bottom ) - _SCALE_SM_( 38 ), SWP_NOZORDER );
+
+			_DeferWindowPos( hdwp, g_hWnd_chk_sm_send_data, HWND_TOP, _SCALE_SM_( 20 ), tab_child_y_offset + _SCALE_SM_( 10 ), _SCALE_SM_( 400 ), _SCALE_SM_( 20 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_edit_sm_data, HWND_TOP, _SCALE_SM_( 20 ), tab_child_y_offset + _SCALE_SM_( 30 ), rc.right - _SCALE_SM_( 40 ), ( tab_height - rc_tab.bottom ) - _SCALE_SM_( 40 ), SWP_NOZORDER );
 
 
 			//
 
-			_DeferWindowPos( hdwp, g_hWnd_static_sm_proxy_type, HWND_TOP, 20, tab_child_y_offset + 10, 150, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_sm_proxy_type, HWND_TOP, 20, tab_child_y_offset + 28, 0, 0, SWP_NOZORDER | SWP_NOSIZE );
+			_DeferWindowPos( hdwp, g_hWnd_static_sm_proxy_type, HWND_TOP, _SCALE_SM_( 20 ), tab_child_y_offset + _SCALE_SM_( 10 ), _SCALE_SM_( 150 ), _SCALE_SM_( 17 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_sm_proxy_type, HWND_TOP, _SCALE_SM_( 20 ), tab_child_y_offset + _SCALE_SM_( 28 ), _SCALE_SM_( 100 ), _SCALE_SM_( 23 ), SWP_NOZORDER );
 
-			_DeferWindowPos( hdwp, g_hWnd_static_sm_hoz1, HWND_TOP, 20, tab_child_y_offset + 61, rc.right - 40, 1, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_static_sm_hoz1, HWND_TOP, _SCALE_SM_( 20 ), tab_child_y_offset + _SCALE_SM_( 61 ), rc.right - _SCALE_SM_( 40 ), _SCALE_SM_( 1 ), SWP_NOZORDER );
 
-			_DeferWindowPos( hdwp, g_hWnd_chk_sm_type_hostname_socks, HWND_TOP, 20, tab_child_y_offset + 69, 200, 20, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_chk_sm_type_ip_address_socks, HWND_TOP, 225, tab_child_y_offset + 69, 110, 20, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_chk_sm_type_hostname_socks, HWND_TOP, _SCALE_SM_( 20 ), tab_child_y_offset + _SCALE_SM_( 69 ), _SCALE_SM_( 200 ), _SCALE_SM_( 20 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_chk_sm_type_ip_address_socks, HWND_TOP, _SCALE_SM_( 225 ), tab_child_y_offset + _SCALE_SM_( 69 ), _SCALE_SM_( 110 ), _SCALE_SM_( 20 ), SWP_NOZORDER );
 
-			_DeferWindowPos( hdwp, g_hWnd_sm_hostname_socks, HWND_TOP, 20, tab_child_y_offset + 89, 310, 23, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_sm_ip_address_socks, HWND_TOP, 20, tab_child_y_offset + 89, 310, 23, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_sm_hostname_socks, HWND_TOP, _SCALE_SM_( 20 ), tab_child_y_offset + _SCALE_SM_( 89 ), _SCALE_SM_( 310 ), _SCALE_SM_( 23 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_sm_ip_address_socks, HWND_TOP, _SCALE_SM_( 20 ), tab_child_y_offset + _SCALE_SM_( 89 ), _SCALE_SM_( 310 ), _SCALE_SM_( 23 ), SWP_NOZORDER );
 
-			_DeferWindowPos( hdwp, g_hWnd_static_sm_colon_socks, HWND_TOP, 330, tab_child_y_offset + 92, 10, 15, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_static_sm_colon_socks, HWND_TOP, _SCALE_SM_( 331 ), tab_child_y_offset + _SCALE_SM_( 92 ), _SCALE_SM_( 8 ), _SCALE_SM_( 17 ), SWP_NOZORDER );
 
-			_DeferWindowPos( hdwp, g_hWnd_static_sm_port_socks, HWND_TOP, 340, tab_child_y_offset + 71, 75, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_sm_port_socks, HWND_TOP, 340, tab_child_y_offset + 89, 75, 23, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_static_sm_port_socks, HWND_TOP, _SCALE_SM_( 340 ), tab_child_y_offset + _SCALE_SM_( 71 ), _SCALE_SM_( 75 ), _SCALE_SM_( 17 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_sm_port_socks, HWND_TOP, _SCALE_SM_( 340 ), tab_child_y_offset + _SCALE_SM_( 89 ), _SCALE_SM_( 75 ), _SCALE_SM_( 23 ), SWP_NOZORDER );
 
 
-			_DeferWindowPos( hdwp, g_hWnd_static_sm_proxy_auth_username, HWND_TOP, 20, tab_child_y_offset + 118, 150, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_edit_sm_proxy_auth_username, HWND_TOP, 20, tab_child_y_offset + 136, 150, 23, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_static_sm_proxy_auth_password, HWND_TOP, 180, tab_child_y_offset + 118, 150, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_edit_sm_proxy_auth_password, HWND_TOP, 180, tab_child_y_offset + 136, 150, 23, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_static_sm_proxy_auth_username, HWND_TOP, _SCALE_SM_( 20 ), tab_child_y_offset + _SCALE_SM_( 118 ), _SCALE_SM_( 150 ), _SCALE_SM_( 17 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_edit_sm_proxy_auth_username, HWND_TOP, _SCALE_SM_( 20 ), tab_child_y_offset + _SCALE_SM_( 136 ), _SCALE_SM_( 150 ), _SCALE_SM_( 23 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_static_sm_proxy_auth_password, HWND_TOP, _SCALE_SM_( 180 ), tab_child_y_offset + _SCALE_SM_( 118 ), _SCALE_SM_( 150 ), _SCALE_SM_( 17 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_edit_sm_proxy_auth_password, HWND_TOP, _SCALE_SM_( 180 ), tab_child_y_offset + _SCALE_SM_( 136 ), _SCALE_SM_( 150 ), _SCALE_SM_( 23 ), SWP_NOZORDER );
 
 			// v4
 
-			_DeferWindowPos( hdwp, g_hWnd_static_sm_auth_ident_username_socks, HWND_TOP, 20, tab_child_y_offset + 118, 400, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_sm_auth_ident_username_socks, HWND_TOP, 20, tab_child_y_offset + 136, 150, 23, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_static_sm_auth_ident_username_socks, HWND_TOP, _SCALE_SM_( 20 ), tab_child_y_offset + _SCALE_SM_( 118 ), _SCALE_SM_( 400 ), _SCALE_SM_( 17 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_sm_auth_ident_username_socks, HWND_TOP, _SCALE_SM_( 20 ), tab_child_y_offset + _SCALE_SM_( 136 ), _SCALE_SM_( 150 ), _SCALE_SM_( 23 ), SWP_NOZORDER );
 
-			_DeferWindowPos( hdwp, g_hWnd_chk_sm_resolve_domain_names_v4a, HWND_TOP, 20, tab_child_y_offset + 164, rc.right - 40, 20, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_chk_sm_resolve_domain_names_v4a, HWND_TOP, _SCALE_SM_( 20 ), tab_child_y_offset + _SCALE_SM_( 164 ), rc.right - _SCALE_SM_( 40 ), _SCALE_SM_( 20 ), SWP_NOZORDER );
 
 
 			// v5
 
-			_DeferWindowPos( hdwp, g_hWnd_chk_sm_use_authentication_socks, HWND_TOP, 20, tab_child_y_offset + 118, 400, 20, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_chk_sm_use_authentication_socks, HWND_TOP, _SCALE_SM_( 20 ), tab_child_y_offset + _SCALE_SM_( 118 ), _SCALE_SM_( 400 ), _SCALE_SM_( 20 ), SWP_NOZORDER );
 
-			_DeferWindowPos( hdwp, g_hWnd_static_sm_auth_username_socks, HWND_TOP, 35, tab_child_y_offset + 138, 150, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_sm_auth_username_socks, HWND_TOP, 35, tab_child_y_offset + 156, 150, 23, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_static_sm_auth_username_socks, HWND_TOP, _SCALE_SM_( 35 ), tab_child_y_offset + _SCALE_SM_( 138 ), _SCALE_SM_( 150 ), _SCALE_SM_( 17 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_sm_auth_username_socks, HWND_TOP, _SCALE_SM_( 35 ), tab_child_y_offset + _SCALE_SM_( 156 ), _SCALE_SM_( 150 ), _SCALE_SM_( 23 ), SWP_NOZORDER );
 
-			_DeferWindowPos( hdwp, g_hWnd_static_sm_auth_password_socks, HWND_TOP, 195, tab_child_y_offset + 138, 150, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_sm_auth_password_socks, HWND_TOP, 195, tab_child_y_offset + 156, 150, 23, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_static_sm_auth_password_socks, HWND_TOP, _SCALE_SM_( 195 ), tab_child_y_offset + _SCALE_SM_( 138 ), _SCALE_SM_( 150 ), _SCALE_SM_( 17 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_sm_auth_password_socks, HWND_TOP, _SCALE_SM_( 195 ), tab_child_y_offset + _SCALE_SM_( 156 ), _SCALE_SM_( 150 ), _SCALE_SM_( 23 ), SWP_NOZORDER );
 
-			_DeferWindowPos( hdwp, g_hWnd_chk_sm_resolve_domain_names, HWND_TOP, 20, tab_child_y_offset + 184, rc.right - 40, 20, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_chk_sm_resolve_domain_names, HWND_TOP, _SCALE_SM_( 20 ), tab_child_y_offset + _SCALE_SM_( 184 ), rc.right - _SCALE_SM_( 40 ), _SCALE_SM_( 20 ), SWP_NOZORDER );
 
 			//
 
-			_DeferWindowPos( hdwp, g_hWnd_static_sm_site, HWND_TOP, 10, rc.bottom - 84, rc.right - 20, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_edit_sm_site, HWND_TOP, 10, rc.bottom - 66, rc.right - 20, 23, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_static_sm_site, HWND_TOP, _SCALE_SM_( 10 ), rc.bottom - _SCALE_SM_( 84 ), rc.right - _SCALE_SM_( 20 ), _SCALE_SM_( 17 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_edit_sm_site, HWND_TOP, _SCALE_SM_( 10 ), rc.bottom - _SCALE_SM_( 66 ), rc.right - _SCALE_SM_( 20 ), _SCALE_SM_( 23 ), SWP_NOZORDER );
 
-			_DeferWindowPos( hdwp, g_hWnd_new_site, HWND_TOP, 10, rc.bottom - 33, 105, 23, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_save_site, HWND_TOP, 120, rc.bottom - 33, 105, 23, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_remove_site, HWND_TOP, 230, rc.bottom - 33, 105, 23, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_chk_show_passwords, HWND_TOP, 340, rc.bottom - 33, 130, 23, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_close_lm_wnd, HWND_TOP, rc.right - 90, rc.bottom - 33, 80, 23, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_new_site, HWND_TOP, _SCALE_SM_( 10 ), rc.bottom - _SCALE_SM_( 33 ), _SCALE_SM_( 105 ), _SCALE_SM_( 23 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_save_site, HWND_TOP, _SCALE_SM_( 120 ), rc.bottom - _SCALE_SM_( 33 ), _SCALE_SM_( 105 ), _SCALE_SM_( 23 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_remove_site, HWND_TOP, _SCALE_SM_( 230 ), rc.bottom - _SCALE_SM_( 33 ), _SCALE_SM_( 105 ), _SCALE_SM_( 23 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_chk_show_passwords, HWND_TOP, _SCALE_SM_( 340 ), rc.bottom - _SCALE_SM_( 33 ), _SCALE_SM_( 130 ), _SCALE_SM_( 23 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_close_lm_wnd, HWND_TOP, rc.right - _SCALE_SM_( 90 ), rc.bottom - _SCALE_SM_( 33 ), _SCALE_SM_( 80 ), _SCALE_SM_( 23 ), SWP_NOZORDER );
 
 			_EndDeferWindowPos( hdwp );
+
+			return 0;
+		}
+		break;
+
+		case WM_GET_DPI:
+		{
+			return current_dpi_site_manager;
+		}
+		break;
+
+		case WM_DPICHANGED:
+		{
+			UINT last_dpi = current_dpi_site_manager;
+			current_dpi_site_manager = HIWORD( wParam );
+
+			HFONT hFont = UpdateFont( current_dpi_site_manager );
+			EnumChildWindows( hWnd, EnumChildFontProc, ( LPARAM )hFont );
+			_DeleteObject( hFont_site_manager );
+			hFont_site_manager = hFont;
+
+			// This stupid control doesn't adapt to the change in font size. It needs to be resized first.
+			_SetWindowPos( g_hWnd_sm_ip_address_socks, HWND_TOP, 0, 0, _SCALE_SM_( 310 ), _SCALE_SM_( 23 ), SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE );
+			_DeleteObject( hFont_copy_sm_proxy );
+			hFont_copy_sm_proxy = UpdateFont( current_dpi_site_manager );
+			_SendMessageW( g_hWnd_sm_ip_address_socks, WM_SETFONT, ( WPARAM )hFont_copy_sm_proxy, 0 );
+
+			for ( int i = 0; i < 18; ++i )
+			{
+				int column_width = ( int )_SendMessageA( g_hWnd_site_list, LVM_GETCOLUMNWIDTH, ( WPARAM )i, 0 );
+				column_width = MulDiv( column_width, current_dpi_site_manager, last_dpi );
+				_SendMessageA( g_hWnd_site_list, LVM_SETCOLUMNWIDTH, ( WPARAM )i, MAKELPARAM( column_width, 0 ) );
+			}
+
+			RECT *rc = ( RECT * )lParam;
+			int width = rc->right - rc->left;
+			int height = rc->bottom - rc->top;
+
+			if ( last_dpi_site_manager == 0 )
+			{
+				HMONITOR hMon = _MonitorFromWindow( g_hWnd_main, MONITOR_DEFAULTTONEAREST );
+				MONITORINFO mi;
+				mi.cbSize = sizeof( MONITORINFO );
+				_GetMonitorInfoW( hMon, &mi );
+				_SetWindowPos( hWnd, NULL, mi.rcMonitor.left + ( ( ( mi.rcMonitor.right - mi.rcMonitor.left ) - width ) / 2 ), mi.rcMonitor.top + ( ( ( mi.rcMonitor.bottom - mi.rcMonitor.top ) - height ) / 2 ), width, height, 0 );
+			}
+			else
+			{
+				_SetWindowPos( hWnd, NULL, rc->left, rc->top, width, height, SWP_NOZORDER | SWP_NOACTIVATE );
+			}
+
+			last_dpi_site_manager = last_dpi;
 
 			return 0;
 		}
@@ -3181,8 +3433,18 @@ LRESULT CALLBACK SiteManagerWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 			// Set the row height of the list view.
 			if ( ( ( LPMEASUREITEMSTRUCT )lParam )->CtlType == ODT_LISTVIEW )
 			{
-				( ( LPMEASUREITEMSTRUCT )lParam )->itemHeight = g_default_row_height;
+				( ( LPMEASUREITEMSTRUCT )lParam )->itemHeight = _SCALE_SM_( g_default_row_height );
 			}
+			return TRUE;
+		}
+		break;
+
+		case WM_UPDATE_CATEGORY:
+		{
+			_SendMessageW( g_hWnd_sm_category, CB_SETCURSEL, 0, 0 );
+
+			_SendMessageW( hWnd, WM_COMMAND, MAKEWPARAM( CB_SM_CATEGORY/*_GetDlgCtrlID( g_hWnd_sm_category )*/, CBN_SELCHANGE ), 0 );
+
 			return TRUE;
 		}
 		break;
@@ -3227,6 +3489,20 @@ LRESULT CALLBACK SiteManagerWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 					_EnableWindow( g_hWnd_remove_site, TRUE );
 				}
 			}
+			else// if ( wParam == 0 )
+			{
+				if ( _IsWindowVisible( hWnd ) == FALSE )
+				{
+					HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, load_window_category_list, ( void * )g_hWnd_sm_category, 0, NULL );
+					if ( thread != NULL )
+					{
+						CloseHandle( thread );
+					}
+				}
+
+				_ShowWindow( hWnd, SW_SHOWNORMAL );
+				_SetForegroundWindow( hWnd );
+			}
 
 			_SetFocus( g_hWnd_edit_sm_site );
 
@@ -3258,6 +3534,9 @@ LRESULT CALLBACK SiteManagerWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 			g_selected_site_info = NULL;
 			g_selected_site_index = -1;
 
+			// Delete our font.
+			_DeleteObject( hFont_site_manager );
+
 			_DeleteObject( hFont_copy_sm_proxy );
 			hFont_copy_sm_proxy = NULL;
 
@@ -3282,6 +3561,13 @@ LRESULT CALLBACK SiteManagerWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 
 			g_hWnd_site_list = NULL;
 			g_hWnd_site_manager = NULL;
+
+#ifdef ENABLE_DARK_MODE
+			if ( g_use_dark_mode )
+			{
+				CleanupButtonGlyphs( hWnd );
+			}
+#endif
 
 			return 0;
 		}

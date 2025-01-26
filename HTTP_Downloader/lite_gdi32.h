@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
-	Copyright (C) 2015-2024 Eric Kutcher
+	Copyright (C) 2015-2025 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -36,15 +36,17 @@
 	#define _CreateFontIndirectW		CreateFontIndirectW
 	#define _CreatePatternBrush			CreatePatternBrush
 	#define _CreatePen					CreatePen
+	#define _CreateRectRgn				CreateRectRgn
 	#define _CreateSolidBrush			CreateSolidBrush
 	#define _DeleteDC					DeleteDC
 	#define _DeleteObject				DeleteObject
 	//#define _ExcludeClipRect			ExcludeClipRect
 	#define _ExtTextOutW				ExtTextOutW
+	#define _FrameRgn					FrameRgn
 	#define _GdiAlphaBlend				GdiAlphaBlend
 	//#define _GdiGradientFill			GdiGradientFill
-	//#define _GetDeviceCaps				GetDeviceCaps
-	//#define _GetObjectW					GetObjectW
+	#define _GetDeviceCaps				GetDeviceCaps
+	#define _GetObjectW					GetObjectW
 	#define _GetStockObject				GetStockObject
 	#define _GetTextExtentExPointW		GetTextExtentExPointW
 	#define _GetTextExtentPoint32W		GetTextExtentPoint32W
@@ -57,7 +59,9 @@
 	//#define _SetBkColor					SetBkColor
 	#define _SetBkMode					SetBkMode
 	#define _SetBrushOrgEx				SetBrushOrgEx
+	#define _SetStretchBltMode			SetStretchBltMode
 	#define _SetTextColor				SetTextColor
+	#define _StretchBlt					StretchBlt
 
 #else
 
@@ -71,15 +75,17 @@
 	typedef HFONT ( WINAPI *pCreateFontIndirectW )( const LOGFONT *lplf );
 	typedef HBRUSH ( WINAPI *pCreatePatternBrush )( HBITMAP hbm );
 	typedef HPEN ( WINAPI *pCreatePen )( int fnPenStyle, int nWidth, COLORREF crColor );
+	typedef HRGN ( WINAPI *pCreateRectRgn )( int x1, int y1, int x2, int y2 );
 	typedef HBRUSH ( WINAPI *pCreateSolidBrush )( COLORREF crColor );
 	typedef BOOL ( WINAPI *pDeleteDC )( HDC hdc );
 	typedef BOOL ( WINAPI *pDeleteObject )( HGDIOBJ hObject );
 	//typedef int ( WINAPI *pExcludeClipRect )( HDC hdc, int nLeftRect, int nTopRect, int nRightRect, int nBottomRect );
 	typedef BOOL ( WINAPI *pExtTextOutW )( HDC hdc, int x, int y, UINT options, const RECT *lprect, LPCWSTR lpString, UINT c, const INT *lpDx );
+	typedef BOOL ( WINAPI *pFrameRgn )( HDC hdc, HRGN hrgn, HBRUSH hbr, int w, int h );
 	typedef BOOL ( WINAPI *pGdiAlphaBlend )( HDC hdcDest, int xoriginDest, int yoriginDest, int wDest, int hDest, HDC hdcSrc, int xoriginSrc, int yoriginSrc, int wSrc, int hSrc, BLENDFUNCTION ftn );
 	//typedef BOOL ( WINAPI *pGdiGradientFill )( HDC hdc, PTRIVERTEX pVertex, ULONG dwNumVertex, PVOID pMesh, ULONG dwNumMesh, ULONG dwMode );
-	//typedef int ( WINAPI *pGetDeviceCaps )( HDC hdc, int nIndex );
-	//typedef int ( WINAPI *pGetObjectW )( HGDIOBJ hgdiobj, int cbBuffer, LPVOID lpvObject );
+	typedef int ( WINAPI *pGetDeviceCaps )( HDC hdc, int nIndex );
+	typedef int ( WINAPI *pGetObjectW )( HGDIOBJ hgdiobj, int cbBuffer, LPVOID lpvObject );
 	typedef HGDIOBJ ( WINAPI *pGetStockObject )( int fnObject );
 	typedef BOOL ( WINAPI *pGetTextExtentExPointW )( HDC hdc, LPCWSTR lpszString, int cchString, int nMaxExtent, LPINT lpnFit, LPINT lpnDx, LPSIZE lpSize );
 	typedef BOOL ( WINAPI *pGetTextExtentPoint32W )( HDC hdc, LPCTSTR lpString, int c, LPSIZE lpSize );
@@ -92,7 +98,9 @@
 	//typedef COLORREF ( WINAPI *pSetBkColor )( HDC hdc, COLORREF crColor );
 	typedef int ( WINAPI *pSetBkMode )( HDC hdc, int iBkMode );
 	typedef BOOL ( WINAPI *pSetBrushOrgEx )( HDC hdc, int x, int y, LPPOINT lppt );
+	typedef int ( WINAPI *pSetStretchBltMode )( HDC hdc, int mode );
 	typedef COLORREF ( WINAPI *pSetTextColor )( HDC hdc, COLORREF crColor );
+	typedef BOOL ( WINAPI *pStretchBlt )( HDC hdcDest, int xDest, int yDest, int wDest, int hDest, HDC hdcSrc, int xSrc, int ySrc, int wSrc, int hSrc, DWORD rop );
 
 	extern pBitBlt						_BitBlt;
 	extern pCreateCompatibleBitmap		_CreateCompatibleBitmap;
@@ -101,15 +109,17 @@
 	extern pCreateFontIndirectW			_CreateFontIndirectW;
 	extern pCreatePatternBrush			_CreatePatternBrush;
 	extern pCreatePen					_CreatePen;
+	extern pCreateRectRgn				_CreateRectRgn;
 	extern pCreateSolidBrush			_CreateSolidBrush;
 	extern pDeleteDC					_DeleteDC;
 	extern pDeleteObject				_DeleteObject;
 	//extern pExcludeClipRect				_ExcludeClipRect;
 	extern pExtTextOutW					_ExtTextOutW;
+	extern pFrameRgn					_FrameRgn;
 	extern pGdiAlphaBlend				_GdiAlphaBlend;
 	//extern pGdiGradientFill				_GdiGradientFill;
-	//extern pGetDeviceCaps				_GetDeviceCaps;
-	//extern pGetObjectW					_GetObjectW;
+	extern pGetDeviceCaps				_GetDeviceCaps;
+	extern pGetObjectW					_GetObjectW;
 	extern pGetStockObject				_GetStockObject;
 	extern pGetTextExtentExPointW		_GetTextExtentExPointW;
 	extern pGetTextExtentPoint32W		_GetTextExtentPoint32W;
@@ -122,7 +132,9 @@
 	//extern pSetBkColor					_SetBkColor;
 	extern pSetBkMode					_SetBkMode;
 	extern pSetBrushOrgEx				_SetBrushOrgEx;
+	extern pSetStretchBltMode			_SetStretchBltMode;
 	extern pSetTextColor				_SetTextColor;
+	extern pStretchBlt					_StretchBlt;
 
 	extern unsigned char gdi32_state;
 

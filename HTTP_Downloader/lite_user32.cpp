@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
-	Copyright (C) 2015-2024 Eric Kutcher
+	Copyright (C) 2015-2025 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -21,6 +21,7 @@
 
 #ifndef USER32_USE_STATIC_LIB
 
+	//pAdjustWindowRectEx		_AdjustWindowRectEx;
 	pBeginDeferWindowPos	_BeginDeferWindowPos;
 	pBeginPaint				_BeginPaint;
 	pCallWindowProcW		_CallWindowProcW;
@@ -62,6 +63,7 @@
 	pGetClipboardData		_GetClipboardData;
 	pGetCursorPos			_GetCursorPos;
 	pGetDC					_GetDC;
+	pGetDlgCtrlID			_GetDlgCtrlID;
 	//pGetDlgItem				_GetDlgItem;
 	pGetFocus				_GetFocus;
 	pGetIconInfo			_GetIconInfo;
@@ -156,6 +158,7 @@
 			return false;
 		}
 
+		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_AdjustWindowRectEx, "AdjustWindowRectEx" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_BeginDeferWindowPos, "BeginDeferWindowPos" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_BeginPaint, "BeginPaint" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_CallWindowProcW, "CallWindowProcW" ) )
@@ -197,6 +200,7 @@
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_GetClipboardData, "GetClipboardData" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_GetCursorPos, "GetCursorPos" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_GetDC, "GetDC" ) )
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_GetDlgCtrlID, "GetDlgCtrlID" ) )
 		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_GetDlgItem, "GetDlgItem" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_GetFocus, "GetFocus" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_user32, ( void ** )&_GetIconInfo, "GetIconInfo" ) )
@@ -291,3 +295,117 @@
 	}
 
 #endif
+
+#include "lite_gdi32.h"
+
+pGetDpiForWindow			_GetDpiForWindow;
+pSystemParametersInfoForDpi	_SystemParametersInfoForDpi;
+pGetSystemMetricsForDpi		_GetSystemMetricsForDpi;
+//pAdjustWindowRectExForDpi	_AdjustWindowRectExForDpi;
+
+pGetDpiForMonitor			_GetDpiForMonitor;
+
+HMODULE hModule_dpi = NULL;
+
+bool InitializeDPIFunctions()
+{
+	hModule_dpi = LoadLibraryDEMW( L"user32.dll" );
+	if ( SetFunctionPointer( hModule_dpi, ( void ** )&_GetDpiForWindow, "GetDpiForWindow" ) != NULL &&
+		 SetFunctionPointer( hModule_dpi, ( void ** )&_SystemParametersInfoForDpi, "SystemParametersInfoForDpi" ) != NULL &&
+		 SetFunctionPointer( hModule_dpi, ( void ** )&_GetSystemMetricsForDpi, "GetSystemMetricsForDpi" ) != NULL /*&&
+		 SetFunctionPointer( hModule_dpi, ( void ** )&_AdjustWindowRectExForDpi, "AdjustWindowRectExForDpi" ) != NULL*/ )
+	{
+		return true;
+	}
+	else
+	{
+		hModule_dpi = LoadLibraryDEMW( L"Shcore.dll" );
+		if ( hModule_dpi != NULL && SetFunctionPointer( hModule_dpi, ( void ** )&_GetDpiForMonitor, "GetDpiForMonitor" ) != NULL )
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
+bool UnInitializeDPIFunctions()
+{
+	return ( hModule_dpi != NULL && FreeLibrary( hModule_dpi ) == FALSE ? false : true );
+}
+
+UINT gdfw_dpi = 0;
+
+UINT __GetDpiForWindow( HWND hWnd )
+{
+	if ( _GetDpiForWindow )	// Per-monitor DPI support.
+	{
+		UINT dpi = _GetDpiForWindow( hWnd );
+		if ( dpi != 0 )
+		{
+			return dpi;
+		}
+	}
+	else if ( _GetDpiForMonitor )	// If we're not on Windows 10+, then this is available on Windows 8.1.
+	{
+		UINT x = 0;
+		UINT y;
+
+		HMONITOR hMon = _MonitorFromWindow( hWnd, MONITOR_DEFAULTTONEAREST );
+		if ( _GetDpiForMonitor( hMon, MDT_EFFECTIVE_DPI, &x, &y ) == S_OK && x != 0 )
+		{
+			return x;
+		}
+	}
+
+	// No per-monitor support. Program won't scale when moving across monitors that have differnt DPI values.
+	if ( gdfw_dpi == 0 )
+	{
+		HDC hDC = _GetDC( NULL );
+		gdfw_dpi = _GetDeviceCaps( hDC, LOGPIXELSX );
+		_ReleaseDC( NULL, hDC );
+
+		if ( gdfw_dpi == 0 )
+		{
+			gdfw_dpi = USER_DEFAULT_SCREEN_DPI;
+		}
+	}
+
+	return gdfw_dpi;
+}
+
+BOOL __SystemParametersInfoForDpi( UINT uiAction, UINT uiParam, PVOID pvParam, UINT fWinIni, UINT dpi )
+{
+	if ( _SystemParametersInfoForDpi )
+	{
+		return _SystemParametersInfoForDpi( uiAction, uiParam, pvParam, fWinIni, dpi );
+	}
+	else
+	{
+		return _SystemParametersInfoW( uiAction, uiParam, pvParam, fWinIni );
+	}
+}
+
+int __GetSystemMetricsForDpi( int nIndex, UINT dpi )
+{
+	if ( _GetSystemMetricsForDpi )
+	{
+		return _GetSystemMetricsForDpi( nIndex, dpi );
+	}
+	else
+	{
+		return _GetSystemMetrics( nIndex );
+	}
+}
+
+/*BOOL __AdjustWindowRectExForDpi( LPRECT lpRect, DWORD dwStyle, BOOL bMenu, DWORD dwExStyle, UINT dpi )
+{
+	if ( _AdjustWindowRectExForDpi )
+	{
+		return _AdjustWindowRectExForDpi( lpRect, dwStyle, bMenu, dwExStyle, dpi );
+	}
+	else
+	{
+		return _AdjustWindowRectEx( lpRect, dwStyle, bMenu, dwExStyle );
+	}
+}*/

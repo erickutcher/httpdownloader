@@ -39,6 +39,10 @@
 		"message": "Revert"
 	},
 
+	"category_": {
+		"message": "Category:"
+	},
+
 	"download_directory_": {
 		"message": "Download directory:"
 	},
@@ -79,6 +83,10 @@
 		"message": "General"
 	},
 
+	"comments": {
+		"message": "Comments"
+	},
+
 	"cookies": {
 		"message": "Cookies"
 	},
@@ -93,6 +101,10 @@
 
 	"proxy": {
 		"message": "Proxy"
+	},
+
+	"comments_": {
+		"message": "Comments:"
 	},
 
 	"cookies_": {

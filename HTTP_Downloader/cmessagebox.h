@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
-	Copyright (C) 2015-2024 Eric Kutcher
+	Copyright (C) 2015-2025 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -77,9 +77,27 @@
 
 struct CMSGBOX_INFO
 {
+	RECT msg_rc;
+	RECT cb_rc;
+
 	wchar_t *cmsgbox_message;
+	wchar_t *cb_message;	// Checkbox message
+
+	HWND hWnd_static_icon;
+	HWND hWnd_static_message;
 	HWND hWnd_checkbox;
+	HWND hWnd_btn_1;
+	HWND hWnd_btn_2;
+	HWND hWnd_btn_3;
+
+	HFONT hFont_message_box;
+	UINT current_dpi_message_box;
+	UINT last_dpi_message_box;
 	UINT type;
+
+	int icon_width;
+	int icon_height;
+
 	bool use_theme;
 };
 
@@ -87,11 +105,24 @@ struct CPROMPT_INFO
 {
 	void *data;
 	wchar_t *cp_message;
+
+	HWND hWnd_static_fp_icon;
+	HWND hWnd_static_fp_msg;
+	HWND hWnd_static_fp_host;
 	HWND hWnd_host;
+	HWND hWnd_static_fp_key_algorithm;
 	HWND hWnd_key_algorithm;
+	HWND hWnd_static_fp_key_fingerprints;
 	HWND hWnd_key_fingerprints;
+	HWND hWnd_static_fp_key_size;
 	HWND hWnd_key_size;
 	HWND hWnd_checkbox;
+	HWND hWnd_fp_yes;
+	HWND hWnd_fp_no;
+
+	HFONT hFont_fingerprint_prompt;
+	UINT current_dpi_fingerprint_prompt;
+	UINT last_dpi_fingerprint_prompt;
 	UINT type;
 };
 

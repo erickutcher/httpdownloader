@@ -19,6 +19,8 @@ Friday
 Saturday
 #
 Active Parts
+Category
+Comments
 Date and Time Added
 Download Directory
 Download Speed
@@ -35,11 +37,15 @@ URL
 #
 &About
 Active Parts
+Add Category...
 &Add URL(s)...\tCtrl+N
 Add URL(s)...
 Always on Top
+C&ategories
+Category
 &Check for Updates...
 &Column Headers
+Comments
 &Copy URL(s)\tCtrl+C
 Copy URL(s)
 Date and Time Added
@@ -104,6 +110,7 @@ Time Elapsed
 Time Remaining
 &Toolbar
 &Tools
+Update Category...
 &Update Download...\tCtrl+U
 Update Download...
 URL
@@ -121,6 +128,7 @@ Proxy
 SFTP
 Add in Stopped state
 Allow only one instance of the program to run
+Apply initially set proxy to redirected URL(s)
 Continue Download
 Default download directory:
 Display Prompt
@@ -136,6 +144,7 @@ Hybrid shut down
 Lock
 Log off
 Move deleted downloads to Recycle Bin
+Move files that match category file extension filters
 None
 Override download list action prompts
 Overwrite File
@@ -179,6 +188,7 @@ Progress bar:
 Progress Font Color
 Scroll to last item when adding URL(s)
 Selection Marquee Color
+Show executable's embedded icon
 Show gridlines in download list
 Show progress for each part
 Sort added and updating items
@@ -192,7 +202,8 @@ Active download limit:
 Default download parts:
 Default SSL / TLS version:
 Maximum redirects:
-Reallocate parts to maximize connections
+Reallocate parts to maximize connections:
+Reallocate threshold size (bytes):
 Retry incomplete downloads:
 Retry incomplete parts:
 Timeout (seconds):
@@ -210,13 +221,16 @@ Check for updates upon startup
 Close to System Tray
 Enable System Tray icon:
 Enable URL drop window:
+Failure:
 Load Download Finish Sound File
 Minimize to System Tray
-Play sound when all downloads finish:
+Play sound when all downloads finish
 Show notification when all downloads finish
 Show progress bar
 Start in System Tray
+Success:
 Transparency:
+\x25B6
 Allow proxy to resolve domain names
 Allow proxy to resolve domain names (use SOCKS v4a)
 Hostname:
@@ -246,6 +260,7 @@ Public / Private key pair:
 Require authentication:
 Server
 Server SSL / TLS version:
+Show System Tray notification for remote connections
 Algorithm Selection Policies
 Attempt GSSAPI authentication
 Attempt GSSAPI key exchange
@@ -330,6 +345,7 @@ Simulate
 Site
 Site:
 Username
+Associate file extension(s) with category:
 Add host and key information to cache
 Key size:
 A new version is available.
@@ -343,19 +359,27 @@ View Changelog
 Visit Home Page
 ...
 [Simulated]
+Add Category
 Add URL(s)
 Added
+All
 Allocating File
 Authorization Required
 Cancel
+Categories
+Category:
 Check For Updates
+Comments:
 Completed
 Connecting
 Default
 Default download speed limit (bytes/s):
+Desktop
+Documents
 Download speed:
 Download speed limit (bytes/s):
 Downloading
+Downloads
 Downloads Have Finished
 Error
 Export Download History
@@ -368,17 +392,23 @@ HTTP
 HTTPS
 Import Download History
 Insufficient Disk Space
+IP address:
 Items:
 Moving File
+Music
 Options
+Other
 Paused
+Pictures
 Proxy Authentication Required
 Queued
+Remote Connection
 Restarting
 Save Download History
 Set
 Site Manager
 Skipped
+Status
 Stopped
 SSL 2.0
 SSL 3.0
@@ -389,8 +419,11 @@ TLS 1.2
 Total downloaded:
 Unlimited
 Update
+Update Category
 Update Download
 URL:
+URL(s) added:
+Videos
 A key algorithm must be supplied.
 A private key file is required.
 A protocol (HTTP(S), FTP(S), or SFTP) must be supplied.
@@ -405,9 +438,12 @@ Are you sure you want to remove and delete the selected entries?
 Are you sure you want to remove the selected entries?
 Are you sure you want to restart the selected entries?
 Do you want to accept the server's host key?
+Item ID List was not freed.
+One or more file extensions already exist in another category.
 One or more files are in use and cannot be deleted.
 One or more files were not found.
 One or more paths were not found.
+Select the category download directory.
 Select the default download directory.
 Select the download directory.
 Select the temporary download directory.
@@ -416,6 +452,7 @@ The file is currently in use and cannot be deleted.
 The file is currently in use and cannot be renamed.
 The file(s) could not be imported because the format is incorrect.
 The key fingerprint does not match the cached entry.\r\nDo you want to accept the server's host key?
+The specified category already exists.
 The specified file was not found.
 The specified file was not found.\r\n\r\nDo you want to download the file again?
 The specified host already exists.
@@ -426,6 +463,7 @@ The specified site is invalid.
 The specified username and host already exists.
 There is already a file with the same name in this location.
 You must supply a download directory.
+Beta
 Built on
 Copyright
 HTTP Downloader is made free under the GPLv3 license.

@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
-	Copyright (C) 2015-2024 Eric Kutcher
+	Copyright (C) 2015-2025 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -38,7 +38,9 @@ void FreeSiteInfo( SITE_INFO **site_info )
 		if ( ( *site_info )->host != NULL ) { GlobalFree( ( *site_info )->host ); }
 		if ( ( *site_info )->username != NULL ) { GlobalFree( ( *site_info )->username ); }
 		if ( ( *site_info )->password != NULL ) { GlobalFree( ( *site_info )->password ); }
+		if ( ( *site_info )->category != NULL ) { GlobalFree( ( *site_info )->category ); }
 		if ( ( *site_info )->download_directory != NULL ) { GlobalFree( ( *site_info )->download_directory ); }
+		if ( ( *site_info )->comments != NULL ) { GlobalFree( ( *site_info )->comments ); }
 		if ( ( *site_info )->utf8_cookies != NULL ) { GlobalFree( ( *site_info )->utf8_cookies ); }
 		if ( ( *site_info )->utf8_headers != NULL ) { GlobalFree( ( *site_info )->utf8_headers ); }
 		if ( ( *site_info )->utf8_data != NULL ) { GlobalFree( ( *site_info )->utf8_data ); }
@@ -171,6 +173,8 @@ RETRY_OPEN:
 
 		//
 
+		wchar_t				*category;
+
 		bool				use_download_directory;
 		wchar_t				*download_directory;
 
@@ -191,6 +195,7 @@ RETRY_OPEN:
 
 		//
 
+		wchar_t				*comments;
 		char				*cookies;
 		char				*headers;
 		unsigned char		method;
@@ -218,20 +223,20 @@ RETRY_OPEN:
 
 		//
 
-		char magic_identifier[ 4 ];
-		BOOL bRet = ReadFile( hFile_read, magic_identifier, sizeof( char ) * 4, &read, NULL );
+		unsigned char magic_identifier[ 4 ];
+		BOOL bRet = ReadFile( hFile_read, magic_identifier, sizeof( unsigned char ) * 4, &read, NULL );
 		if ( bRet != FALSE )
 		{
 #ifdef ENABLE_LOGGING
 			lfz += 4;
 #endif
-			if ( read == 4 && _memcmp( magic_identifier, MAGIC_ID_SITES, 4 ) == 0 )
+			unsigned char version = magic_identifier[ 3 ] - 0x20;
+
+			if ( read == 4 && _memcmp( magic_identifier, MAGIC_ID_SITES, 3 ) == 0 && version <= 0x0F )
 			{
 				char *buf = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( 524288 + 1 ) );	// 512 KB buffer.
 				if ( buf != NULL )
 				{
-					char version = magic_identifier[ 3 ] - 0x20;
-
 					DWORD fz = GetFileSize( hFile_read, NULL ) - 4;
 
 					while ( total_read < fz )
@@ -277,11 +282,13 @@ RETRY_OPEN:
 							w_username = NULL;
 							w_password = NULL;
 
+							category = NULL;
 							download_directory = NULL;
 
 							parts = 0;
 							download_speed_limit = 0;
 
+							comments = NULL;
 							cookies = NULL;
 							headers = NULL;
 							data = NULL;
@@ -321,6 +328,21 @@ RETRY_OPEN:
 							p += ( string_length * sizeof( wchar_t ) );
 
 							// General Tab
+
+							// Category
+							if ( version >= 0x03 )
+							{
+								string_length = lstrlenW( ( wchar_t * )p ) + 1;
+
+								offset += ( string_length * sizeof( wchar_t ) );
+								if ( offset >= read ) { goto CLEANUP; }
+
+								category = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * string_length );
+								_wmemcpy_s( category, string_length, p, string_length );
+								*( category + ( string_length - 1 ) ) = 0;	// Sanity
+
+								p += ( string_length * sizeof( wchar_t ) );
+							}
 
 							// Use Download Directory
 							offset += sizeof( bool );
@@ -428,7 +450,7 @@ RETRY_OPEN:
 							}
 
 							// Download Operations
-							if ( version >= 2 )
+							if ( version >= 0x02 )
 							{
 								offset += sizeof( unsigned int );
 								if ( offset >= read ) { goto CLEANUP; }
@@ -445,7 +467,26 @@ RETRY_OPEN:
 								p += sizeof( unsigned char );
 							}
 
-							// Cookies, Headers, POST Data Tabs
+							// Comments, Cookies, Headers, POST Data Tabs
+
+							// Comments
+							if ( version >= 0x03 )
+							{
+								string_length = lstrlenW( ( wchar_t * )p ) + 1;
+
+								offset += ( string_length * sizeof( wchar_t ) );
+								if ( offset >= read ) { goto CLEANUP; }
+
+								// Let's not allocate an empty string.
+								if ( string_length > 1 )
+								{
+									comments = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * string_length );
+									_memcpy_s( comments, string_length * sizeof( wchar_t ), p, string_length * sizeof( wchar_t ) );
+									*( comments + ( string_length - 1 ) ) = 0;	// Sanity
+								}
+
+								p += ( string_length * sizeof( wchar_t ) );
+							}
 
 							// Cookies
 							string_length = lstrlenA( ( char * )p ) + 1;
@@ -723,6 +764,8 @@ RETRY_OPEN:
 
 								//
 
+								si->category = category;
+
 								si->use_download_directory = use_download_directory;
 								si->download_directory = download_directory;
 
@@ -743,6 +786,7 @@ RETRY_OPEN:
 
 								//
 
+								si->comments = comments;
 								si->utf8_cookies = cookies;
 								si->utf8_headers = headers;
 								si->method = method;
@@ -795,8 +839,10 @@ RETRY_OPEN:
 								GlobalFree( w_username );
 								GlobalFree( w_password );
 
+								GlobalFree( category );
 								GlobalFree( download_directory );
 
+								GlobalFree( comments );
 								GlobalFree( cookies );
 								GlobalFree( headers );
 								GlobalFree( data );
@@ -818,8 +864,10 @@ RETRY_OPEN:
 							GlobalFree( w_username );
 							GlobalFree( w_password );
 
+							GlobalFree( category );
 							GlobalFree( download_directory );
 
+							GlobalFree( comments );
 							GlobalFree( cookies );
 							GlobalFree( headers );
 							GlobalFree( data );
@@ -920,6 +968,8 @@ RETRY_OPEN:
 				// lstrlen is safe for NULL values.
 				int url_length = ( lstrlenW( si->w_host ) + 1 ) * sizeof( wchar_t );
 
+				int category_length = ( lstrlenW( si->category ) + 1 ) * sizeof( wchar_t );
+
 				int download_directory_length = 0;
 				if ( si->use_download_directory )
 				{
@@ -932,6 +982,8 @@ RETRY_OPEN:
 
 				int username_length = lstrlenA( si->username );
 				int password_length = lstrlenA( si->password );
+
+				int comments_length = ( lstrlenW( si->comments ) + 1 ) * sizeof( wchar_t );
 
 				int cookies_length = lstrlenA( si->utf8_cookies ) + 1;
 				int headers_length = lstrlenA( si->utf8_headers ) + 1;
@@ -979,9 +1031,11 @@ RETRY_OPEN:
 				// See if the next entry can fit in the buffer. If it can't, then we dump the buffer.
 				if ( ( signed )( pos +
 								 url_length +
+								 category_length +
 								 download_directory_length +
 								 username_length +
 								 password_length +
+								 comments_length +
 								 cookies_length +
 								 headers_length +
 								 data_length +
@@ -1008,6 +1062,9 @@ RETRY_OPEN:
 				pos += url_length;
 
 				// General Tab
+
+				_memcpy_s( buf + pos, size - pos, si->category, category_length );
+				pos += category_length;
 
 				_memcpy_s( buf + pos, size - pos, &si->use_download_directory, sizeof( bool ) );
 				pos += sizeof( bool );
@@ -1073,6 +1130,9 @@ RETRY_OPEN:
 				pos += sizeof( unsigned int );
 
 				// Cookies, Headers, POST Data Tabs
+
+				_memcpy_s( buf + pos, size - pos, si->comments, comments_length );
+				pos += comments_length;
 
 				_memcpy_s( buf + pos, size - pos, si->utf8_cookies, cookies_length );
 				pos += cookies_length;

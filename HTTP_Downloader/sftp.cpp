@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
-	Copyright (C) 2015-2024 Eric Kutcher
+	Copyright (C) 2015-2025 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -2372,165 +2372,174 @@ RETRY_OPEN:
 
 		//
 
-		char magic_identifier[ 4 ];
-		BOOL bRet = ReadFile( hFile_read, magic_identifier, sizeof( char ) * 4, &read, NULL );
-		if ( bRet != FALSE && read == 4 && _memcmp( magic_identifier, MAGIC_ID_SFTP_HOSTS, 4 ) == 0 )
+		unsigned char magic_identifier[ 4 ];
+		BOOL bRet = ReadFile( hFile_read, magic_identifier, sizeof( unsigned char ) * 4, &read, NULL );
+		if ( bRet != FALSE )
 		{
 #ifdef ENABLE_LOGGING
 			lfz += 4;
 #endif
-			char *buf = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( 524288 + 1 ) );	// 512 KB buffer.
-			if ( buf != NULL )
+			unsigned char version = magic_identifier[ 3 ] - 0x30;
+
+			if ( read == 4 && _memcmp( magic_identifier, MAGIC_ID_SFTP_HOSTS, 3 ) == 0 && version <= 0x0F )
 			{
-				DWORD fz = GetFileSize( hFile_read, NULL ) - 4;
-
-				while ( total_read < fz )
+				char *buf = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( 524288 + 1 ) );	// 512 KB buffer.
+				if ( buf != NULL )
 				{
-					bRet = ReadFile( hFile_read, buf, sizeof( char ) * 524288, &read, NULL );
-					if ( bRet == FALSE )
+					DWORD fz = GetFileSize( hFile_read, NULL ) - 4;
+
+					while ( total_read < fz )
 					{
-						break;
-					}
-
-#ifdef ENABLE_LOGGING
-					lfz += read;
-#endif
-
-					buf[ read ] = 0;	// Guarantee a NULL terminated buffer.
-
-					total_read += read;
-
-					// Prevent an infinite loop if a really really long entry causes us to jump back to the same point in the file.
-					// If it's larger than our buffer, then the file is probably invalid/corrupt.
-					if ( total_read == last_total )
-					{
-						break;
-					}
-
-					last_total = total_read;
-
-					p = buf;
-					offset = last_entry = 0;
-
-					while ( offset < read )
-					{
-						host = NULL;
-						key_algorithm = NULL;
-						key_fingerprint = NULL;
-
-						//
-
-						// Host
-						int string_length = lstrlenW( ( wchar_t * )p ) + 1;
-
-						offset += ( string_length * sizeof( wchar_t ) );
-						if ( offset >= read ) { goto CLEANUP; }
-
-						host = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * string_length );
-						_wmemcpy_s( host, string_length, p, string_length );
-						*( host + ( string_length - 1 ) ) = 0;	// Sanity
-
-						p += ( string_length * sizeof( wchar_t ) );
-
-						// Key Algrithm
-						string_length = lstrlenW( ( wchar_t * )p ) + 1;
-
-						offset += ( string_length * sizeof( wchar_t ) );
-						if ( offset > read ) { goto CLEANUP; }
-
-						key_algorithm = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * string_length );
-						_wmemcpy_s( key_algorithm, string_length, p, string_length );
-						*( key_algorithm + ( string_length - 1 ) ) = 0;	// Sanity
-
-						p += ( string_length * sizeof( wchar_t ) );
-
-						// Key Fingerprint
-						string_length = lstrlenW( ( wchar_t * )p ) + 1;
-
-						offset += ( string_length * sizeof( wchar_t ) );
-						if ( offset > read ) { goto CLEANUP; }
-
-						key_fingerprint = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * string_length );
-						_wmemcpy_s( key_fingerprint, string_length, p, string_length );
-						*( key_fingerprint + ( string_length - 1 ) ) = 0;	// Sanity
-
-						p += ( string_length * sizeof( wchar_t ) );
-
-						//
-
-						last_entry = offset;	// This value is the ending offset of the last valid entry.
-
-						SFTP_FPS_HOST_INFO *sfhi = ( SFTP_FPS_HOST_INFO * )GlobalAlloc( GPTR, sizeof( SFTP_FPS_HOST_INFO ) );
-						if ( sfhi != NULL )
+						bRet = ReadFile( hFile_read, buf, sizeof( char ) * 524288, &read, NULL );
+						if ( bRet == FALSE )
 						{
-							sfhi->w_host = host;
-							sfhi->w_key_algorithm = key_algorithm;
-							sfhi->w_key_fingerprint = key_fingerprint;
+							break;
+						}
 
-							ParseSFTPHost( sfhi->w_host, &sfhi->host, sfhi->port );
+	#ifdef ENABLE_LOGGING
+						lfz += read;
+	#endif
 
-							int wcs_length;
-							if ( sfhi->w_key_algorithm != NULL )
-							{
-								wcs_length = WideCharToMultiByte( CP_UTF8, 0, sfhi->w_key_algorithm, -1, NULL, 0, NULL, NULL );
-								sfhi->key_algorithm = ( char * )GlobalAlloc( GPTR, sizeof( char ) * wcs_length ); // Size includes the NULL character.
-								WideCharToMultiByte( CP_UTF8, 0, sfhi->w_key_algorithm, -1, sfhi->key_algorithm, wcs_length, NULL, NULL );
-							}
+						buf[ read ] = 0;	// Guarantee a NULL terminated buffer.
 
-							if ( sfhi->w_key_fingerprint != NULL )
-							{
-								wcs_length = WideCharToMultiByte( CP_UTF8, 0, sfhi->w_key_fingerprint, -1, NULL, 0, NULL, NULL );
-								sfhi->key_fingerprint = ( char * )GlobalAlloc( GPTR, sizeof( char ) * wcs_length ); // Size includes the NULL character.
-								WideCharToMultiByte( CP_UTF8, 0, sfhi->w_key_fingerprint, -1, sfhi->key_fingerprint, wcs_length, NULL, NULL );
-							}
+						total_read += read;
+
+						// Prevent an infinite loop if a really really long entry causes us to jump back to the same point in the file.
+						// If it's larger than our buffer, then the file is probably invalid/corrupt.
+						if ( total_read == last_total )
+						{
+							break;
+						}
+
+						last_total = total_read;
+
+						p = buf;
+						offset = last_entry = 0;
+
+						while ( offset < read )
+						{
+							host = NULL;
+							key_algorithm = NULL;
+							key_fingerprint = NULL;
 
 							//
 
-							DoublyLinkedList *sfhi_node = ( DoublyLinkedList * )dllrbt_find( g_sftp_fps_host_info, ( void * )sfhi, true );
+							// Host
+							int string_length = lstrlenW( ( wchar_t * )p ) + 1;
 
-							DoublyLinkedList *new_sfhi_node = DLL_CreateNode( ( void * )sfhi );
-							if ( sfhi_node != NULL )
-							{
-								DLL_AddNode( &sfhi_node, new_sfhi_node, -1 );
-							}
-							else if ( dllrbt_insert( g_sftp_fps_host_info, ( void * )sfhi, ( void * )new_sfhi_node ) != DLLRBT_STATUS_OK )
-							{
-								GlobalFree( new_sfhi_node );
+							offset += ( string_length * sizeof( wchar_t ) );
+							if ( offset >= read ) { goto CLEANUP; }
 
-								FreeSFTPFpsHostInfo( &sfhi );
+							host = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * string_length );
+							_wmemcpy_s( host, string_length, p, string_length );
+							*( host + ( string_length - 1 ) ) = 0;	// Sanity
+
+							p += ( string_length * sizeof( wchar_t ) );
+
+							// Key Algrithm
+							string_length = lstrlenW( ( wchar_t * )p ) + 1;
+
+							offset += ( string_length * sizeof( wchar_t ) );
+							if ( offset > read ) { goto CLEANUP; }
+
+							key_algorithm = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * string_length );
+							_wmemcpy_s( key_algorithm, string_length, p, string_length );
+							*( key_algorithm + ( string_length - 1 ) ) = 0;	// Sanity
+
+							p += ( string_length * sizeof( wchar_t ) );
+
+							// Key Fingerprint
+							string_length = lstrlenW( ( wchar_t * )p ) + 1;
+
+							offset += ( string_length * sizeof( wchar_t ) );
+							if ( offset > read ) { goto CLEANUP; }
+
+							key_fingerprint = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * string_length );
+							_wmemcpy_s( key_fingerprint, string_length, p, string_length );
+							*( key_fingerprint + ( string_length - 1 ) ) = 0;	// Sanity
+
+							p += ( string_length * sizeof( wchar_t ) );
+
+							//
+
+							last_entry = offset;	// This value is the ending offset of the last valid entry.
+
+							SFTP_FPS_HOST_INFO *sfhi = ( SFTP_FPS_HOST_INFO * )GlobalAlloc( GPTR, sizeof( SFTP_FPS_HOST_INFO ) );
+							if ( sfhi != NULL )
+							{
+								sfhi->w_host = host;
+								sfhi->w_key_algorithm = key_algorithm;
+								sfhi->w_key_fingerprint = key_fingerprint;
+
+								ParseSFTPHost( sfhi->w_host, &sfhi->host, sfhi->port );
+
+								int wcs_length;
+								if ( sfhi->w_key_algorithm != NULL )
+								{
+									wcs_length = WideCharToMultiByte( CP_UTF8, 0, sfhi->w_key_algorithm, -1, NULL, 0, NULL, NULL );
+									sfhi->key_algorithm = ( char * )GlobalAlloc( GPTR, sizeof( char ) * wcs_length ); // Size includes the NULL character.
+									WideCharToMultiByte( CP_UTF8, 0, sfhi->w_key_algorithm, -1, sfhi->key_algorithm, wcs_length, NULL, NULL );
+								}
+
+								if ( sfhi->w_key_fingerprint != NULL )
+								{
+									wcs_length = WideCharToMultiByte( CP_UTF8, 0, sfhi->w_key_fingerprint, -1, NULL, 0, NULL, NULL );
+									sfhi->key_fingerprint = ( char * )GlobalAlloc( GPTR, sizeof( char ) * wcs_length ); // Size includes the NULL character.
+									WideCharToMultiByte( CP_UTF8, 0, sfhi->w_key_fingerprint, -1, sfhi->key_fingerprint, wcs_length, NULL, NULL );
+								}
+
+								//
+
+								DoublyLinkedList *sfhi_node = ( DoublyLinkedList * )dllrbt_find( g_sftp_fps_host_info, ( void * )sfhi, true );
+
+								DoublyLinkedList *new_sfhi_node = DLL_CreateNode( ( void * )sfhi );
+								if ( sfhi_node != NULL )
+								{
+									DLL_AddNode( &sfhi_node, new_sfhi_node, -1 );
+								}
+								else if ( dllrbt_insert( g_sftp_fps_host_info, ( void * )sfhi, ( void * )new_sfhi_node ) != DLLRBT_STATUS_OK )
+								{
+									GlobalFree( new_sfhi_node );
+
+									FreeSFTPFpsHostInfo( &sfhi );
+								}
 							}
-						}
-						else
-						{
+							else
+							{
+								GlobalFree( host );
+								GlobalFree( key_algorithm );
+								GlobalFree( key_fingerprint );
+							}
+
+							continue;
+
+			CLEANUP:
 							GlobalFree( host );
 							GlobalFree( key_algorithm );
 							GlobalFree( key_fingerprint );
+
+							// Go back to the last valid entry.
+							if ( total_read < fz )
+							{
+								total_read -= ( read - last_entry );
+								SetFilePointer( hFile_read, total_read + 4, NULL, FILE_BEGIN );	// Offset past the magic identifier.
+							}
+
+							break;
 						}
-
-						continue;
-
-		CLEANUP:
-						GlobalFree( host );
-						GlobalFree( key_algorithm );
-						GlobalFree( key_fingerprint );
-
-						// Go back to the last valid entry.
-						if ( total_read < fz )
-						{
-							total_read -= ( read - last_entry );
-							SetFilePointer( hFile_read, total_read + 4, NULL, FILE_BEGIN );	// Offset past the magic identifier.
-						}
-
-						break;
 					}
-				}
 
-				GlobalFree( buf );
+					GlobalFree( buf );
+				}
+			}
+			else
+			{
+				ret_status = -2;	// Bad file format.
 			}
 		}
 		else
 		{
-			ret_status = -2;	// Bad file format.
+			ret_status = -1;	// Can't open file for reading.
 		}
 
 		UnlockFileEx( hFile_read, 0, MAXDWORD, MAXDWORD, &lfo );
@@ -3054,162 +3063,171 @@ RETRY_OPEN:
 
 		//
 
-		char magic_identifier[ 4 ];
-		BOOL bRet = ReadFile( hFile_read, magic_identifier, sizeof( char ) * 4, &read, NULL );
-		if ( bRet != FALSE && read == 4 && _memcmp( magic_identifier, MAGIC_ID_SFTP_KEYS, 4 ) == 0 )
+		unsigned char magic_identifier[ 4 ];
+		BOOL bRet = ReadFile( hFile_read, magic_identifier, sizeof( unsigned char ) * 4, &read, NULL );
+		if ( bRet != FALSE )
 		{
 #ifdef ENABLE_LOGGING
 			lfz += 4;
 #endif
-			char *buf = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( 524288 + 1 ) );	// 512 KB buffer.
-			if ( buf != NULL )
+			unsigned char version = magic_identifier[ 3 ] - 0x40;
+
+			if ( read == 4 && _memcmp( magic_identifier, MAGIC_ID_SFTP_KEYS, 3 ) == 0 && version <= 0x0F )
 			{
-				DWORD fz = GetFileSize( hFile_read, NULL ) - 4;
-
-				while ( total_read < fz )
+				char *buf = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( 524288 + 1 ) );	// 512 KB buffer.
+				if ( buf != NULL )
 				{
-					bRet = ReadFile( hFile_read, buf, sizeof( char ) * 524288, &read, NULL );
-					if ( bRet == FALSE )
+					DWORD fz = GetFileSize( hFile_read, NULL ) - 4;
+
+					while ( total_read < fz )
 					{
-						break;
-					}
-
-#ifdef ENABLE_LOGGING
-					lfz += read;
-#endif
-
-					buf[ read ] = 0;	// Guarantee a NULL terminated buffer.
-
-					total_read += read;
-
-					// Prevent an infinite loop if a really really long entry causes us to jump back to the same point in the file.
-					// If it's larger than our buffer, then the file is probably invalid/corrupt.
-					if ( total_read == last_total )
-					{
-						break;
-					}
-
-					last_total = total_read;
-
-					p = buf;
-					offset = last_entry = 0;
-
-					while ( offset < read )
-					{
-						username = NULL;
-						host = NULL;
-						key_file_path = NULL;
-
-						//
-						// Enable/Disable entry
-						offset += sizeof( bool );
-						if ( offset >= read ) { goto CLEANUP; }
-						_memcpy_s( &enable, sizeof( bool ), p, sizeof( bool ) );
-						p += sizeof( bool );
-
-						// Username
-						int string_length = lstrlenW( ( wchar_t * )p ) + 1;
-
-						offset += ( string_length * sizeof( wchar_t ) );
-						if ( offset >= read ) { goto CLEANUP; }
-
-						username = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * string_length );
-						_wmemcpy_s( username, string_length, p, string_length );
-						*( username + ( string_length - 1 ) ) = 0;	// Sanity
-
-						p += ( string_length * sizeof( wchar_t ) );
-
-						// Host
-						string_length = lstrlenW( ( wchar_t * )p ) + 1;
-
-						offset += ( string_length * sizeof( wchar_t ) );
-						if ( offset >= read ) { goto CLEANUP; }
-
-						host = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * string_length );
-						_wmemcpy_s( host, string_length, p, string_length );
-						*( host + ( string_length - 1 ) ) = 0;	// Sanity
-
-						p += ( string_length * sizeof( wchar_t ) );
-
-						// Key Fingerprint
-						string_length = lstrlenW( ( wchar_t * )p ) + 1;
-
-						offset += ( string_length * sizeof( wchar_t ) );
-						if ( offset > read ) { goto CLEANUP; }
-
-						key_file_path = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * string_length );
-						_wmemcpy_s( key_file_path, string_length, p, string_length );
-						*( key_file_path + ( string_length - 1 ) ) = 0;	// Sanity
-
-						p += ( string_length * sizeof( wchar_t ) );
-
-						//
-
-						last_entry = offset;	// This value is the ending offset of the last valid entry.
-
-						SFTP_KEYS_HOST_INFO *skhi = ( SFTP_KEYS_HOST_INFO * )GlobalAlloc( GPTR, sizeof( SFTP_KEYS_HOST_INFO ) );
-						if ( skhi != NULL )
+						bRet = ReadFile( hFile_read, buf, sizeof( char ) * 524288, &read, NULL );
+						if ( bRet == FALSE )
 						{
-							skhi->enable = enable;
-							skhi->w_username = username;
-							skhi->w_host = host;
-							skhi->w_key_file_path = key_file_path;
+							break;
+						}
 
-							ParseSFTPHost( skhi->w_host, &skhi->host, skhi->port );
+	#ifdef ENABLE_LOGGING
+						lfz += read;
+	#endif
 
-							int mb_length;
-							if ( skhi->w_username != NULL )
-							{
-								mb_length = WideCharToMultiByte( CP_UTF8, 0, skhi->w_username, -1, NULL, 0, NULL, NULL );
-								skhi->username = ( char * )GlobalAlloc( GPTR, sizeof( char ) * mb_length ); // Size includes the NULL character.
-								WideCharToMultiByte( CP_UTF8, 0, skhi->w_username, -1, skhi->username, mb_length, NULL, NULL );
-							}
+						buf[ read ] = 0;	// Guarantee a NULL terminated buffer.
 
-							if ( skhi->w_key_file_path != NULL )
-							{
-								mb_length = WideCharToMultiByte( CP_UTF8, 0, skhi->w_key_file_path, -1, NULL, 0, NULL, NULL );
-								skhi->key_file_path = ( char * )GlobalAlloc( GPTR, sizeof( char ) * mb_length ); // Size includes the NULL character.
-								WideCharToMultiByte( CP_UTF8, 0, skhi->w_key_file_path, -1, skhi->key_file_path, mb_length, NULL, NULL );
-							}
+						total_read += read;
+
+						// Prevent an infinite loop if a really really long entry causes us to jump back to the same point in the file.
+						// If it's larger than our buffer, then the file is probably invalid/corrupt.
+						if ( total_read == last_total )
+						{
+							break;
+						}
+
+						last_total = total_read;
+
+						p = buf;
+						offset = last_entry = 0;
+
+						while ( offset < read )
+						{
+							username = NULL;
+							host = NULL;
+							key_file_path = NULL;
+
+							//
+							// Enable/Disable entry
+							offset += sizeof( bool );
+							if ( offset >= read ) { goto CLEANUP; }
+							_memcpy_s( &enable, sizeof( bool ), p, sizeof( bool ) );
+							p += sizeof( bool );
+
+							// Username
+							int string_length = lstrlenW( ( wchar_t * )p ) + 1;
+
+							offset += ( string_length * sizeof( wchar_t ) );
+							if ( offset >= read ) { goto CLEANUP; }
+
+							username = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * string_length );
+							_wmemcpy_s( username, string_length, p, string_length );
+							*( username + ( string_length - 1 ) ) = 0;	// Sanity
+
+							p += ( string_length * sizeof( wchar_t ) );
+
+							// Host
+							string_length = lstrlenW( ( wchar_t * )p ) + 1;
+
+							offset += ( string_length * sizeof( wchar_t ) );
+							if ( offset >= read ) { goto CLEANUP; }
+
+							host = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * string_length );
+							_wmemcpy_s( host, string_length, p, string_length );
+							*( host + ( string_length - 1 ) ) = 0;	// Sanity
+
+							p += ( string_length * sizeof( wchar_t ) );
+
+							// Key Fingerprint
+							string_length = lstrlenW( ( wchar_t * )p ) + 1;
+
+							offset += ( string_length * sizeof( wchar_t ) );
+							if ( offset > read ) { goto CLEANUP; }
+
+							key_file_path = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * string_length );
+							_wmemcpy_s( key_file_path, string_length, p, string_length );
+							*( key_file_path + ( string_length - 1 ) ) = 0;	// Sanity
+
+							p += ( string_length * sizeof( wchar_t ) );
 
 							//
 
-							if ( dllrbt_insert( g_sftp_keys_host_info, ( void * )skhi, ( void * )skhi ) != DLLRBT_STATUS_OK )
+							last_entry = offset;	// This value is the ending offset of the last valid entry.
+
+							SFTP_KEYS_HOST_INFO *skhi = ( SFTP_KEYS_HOST_INFO * )GlobalAlloc( GPTR, sizeof( SFTP_KEYS_HOST_INFO ) );
+							if ( skhi != NULL )
 							{
-								FreeSFTPKeysHostInfo( &skhi );
+								skhi->enable = enable;
+								skhi->w_username = username;
+								skhi->w_host = host;
+								skhi->w_key_file_path = key_file_path;
+
+								ParseSFTPHost( skhi->w_host, &skhi->host, skhi->port );
+
+								int mb_length;
+								if ( skhi->w_username != NULL )
+								{
+									mb_length = WideCharToMultiByte( CP_UTF8, 0, skhi->w_username, -1, NULL, 0, NULL, NULL );
+									skhi->username = ( char * )GlobalAlloc( GPTR, sizeof( char ) * mb_length ); // Size includes the NULL character.
+									WideCharToMultiByte( CP_UTF8, 0, skhi->w_username, -1, skhi->username, mb_length, NULL, NULL );
+								}
+
+								if ( skhi->w_key_file_path != NULL )
+								{
+									mb_length = WideCharToMultiByte( CP_UTF8, 0, skhi->w_key_file_path, -1, NULL, 0, NULL, NULL );
+									skhi->key_file_path = ( char * )GlobalAlloc( GPTR, sizeof( char ) * mb_length ); // Size includes the NULL character.
+									WideCharToMultiByte( CP_UTF8, 0, skhi->w_key_file_path, -1, skhi->key_file_path, mb_length, NULL, NULL );
+								}
+
+								//
+
+								if ( dllrbt_insert( g_sftp_keys_host_info, ( void * )skhi, ( void * )skhi ) != DLLRBT_STATUS_OK )
+								{
+									FreeSFTPKeysHostInfo( &skhi );
+								}
 							}
-						}
-						else
-						{
+							else
+							{
+								GlobalFree( username );
+								GlobalFree( host );
+								GlobalFree( key_file_path );
+							}
+
+							continue;
+
+			CLEANUP:
 							GlobalFree( username );
 							GlobalFree( host );
 							GlobalFree( key_file_path );
+
+							// Go back to the last valid entry.
+							if ( total_read < fz )
+							{
+								total_read -= ( read - last_entry );
+								SetFilePointer( hFile_read, total_read + 4, NULL, FILE_BEGIN );	// Offset past the magic identifier.
+							}
+
+							break;
 						}
-
-						continue;
-
-		CLEANUP:
-						GlobalFree( username );
-						GlobalFree( host );
-						GlobalFree( key_file_path );
-
-						// Go back to the last valid entry.
-						if ( total_read < fz )
-						{
-							total_read -= ( read - last_entry );
-							SetFilePointer( hFile_read, total_read + 4, NULL, FILE_BEGIN );	// Offset past the magic identifier.
-						}
-
-						break;
 					}
-				}
 
-				GlobalFree( buf );
+					GlobalFree( buf );
+				}
+			}
+			else
+			{
+				ret_status = -2;	// Bad file format.
 			}
 		}
 		else
 		{
-			ret_status = -2;	// Bad file format.
+			ret_status = -1;	// Can't open file for reading.
 		}
 
 		UnlockFileEx( hFile_read, 0, MAXDWORD, MAXDWORD, &lfo );

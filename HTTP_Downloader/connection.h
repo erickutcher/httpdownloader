@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
-	Copyright (C) 2015-2024 Eric Kutcher
+	Copyright (C) 2015-2025 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -130,6 +130,8 @@
 #define DOWNLOAD_OPERATION_MODIFIED_SKIP		0x00000200
 #define DOWNLOAD_OPERATION_MODIFIED				( DOWNLOAD_OPERATION_MODIFIED_CONTINUE | DOWNLOAD_OPERATION_MODIFIED_RESTART | DOWNLOAD_OPERATION_MODIFIED_SKIP )
 #define DOWNLOAD_OPERATION_VERIFY				0x00000400
+#define DOWNLOAD_OPERATION_RESTARTING			0x00000800
+#define DOWNLOAD_OPERATION_RESUME				0x00001000
 
 #define START_TYPE_NONE					0x00
 #define START_TYPE_HOST					0x01
@@ -266,6 +268,7 @@ struct POST_INFO
 {
 	char				*method;	// 1 = GET, 2 = POST
 	char				*urls;
+	char				*category;
 	char				*directory;
 	char				*parts;
 	char				*ssl_tls_version;
@@ -273,6 +276,7 @@ struct POST_INFO
 	char				*password;
 	char				*download_speed_limit;
 	char				*download_operations;
+	char				*comments;
 	char				*cookies;
 	char				*headers;
 	char				*data;		// For POST payloads.
@@ -386,8 +390,11 @@ struct ADD_INFO
 	PROXY_INFO			proxy_info;
 	AUTH_CREDENTIALS	auth_info;
 	unsigned long long	download_speed_limit;
+	wchar_t				*peer_info;
+	wchar_t				*category;
 	wchar_t				*download_directory;
 	wchar_t				*urls;
+	wchar_t				*comments;
 	char				*utf8_cookies;
 	char				*utf8_headers;
 	char				*utf8_data;	// POST payload.
@@ -426,8 +433,8 @@ struct DOWNLOAD_INFO
 	unsigned long long	time_elapsed;
 	unsigned long long	download_speed_limit;
 	DOWNLOAD_INFO		*shared_info;
-	PROXY_INFO			*proxy_info;
-	PROXY_INFO			*saved_proxy_info;
+	PROXY_INFO			*proxy_info;		// The proxy info that we use.
+	PROXY_INFO			*saved_proxy_info;	// The initial proxy info that we start with, update, and save.
 	wchar_t				*url;
 	DoublyLinkedList	*host_list;			// Other hosts that are downloading the file.
 	DoublyLinkedList	*range_list;
@@ -435,7 +442,11 @@ struct DOWNLOAD_INFO
 	DoublyLinkedList	*range_list_end;
 	DoublyLinkedList	*range_queue;		// Inactive ranges that make up each download part.
 	DoublyLinkedList	*parts_list;		// The contexts that make up each download part.
+	void				*tln;
+	wchar_t				*category;
+	wchar_t				*new_file_path;
 	wchar_t				*w_add_time;
+	wchar_t				*comments;
 	char				*cookies;
 	char				*headers;
 	char				*data;				// POST payload.
@@ -445,6 +456,7 @@ struct DOWNLOAD_INFO
 	unsigned int		filename_offset;
 	unsigned int		file_extension_offset;
 	unsigned int		status;
+	unsigned int		last_status;
 	unsigned int		download_operations;
 	int					code;
 	unsigned short		parts;
@@ -501,7 +513,9 @@ void StartQueuedItem();
 
 dllrbt_tree *CreateFilenameTree();
 void DestroyFilenameTree( dllrbt_tree *filename_tree );
-bool RenameFile( DOWNLOAD_INFO *di, dllrbt_tree *filename_tree, wchar_t *file_path, unsigned int filename_offset, unsigned int file_extension_offset );
+bool RenameFile( dllrbt_tree *filename_tree, wchar_t *old_file_path, unsigned int *old_filename_offset, unsigned int *old_file_extension_offset, wchar_t *new_file_path, unsigned int new_filename_offset, unsigned int new_file_extension_offset );
+
+void UpdateDownloadDirectoryInfo( DOWNLOAD_INFO *di, wchar_t *new_download_directory, unsigned int new_download_directory_length );
 
 THREAD_RETURN PromptRenameFile( void *pArguments );
 THREAD_RETURN PromptFileSize( void *pArguments );
@@ -510,10 +524,18 @@ THREAD_RETURN PromptFingerprint( void *pArguments );
 
 THREAD_RETURN CheckForUpdates( void *pArguments );
 
-ICON_INFO *CacheIcon( DOWNLOAD_INFO *di, SHFILEINFO *sfi );
-void RemoveCachedIcon( DOWNLOAD_INFO *di, wchar_t *file_extension = NULL );
+ICON_INFO *CacheIcon( DOWNLOAD_INFO *di );
+void RemoveCachedIcon( DOWNLOAD_INFO *di, wchar_t *file_path = NULL, unsigned int filename_offset = 0, unsigned int file_extension_offset = 0 );
+void UpdateCachedIcon( DOWNLOAD_INFO *di );
 
+void HandleIconUpdate( DOWNLOAD_INFO *di );
+
+LONG DecrementStatusCount( unsigned int status );
+LONG IncrementStatusCount( unsigned int status );
+void SetStatus( DOWNLOAD_INFO *di, unsigned int status );
 void SetSharedInfoStatus( DOWNLOAD_INFO *shared_info );
+
+void AddToMoveFileQueue( DOWNLOAD_INFO *di );
 
 void FreeProxyInfo( PROXY_INFO **proxy_info );
 void FreePOSTInfo( POST_INFO **post_info );
@@ -541,6 +563,7 @@ extern CRITICAL_SECTION fingerprint_prompt_list_cs;		// Guard access to the file
 extern CRITICAL_SECTION move_file_queue_cs;				// Guard access to the move file queue.
 extern CRITICAL_SECTION cleanup_cs;
 extern CRITICAL_SECTION update_check_timeout_cs;
+extern CRITICAL_SECTION file_allocation_cs;
 
 extern HANDLE g_update_semaphore;
 
@@ -599,5 +622,9 @@ extern bool g_waiting_for_update;
 extern unsigned long g_new_version;
 extern char *g_new_version_url;
 extern char g_update_check_state;	// 0 manual update check, 1 automatic update check
+
+#ifdef IS_BETA
+extern unsigned long g_new_beta;
+#endif
 
 #endif

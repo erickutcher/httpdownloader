@@ -19,6 +19,8 @@ Venerdì
 Sabato
 #
 Parti attive
+Category
+Comments
 Data/ora aggiunte
 Cartella download
 Velocità download
@@ -35,11 +37,15 @@ URL
 #
 &Info programma
 Parti attive
+Add Category...
 &Aggiungi URL...\tCtrl+N
 Aggiungi URL...
 Sempre in primo piano
+C&ategories
+Category
 &Controlla aggiornamenti...
 Intestazioni &colonna
+Comments
 &Copia URL\tCtrl+C
 Copia URL
 Data/ora aggiunte
@@ -104,6 +110,7 @@ Tempo trascorso
 Tempo rimanente
 &Barra strumenti
 &Strumenti
+Update Category...
 &Aggiorna download...\tCtrl+U
 Aggiorna download...
 URL
@@ -121,6 +128,7 @@ Proxy
 SFTP
 Aggiungi in stato Interrotto
 Consenti l'esecuzione di una sola istanza del programma
+Apply initially set proxy to redirected URL(s)
 Continua download
 Cartella predefinita download:
 Visualizza richiesta
@@ -136,6 +144,7 @@ Spegnimento ibrido
 Blocca
 Disconnessione
 Sposta i download eliminati nel Cestino
+Move files that match category file extension filters
 Nessuna
 Ignora richieste azione elenco download
 Sovrascrivi file
@@ -179,6 +188,7 @@ Barra progresso:
 Colore font progresso
 Quando aggiungi URL scorri fino all'ultimo elemento 
 Colore riquadro selezione
+Show executable's embedded icon
 Visualizza griglia nell'elenco download
 Visualizza progressi per ciascuna parte
 Ordina elementi aggiunti e in aggiornamento
@@ -192,7 +202,8 @@ Limite download attivo:
 Parti predefinite download:
 Versione predefinita SSL/TLS:
 N. max reindirizzamenti:
-Rialloca parti per massimizzare connessioni
+Rialloca parti per massimizzare connessioni:
+Reallocate threshold size (bytes):
 Riprova download incompleti:
 Riprova con parti incomplete:
 Timeout (secondi):
@@ -210,13 +221,16 @@ Controlla aggiornamenti all'avvio
 Vicino alla barra di sistema
 Abilita icona nella barra delle applicazioni:
 Abilita finestra rilascio URL:
+Failure:
 Carica file audio download completato
 Riduci ad icona nella barra di sistema
-Riproduci audio a download completati:
+Riproduci audio a download completati
 Visualizza notifica a download completati
 Visualizza barra progresso
 Avvia nella barra di sistema
+Success:
 Trasparenza:
+\x25B6
 Consenti al proxy di risolvere i nomi di dominio
 Consenti al proxy di risolvere i nomi di dominio (usa SOCKS v4a)
 Nome host:
@@ -246,6 +260,7 @@ Coppia chiavi pubblica/privata:
 Richiedi autenticazione:
 Server
 Versione server SSL/TLS:
+Show System Tray notification for remote connections
 Politiche selezione algoritmi
 Tentativo di autenticazione GSSAPI
 Tentativo di scambio di chiavi GSSAPI
@@ -330,6 +345,7 @@ Simula
 Sito
 Sito:
 Nome utente
+Associate file extension(s) with category:
 Aggiungi alla cache informazioni host e chiave
 Dimensione chiave:
 È disponibile una nuova versione del programma.
@@ -343,19 +359,27 @@ Novità programma
 Visita sito web programma
 ...
 [Simulato]
+Add Category
 Aggiungi URL
 Aggiunta
+All
 Assegnazione file
 Richiesta autorizzazione
 Annulla
+Categories
+Category:
 Controlla aggiornamenti
+Comments:
 Completato
 Connessione
 Predefinito
 Limite predefinito velocità download (byte/s):
+Desktop
+Documents
 Velocità download:
 Limite velocità download (byte/s):
 Download in corso
+Downloads
 I download sono stati completati
 Errore
 Esporta cronologia download
@@ -368,17 +392,23 @@ HTTP
 HTTPS
 Importa cronologia download
 Spazio insufficiente su disco
+IP address:
 Elementi:
 Spostamento file
+Music
 Opzioni
+Other
 In pausa
+Pictures
 Richiesta autenticazione proxy
 In coda
+Remote Connection
 Riavvio
 Salva cronologia download
 Imposta
 Gestione siti
 Saltato
+Status
 Fermato
 SSL2.0
 SSL3.0
@@ -389,8 +419,11 @@ TLS 1.2
 Totale download:
 Illimitato
 Aggiorna
+Update Category
 Download aggiornamento
 URL:
+URL(s) added:
+Videos
 È necessario fornire un algoritmo chiave.
 È richiesto un file chiave privata.
 È necessario definire un protocollo (HTTP(S), FTP(S) o SFTP).
@@ -405,9 +438,12 @@ Sei sicuro di voler rimuovere ed eliminare gli elementi selezionati?
 Sei sicuro di voler rimuovere gli elementi selezionati?
 Sei sicuro di voler riavviare gli elementi selezionati?
 Vuoi accettare la chiave host del server?
+Item ID List was not freed.
+One or more file extensions already exist in another category.
 Uno o più file sono in uso e non possono essere eliminati.
 Uno o più file non sono stati trovati.
 Uno o più percorsi non sono stati trovati.
+Select the category download directory.
 Seleziona la cartella predefinita download.
 Seleziona la cartella download.
 Seleziona la cartella temporanea download.
@@ -416,6 +452,7 @@ Il file è attualmente in uso e non può essere eliminato.
 Il file è attualmente in uso e non può essere rinominato.
 Impossibile importare i file perché il formato non è corretto.
 La firma digitale della chiave non corrisponde alla voce memorizzata nella cache.\r\nVuoi accettare la chiave host del server?
+The specified category already exists.
 Il file specificato non è stato trovato.
 Il file specificato non è stato trovato.\r\n\r\nVuoi scaricare nuovamente il file?
 L'host specificato esiste già.
@@ -426,6 +463,7 @@ Il sito specificato non è valido.
 Il nome utente e l'host specificati esistono già.
  In questo percorso esiste già un file con lo stesso nome.
 È necessario impostare un cartella download.
+Beta
 Build:
 Copyright
 HTTP Downloader è gratuito ed è distribuito sotto licenza GPLv3.

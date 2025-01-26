@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
-	Copyright (C) 2015-2024 Eric Kutcher
+	Copyright (C) 2015-2025 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -29,6 +29,8 @@
 #include "http_parsing.h"
 #include "ftp_parsing.h"
 #include "sftp.h"
+
+#include "categories.h"
 
 #include "utilities.h"
 #include "site_manager_utilities.h"
@@ -137,6 +139,7 @@ CRITICAL_SECTION fingerprint_prompt_list_cs;	// Guard access to the file fingerp
 CRITICAL_SECTION move_file_queue_cs;			// Guard access to the move file queue.
 CRITICAL_SECTION cleanup_cs;
 CRITICAL_SECTION update_check_timeout_cs;
+CRITICAL_SECTION file_allocation_cs;
 
 LPFN_ACCEPTEX _AcceptEx = NULL;
 LPFN_CONNECTEX _ConnectEx = NULL;
@@ -160,12 +163,18 @@ bool move_file_process_active = false;
 
 unsigned int g_session_status_count[ NUM_SESSION_STATUS ] = { 0 };	// 9 states that can be considered finished (Completed, Stopped, Failed, etc.)
 
+volatile LONG g_status_count[ 16 ] = { 0 };
+
 bool g_timers_running = false;
 
 bool g_waiting_for_update = false;
 unsigned long g_new_version = 0;
 char *g_new_version_url = NULL;
 char g_update_check_state;	// 0 manual update check, 1 automatic update check
+
+#ifdef IS_BETA
+unsigned long g_new_beta = 0;
+#endif
 
 void SetSessionStatusCount( unsigned int status )
 {
@@ -183,11 +192,235 @@ void SetSessionStatusCount( unsigned int status )
 	}
 }
 
+int GetStatusIndex( unsigned int status )
+{
+	int index = 0;
+
+	if		( status == STATUS_CONNECTING )					{ index = 1; }
+	else if ( IS_STATUS( status, STATUS_RESTART ) )			{ index = 9; }
+	else if ( IS_STATUS( status, STATUS_PAUSED ) )			{ index = 3; }
+	else if ( IS_STATUS( status, STATUS_QUEUED ) )			{ index = 4; }
+	else if ( status == STATUS_DOWNLOADING )				{ index = 2; }
+	else if ( status == STATUS_COMPLETED )					{ index = 5; }
+	else if ( status == STATUS_STOPPED )					{ index = 6; }
+	else if ( status == STATUS_TIMED_OUT )					{ index = 7; }
+	else if ( status == STATUS_FAILED )						{ index = 8; }
+	else if ( status == STATUS_FILE_IO_ERROR )				{ index = 10; }
+	else if ( status == STATUS_SKIPPED )					{ index = 11; }
+	else if ( status == STATUS_AUTH_REQUIRED )				{ index = 12; }
+	else if ( status == STATUS_PROXY_AUTH_REQUIRED )		{ index = 13; }
+	else if	( status == STATUS_ALLOCATING_FILE )			{ index = 14; }
+	else if	( status == STATUS_MOVING_FILE )				{ index = 15; }
+	else if ( status == STATUS_INSUFFICIENT_DISK_SPACE )	{ index = 16; }
+	else if ( status == STATUS_REMOVE )						{ index = -1; }
+
+	return index;
+}
+LONG DecrementStatusCount( unsigned int status )
+{
+	int index = GetStatusIndex( status );
+	if ( index >= 0 && g_status_count[ index ] > 0 )
+	{
+		return InterlockedDecrement( &g_status_count[ index ] );
+	}
+	else
+	{
+		return 0;
+	}
+}
+
+LONG IncrementStatusCount( unsigned int status )
+{
+	int index = GetStatusIndex( status );
+	if ( index >= 0 )
+	{
+		return InterlockedIncrement( &g_status_count[ index ] );
+	}
+	else
+	{
+		return 0;
+	}
+}
+
+void SetStatus( DOWNLOAD_INFO *di, unsigned int status )
+{
+	if ( di != NULL )
+	{
+		if ( di->hosts == 0 )
+		{
+			di->status = status;
+
+			return;
+		}
+
+		bool update_tln = false;
+
+		int item_index = 0;
+		int item_child_count = 0;
+		bool status_changed = ( di->status != status ? true : false );
+		unsigned char item_state = 0;	// 0 = No change, 1 = Added, 2 = Removed
+
+		TREELISTNODE *tln = ( TREELISTNODE * )di->tln;
+
+		// See if the status is leaving the filtered view.
+		if ( g_status_filter != STATUS_NONE && g_status_filter != CATEGORY_STATUS && IsFilterSet( di, g_status_filter ) )
+		{
+			if ( tln != NULL )
+			{
+				if ( tln->flag & TLVS_SELECTED )
+				{
+					tln->flag &= ~TLVS_SELECTED;
+					TLV_AddSelectedCount( -1 );
+
+					if ( tln == g_first_selection_node )
+					{
+						TREELISTNODE *first_selection_node;
+						int first_selection_index = TLV_GetNextSelectedItem( tln, TLV_GetFirstSelectedIndex(), &first_selection_node );
+						// Offset it since we're removing the first selected item.
+						if ( first_selection_index > 0 )
+						{
+							--first_selection_index;
+						}
+						g_first_selection_node = first_selection_node;
+						g_first_selection_index = g_first_selection_index;
+					}
+
+					// Cancel Selection.
+					InterlockedExchange( &g_refresh_list, ( g_refresh_list | 0x08 ) );
+				}
+
+				if ( tln->flag & TLVS_FOCUSED )
+				{
+					tln->flag &= ~TLVS_FOCUSED;
+					TLV_SetFocusedItem( NULL );
+					TLV_SetFocusedIndex( -1 );
+
+					// Cancel Rename and Drag.
+					InterlockedExchange( &g_refresh_list, ( g_refresh_list | 0x02 | 0x04 ) );
+				}
+			}
+
+			if ( status_changed )
+			{
+				if ( tln != NULL )
+				{
+					item_index = TLV_GetItemIndex( tln );
+					if ( tln->is_expanded )
+					{
+						item_child_count = tln->child_count;
+					}
+				}
+
+				item_state = 2;
+			}
+
+			int child_count = 0;
+
+			if ( tln != NULL )
+			{
+				EnterCriticalSection( &di->di_cs );
+
+				if ( !( tln->flag & TLVS_EXPANDING_COLLAPSING ) && tln->is_expanded )
+				{
+					update_tln = true;
+
+					tln->flag |= TLVS_EXPANDING_COLLAPSING;
+
+					child_count = tln->child_count;
+				}
+
+				LeaveCriticalSection( &di->di_cs );
+			}
+
+			TLV_AddExpandedItemCount( -( child_count + 1 ) );
+		}
+
+		DecrementStatusCount( di->status );
+
+		di->status = status;
+
+		// See if the status is entering the filtered view.
+		if ( g_status_filter != STATUS_NONE && g_status_filter != CATEGORY_STATUS && IsFilterSet( di, g_status_filter ) )
+		{
+			if ( status_changed )
+			{
+				if ( tln != NULL )
+				{
+					item_index = TLV_GetItemIndex( tln );
+					if ( tln->is_expanded )
+					{
+						item_child_count = tln->child_count;
+					}
+				}
+
+				item_state = 1;
+			}
+
+			int child_count = 0;
+
+			if ( tln != NULL && tln->is_expanded )
+			{
+				child_count = tln->child_count;
+			}
+
+			TLV_AddExpandedItemCount( child_count + 1 );
+		}
+
+		IncrementStatusCount( di->status );
+
+		if ( tln != NULL && update_tln )
+		{
+			EnterCriticalSection( &di->di_cs );
+
+			tln->flag &= ~TLVS_EXPANDING_COLLAPSING;
+
+			LeaveCriticalSection( &di->di_cs );
+		}
+
+		// Handle filtered changes.
+		if ( item_state != 0 )
+		{
+			if ( item_state == 1 )	// Added
+			{
+				int first_visible_index = TLV_GetFirstVisibleIndex();
+				if ( item_index < first_visible_index )
+				{
+					TLV_SetFirstVisibleIndex( first_visible_index + ( 1 + item_child_count ) );
+					TLV_SetFirstVisibleRootIndex( TLV_GetFirstVisibleRootIndex() + 1 );
+				}
+
+				TLV_AddTotalItemCount( 1 );
+			}
+			else if ( item_state == 2 ) // Removed
+			{
+				int first_visible_index = TLV_GetFirstVisibleIndex();
+				if ( item_index < first_visible_index )
+				{
+					TLV_SetFirstVisibleIndex( first_visible_index - ( 1 + item_child_count ) );
+					TLV_SetFirstVisibleRootIndex( TLV_GetFirstVisibleRootIndex() - 1 );
+				}
+
+				TLV_AddTotalItemCount( -1 );
+			}
+
+			int index = GetStatusIndex( g_status_filter );
+			if ( index >= 0 )
+			{
+				TLV_SetRootItemCount( g_status_count[ index ] );
+			}
+
+			// The update timer will refresh the list every second if there's a change in the item count.
+			InterlockedExchange( &g_refresh_list, ( g_refresh_list | 0x01 ) );
+		}
+	}
+}
+
 void SetSharedInfoStatus( DOWNLOAD_INFO *shared_info )
 {
 	if ( shared_info != NULL )
 	{
 		unsigned int shared_status = 0;
+		unsigned int status = shared_info->status;
 
 		DoublyLinkedList *host_node = shared_info->host_list;
 		while ( host_node != NULL )
@@ -195,6 +428,13 @@ void SetSharedInfoStatus( DOWNLOAD_INFO *shared_info )
 			DOWNLOAD_INFO *host_di = ( DOWNLOAD_INFO * )host_node->data;
 			if ( host_di != NULL )
 			{
+				// Might happen if a group download doesn't connect (wrong SSL/TLS).
+				// The non-driver hosts will not have had a status set.
+				if ( host_di->status == STATUS_NONE )
+				{
+					SetStatus( host_di, STATUS_STOPPED );
+				}
+
 				if ( host_di->processed_header || host_di->status != STATUS_SKIPPED )
 				{
 					shared_status |= host_di->status;
@@ -204,30 +444,32 @@ void SetSharedInfoStatus( DOWNLOAD_INFO *shared_info )
 			host_node = host_node->next;
 		}
 
-		if ( IS_STATUS( shared_status, STATUS_FILE_IO_ERROR ) )					{ shared_info->status = STATUS_FILE_IO_ERROR; }
-		else if ( IS_STATUS( shared_status, STATUS_ALLOCATING_FILE ) )			{ shared_info->status = STATUS_ALLOCATING_FILE; }
-		else if ( IS_STATUS( shared_status, STATUS_FAILED ) )					{ shared_info->status = STATUS_FAILED; }
-		else if ( IS_STATUS( shared_status, STATUS_TIMED_OUT ) )				{ shared_info->status = STATUS_TIMED_OUT; }
-		else if ( IS_STATUS( shared_status, STATUS_AUTH_REQUIRED ) )			{ shared_info->status = STATUS_AUTH_REQUIRED; }
-		else if ( IS_STATUS( shared_status, STATUS_PROXY_AUTH_REQUIRED ) )		{ shared_info->status = STATUS_PROXY_AUTH_REQUIRED; }
-		else if ( IS_STATUS( shared_status, STATUS_QUEUED ) )					{ shared_info->status = STATUS_QUEUED; }
-		else if ( IS_STATUS( shared_status, STATUS_MOVING_FILE ) )				{ shared_info->status = STATUS_MOVING_FILE; }
-		else if ( IS_STATUS( shared_status, STATUS_INSUFFICIENT_DISK_SPACE ) )	{ shared_info->status = STATUS_INSUFFICIENT_DISK_SPACE; }
-		else if ( IS_STATUS( shared_status, STATUS_PAUSED ) )					{ shared_info->status = STATUS_PAUSED; }
+		if ( IS_STATUS( shared_status, STATUS_FILE_IO_ERROR ) )					{ status = STATUS_FILE_IO_ERROR; }
+		else if ( IS_STATUS( shared_status, STATUS_ALLOCATING_FILE ) )			{ status = STATUS_ALLOCATING_FILE; }
+		else if ( IS_STATUS( shared_status, STATUS_FAILED ) )					{ status = STATUS_FAILED; }
+		else if ( IS_STATUS( shared_status, STATUS_TIMED_OUT ) )				{ status = STATUS_TIMED_OUT; }
+		else if ( IS_STATUS( shared_status, STATUS_AUTH_REQUIRED ) )			{ status = STATUS_AUTH_REQUIRED; }
+		else if ( IS_STATUS( shared_status, STATUS_PROXY_AUTH_REQUIRED ) )		{ status = STATUS_PROXY_AUTH_REQUIRED; }
+		else if ( IS_STATUS( shared_status, STATUS_QUEUED ) )					{ status = STATUS_QUEUED; }
+		else if ( IS_STATUS( shared_status, STATUS_MOVING_FILE ) )				{ status = STATUS_MOVING_FILE; }
+		else if ( IS_STATUS( shared_status, STATUS_INSUFFICIENT_DISK_SPACE ) )	{ status = STATUS_INSUFFICIENT_DISK_SPACE; }
+		else if ( IS_STATUS( shared_status, STATUS_PAUSED ) )					{ status = STATUS_PAUSED; }
 		else if ( IS_STATUS( shared_status, STATUS_SKIPPED ) && shared_info->file_size > 0 && shared_info->downloaded != shared_info->file_size )
 		{
-			shared_info->status = STATUS_SKIPPED;
+			status = STATUS_SKIPPED;
 		}
-		else if ( IS_STATUS( shared_status, STATUS_RESTART ) )					{ shared_info->status = STATUS_RESTART; }
-		else if ( IS_STATUS( shared_status, STATUS_DOWNLOADING ) )				{ shared_info->status = STATUS_DOWNLOADING; }
-		else if ( IS_STATUS( shared_status, STATUS_CONNECTING ) )				{ shared_info->status = STATUS_CONNECTING; }
-		else if ( IS_STATUS( shared_status, STATUS_STOPPED ) )					{ shared_info->status = STATUS_STOPPED; }
+		else if ( IS_STATUS( shared_status, STATUS_RESTART ) )					{ status = STATUS_RESTART; }
+		else if ( IS_STATUS( shared_status, STATUS_DOWNLOADING ) )				{ status = STATUS_DOWNLOADING; }
+		else if ( IS_STATUS( shared_status, STATUS_CONNECTING ) )				{ status = STATUS_CONNECTING; }
+		else if ( IS_STATUS( shared_status, STATUS_STOPPED ) )					{ status = STATUS_STOPPED; }
 		else if ( shared_status == STATUS_COMPLETED || ( IS_STATUS( shared_status, STATUS_COMPLETED ) &&
 				( ( shared_info->file_size > 0 && shared_info->downloaded == shared_info->file_size ) ||
 				  ( shared_info->file_size == 0 && shared_info->downloaded > 0 ) ) ) )
 		{
-			shared_info->status = STATUS_COMPLETED;
+			status = STATUS_COMPLETED;
 		}
+
+		SetStatus( shared_info, status );
 	}
 }
 
@@ -1172,7 +1414,9 @@ THREAD_RETURN PromptRenameFile( void *pArguments )
 
 					EnterCriticalSection( &di->di_cs );
 
-					rename_succeeded = RenameFile( di, add_files_tree, file_path, filename_offset, file_extension_offset );
+					rename_succeeded = RenameFile( add_files_tree,
+												   di->shared_info->file_path, &di->shared_info->filename_offset, &di->shared_info->file_extension_offset,
+												   file_path, filename_offset, file_extension_offset );
 
 					LeaveCriticalSection( &di->di_cs );
 
@@ -1205,6 +1449,10 @@ THREAD_RETURN PromptRenameFile( void *pArguments )
 					{
 						EnterCriticalSection( &context->context_cs );
 
+						EnterCriticalSection( &di->di_cs );
+						di->shared_info->download_operations |= DOWNLOAD_OPERATION_RESUME;
+						LeaveCriticalSection( &di->di_cs );
+
 						context->status &= ~STATUS_INPUT_REQUIRED;
 
 						InterlockedIncrement( &context->pending_operations );
@@ -1218,7 +1466,7 @@ THREAD_RETURN PromptRenameFile( void *pArguments )
 
 					EnterCriticalSection( &di->di_cs );
 
-					di->status = STATUS_SKIPPED;
+					SetStatus( di, STATUS_SKIPPED );
 
 					LeaveCriticalSection( &di->di_cs );
 
@@ -1236,6 +1484,10 @@ THREAD_RETURN PromptRenameFile( void *pArguments )
 				else	// Continue where we left off when getting the content.
 				{
 					EnterCriticalSection( &context->context_cs );
+
+					EnterCriticalSection( &di->di_cs );
+					di->shared_info->download_operations |= DOWNLOAD_OPERATION_RESUME;
+					LeaveCriticalSection( &di->di_cs );
 
 					context->status &= ~STATUS_INPUT_REQUIRED;
 
@@ -1333,7 +1585,7 @@ THREAD_RETURN PromptFileSize( void * /*pArguments*/ )
 				{
 					EnterCriticalSection( &di->di_cs );
 
-					di->status = STATUS_SKIPPED;
+					SetStatus( di, STATUS_SKIPPED );
 
 					LeaveCriticalSection( &di->di_cs );
 
@@ -1363,6 +1615,10 @@ THREAD_RETURN PromptFileSize( void * /*pArguments*/ )
 				}
 				else	// Continue where we left off when getting the content.
 				{
+					EnterCriticalSection( &di->di_cs );
+					di->shared_info->download_operations |= DOWNLOAD_OPERATION_RESUME;
+					LeaveCriticalSection( &di->di_cs );
+
 					context->status &= ~STATUS_INPUT_REQUIRED;
 
 					InterlockedIncrement( &context->pending_operations );
@@ -1504,7 +1760,7 @@ THREAD_RETURN PromptLastModified( void *pArguments )
 
 						EnterCriticalSection( &di->di_cs );
 
-						di->status = STATUS_STOPPED | STATUS_RESTART;
+						SetStatus( di, STATUS_STOPPED | STATUS_RESTART );
 
 						LeaveCriticalSection( &di->di_cs );
 MOD_RESTART:
@@ -1541,7 +1797,7 @@ MOD_RESTART:
 
 						EnterCriticalSection( &di->di_cs );
 
-						di->status = STATUS_SKIPPED;
+						SetStatus( di, STATUS_SKIPPED );
 
 						LeaveCriticalSection( &di->di_cs );
 MOD_SKIP:
@@ -1583,6 +1839,11 @@ MOD_SKIP:
 
 						LeaveCriticalSection( &di->di_cs );
 MOD_CONTINUE:
+
+						EnterCriticalSection( &di->di_cs );
+						di->shared_info->download_operations |= DOWNLOAD_OPERATION_RESUME;
+						LeaveCriticalSection( &di->di_cs );
+
 						context->status &= ~STATUS_INPUT_REQUIRED;
 
 						InterlockedIncrement( &context->pending_operations );
@@ -1744,12 +2005,12 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 
 						if ( GetLastError() == ERROR_DISK_FULL )
 						{
-							context->download_info->status = STATUS_INSUFFICIENT_DISK_SPACE;
+							SetStatus( context->download_info, STATUS_INSUFFICIENT_DISK_SPACE );
 							context->status = STATUS_INSUFFICIENT_DISK_SPACE;
 						}
 						else
 						{
-							context->download_info->status = STATUS_FILE_IO_ERROR;
+							SetStatus( context->download_info, STATUS_FILE_IO_ERROR );
 							context->status = STATUS_FILE_IO_ERROR;
 						}
 
@@ -2173,18 +2434,18 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 						{
 							EnterCriticalSection( &context->download_info->di_cs );
 
-							if ( context->ssl == NULL )
+							/*if ( context->ssl == NULL )
 							{
 								context->download_info->ssl_version = -1;
-							}
+							}*/
 
 							if ( !connection_failed )
 							{
-								context->download_info->status = STATUS_DOWNLOADING;
+								SetStatus( context->download_info, STATUS_DOWNLOADING );
 
 								if ( IS_STATUS( context->status, STATUS_PAUSED ) )
 								{
-									context->download_info->status |= STATUS_PAUSED;
+									SetStatus( context->download_info, context->download_info->status | STATUS_PAUSED );
 
 									context->is_paused = false;	// Set to true when last IO operation has completed.
 								}
@@ -2203,7 +2464,7 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 							{
 								EnterCriticalSection( &context->download_info->shared_info->di_cs );
 
-								context->download_info->shared_info->status = context->download_info->status;
+								SetStatus( context->download_info->shared_info, context->download_info->status );
 
 								LeaveCriticalSection( &context->download_info->shared_info->di_cs );
 							}
@@ -3167,12 +3428,12 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 					{
 						if ( GetLastError() == ERROR_DISK_FULL )
 						{
-							context->download_info->status = STATUS_INSUFFICIENT_DISK_SPACE;
+							SetStatus( context->download_info, STATUS_INSUFFICIENT_DISK_SPACE );
 							context->status = STATUS_INSUFFICIENT_DISK_SPACE;
 						}
 						else
 						{
-							context->download_info->status = STATUS_FILE_IO_ERROR;
+							SetStatus( context->download_info, STATUS_FILE_IO_ERROR );
 							context->status = STATUS_FILE_IO_ERROR;
 						}
 
@@ -4150,7 +4411,7 @@ void ResetDownload( DOWNLOAD_INFO *di, unsigned char reset_type, bool reset_prog
 			di->last_downloaded = 0;
 			di->downloaded = 0;
 			di->file_size = 0;
-			di->status = STATUS_NONE;
+			SetStatus( di, STATUS_NONE );
 		}
 		else if ( reset_type == START_TYPE_HOST_IN_GROUP )	// Reset host in a group.
 		{
@@ -4255,7 +4516,7 @@ void ResetDownload( DOWNLOAD_INFO *di, unsigned char reset_type, bool reset_prog
 
 			di->last_downloaded = 0;
 			di->downloaded = 0;
-			di->status = STATUS_NONE;
+			SetStatus( di, STATUS_NONE );
 		}
 		else if ( reset_type == START_TYPE_GROUP )	// Reset group
 		{
@@ -4266,7 +4527,7 @@ void ResetDownload( DOWNLOAD_INFO *di, unsigned char reset_type, bool reset_prog
 			di->shared_info->last_downloaded = 0;
 			di->shared_info->downloaded = 0;
 			di->shared_info->file_size = 0;
-			di->shared_info->status = STATUS_NONE;
+			SetStatus( di->shared_info, STATUS_NONE );
 
 			LeaveCriticalSection( &di->shared_info->di_cs );
 		}
@@ -4308,7 +4569,7 @@ void SetSkippedStatus( DOWNLOAD_INFO *di, unsigned char start_type )
 		if ( IS_GROUP( di ) && start_type == START_TYPE_GROUP )
 		{
 			EnterCriticalSection( &di->shared_info->di_cs );
-			di->shared_info->status = STATUS_SKIPPED;
+			SetStatus( di->shared_info, STATUS_SKIPPED );
 			LeaveCriticalSection( &di->shared_info->di_cs );
 
 			DoublyLinkedList *host_node = di->shared_info->host_list;
@@ -4318,7 +4579,7 @@ void SetSkippedStatus( DOWNLOAD_INFO *di, unsigned char start_type )
 				if ( host_di != NULL )
 				{
 					EnterCriticalSection( &host_di->di_cs );
-					host_di->status = STATUS_SKIPPED;
+					SetStatus( host_di, STATUS_SKIPPED );
 					LeaveCriticalSection( &host_di->di_cs );
 				}
 
@@ -4327,7 +4588,7 @@ void SetSkippedStatus( DOWNLOAD_INFO *di, unsigned char start_type )
 		}
 		else
 		{
-			di->status = STATUS_SKIPPED;
+			SetStatus( di, STATUS_SKIPPED );
 		}
 	}
 }
@@ -4423,11 +4684,15 @@ void StartDownload( DOWNLOAD_INFO *di, unsigned char start_type, unsigned char s
 
 					if ( prompt_temp_path )
 					{
-						rename_succeeded = RenameFile( di, add_files_tree, temp_file_path, temp_filename_offset, temp_file_extension_offset );
+						rename_succeeded = RenameFile( add_files_tree,
+													   di->shared_info->file_path, &di->shared_info->filename_offset, &di->shared_info->file_extension_offset,
+													   temp_file_path, temp_filename_offset, temp_file_extension_offset );
 					}
 					else
 					{
-						rename_succeeded = RenameFile( di, add_files_tree, final_file_path, final_filename_offset, final_file_extension_offset );
+						rename_succeeded = RenameFile( add_files_tree,
+													   di->shared_info->file_path, &di->shared_info->filename_offset, &di->shared_info->file_extension_offset,
+													   final_file_path, final_filename_offset, final_file_extension_offset );
 					}
 
 					if ( prompt_final_path )
@@ -4644,7 +4909,7 @@ void StartDownload( DOWNLOAD_INFO *di, unsigned char start_type, unsigned char s
 								di->shared_info->start_time.HighPart = ft.dwHighDateTime;
 							}
 
-							di->shared_info->status = STATUS_CONNECTING;
+							SetStatus( di->shared_info, STATUS_CONNECTING );
 						}
 						LeaveCriticalSection( &di->shared_info->di_cs );
 					}
@@ -4656,7 +4921,7 @@ void StartDownload( DOWNLOAD_INFO *di, unsigned char start_type, unsigned char s
 						di->start_time.HighPart = ft.dwHighDateTime;
 					}
 
-					di->status = STATUS_CONNECTING;
+					SetStatus( di, STATUS_CONNECTING );
 
 					EnterCriticalSection( &active_download_list_cs );
 
@@ -4700,14 +4965,14 @@ void StartDownload( DOWNLOAD_INFO *di, unsigned char start_type, unsigned char s
 
 					if ( di->queue_node.data == NULL && !( di->download_operations & DOWNLOAD_OPERATION_ADD_STOPPED ) )
 					{
-						di->status = STATUS_CONNECTING | STATUS_QUEUED;	// Queued.
+						SetStatus( di, STATUS_CONNECTING | STATUS_QUEUED );	// Queued.
 
 						// If we haven't processed the header information, then the other items (non-driver hosts) aren't going to be started and won't queue naturally.
 						// We'll do it here.
 						if ( IS_GROUP( di ) && !di->shared_info->processed_header )
 						{
 							EnterCriticalSection( &di->shared_info->di_cs );
-							di->shared_info->status = STATUS_CONNECTING | STATUS_QUEUED;	// Queued.
+							SetStatus( di->shared_info, STATUS_CONNECTING | STATUS_QUEUED );	// Queued.
 							LeaveCriticalSection( &di->shared_info->di_cs );
 
 							DoublyLinkedList *host_node = di->shared_info->host_list;
@@ -4719,7 +4984,7 @@ void StartDownload( DOWNLOAD_INFO *di, unsigned char start_type, unsigned char s
 									if ( host_di->status != STATUS_COMPLETED &&
 									  !( host_di->download_operations & DOWNLOAD_OPERATION_ADD_STOPPED ) )	// status might have been set to stopped when added.
 									{
-										host_di->status = STATUS_CONNECTING | STATUS_QUEUED;
+										SetStatus( host_di, STATUS_CONNECTING | STATUS_QUEUED );
 									}
 								}
 
@@ -4980,7 +5245,7 @@ void DestroyFilenameTree( dllrbt_tree *filename_tree )
 	dllrbt_delete_recursively( filename_tree );
 }
 
-bool RenameFile( DOWNLOAD_INFO *di, dllrbt_tree *filename_tree, wchar_t *file_path, unsigned int filename_offset, unsigned int file_extension_offset )
+bool RenameFile( dllrbt_tree *filename_tree, wchar_t *old_file_path, unsigned int *old_filename_offset, unsigned int *old_file_extension_offset, wchar_t *new_file_path, unsigned int new_filename_offset, unsigned int new_file_extension_offset )
 {
 	unsigned int rename_count = 0;
 
@@ -4990,17 +5255,17 @@ bool RenameFile( DOWNLOAD_INFO *di, dllrbt_tree *filename_tree, wchar_t *file_pa
 	// MAX_PATH is 260.
 
 	// We don't want to overwrite the download info until the very end.
-	wchar_t new_file_path[ MAX_PATH ];
-	_wmemcpy_s( new_file_path, MAX_PATH, file_path, MAX_PATH );
+	wchar_t t_file_path[ MAX_PATH ];
+	_wmemcpy_s( t_file_path, MAX_PATH, new_file_path, MAX_PATH );
 
-	new_file_path[ filename_offset - 1 ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
+	t_file_path[ new_filename_offset - 1 ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
 
 	do
 	{
-		while ( dllrbt_find( filename_tree, ( void * )( new_file_path + filename_offset ), false ) != NULL )
+		while ( dllrbt_find( filename_tree, ( void * )( t_file_path + new_filename_offset ), false ) != NULL )
 		{
 			// If there's a file extension, then put the counter before it.
-			int ret = __snwprintf( new_file_path + file_extension_offset, MAX_PATH - file_extension_offset - 1, L" (%lu)%s", ++rename_count, file_path + file_extension_offset );
+			int ret = __snwprintf( t_file_path + new_file_extension_offset, MAX_PATH - new_file_extension_offset - 1, L" (%lu)%s", ++rename_count, new_file_path + new_file_extension_offset );
 
 			// Can't rename.
 			if ( ret < 0 )
@@ -5010,62 +5275,121 @@ bool RenameFile( DOWNLOAD_INFO *di, dllrbt_tree *filename_tree, wchar_t *file_pa
 		}
 
 		// Add the new filename to the add files tree.
-		wchar_t *filename = GlobalStrDupW( new_file_path + filename_offset );
+		wchar_t *filename = GlobalStrDupW( t_file_path + new_filename_offset );
 
 		if ( dllrbt_insert( filename_tree, ( void * )filename, ( void * )filename ) != DLLRBT_STATUS_OK )
 		{
 			GlobalFree( filename );
 		}
 	}
-	while ( GetFileAttributesW( new_file_path ) != INVALID_FILE_ATTRIBUTES );
+	while ( GetFileAttributesW( t_file_path ) != INVALID_FILE_ATTRIBUTES );
 
 	// Set the new filename.
-	_wmemcpy_s( di->shared_info->file_path + di->shared_info->filename_offset, MAX_PATH - di->shared_info->filename_offset, new_file_path + filename_offset, MAX_PATH - di->shared_info->filename_offset );
-	di->shared_info->file_path[ MAX_PATH - 1 ] = 0;	// Sanity.
+	_wmemcpy_s( old_file_path + *old_filename_offset, MAX_PATH - *old_filename_offset, t_file_path + new_filename_offset, MAX_PATH - *old_filename_offset );
+	old_file_path[ MAX_PATH - 1 ] = 0;	// Sanity.
 
 	// Get the new file extension offset.
-	di->shared_info->file_extension_offset = di->shared_info->filename_offset + get_file_extension_offset( di->shared_info->file_path + di->shared_info->filename_offset, lstrlenW( di->shared_info->file_path + di->shared_info->filename_offset ) );
+	*old_file_extension_offset = *old_filename_offset + get_file_extension_offset( old_file_path + *old_filename_offset, lstrlenW( old_file_path + *old_filename_offset ) );
 
 	return true;
 }
 
-ICON_INFO *CacheIcon( DOWNLOAD_INFO *di, SHFILEINFO *sfi )
+void UpdateDownloadDirectoryInfo( DOWNLOAD_INFO *di, wchar_t *new_download_directory, unsigned int new_download_directory_length )
+{
+	if ( di != NULL )
+	{
+		new_download_directory_length = min( MAX_PATH, new_download_directory_length + 1 );	// Include NULL character.
+
+		unsigned int file_name_length = lstrlenW( di->file_path + di->filename_offset );
+		file_name_length = min( file_name_length, ( int )( MAX_PATH - new_download_directory_length - 1 ) );
+
+		_memmove( di->file_path + new_download_directory_length, di->file_path + di->filename_offset, sizeof( wchar_t ) * ( file_name_length + 1 ) );
+		_wmemcpy_s( di->file_path, new_download_directory_length, new_download_directory, new_download_directory_length );
+		di->file_path[ MAX_PATH - 1 ] = 0;	// Sanity.
+
+		di->file_extension_offset = min( MAX_PATH - 1, di->file_extension_offset + ( int )( new_download_directory_length - di->filename_offset ) );
+		di->filename_offset = new_download_directory_length;
+	}
+}
+
+ICON_INFO *CacheIcon( DOWNLOAD_INFO *di )
 {
 	ICON_INFO *ii = NULL;
 
-	if ( di != NULL && sfi != NULL )
+	if ( di != NULL )
 	{
+		SHFILEINFO sfi;
+		sfi.hIcon = NULL;
+
+		wchar_t *file_extension = di->file_path + di->file_extension_offset;
+
+		if ( cfg_show_embedded_icon && lstrcmpiW( file_extension, L".exe" ) == 0 )
+		{
+			if ( !( di->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
+			{
+				wchar_t file_path[ MAX_PATH ];
+				UINT extracted_icons = 0;
+
+				// Get the icon from its temporary directory or its download directory.
+				if ( cfg_use_temp_download_directory )
+				{
+					GetTemporaryFilePath( di, file_path );
+
+					extracted_icons = _ExtractIconExW( file_path, 0, NULL, &sfi.hIcon, 1 );
+				}
+
+				_wmemcpy_s( file_path, MAX_PATH, di->file_path, MAX_PATH );
+				if ( di->filename_offset > 0 )
+				{
+					file_path[ di->filename_offset - 1 ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
+				}
+
+				if ( extracted_icons != 1 )
+				{
+					extracted_icons = _ExtractIconExW( file_path, 0, NULL, &sfi.hIcon, 1 );
+				}
+
+				if ( extracted_icons == 1 )
+				{
+					file_extension = file_path;
+				}
+			}
+		}
+
 		// Cache our file's icon.
 		EnterCriticalSection( &icon_cache_cs );
-		ii = ( ICON_INFO * )dllrbt_find( g_icon_handles, ( void * )( di->file_path + di->file_extension_offset ), true );
+		ii = ( ICON_INFO * )dllrbt_find( g_icon_handles, ( void * )file_extension, true );
 		if ( ii == NULL )
 		{
-			bool destroy = true;
-			#ifndef OLE32_USE_STATIC_LIB
-				if ( ole32_state == OLE32_STATE_SHUTDOWN )
+			if ( sfi.hIcon == NULL )
+			{
+				bool destroy = true;
+				#ifndef OLE32_USE_STATIC_LIB
+					if ( ole32_state == OLE32_STATE_SHUTDOWN )
+					{
+						destroy = InitializeOle32();
+					}
+				#endif
+
+				if ( destroy )
 				{
-					destroy = InitializeOle32();
+					_CoInitializeEx( NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE );
 				}
-			#endif
 
-			if ( destroy )
-			{
-				_CoInitializeEx( NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE );
-			}
+				// Use an unknown file type icon for extensionless files.
+				_SHGetFileInfoW( ( di->file_path[ di->file_extension_offset ] != 0 ? file_extension : L" " ), FILE_ATTRIBUTE_NORMAL, &sfi, sizeof( SHFILEINFO ), SHGFI_USEFILEATTRIBUTES | SHGFI_ICON | SHGFI_SMALLICON );
 
-			// Use an unknown file type icon for extensionless files.
-			_SHGetFileInfoW( ( di->file_path[ di->file_extension_offset ] != 0 ? di->file_path + di->file_extension_offset : L" " ), FILE_ATTRIBUTE_NORMAL, sfi, sizeof( SHFILEINFO ), SHGFI_USEFILEATTRIBUTES | SHGFI_ICON | SHGFI_SMALLICON );
-
-			if ( destroy )
-			{
-				_CoUninitialize();
+				if ( destroy )
+				{
+					_CoUninitialize();
+				}
 			}
 
 			ii = ( ICON_INFO * )GlobalAlloc( GMEM_FIXED, sizeof( ICON_INFO ) );
 			if ( ii != NULL )
 			{
-				ii->file_extension = GlobalStrDupW( di->file_path + di->file_extension_offset );
-				ii->icon = sfi->hIcon;
+				ii->file_extension = GlobalStrDupW( file_extension );
+				ii->icon = sfi.hIcon;
 
 				ii->count = 1;
 
@@ -5080,6 +5404,11 @@ ICON_INFO *CacheIcon( DOWNLOAD_INFO *di, SHFILEINFO *sfi )
 		}
 		else
 		{
+			if ( sfi.hIcon != NULL )
+			{
+				_DestroyIcon( sfi.hIcon );
+			}
+
 			++( ii->count );
 		}
 		LeaveCriticalSection( &icon_cache_cs );
@@ -5088,18 +5417,56 @@ ICON_INFO *CacheIcon( DOWNLOAD_INFO *di, SHFILEINFO *sfi )
 	return ii;
 }
 
-void RemoveCachedIcon( DOWNLOAD_INFO *di, wchar_t *file_extension )
+void RemoveCachedIcon( DOWNLOAD_INFO *di, wchar_t *file_path, unsigned int filename_offset, unsigned int file_extension_offset )
 {
 	if ( di != NULL )
 	{
-		if ( file_extension == NULL )
+		if ( file_path == NULL )
 		{
-			file_extension = di->file_path + di->file_extension_offset;
+			file_path = di->file_path;
+			filename_offset = di->filename_offset;
+			file_extension_offset = di->file_extension_offset;
 		}
 
+		wchar_t full_file_path[ MAX_PATH ];
+		wchar_t *file_extension = file_path + file_extension_offset;
+
+		dllrbt_iterator *itr = NULL;
+
 		EnterCriticalSection( &icon_cache_cs );
-		// Find the icon info
-		dllrbt_iterator *itr = dllrbt_find( g_icon_handles, ( void * )file_extension, false );
+
+		if ( cfg_show_embedded_icon && lstrcmpiW( file_extension, L".exe" ) == 0 )
+		{
+			bool find_full_file_path = true;
+
+			itr = dllrbt_find( g_icon_handles, ( void * )file_extension, false );
+			if ( itr != NULL )
+			{
+				ICON_INFO *ii = ( ICON_INFO * )( ( node_type * )itr )->val;
+				if ( ii != NULL && &ii->icon == di->icon )
+				{
+					find_full_file_path = false;
+				}
+			}
+
+			if ( find_full_file_path )
+			{
+				_wmemcpy_s( full_file_path, MAX_PATH, file_path, MAX_PATH );
+				if ( filename_offset > 0 )
+				{
+					full_file_path[ filename_offset - 1 ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
+				}
+
+				// Find the icon info
+				itr = dllrbt_find( g_icon_handles, ( void * )full_file_path, false );
+			}
+		}
+
+		if ( itr == NULL )
+		{
+			// Find the icon info
+			itr = dllrbt_find( g_icon_handles, ( void * )file_extension, false );
+		}
 
 		// Free its values and remove it from the tree if there are no other items using it.
 		if ( itr != NULL )
@@ -5125,10 +5492,29 @@ void RemoveCachedIcon( DOWNLOAD_INFO *di, wchar_t *file_extension )
 	}
 }
 
+void UpdateCachedIcon( DOWNLOAD_INFO *di )
+{
+	if ( di != NULL && !( di->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
+	{
+		wchar_t *file_extension = di->file_path + di->file_extension_offset;
+
+		if ( lstrcmpiW( file_extension, L".exe" ) == 0 )
+		{
+			RemoveCachedIcon( di );
+
+			// Cache our file's icon.
+			ICON_INFO *ii = CacheIcon( di );
+
+			di->icon = ( ii != NULL ? &ii->icon : NULL );
+		}
+	}
+}
+
 wchar_t *ParseURLSettings( wchar_t *url_list, ADD_INFO *ai )
 {
 	if ( ai != NULL )
 	{
+		wchar_t *category = NULL;
 		wchar_t *download_directory = NULL;
 		wchar_t *username = NULL;
 		wchar_t *password = NULL;
@@ -5247,6 +5633,7 @@ wchar_t *ParseURLSettings( wchar_t *url_list, ADD_INFO *ai )
 				}
 				else if ( ( param_name_length == 13 && _StrCmpNIW( param_name_start, L"cookie-string", 13 ) == 0 ) ||
 						  ( param_name_length == 9 && _StrCmpNIW( param_name_start, L"post-data", 9 ) == 0 ) ||
+						  ( param_name_length == 8 && _StrCmpNIW( param_name_start, L"category", 8 ) == 0 ) ||
 						  ( param_name_length == 18 && _StrCmpNIW( param_name_start, L"download-directory", 18 ) == 0 ) ||
 						  ( param_name_length == 8 && _StrCmpNIW( param_name_start, L"username", 8 ) == 0 ) ||
 						  ( param_name_length == 8 && _StrCmpNIW( param_name_start, L"password", 8 ) == 0 ) ||
@@ -5262,7 +5649,14 @@ wchar_t *ParseURLSettings( wchar_t *url_list, ADD_INFO *ai )
 						{
 							if ( *param_name_start == L'c' )
 							{
-								param_value = &cookies;
+								if ( param_name_start[ 1 ] == L'o' )	// Cookies
+								{
+									param_value = &cookies;
+								}
+								else	// Category
+								{
+									param_value = &category;
+								}
 							}
 							else if ( param_name_start[ 0 ] == L'p' )
 							{
@@ -5439,6 +5833,11 @@ wchar_t *ParseURLSettings( wchar_t *url_list, ADD_INFO *ai )
 			}
 		}
 
+		if ( category != NULL )
+		{
+			ai->category = category;
+		}
+
 		if ( download_directory != NULL )
 		{
 			ai->use_download_directory = true;
@@ -5570,6 +5969,14 @@ DWORD WINAPI AddURL( void *add_info )
 
 	ProcessingList( true );
 
+	//
+
+	int total_item_count = 0;
+	int expanded_item_count = 0;
+	int root_item_count = 0;
+
+	//
+
 	SITE_INFO *si = NULL;
 	SITE_INFO *last_si = NULL;
 
@@ -5587,6 +5994,12 @@ DWORD WINAPI AddURL( void *add_info )
 
 	unsigned int host_length = 0;
 	unsigned int resource_length = 0;
+
+	wchar_t *category = NULL;
+
+	int category_length = 0;
+
+	int ai_category_length = 0;
 
 	wchar_t *download_directory = NULL;
 
@@ -5617,6 +6030,14 @@ DWORD WINAPI AddURL( void *add_info )
 
 	//
 
+	wchar_t *comments = NULL;
+
+	int comments_length = 0;
+
+	int ai_comments_length = 0;
+
+	//
+
 	char *cookies = NULL;
 	char *headers = NULL;
 	char *data = NULL;
@@ -5631,6 +6052,11 @@ DWORD WINAPI AddURL( void *add_info )
 
 	//
 
+	if ( ai->category != NULL )
+	{
+		category_length = ai_category_length = lstrlenW( ai->category );
+	}
+
 	if ( ai->auth_info.username != NULL )
 	{
 		username_length = ai_username_length = lstrlenA( ai->auth_info.username );
@@ -5639,6 +6065,11 @@ DWORD WINAPI AddURL( void *add_info )
 	if ( ai->auth_info.password != NULL )
 	{
 		password_length = ai_password_length = lstrlenA( ai->auth_info.password );
+	}
+
+	if ( ai->comments != NULL )
+	{
+		comments_length = ai_comments_length = lstrlenW( ai->comments );
 	}
 
 	if ( ai->utf8_cookies != NULL )
@@ -5735,8 +6166,6 @@ DWORD WINAPI AddURL( void *add_info )
 		}
 	}
 
-	SHFILEINFO *sfi = ( SHFILEINFO * )GlobalAlloc( GMEM_FIXED, sizeof( SHFILEINFO ) );
-
 	TREELISTNODE *first_added_tln = NULL;
 	TREELISTNODE *last_added_tln = NULL;
 
@@ -5808,6 +6237,8 @@ DWORD WINAPI AddURL( void *add_info )
 
 		unsigned group_count = 0;
 		bool is_group = false;
+		bool is_single_host_group = false;
+		unsigned int group_item_count = 0;
 		_memzero( &g_ai, sizeof( ADD_INFO ) );
 
 		if ( group_start == NULL )
@@ -6005,6 +6436,17 @@ DWORD WINAPI AddURL( void *add_info )
 				// Parse URL settings.
 				url_list = ParseURLSettings( url_list, &u_ai );
 
+				if ( is_group )
+				{
+					++group_item_count;
+
+					// Does the group download only contain one URL? If so, then it'll be treated as a non-group download.
+					if ( group_item_count == 1 && *url_list == L'}' )
+					{
+						is_single_host_group = true;
+					}
+				}
+
 				// We've moved the pointer of the URL list. Maybe we got some valid settings.
 				if ( url_list != t_url_list )
 				{
@@ -6049,17 +6491,67 @@ DWORD WINAPI AddURL( void *add_info )
 			// If we get the same site info, then the variables below will still be set.
 			if ( si == NULL || si != last_si )
 			{
-				if ( u_ai.use_download_directory )
+				if ( u_ai.category != NULL )
+				{
+					category = u_ai.category;
+					category_length = lstrlenW( category );
+				}
+				else if ( is_group && g_ai.category != NULL )
+				{
+					category = g_ai.category;
+					category_length = lstrlenW( category );
+				}
+				else if ( ai->category != NULL )
+				{
+					category = ai->category;
+					category_length = ai_category_length;
+				}
+				else if ( si != NULL && si->category != NULL )
+				{
+					category = si->category;
+					category_length = lstrlenW( category );
+				}
+				else
+				{
+					category = NULL;
+					category_length = 0;
+				}
+
+				CATEGORY_INFO_ *ci = NULL;
+				if ( category != NULL )
+				{
+					CATEGORY_INFO_ t_ci;
+					t_ci.category = category;
+					ci = ( CATEGORY_INFO_ * )dllrbt_find( g_category_info, ( void * )&t_ci, true );
+				}
+
+				if ( u_ai.category != NULL && ci != NULL && ci->download_directory != NULL && !u_ai.use_download_directory )
+				{
+					download_directory = ci->download_directory;
+				}
+				else if ( u_ai.use_download_directory )
 				{
 					download_directory = u_ai.download_directory;
+				}
+				else if ( is_group && g_ai.category != NULL && ci != NULL && ci->download_directory != NULL && !g_ai.use_download_directory )
+				{
+					download_directory = ci->download_directory;
 				}
 				else if ( is_group && g_ai.use_download_directory )
 				{
 					download_directory = g_ai.download_directory;
 				}
+				else if ( ai->category != NULL && ci != NULL && ci->download_directory != NULL && !ai->use_download_directory )
+				{
+					download_directory = ci->download_directory;
+				}
 				else if ( ai->use_download_directory )
 				{
 					download_directory = ai->download_directory;
+				}
+				else if ( si != NULL && si->category != NULL && ci != NULL && ci->download_directory != NULL && !si->use_download_directory )
+				{
+					download_directory = ci->download_directory;
 				}
 				else if ( si != NULL && si->use_download_directory )
 				{
@@ -6116,10 +6608,10 @@ DWORD WINAPI AddURL( void *add_info )
 				{
 					download_speed_limit = u_ai.download_speed_limit;
 				}
-				else if ( is_group && g_ai.use_download_speed_limit )
+				/*else if ( is_group && g_ai.use_download_speed_limit )
 				{
 					download_speed_limit = g_ai.download_speed_limit;
-				}
+				}*/
 				else if ( ai->use_download_speed_limit )
 				{
 					download_speed_limit = ai->download_speed_limit;
@@ -6195,6 +6687,32 @@ DWORD WINAPI AddURL( void *add_info )
 				{
 					password = NULL;
 					password_length = 0;
+				}
+
+				if ( u_ai.comments != NULL )
+				{
+					comments = u_ai.comments;
+					comments_length = lstrlenW( comments );
+				}
+				else if ( is_group && g_ai.comments != NULL )
+				{
+					comments = g_ai.comments;
+					comments_length = lstrlenW( comments );
+				}
+				else if ( ai->comments != NULL )
+				{
+					comments = ai->comments;
+					comments_length = ai_comments_length;
+				}
+				else if ( si != NULL && si->comments != NULL )
+				{
+					comments = si->comments;
+					comments_length = lstrlenW( comments );
+				}
+				else
+				{
+					comments = NULL;
+					comments_length = 0;
 				}
 
 				if ( u_ai.utf8_cookies != NULL )
@@ -6432,7 +6950,7 @@ DWORD WINAPI AddURL( void *add_info )
 					set_shared_info = false;
 				}
 
-				if ( is_group )
+				if ( is_group && !is_single_host_group )
 				{
 					di = ( DOWNLOAD_INFO * )GlobalAlloc( GPTR, sizeof( DOWNLOAD_INFO ) );
 				}
@@ -6453,9 +6971,43 @@ DWORD WINAPI AddURL( void *add_info )
 						{
 							shared_info->shared_info = shared_info;
 
-							if ( is_group )
+							if ( is_group && !is_single_host_group )
 							{
 								InitializeCriticalSection( &shared_info->di_cs );
+
+								if ( g_ai.use_download_speed_limit )
+								{
+									di->shared_info->download_speed_limit = g_ai.download_speed_limit;
+								}
+								else if ( ai->use_download_speed_limit )
+								{
+									di->shared_info->download_speed_limit = ai->download_speed_limit;
+								}
+								else
+								{
+									di->shared_info->download_speed_limit = cfg_default_speed_limit;
+								}
+
+								wchar_t *t_comments = NULL;
+								int t_comments_length = 0;
+
+								if ( g_ai.comments != NULL )
+								{
+									t_comments = g_ai.comments;
+									t_comments_length = lstrlenW( comments );
+								}
+								else if ( ai->comments != NULL )
+								{
+									t_comments = ai->comments;
+									t_comments_length = ai_comments_length;
+								}
+
+								if ( t_comments != NULL && t_comments_length > 0 )
+								{
+									di->shared_info->comments = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( t_comments_length + 1 ) );
+									_wmemcpy_s( di->shared_info->comments, t_comments_length + 1, t_comments, t_comments_length );
+									di->shared_info->comments[ t_comments_length ] = 0;	// Sanity.
+								}
 							}
 
 							if ( !( download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
@@ -6569,12 +7121,37 @@ DWORD WINAPI AddURL( void *add_info )
 								di->shared_info->download_operations |= DOWNLOAD_OPERATION_GET_EXTENSION;
 							}
 
+							if ( category == NULL || category_length == 0 )
+							{
+								if ( cfg_category_move )
+								{
+									unsigned int file_extension_offset = min( MAX_PATH - 1, di->shared_info->file_extension_offset + 1 );	// Exclude the period.
+
+									// Find the category file extension info.
+									CATEGORY_FILE_EXTENSION_INFO *cfei = ( CATEGORY_FILE_EXTENSION_INFO * )dllrbt_find( g_category_file_extensions, ( void * )( di->shared_info->file_path + file_extension_offset ), true );
+									if ( cfei != NULL && cfei->ci != NULL )
+									{
+										if ( !( download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
+										{
+											UpdateDownloadDirectoryInfo( di->shared_info, cfei->ci->download_directory, lstrlenW( cfei->ci->download_directory ) );
+										}
+
+										di->shared_info->category = CacheCategory( cfei->ci->category );
+									}
+								}
+							}
+
+							if ( di->shared_info->category == NULL && category != NULL && category_length > 0 )
+							{
+								di->shared_info->category = CacheCategory( category );
+							}
+
 							di->shared_info->hFile = INVALID_HANDLE_VALUE;
 
 							//
 
 							// Cache our file's icon.
-							ICON_INFO *ii = CacheIcon( di->shared_info, sfi );
+							ICON_INFO *ii = CacheIcon( di->shared_info );
 
 							if ( ii != NULL )
 							{
@@ -6637,8 +7214,7 @@ DWORD WINAPI AddURL( void *add_info )
 
 						if ( download_operations & DOWNLOAD_OPERATION_ADD_STOPPED )
 						{
-							di->status = STATUS_STOPPED;
-							//di->shared_info->download_operations &= ~DOWNLOAD_OPERATION_ADD_STOPPED;
+							di->status = STATUS_STOPPED;	// Don't SetStatus() here.
 							di->download_operations |= DOWNLOAD_OPERATION_ADD_STOPPED;
 						}
 
@@ -6654,6 +7230,13 @@ DWORD WINAPI AddURL( void *add_info )
 							di->auth_info.password = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( password_length + 1 ) );
 							_memcpy_s( di->auth_info.password, password_length + 1, password, password_length );
 							di->auth_info.password[ password_length ] = 0;	// Sanity.
+						}
+
+						if ( comments != NULL && comments_length > 0 )
+						{
+							di->comments = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( comments_length + 1 ) );
+							_wmemcpy_s( di->comments, comments_length + 1, comments, comments_length );
+							di->comments[ comments_length ] = 0;	// Sanity.
 						}
 
 						if ( cookies != NULL && cookies_length > 0 )
@@ -6775,7 +7358,7 @@ DWORD WINAPI AddURL( void *add_info )
 
 						if ( tln_parent == NULL )
 						{
-							if ( is_group )
+							if ( is_group && !is_single_host_group )
 							{
 								// print_range_list is used in DrawTreeListView
 								shared_info->print_range_list = shared_info->host_list;
@@ -6783,18 +7366,31 @@ DWORD WINAPI AddURL( void *add_info )
 
 							if ( download_operations & DOWNLOAD_OPERATION_ADD_STOPPED )
 							{
-								shared_info->status = STATUS_STOPPED;
+								shared_info->status = STATUS_STOPPED;	// Don't SetStatus() here.
 							}
 
 							tln_parent = ( TREELISTNODE * )GlobalAlloc( GPTR, sizeof( TREELISTNODE ) );
+							shared_info->tln = tln_parent;
 							tln_parent->data = shared_info;
-							tln_parent->data_type = TLVDT_GROUP | ( !is_group ? TLVDT_HOST : 0 );
+							tln_parent->data_type = TLVDT_GROUP | ( ( !is_group || is_single_host_group ) ? TLVDT_HOST : 0 );
 
 							TLV_AddNode( &g_tree_list, tln_parent, -1 );
 
-							TLV_SetRootItemCount( TLV_GetRootItemCount() + 1 );
-							TLV_SetExpandedItemCount( TLV_GetExpandedItemCount() + 1 );
-							TLV_SetTotalItemCount( TLV_GetTotalItemCount() + 1 );
+							if ( g_status_filter != STATUS_NONE )
+							{
+								if ( IsFilterSet( shared_info, g_status_filter ) )
+								{
+									++total_item_count;
+									++root_item_count;
+									++expanded_item_count;
+								}
+							}
+							else
+							{
+								++total_item_count;
+								++root_item_count;
+								++expanded_item_count;
+							}
 
 							if ( first_added_tln == NULL )
 							{
@@ -6815,16 +7411,34 @@ DWORD WINAPI AddURL( void *add_info )
 							tln->data_type = TLVDT_HOST;
 							tln->parent = tln_parent;
 
-							TLV_AddNode( &tln_parent->child, tln, -1 );
+							TLV_AddNode( &tln_parent->child, tln, -1, true );
 
 							if ( cfg_expand_added_group_items )
 							{
 								tln_parent->is_expanded = true;
-
-								TLV_SetExpandedItemCount( TLV_GetExpandedItemCount() + 1 );
 							}
 
-							TLV_SetTotalItemCount( TLV_GetTotalItemCount() + 1 );
+							if ( g_status_filter != STATUS_NONE )
+							{
+								if ( IsFilterSet( shared_info, g_status_filter ) )
+								{
+									++total_item_count;
+
+									if ( tln_parent->is_expanded )
+									{
+										++expanded_item_count;
+									}
+								}
+							}
+							else
+							{
+								++total_item_count;
+
+								if ( tln_parent->is_expanded )
+								{
+									++expanded_item_count;
+								}
+							}
 						}
 
 #ifdef ENABLE_LOGGING
@@ -6852,11 +7466,13 @@ DWORD WINAPI AddURL( void *add_info )
 			if ( url_username != NULL ) { GlobalFree( username ); GlobalFree( url_username ); }
 			if ( url_password != NULL ) { GlobalFree( password ); GlobalFree( url_password ); }
 
+			if ( u_ai.category != NULL ) { GlobalFree( u_ai.category ); }
 			if ( u_ai.download_directory != NULL ) { GlobalFree( u_ai.download_directory ); }
 			if ( u_ai.auth_info.username != NULL ) { GlobalFree( u_ai.auth_info.username ); }
 			if ( u_ai.auth_info.password != NULL ) { GlobalFree( u_ai.auth_info.password ); }
-			if ( u_ai.utf8_headers != NULL ) { GlobalFree( u_ai.utf8_headers ); }
+			if ( u_ai.comments != NULL ) { GlobalFree( u_ai.comments ); }
 			if ( u_ai.utf8_cookies != NULL ) { GlobalFree( u_ai.utf8_cookies ); }
+			if ( u_ai.utf8_headers != NULL ) { GlobalFree( u_ai.utf8_headers ); }
 			if ( u_ai.utf8_data != NULL ) { GlobalFree( u_ai.utf8_data ); }
 
 			if ( u_ai.proxy_info.hostname != NULL ) { GlobalFree( u_ai.proxy_info.hostname ); }
@@ -6878,11 +7494,13 @@ DWORD WINAPI AddURL( void *add_info )
 		{
 			url_list = next_url;
 
+			if ( g_ai.category != NULL ) { GlobalFree( g_ai.category ); }
 			if ( g_ai.download_directory != NULL ) { GlobalFree( g_ai.download_directory ); }
 			if ( g_ai.auth_info.username != NULL ) { GlobalFree( g_ai.auth_info.username ); }
 			if ( g_ai.auth_info.password != NULL ) { GlobalFree( g_ai.auth_info.password ); }
-			if ( g_ai.utf8_headers != NULL ) { GlobalFree( g_ai.utf8_headers ); }
+			if ( g_ai.comments != NULL ) { GlobalFree( g_ai.comments ); }
 			if ( g_ai.utf8_cookies != NULL ) { GlobalFree( g_ai.utf8_cookies ); }
+			if ( g_ai.utf8_headers != NULL ) { GlobalFree( g_ai.utf8_headers ); }
 			if ( g_ai.utf8_data != NULL ) { GlobalFree( g_ai.utf8_data ); }
 
 			if ( g_ai.proxy_info.hostname != NULL ) { GlobalFree( g_ai.proxy_info.hostname ); }
@@ -6894,9 +7512,16 @@ DWORD WINAPI AddURL( void *add_info )
 		}
 	}
 
-	GlobalFree( sfi );
+	if ( cfg_tray_icon && cfg_enable_server && cfg_show_remote_connection_notification )
+	{
+		_SendMessageW( g_hWnd_main, WM_PEER_CONNECTED, ( WPARAM )total_item_count, ( LPARAM )ai->peer_info );
+	}
 
 	FreeAddInfo( &ai );
+
+	TLV_AddRootItemCount( root_item_count );
+	TLV_AddExpandedItemCount( expanded_item_count );
+	TLV_AddTotalItemCount( total_item_count );
 
 	if ( TLV_GetFirstVisibleItem() == NULL )
 	{
@@ -6932,6 +7557,8 @@ DWORD WINAPI AddURL( void *add_info )
 		DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )first_added_tln->data;
 		if ( di != NULL )
 		{
+			SetStatus( di, di->status );
+
 			// If we're a group, then this gets the first host and starts it.
 			// If not, then it's just a self reference.
 			di = ( DOWNLOAD_INFO * )di->shared_info->host_list->data;
@@ -7056,7 +7683,7 @@ void StartQueuedItem()
 
 				if ( driver_di != NULL )
 				{
-					driver_di->status = STATUS_NONE;
+					SetStatus( driver_di, STATUS_NONE );
 
 					StartDownload( driver_di, ( is_group ? START_TYPE_GROUP : START_TYPE_NONE ), START_OPERATION_NONE );
 				}
@@ -7075,7 +7702,7 @@ void StartQueuedItem()
 					}
 
 					EnterCriticalSection( &di->shared_info->di_cs );
-					di->shared_info->status = STATUS_STOPPED;
+					SetStatus( di->shared_info, STATUS_STOPPED );
 					LeaveCriticalSection( &di->shared_info->di_cs );
 				}
 
@@ -7203,6 +7830,13 @@ THREAD_RETURN ProcessMoveQueue( void * /*pArguments*/ )
 	wchar_t prompt_message[ MAX_PATH + 512 ];
 	wchar_t file_path[ MAX_PATH ];
 
+	wchar_t *old_file_path = NULL;
+	wchar_t *new_file_path = NULL;
+	int file_path_length = 0;
+	int filename_length = 0;
+	unsigned int filename_offset = 0;
+	unsigned int file_extension_offset = 0;
+
 	do
 	{
 		EnterCriticalSection( &move_file_queue_cs );
@@ -7222,17 +7856,44 @@ THREAD_RETURN ProcessMoveQueue( void * /*pArguments*/ )
 		{
 			di->queue_node.data = NULL;
 
-			GetTemporaryFilePath( di, file_path );
+			if ( di->shared_info->new_file_path != NULL )
+			{
+				file_path_length = lstrlenW( di->shared_info->new_file_path );
+				filename_length = lstrlenW( di->shared_info->file_path + di->shared_info->filename_offset );
+
+				_wmemcpy_s( file_path, MAX_PATH, di->shared_info->new_file_path, file_path_length );
+				file_path[ file_path_length ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
+				_wmemcpy_s( file_path + ( file_path_length + 1 ), MAX_PATH - ( file_path_length - 1 ), di->shared_info->file_path + di->shared_info->filename_offset, filename_length );
+				file_path[ file_path_length + filename_length + 1 ] = 0;	// Sanity.
+
+				old_file_path = di->shared_info->file_path;
+				new_file_path = file_path;
+
+				filename_offset = file_path_length + 1;
+				file_extension_offset = filename_offset + ( int )( di->shared_info->file_extension_offset - di->shared_info->filename_offset );
+			}
+			else
+			{
+				GetTemporaryFilePath( di, file_path );
+
+				old_file_path = file_path;
+				new_file_path = di->shared_info->file_path;
+
+				filename_offset = di->shared_info->filename_offset;
+				file_extension_offset = di->shared_info->file_extension_offset;
+			}
 
 			di->shared_info->file_path[ di->shared_info->filename_offset - 1 ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
 
-			di->shared_info->status &= ~STATUS_QUEUED;
+			SetStatus( di->shared_info, di->shared_info->status & ~STATUS_QUEUED );
+
+			bool resume_download = false;
 
 			DWORD move_type = MOVEFILE_COPY_ALLOWED;
 
 			for ( ;; )
 			{
-				if ( MoveFileWithProgressW( file_path, di->shared_info->file_path, MoveFileProgress, di, move_type ) == FALSE )
+				if ( MoveFileWithProgressW( old_file_path, new_file_path, MoveFileProgress, di, move_type ) == FALSE )
 				{
 					DWORD gle = GetLastError();
 
@@ -7241,7 +7902,7 @@ THREAD_RETURN ProcessMoveQueue( void * /*pArguments*/ )
 					{
 						if ( cfg_prompt_rename == 0 && di->shared_info->download_operations & DOWNLOAD_OPERATION_OVERRIDE_PROMPTS )
 						{
-							di->shared_info->status = STATUS_SKIPPED;
+							SetStatus( di->shared_info, STATUS_SKIPPED );
 						}
 						else
 						{
@@ -7261,7 +7922,7 @@ THREAD_RETURN ProcessMoveQueue( void * /*pArguments*/ )
 								}
 								else
 								{
-									__snwprintf( prompt_message, MAX_PATH + 512, ST_V_PROMPT___already_exists, di->shared_info->file_path );
+									__snwprintf( prompt_message, MAX_PATH + 512, ST_V_PROMPT___already_exists, new_file_path );
 
 									g_rename_file_cmb_ret = CMessageBoxW( g_hWnd_main, prompt_message, PROGRAM_CAPTION, CMB_ICONWARNING | CMB_RENAMEOVERWRITESKIPALL );
 								}
@@ -7275,7 +7936,9 @@ THREAD_RETURN ProcessMoveQueue( void * /*pArguments*/ )
 								// Creates a tree of active and queued downloads.
 								dllrbt_tree *add_files_tree = CreateFilenameTree();
 
-								bool rename_succeeded = RenameFile( di, add_files_tree, di->shared_info->file_path, di->shared_info->filename_offset, di->shared_info->file_extension_offset );
+								bool rename_succeeded = RenameFile( add_files_tree,
+																	new_file_path, &filename_offset, &file_extension_offset,
+																	new_file_path, filename_offset, file_extension_offset );
 
 								// The tree is only used to determine duplicate filenames.
 								DestroyFilenameTree( add_files_tree );
@@ -7291,7 +7954,7 @@ THREAD_RETURN ProcessMoveQueue( void * /*pArguments*/ )
 										g_rename_file_cmb_ret2 = CMessageBoxW( g_hWnd_main, prompt_message, PROGRAM_CAPTION, CMB_ICONWARNING | CMB_OKALL );
 									}
 
-									di->shared_info->status = STATUS_SKIPPED;
+									SetStatus( di->shared_info, STATUS_SKIPPED );
 								}
 								else
 								{
@@ -7303,7 +7966,7 @@ THREAD_RETURN ProcessMoveQueue( void * /*pArguments*/ )
 																  g_rename_file_cmb_ret == CMBIDSKIP ||
 																  g_rename_file_cmb_ret == CMBIDSKIPALL ) ) ) // Skip the rename or overwrite if the return value fails, or the user selected skip.
 							{
-								di->shared_info->status = STATUS_SKIPPED;
+								SetStatus( di->shared_info, STATUS_SKIPPED );
 							}
 							else	// Overwrite.
 							{
@@ -7317,16 +7980,40 @@ THREAD_RETURN ProcessMoveQueue( void * /*pArguments*/ )
 					{
 						// ERROR_FILE_NOT_FOUND might happen if we have it set to override and the same file is downloaded multiple times.
 
-						di->shared_info->status = STATUS_STOPPED;
+						SetStatus( di->shared_info, STATUS_STOPPED );
 					}
 					/*else
 					{
-						di->shared_info->status = STATUS_FILE_IO_ERROR;
+						SetStatus( di->shared_info, STATUS_FILE_IO_ERROR );
 					}*/
 				}
 				else
 				{
-					di->shared_info->status = STATUS_COMPLETED;
+					if ( di->shared_info->new_file_path != NULL )
+					{
+						_wmemcpy_s( di->shared_info->file_path, MAX_PATH, file_path, MAX_PATH );
+						di->shared_info->file_path[ MAX_PATH - 1 ] = 0;	// Sanity.
+
+						di->shared_info->filename_offset = filename_offset;
+						di->shared_info->file_extension_offset = file_extension_offset;
+
+						if ( IS_STATUS( di->shared_info->last_status, STATUS_CONNECTING | STATUS_DOWNLOADING ) )
+						{
+							SetStatus( di->shared_info, STATUS_NONE );
+
+							resume_download = true;
+						}
+						else
+						{
+							SetStatus( di->shared_info, di->shared_info->last_status );
+						}
+
+						di->shared_info->last_status = STATUS_NONE;
+					}
+					else
+					{
+						SetStatus( di->shared_info, STATUS_COMPLETED );
+					}
 				}
 
 				break;
@@ -7339,6 +8026,35 @@ THREAD_RETURN ProcessMoveQueue( void * /*pArguments*/ )
 #endif
 
 			di->shared_info->file_path[ di->shared_info->filename_offset - 1 ] = 0;	// Restore.
+
+			if ( cfg_show_embedded_icon )
+			{
+				UpdateCachedIcon( di->shared_info );
+			}
+
+			if ( di->shared_info->new_file_path != NULL )
+			{
+				GlobalFree( di->shared_info->new_file_path );
+				di->shared_info->new_file_path = NULL;
+			}
+
+			if ( resume_download )
+			{
+				DoublyLinkedList *host_node = di->shared_info->host_list;
+
+				while ( host_node != NULL )
+				{
+					DOWNLOAD_INFO *host_di = ( DOWNLOAD_INFO * )host_node->data;
+					if ( host_di != NULL /*&& host_di != di*/ )
+					{
+						SetStatus( host_di, STATUS_NONE );
+
+						StartDownload( host_di, START_TYPE_NONE, START_OPERATION_NONE );
+					}
+
+					host_node = host_node->next;
+				}
+			}
 		}
 
 		EnterCriticalSection( &move_file_queue_cs );
@@ -7377,27 +8093,27 @@ void AddToMoveFileQueue( DOWNLOAD_INFO *di )
 		di->queue_node.data = di;
 		DLL_AddNode( &move_file_queue, &di->queue_node, -1 );
 
-		di->shared_info->status = STATUS_MOVING_FILE | STATUS_QUEUED;
+		SetStatus( di->shared_info, STATUS_MOVING_FILE | STATUS_QUEUED );
 
 		if ( !move_file_process_active )
 		{
 			move_file_process_active = true;
 
-			HANDLE handle_prompt = ( HANDLE )_CreateThread( NULL, 0, ProcessMoveQueue, NULL, 0, NULL );
+			HANDLE handle_move_queue = ( HANDLE )_CreateThread( NULL, 0, ProcessMoveQueue, NULL, 0, NULL );
 
 			// Make sure our thread spawned.
-			if ( handle_prompt == NULL )
+			if ( handle_move_queue == NULL )
 			{
 				DLL_RemoveNode( &move_file_queue, &di->queue_node );
 				di->queue_node.data = NULL;
 
 				move_file_process_active = false;
 
-				di->status = STATUS_STOPPED;
+				SetStatus( di->shared_info, STATUS_STOPPED );
 			}
 			else
 			{
-				CloseHandle( handle_prompt );
+				CloseHandle( handle_move_queue );
 			}
 		}
 
@@ -7432,10 +8148,10 @@ void ReallocateParts( SOCKET_CONTEXT *context )
 			parts_list = parts_list->next;
 		}
 
-		// If the remaining size is greater than 1 MB, then we'll split it.
+		// If the remaining size is greater than the threshold size, then we'll split it.
 		if ( reallocated_context != NULL &&
 			 reallocated_context->header_info.range_info != NULL &&
-			 remaining_size > 1048576 )
+			 remaining_size > cfg_reallocate_threshold_size )
 		{
 			// Adjust each context's part number depending on which context we're splitting.
 			parts_list = di->parts_list;
@@ -8085,23 +8801,23 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 									// If any of our connections timed out (after we have no more active connections), then set our status to timed out.
 									if ( context->timed_out != TIME_OUT_FALSE )
 									{
-										di->status = STATUS_TIMED_OUT;
+										SetStatus( di, STATUS_TIMED_OUT );
 									}
 									else
 									{
-										di->status = STATUS_STOPPED;
+										SetStatus( di, STATUS_STOPPED );
 									}
 								}
 								else
 								{
 									incomplete_download = false;
 
-									di->status = context->status & ~STATUS_DELETE;
+									SetStatus( di, context->status & ~STATUS_DELETE );
 								}
 							}
 							else if ( di->status != STATUS_FILE_IO_ERROR && di->status != STATUS_INSUFFICIENT_DISK_SPACE )
 							{
-								di->status = STATUS_COMPLETED;
+								SetStatus( di, STATUS_COMPLETED );
 							}
 
 #ifdef ENABLE_LOGGING
@@ -8150,6 +8866,8 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 							if ( IS_STATUS( context->status, STATUS_REMOVE ) )
 							{
 								GlobalFree( di->url );
+								GlobalFree( di->comments );
+								//di->comments = NULL;	// This might be shared_info->comments. Set it to NULL so we don't double free.
 								GlobalFree( di->cookies );
 								GlobalFree( di->headers );
 								GlobalFree( di->data );
@@ -8176,6 +8894,13 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 								context->download_info = NULL;
 
 								LeaveCriticalSection( &di->di_cs );
+
+								EnterCriticalSection( &shared_info->di_cs );
+
+								shared_info->print_range_list = NULL;
+								DLL_RemoveNode( &shared_info->host_list, &di->shared_info_node );
+
+								LeaveCriticalSection( &shared_info->di_cs );
 
 								if ( is_group )
 								{
@@ -8220,7 +8945,7 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 									{
 										++di->retries;
 
-										di->status = STATUS_NONE;
+										SetStatus( di, STATUS_NONE );
 
 										StartDownload( di, START_TYPE_NONE, START_OPERATION_NONE );
 									}
@@ -8229,11 +8954,23 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 										SetSessionStatusCount( di->status );
 									}
 								}
-								else if ( di->status == STATUS_UPDATING )
+								else if ( IS_STATUS( di->status, STATUS_UPDATING ) )
 								{
-									di->status = STATUS_NONE;
+									if ( IS_STATUS_NOT( di->status, STATUS_MOVING_FILE ) )
+									{
+										SetStatus( di, STATUS_NONE );
 
-									StartDownload( di, START_TYPE_NONE, START_OPERATION_NONE );
+										StartDownload( di, START_TYPE_NONE, START_OPERATION_NONE );
+									}
+									else
+									{
+										if ( IS_STATUS_NOT( shared_info->status, STATUS_UPDATING | STATUS_MOVING_FILE ) )
+										{
+											SetStatus( shared_info, STATUS_UPDATING | STATUS_MOVING_FILE );
+										}
+
+										move_file = true;
+									}
 								}
 								else if ( di->status == STATUS_COMPLETED )
 								{
@@ -8292,20 +9029,34 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 
 							if ( shared_info->active_hosts == 0 )
 							{
+								// Remove the flag.
+								shared_info->download_operations &= ~( DOWNLOAD_OPERATION_RESTARTING | DOWNLOAD_OPERATION_RESUME );
+
 								if ( move_file )
 								{
 									SetSessionStatusCount( di->status );
 
-									if ( cfg_use_temp_download_directory &&
+									if ( ( cfg_use_temp_download_directory || IS_STATUS( shared_info->status, STATUS_MOVING_FILE ) ) &&
 									  !( shared_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
 									{
 										AddToMoveFileQueue( di );
+									}
+									else
+									{
+										move_file = false;
 									}
 								}
 
 								if ( is_group )
 								{
-									SetSharedInfoStatus( shared_info );
+									if ( IS_STATUS( context->status, STATUS_REMOVE ) )
+									{
+										SetStatus( shared_info, STATUS_REMOVE );
+									}
+									else
+									{
+										SetSharedInfoStatus( shared_info );
+									}
 
 									EnterCriticalSection( &active_download_list_cs );
 
@@ -8322,6 +9073,13 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 
 									shared_info->time_elapsed = ( current_time.QuadPart - shared_info->start_time.QuadPart ) / FILETIME_TICKS_PER_SECOND;
 								}
+								else
+								{
+									if ( IS_STATUS( context->status, STATUS_REMOVE ) )
+									{
+										SetStatus( shared_info, STATUS_REMOVE );
+									}
+								}
 
 								if ( shared_info->hFile != INVALID_HANDLE_VALUE )
 								{
@@ -8329,10 +9087,20 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 									shared_info->hFile = INVALID_HANDLE_VALUE;
 								}
 
+								if ( cfg_show_embedded_icon && !move_file )
+								{
+									UpdateCachedIcon( shared_info );
+								}
+
 								if ( IS_STATUS( context->status, STATUS_REMOVE ) )
 								{
 									RemoveCachedIcon( shared_info );
-
+									RemoveCachedCategory( shared_info->category );
+									if ( is_group )
+									{
+										GlobalFree( shared_info->comments );
+									}
+									GlobalFree( shared_info->new_file_path );
 									GlobalFree( shared_info->w_add_time );
 
 									free_shared_info = true;
@@ -8638,6 +9406,8 @@ void FreeAddInfo( ADD_INFO **add_info )
 {
 	if ( *add_info != NULL )
 	{
+		if ( ( *add_info )->peer_info != NULL ) { GlobalFree( ( *add_info )->peer_info ); }
+
 		if ( ( *add_info )->proxy_info.hostname != NULL ) { GlobalFree( ( *add_info )->proxy_info.hostname ); }
 		if ( ( *add_info )->proxy_info.punycode_hostname != NULL ) { GlobalFree( ( *add_info )->proxy_info.punycode_hostname ); }
 		if ( ( *add_info )->proxy_info.w_username != NULL ) { GlobalFree( ( *add_info )->proxy_info.w_username ); }
@@ -8646,12 +9416,14 @@ void FreeAddInfo( ADD_INFO **add_info )
 		if ( ( *add_info )->proxy_info.password != NULL ) { GlobalFree( ( *add_info )->proxy_info.password ); }
 		if ( ( *add_info )->proxy_info.auth_key != NULL ) { GlobalFree( ( *add_info )->proxy_info.auth_key ); }
 
+		if ( ( *add_info )->comments != NULL ) { GlobalFree( ( *add_info )->comments ); }
 		if ( ( *add_info )->utf8_data != NULL ) { GlobalFree( ( *add_info )->utf8_data ); }
 		if ( ( *add_info )->utf8_headers != NULL ) { GlobalFree( ( *add_info )->utf8_headers ); }
 		if ( ( *add_info )->utf8_cookies != NULL ) { GlobalFree( ( *add_info )->utf8_cookies ); }
 		if ( ( *add_info )->auth_info.username != NULL ) { GlobalFree( ( *add_info )->auth_info.username ); }
 		if ( ( *add_info )->auth_info.password != NULL ) { GlobalFree( ( *add_info )->auth_info.password ); }
 		if ( ( *add_info )->download_directory != NULL ) { GlobalFree( ( *add_info )->download_directory ); }
+		if ( ( *add_info )->category != NULL ) { GlobalFree( ( *add_info )->category ); }
 		if ( ( *add_info )->urls != NULL ) { GlobalFree( ( *add_info )->urls ); }
 
 		GlobalFree( *add_info );
@@ -8710,9 +9482,17 @@ THREAD_RETURN CheckForUpdates( void * /*pArguments*/ )
 			char *update_check_url;
 
 #ifdef ENABLE_DARK_MODE
+#ifdef IS_BETA
+			update_check_url = DM_UPDATE_CHECK_URL_BETA;
+#else
 			update_check_url = DM_UPDATE_CHECK_URL;
+#endif
+#else
+#ifdef IS_BETA
+			update_check_url = UPDATE_CHECK_URL_BETA;
 #else
 			update_check_url = UPDATE_CHECK_URL;
+#endif
 #endif
 
 			ParseURL_A( update_check_url, NULL, context->request_info.protocol, &context->request_info.host, host_length, context->request_info.port, &context->request_info.resource, resource_length, NULL, NULL, NULL, NULL );
@@ -8797,14 +9577,25 @@ THREAD_RETURN CheckForUpdates( void * /*pArguments*/ )
 				}
 				else if ( g_new_version == CURRENT_VERSION )
 				{
-					if ( g_update_check_state == 2 )	// Automatic update check.
+#ifdef IS_BETA
+					if ( g_new_beta > BETA_VERSION )
 					{
-						_SendNotifyMessageW( g_hWnd_check_for_updates, WM_PROPAGATE, 4, 0 );	// Destroy the window.
+						_SendNotifyMessageW( g_hWnd_check_for_updates, WM_PROPAGATE, 1, 0 );		// New version
 					}
 					else
 					{
-						_SendNotifyMessageW( g_hWnd_check_for_updates, WM_PROPAGATE, 2, 0 );	// Up to date
+#endif
+						if ( g_update_check_state == 2 )	// Automatic update check.
+						{
+							_SendNotifyMessageW( g_hWnd_check_for_updates, WM_PROPAGATE, 4, 0 );	// Destroy the window.
+						}
+						else
+						{
+							_SendNotifyMessageW( g_hWnd_check_for_updates, WM_PROPAGATE, 2, 0 );	// Up to date
+						}
+#ifdef IS_BETA
 					}
+#endif
 				}
 				else
 				{

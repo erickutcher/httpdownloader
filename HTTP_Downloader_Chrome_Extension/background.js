@@ -369,8 +369,10 @@ function SendDownloadToClient( download_info )
 		signal: controller.signal,
 		method: 'POST',
 		headers: json_headers,
-		body: download_info.method + "\x1f" +
+		body: "HDME\x01\x1f" +							// Protocol version 1
+			  download_info.method + "\x1f" +
 			  url + "\x1f" +
+			  "\x1f" +									// Category
 			  download_info.directory + "\x1f" +
 			  "\x1f" +									// Parts
 			  "\x1f" +									// SSL/TLS version
@@ -378,6 +380,7 @@ function SendDownloadToClient( download_info )
 			  "\x1f" +									// Password
 			  "\x1f" +									// Speed limit
 			  download_operations + "\x1f" +
+			  "\x1f" +									// Comments
 			  download_info.cookie_string + "\x1f" +
 			  download_info.headers + "\x1f" +
 			  download_info.post_data + "\x1f" +

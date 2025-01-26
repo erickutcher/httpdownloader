@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
-	Copyright (C) 2015-2024 Eric Kutcher
+	Copyright (C) 2015-2025 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -20,9 +20,14 @@
 #include "connection.h"
 #include "list_operations.h"
 #include "string_tables.h"
+#include "lite_gdi32.h"
 #include "lite_pcre2.h"
+#include "utilities.h"
 
 #include "dark_mode.h"
+
+#define SEARCH_WINDOW_WIDTH		400
+#define SEARCH_CLIENT_HEIGHT	163
 
 #define BTN_SEARCH_ALL			1000
 #define BTN_SEARCH				1001
@@ -41,6 +46,7 @@ HWND g_hWnd_search = NULL;
 
 HWND g_hWnd_static_search_for = NULL;
 HWND g_hWnd_search_for = NULL;
+HWND g_hWnd_btn_search_type = NULL;
 HWND g_hWnd_chk_type_filename = NULL;
 HWND g_hWnd_chk_type_url = NULL;
 HWND g_hWnd_chk_match_case = NULL;
@@ -50,55 +56,67 @@ HWND g_hWnd_btn_search_all = NULL;
 HWND g_hWnd_btn_search = NULL;
 HWND g_hWnd_search_cancel = NULL;
 
+UINT current_dpi_search = USER_DEFAULT_SCREEN_DPI;
+UINT last_dpi_search = 0;
+HFONT hFont_search = NULL;
+
+#define _SCALE_S_( x )						_SCALE_( ( x ), dpi_search )
+
 LRESULT CALLBACK SearchWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
 {
 	switch ( msg )
 	{
 		case WM_CREATE:
 		{
+			current_dpi_search = __GetDpiForWindow( hWnd );
+			last_dpi_search = ( current_dpi_search == current_dpi_main ? current_dpi_search : 0 );
+			hFont_search = UpdateFont( current_dpi_search );
+
 			RECT rc;
 			_GetClientRect( hWnd, &rc );
 
-			g_hWnd_static_search_for = _CreateWindowW( WC_STATIC, ST_V_Search_for_, WS_CHILD | WS_VISIBLE, 10, 10, 60, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_search_for = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 10, 28, rc.right - 20, 23, hWnd, ( HMENU )EDIT_SEARCH_FOR, NULL, NULL );
+			g_hWnd_static_search_for = _CreateWindowW( WC_STATIC, ST_V_Search_for_, WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+			g_hWnd_search_for = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, ( HMENU )EDIT_SEARCH_FOR, NULL, NULL );
 
-			HWND hWnd_btn_search_type = _CreateWindowW( WC_BUTTON, ST_V_Search_Type, BS_GROUPBOX | WS_CHILD | WS_VISIBLE, 10, 58, 112, 63, hWnd, NULL, NULL, NULL );
-			g_hWnd_chk_type_filename = _CreateWindowW( WC_BUTTON, ST_V_Filename, BS_AUTORADIOBUTTON | WS_CHILD | WS_GROUP | WS_TABSTOP | WS_VISIBLE, 21, 75, 90, 20, hWnd, ( HMENU )BTN_TYPE_FILENAME, NULL, NULL );
-			g_hWnd_chk_type_url = _CreateWindowW( WC_BUTTON, ST_V_URL, BS_AUTORADIOBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 21, 95, 90, 20, hWnd, ( HMENU )BTN_TYPE_URL, NULL, NULL );
+			g_hWnd_btn_search_type = _CreateWindowW( WC_BUTTON, ST_V_Search_Type, BS_GROUPBOX | WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+			g_hWnd_chk_type_filename = _CreateWindowW( WC_BUTTON, ST_V_Filename, BS_AUTORADIOBUTTON | WS_CHILD | WS_GROUP | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, ( HMENU )BTN_TYPE_FILENAME, NULL, NULL );
+			g_hWnd_chk_type_url = _CreateWindowW( WC_BUTTON, ST_V_URL, BS_AUTORADIOBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, ( HMENU )BTN_TYPE_URL, NULL, NULL );
 
-			g_hWnd_chk_match_case = _CreateWindowW( WC_BUTTON, ST_V_Match_case, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 135, 62, rc.right - 145, 20, hWnd, ( HMENU )BTN_MATCH_CASE, NULL, NULL );
-			g_hWnd_chk_match_whole_word = _CreateWindowW( WC_BUTTON, ST_V_Match_whole_word, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 135, 82, rc.right - 145, 20, hWnd, ( HMENU )BTN_MATCH_WHOLE_WORD, NULL, NULL );
-			g_hWnd_chk_regular_expression = _CreateWindowW( WC_BUTTON, ST_V_Regular_expression, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE | ( pcre2_state == PCRE2_STATE_RUNNING ? 0 : WS_DISABLED ), 135, 102, rc.right - 145, 20, hWnd, ( HMENU )BTN_REGULAR_EXPRESSION, NULL, NULL );
+			g_hWnd_chk_match_case = _CreateWindowW( WC_BUTTON, ST_V_Match_case, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, ( HMENU )BTN_MATCH_CASE, NULL, NULL );
+			g_hWnd_chk_match_whole_word = _CreateWindowW( WC_BUTTON, ST_V_Match_whole_word, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, ( HMENU )BTN_MATCH_WHOLE_WORD, NULL, NULL );
+			g_hWnd_chk_regular_expression = _CreateWindowW( WC_BUTTON, ST_V_Regular_expression, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE | ( pcre2_state == PCRE2_STATE_RUNNING ? 0 : WS_DISABLED ), 0, 0, 0, 0, hWnd, ( HMENU )BTN_REGULAR_EXPRESSION, NULL, NULL );
 
-			g_hWnd_btn_search_all = _CreateWindowW( WC_BUTTON, ST_V_Search_All, WS_CHILD | WS_TABSTOP | WS_VISIBLE | WS_DISABLED, rc.right - 285, 130, 85, 23, hWnd, ( HMENU )BTN_SEARCH_ALL, NULL, NULL );
-			g_hWnd_btn_search = _CreateWindowW( WC_BUTTON, ST_V_Search_Next, BS_DEFPUSHBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE | WS_DISABLED, rc.right - 195, 130, 100, 23, hWnd, ( HMENU )BTN_SEARCH, NULL, NULL );
-			g_hWnd_search_cancel = _CreateWindowW( WC_BUTTON, ST_V_Cancel, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 90, 130, 80, 23, hWnd, ( HMENU )BTN_SEARCH_CANCEL, NULL, NULL );
+			g_hWnd_btn_search_all = _CreateWindowW( WC_BUTTON, ST_V_Search_All, WS_CHILD | WS_TABSTOP | WS_VISIBLE | WS_DISABLED, 0, 0, 0, 0, hWnd, ( HMENU )BTN_SEARCH_ALL, NULL, NULL );
+			g_hWnd_btn_search = _CreateWindowW( WC_BUTTON, ST_V_Search_Next, BS_DEFPUSHBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE | WS_DISABLED, 0, 0, 0, 0, hWnd, ( HMENU )BTN_SEARCH, NULL, NULL );
+			g_hWnd_search_cancel = _CreateWindowW( WC_BUTTON, ST_V_Cancel, WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, ( HMENU )BTN_SEARCH_CANCEL, NULL, NULL );
 
-			_SendMessageW( g_hWnd_static_search_for, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_search_for, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( hWnd_btn_search_type, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_chk_type_filename, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_chk_type_url, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_chk_match_case, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_chk_match_whole_word, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_chk_regular_expression, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_btn_search_all, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_btn_search, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_search_cancel, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_static_search_for, WM_SETFONT, ( WPARAM )hFont_search, 0 );
+			_SendMessageW( g_hWnd_search_for, WM_SETFONT, ( WPARAM )hFont_search, 0 );
+			_SendMessageW( g_hWnd_btn_search_type, WM_SETFONT, ( WPARAM )hFont_search, 0 );
+			_SendMessageW( g_hWnd_chk_type_filename, WM_SETFONT, ( WPARAM )hFont_search, 0 );
+			_SendMessageW( g_hWnd_chk_type_url, WM_SETFONT, ( WPARAM )hFont_search, 0 );
+			_SendMessageW( g_hWnd_chk_match_case, WM_SETFONT, ( WPARAM )hFont_search, 0 );
+			_SendMessageW( g_hWnd_chk_match_whole_word, WM_SETFONT, ( WPARAM )hFont_search, 0 );
+			_SendMessageW( g_hWnd_chk_regular_expression, WM_SETFONT, ( WPARAM )hFont_search, 0 );
+			_SendMessageW( g_hWnd_btn_search_all, WM_SETFONT, ( WPARAM )hFont_search, 0 );
+			_SendMessageW( g_hWnd_btn_search, WM_SETFONT, ( WPARAM )hFont_search, 0 );
+			_SendMessageW( g_hWnd_search_cancel, WM_SETFONT, ( WPARAM )hFont_search, 0 );
 
 			_SendMessageW( g_hWnd_chk_type_filename, BM_SETCHECK, BST_CHECKED, 0 );
 
 			_SetFocus( g_hWnd_search_for );
 
+			int width = _SCALE_S_( SEARCH_WINDOW_WIDTH );
+
 			// Accounts for differing title bar heights.
 			CREATESTRUCTW *cs = ( CREATESTRUCTW * )lParam;
-			int height = ( cs->cy - ( rc.bottom - rc.top ) ) + 163;	// Bottom of last window object + 10.
+			int height = ( cs->cy - ( rc.bottom - rc.top ) ) + _SCALE_S_( SEARCH_CLIENT_HEIGHT );	// Bottom of last window object + 10.
 
 			HMONITOR hMon = _MonitorFromWindow( g_hWnd_main, MONITOR_DEFAULTTONEAREST );
 			MONITORINFO mi;
 			mi.cbSize = sizeof( MONITORINFO );
 			_GetMonitorInfoW( hMon, &mi );
-			_SetWindowPos( hWnd, NULL, mi.rcMonitor.left + ( ( ( mi.rcMonitor.right - mi.rcMonitor.left ) - 400 ) / 2 ), mi.rcMonitor.top + ( ( ( mi.rcMonitor.bottom - mi.rcMonitor.top ) - height ) / 2 ), 400, height, 0 );
+			_SetWindowPos( hWnd, NULL, mi.rcMonitor.left + ( ( ( mi.rcMonitor.right - mi.rcMonitor.left ) - width ) / 2 ), mi.rcMonitor.top + ( ( ( mi.rcMonitor.bottom - mi.rcMonitor.top ) - height ) / 2 ), width, height, 0 );
 
 #ifdef ENABLE_DARK_MODE
 			if ( g_use_dark_mode )
@@ -218,6 +236,71 @@ LRESULT CALLBACK SearchWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 		}
 		break;
 
+		case WM_SIZE:
+		{
+			RECT rc;
+			_GetClientRect( hWnd, &rc );
+
+			HDWP hdwp = _BeginDeferWindowPos( 11 );
+			_DeferWindowPos( hdwp, g_hWnd_static_search_for, HWND_TOP, _SCALE_S_( 10 ), _SCALE_S_( 10 ), rc.right - _SCALE_S_( 20 ), _SCALE_S_( 17 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_search_for, HWND_TOP, _SCALE_S_( 10 ), _SCALE_S_( 28 ), rc.right - _SCALE_S_( 20 ), _SCALE_S_( 23 ), SWP_NOZORDER );
+
+			_DeferWindowPos( hdwp, g_hWnd_btn_search_type, HWND_TOP, _SCALE_S_( 10 ), _SCALE_S_( 58 ), _SCALE_S_( 112 ), _SCALE_S_( 63 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_chk_type_filename, HWND_TOP, _SCALE_S_( 21 ), _SCALE_S_( 75 ), _SCALE_S_( 90 ), _SCALE_S_( 20 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_chk_type_url, HWND_TOP, _SCALE_S_( 21 ), _SCALE_S_( 95 ), _SCALE_S_( 90 ), _SCALE_S_( 20 ), SWP_NOZORDER );
+
+			_DeferWindowPos( hdwp, g_hWnd_chk_match_case, HWND_TOP, _SCALE_S_( 135 ), _SCALE_S_( 62 ), rc.right - _SCALE_S_( 145 ), _SCALE_S_( 20 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_chk_match_whole_word, HWND_TOP, _SCALE_S_( 135 ), _SCALE_S_( 82 ), rc.right - _SCALE_S_( 145 ), _SCALE_S_( 20 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_chk_regular_expression, HWND_TOP, _SCALE_S_( 135 ), _SCALE_S_( 102 ), rc.right - _SCALE_S_( 145 ), _SCALE_S_( 20 ), SWP_NOZORDER );
+
+			_DeferWindowPos( hdwp, g_hWnd_btn_search_all, HWND_TOP, rc.right - _SCALE_S_( 285 ), _SCALE_S_( 130 ), _SCALE_S_( 85 ), _SCALE_S_( 23 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_btn_search, HWND_TOP, rc.right - _SCALE_S_( 195 ), _SCALE_S_( 130 ), _SCALE_S_( 100 ), _SCALE_S_( 23 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_search_cancel, HWND_TOP, rc.right - _SCALE_S_( 90 ), _SCALE_S_( 130 ), _SCALE_S_( 80 ), _SCALE_S_( 23 ), SWP_NOZORDER );
+			_EndDeferWindowPos( hdwp );
+
+			return 0;
+		}
+		break;
+
+		case WM_GET_DPI:
+		{
+			return current_dpi_search;
+		}
+		break;
+
+		case WM_DPICHANGED:
+		{
+			UINT last_dpi = current_dpi_search;
+			current_dpi_search = HIWORD( wParam );
+
+			HFONT hFont = UpdateFont( current_dpi_search );
+			EnumChildWindows( hWnd, EnumChildFontProc, ( LPARAM )hFont );
+			_DeleteObject( hFont_search );
+			hFont_search = hFont;
+
+			RECT *rc = ( RECT * )lParam;
+			int width = rc->right - rc->left;
+			int height = rc->bottom - rc->top;
+
+			if ( last_dpi_search == 0 )
+			{
+				HMONITOR hMon = _MonitorFromWindow( g_hWnd_main, MONITOR_DEFAULTTONEAREST );
+				MONITORINFO mi;
+				mi.cbSize = sizeof( MONITORINFO );
+				_GetMonitorInfoW( hMon, &mi );
+				_SetWindowPos( hWnd, NULL, mi.rcMonitor.left + ( ( ( mi.rcMonitor.right - mi.rcMonitor.left ) - width ) / 2 ), mi.rcMonitor.top + ( ( ( mi.rcMonitor.bottom - mi.rcMonitor.top ) - height ) / 2 ), width, height, 0 );
+			}
+			else
+			{
+				_SetWindowPos( hWnd, NULL, rc->left, rc->top, width, height, SWP_NOZORDER | SWP_NOACTIVATE );
+			}
+
+			last_dpi_search = last_dpi;
+
+			return 0;
+		}
+		break;
+
 		case WM_PROPAGATE:
 		{
 			if ( wParam == 1 )
@@ -256,7 +339,17 @@ LRESULT CALLBACK SearchWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 
 		case WM_DESTROY:
 		{
+			// Delete our font.
+			_DeleteObject( hFont_search );
+
 			g_hWnd_search = NULL;
+
+#ifdef ENABLE_DARK_MODE
+			if ( g_use_dark_mode )
+			{
+				CleanupButtonGlyphs( hWnd );
+			}
+#endif
 
 			return 0;
 		}

@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
-	Copyright (C) 2015-2024 Eric Kutcher
+	Copyright (C) 2015-2025 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -22,6 +22,7 @@
 #include "lite_shell32.h"
 #include "lite_ole32.h"
 
+#include "string_tables.h"
 #include "utilities.h"
 #include "cmessagebox.h"
 
@@ -131,7 +132,7 @@ void _BrowseForFolder( HWND hWnd, wchar_t *title, wchar_t **folder )
 			}
 			else	// Warn of leak if we can't free.
 			{
-				CMessageBoxW( NULL, L"Item ID List was not freed.", PROGRAM_CAPTION, CMB_OK );
+				CMessageBoxW( hWnd, ST_V_Item_ID_List_was_not_freed, PROGRAM_CAPTION, CMB_OK );
 			}
 		}
 

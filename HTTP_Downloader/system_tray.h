@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
-	Copyright (C) 2015-2024 Eric Kutcher
+	Copyright (C) 2015-2025 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -31,6 +31,8 @@ void InitializeIconValues( HWND hWnd );
 void UninitializeIconValues();
 
 HICON CreateSystemTrayIcon( unsigned long long start, unsigned long long end, COLORREF border_color, COLORREF progress_color );
+
+void SetNotificationTitle( wchar_t *title, unsigned short title_length );
 
 extern NOTIFYICONDATA g_nid;	// Tray icon information.
 

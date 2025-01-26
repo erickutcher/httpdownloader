@@ -29,6 +29,8 @@ function SendDownloadToClient( add_type )
 			var username = document.getElementById( "username" ).value;
 			var password = document.getElementById( "password" ).value;
 
+			var category = document.getElementById( "category" ).value;
+
 			var enable_directory = document.getElementById( "enable_directory" ).checked;
 			var directory = "";
 			if ( enable_directory )
@@ -53,6 +55,12 @@ function SendDownloadToClient( add_type )
 			}
 
 			var download_operations = add_type | ( info.override_prompts ? 2 : 0 ) | ( document.getElementById( "simulate_download" ).checked ? 1 : 0 );
+
+			var comments = document.getElementById( "comments" ).value;
+			if ( comments != "" )
+			{
+				comments = comments.replace( /\r?\n/g, "\r\n" );
+			}
 
 			var cookies = document.getElementById( "cookies" ).value;
 
@@ -160,8 +168,10 @@ function SendDownloadToClient( add_type )
 			}
 			request.timeout = 30000;	// 30 second timeout.
 			request.setRequestHeader( "Content-Type", "application/octet-stream" );
-			request.send( method + "\x1f" +
+			request.send( "HDME\x01\x1f" +							// Protocol version 1
+						  method + "\x1f" +
 						  urls + "\x1f" +
+						  category + "\x1f" +
 						  directory + "\x1f" +
 						  parts + "\x1f" +
 						  ssl_tls_version + "\x1f" +
@@ -169,6 +179,7 @@ function SendDownloadToClient( add_type )
 						  password + "\x1f" +
 						  speed_limit + "\x1f" +
 						  download_operations + "\x1f" +
+						  comments + "\x1f" +
 						  cookies + "\x1f" +
 						  headers + "\x1f" +
 						  post_data + "\x1f" +

@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
-	Copyright (C) 2015-2024 Eric Kutcher
+	Copyright (C) 2015-2025 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -28,15 +28,17 @@
 	pCreateFontIndirectW		_CreateFontIndirectW;
 	pCreatePatternBrush			_CreatePatternBrush;
 	pCreatePen					_CreatePen;
+	pCreateRectRgn				_CreateRectRgn;
 	pCreateSolidBrush			_CreateSolidBrush;
 	pDeleteDC					_DeleteDC;
 	pDeleteObject				_DeleteObject;
 	//pExcludeClipRect			_ExcludeClipRect;
 	pExtTextOutW				_ExtTextOutW;
+	pFrameRgn					_FrameRgn;
 	pGdiAlphaBlend				_GdiAlphaBlend;
 	//pGdiGradientFill			_GdiGradientFill;
-	//pGetDeviceCaps				_GetDeviceCaps;
-	//pGetObjectW					_GetObjectW;
+	pGetDeviceCaps				_GetDeviceCaps;
+	pGetObjectW					_GetObjectW;
 	pGetStockObject				_GetStockObject;
 	pGetTextExtentExPointW		_GetTextExtentExPointW;
 	pGetTextExtentPoint32W		_GetTextExtentPoint32W;
@@ -49,7 +51,9 @@
 	//pSetBkColor					_SetBkColor;
 	pSetBkMode					_SetBkMode;
 	pSetBrushOrgEx				_SetBrushOrgEx;
+	pSetStretchBltMode			_SetStretchBltMode;
 	pSetTextColor				_SetTextColor;
+	pStretchBlt					_StretchBlt;
 
 	HMODULE hModule_gdi32 = NULL;
 
@@ -76,15 +80,17 @@
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_gdi32, ( void ** )&_CreateFontIndirectW, "CreateFontIndirectW" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_gdi32, ( void ** )&_CreatePatternBrush, "CreatePatternBrush" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_gdi32, ( void ** )&_CreatePen, "CreatePen" ) )
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_gdi32, ( void ** )&_CreateRectRgn, "CreateRectRgn" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_gdi32, ( void ** )&_CreateSolidBrush, "CreateSolidBrush" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_gdi32, ( void ** )&_DeleteDC, "DeleteDC" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_gdi32, ( void ** )&_DeleteObject, "DeleteObject" ) )
 		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_gdi32, ( void ** )&_ExcludeClipRect, "ExcludeClipRect" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_gdi32, ( void ** )&_ExtTextOutW, "ExtTextOutW" ) )
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_gdi32, ( void ** )&_FrameRgn, "FrameRgn" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_gdi32, ( void ** )&_GdiAlphaBlend, "GdiAlphaBlend" ) )
 		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_gdi32, ( void ** )&_GdiGradientFill, "GdiGradientFill" ) )
-		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_gdi32, ( void ** )&_GetDeviceCaps, "GetDeviceCaps" ) )
-		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_gdi32, ( void ** )&_GetObjectW, "GetObjectW" ) )
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_gdi32, ( void ** )&_GetDeviceCaps, "GetDeviceCaps" ) )
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_gdi32, ( void ** )&_GetObjectW, "GetObjectW" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_gdi32, ( void ** )&_GetStockObject, "GetStockObject" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_gdi32, ( void ** )&_GetTextExtentExPointW, "GetTextExtentExPointW" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_gdi32, ( void ** )&_GetTextExtentPoint32W, "GetTextExtentPoint32W" ) )
@@ -96,8 +102,10 @@
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_gdi32, ( void ** )&_SelectObject, "SelectObject" ) )
 		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_gdi32, ( void ** )&_SetBkColor, "SetBkColor" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_gdi32, ( void ** )&_SetBkMode, "SetBkMode" ) )
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_gdi32, ( void ** )&_SetStretchBltMode, "SetStretchBltMode" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_gdi32, ( void ** )&_SetBrushOrgEx, "SetBrushOrgEx" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_gdi32, ( void ** )&_SetTextColor, "SetTextColor" ) )
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_gdi32, ( void ** )&_StretchBlt, "StretchBlt" ) )
 
 		gdi32_state = GDI32_STATE_RUNNING;
 

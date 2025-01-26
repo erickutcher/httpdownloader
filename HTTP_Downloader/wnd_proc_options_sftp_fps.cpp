@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
-	Copyright (C) 2015-2024 Eric Kutcher
+	Copyright (C) 2015-2025 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -32,6 +32,10 @@
 #define MENU_SFH_SELECT_ALL		2001
 
 // SFTP Tab
+HWND g_hWnd_static_sftp_fps_host = NULL;
+HWND g_hWnd_static_sftp_fps_key_algorithm = NULL;
+HWND g_hWnd_static_sftp_fps_fingerprint = NULL;
+
 HWND g_hWnd_sftp_fps_host_list = NULL;
 
 HWND g_hWnd_edit_sftp_fps_host = NULL;
@@ -154,7 +158,8 @@ LRESULT CALLBACK SFHListSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 					}
 					else
 					{
-						largest_width = 26;	// 5 + 16 + 5.
+						// Need to scale each number for rounding purposes.
+						largest_width = _SCALE_O_( 5 ) + _SCALE_O_( 16 ) + _SCALE_O_( 5 );
 
 						wchar_t tbuf[ 128 ];
 						wchar_t *buf = NULL;
@@ -167,7 +172,7 @@ LRESULT CALLBACK SFHListSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 						RECT rc;
 						HDC hDC = _GetDC( hWnd );
-						HFONT ohf = ( HFONT )_SelectObject( hDC, g_hFont );
+						HFONT ohf = ( HFONT )_SelectObject( hDC, hFont_options );
 						_DeleteObject( ohf );
 
 						for ( ; index <= index_end; ++index )
@@ -218,7 +223,8 @@ LRESULT CALLBACK SFHListSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 									_DrawTextW( hDC, buf, -1, &rc, DT_SINGLELINE | DT_NOPREFIX | DT_CALCRECT );
 
-									int width = ( rc.right - rc.left ) + 10;	// 5 + 5 padding.
+									// Need to scale each number for rounding purposes.
+									int width = ( rc.right - rc.left ) + _SCALE_O_( 5 ) + _SCALE_O_( 5 );	// 5 + 5 padding.
 									if ( width > largest_width )
 									{
 										largest_width = width;
@@ -256,14 +262,14 @@ LRESULT CALLBACK SFTPFpsTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 			RECT rc;
 			_GetClientRect( hWnd, &rc );
 
-			g_hWnd_sftp_fps_host_list = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_LISTVIEW, NULL, LVS_REPORT | LVS_OWNERDRAWFIXED | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, rc.right, 330, hWnd, NULL, NULL, NULL );
+			g_hWnd_sftp_fps_host_list = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_LISTVIEW, NULL, LVS_REPORT | LVS_OWNERDRAWFIXED | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 			_SendMessageW( g_hWnd_sftp_fps_host_list, LVM_SETEXTENDEDLISTVIEWSTYLE, 0, LVS_EX_DOUBLEBUFFER | LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES );
 
-			HWND hWnd_static_sftp_fps_host = _CreateWindowW( WC_STATIC, ST_V_Host_, WS_CHILD | WS_VISIBLE, 0, 337, 190, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_edit_sftp_fps_host = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 355, 190, 23, hWnd, ( HMENU )EDIT_SFH_HOST, NULL, NULL );
+			g_hWnd_static_sftp_fps_host = _CreateWindowW( WC_STATIC, ST_V_Host_, WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+			g_hWnd_edit_sftp_fps_host = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, ( HMENU )EDIT_SFH_HOST, NULL, NULL );
 
-			HWND hWnd_static_sftp_fps_key_algorithm = _CreateWindowW( WC_STATIC, ST_V_Host_key_algorithm_, WS_CHILD | WS_VISIBLE, 195, 337, 150, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_cb_sftp_fps_key_algorithm = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_COMBOBOX, NULL, CBS_AUTOHSCROLL | CBS_DROPDOWN | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE | CBS_DARK_MODE, 195, 355, 150, 23, hWnd, ( HMENU )CB_SFH_KEY_ALGORITHM, NULL, NULL );
+			g_hWnd_static_sftp_fps_key_algorithm = _CreateWindowW( WC_STATIC, ST_V_Host_key_algorithm_, WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+			g_hWnd_cb_sftp_fps_key_algorithm = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_COMBOBOX, NULL, CBS_AUTOHSCROLL | CBS_DROPDOWN | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE | CBS_DARK_MODE, 0, 0, 0, 0, hWnd, ( HMENU )CB_SFH_KEY_ALGORITHM, NULL, NULL );
 
 			_SendMessageW( g_hWnd_cb_sftp_fps_key_algorithm, CB_ADDSTRING, 0, ( LPARAM )ST_V_ecdsa_sha2_nistp256 );
 			_SendMessageW( g_hWnd_cb_sftp_fps_key_algorithm, CB_ADDSTRING, 0, ( LPARAM )ST_V_ecdsa_sha2_nistp384 );
@@ -272,12 +278,12 @@ LRESULT CALLBACK SFTPFpsTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 			_SendMessageW( g_hWnd_cb_sftp_fps_key_algorithm, CB_ADDSTRING, 0, ( LPARAM )ST_V_ssh_ed25519 );
 			_SendMessageW( g_hWnd_cb_sftp_fps_key_algorithm, CB_ADDSTRING, 0, ( LPARAM )ST_V_ssh_rsa );
 
-			HWND hWnd_static_sftp_fps_fingerprint = _CreateWindowW( WC_STATIC, ST_V_Fingerprint_, WS_CHILD | WS_VISIBLE, 350, 337, rc.right - 350, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_edit_sftp_fps_fingerprint = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 350, 355, rc.right - 350, 23, hWnd, ( HMENU )EDIT_SFH_FINGERPRINT, NULL, NULL );
+			g_hWnd_static_sftp_fps_fingerprint = _CreateWindowW( WC_STATIC, ST_V_Fingerprint_, WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+			g_hWnd_edit_sftp_fps_fingerprint = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, ( HMENU )EDIT_SFH_FINGERPRINT, NULL, NULL );
 
-			g_hWnd_new_fps_host = _CreateWindowW( WC_BUTTON, ST_V_New, WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 388, 105, 23, hWnd, ( HMENU )BTN_SFH_NEW_HOST, NULL, NULL );
-			g_hWnd_save_fps_host = _CreateWindowW( WC_BUTTON, ST_V_Save, WS_CHILD | WS_TABSTOP | WS_VISIBLE, 110, 388, 105, 23, hWnd, ( HMENU )BTN_SFH_SAVE_HOST, NULL, NULL );
-			g_hWnd_remove_fps_host = _CreateWindowW( WC_BUTTON, ST_V_Remove, WS_CHILD | WS_DISABLED | WS_TABSTOP | WS_VISIBLE, 220, 388, 105, 23, hWnd, ( HMENU )BTN_SFH_REMOVE_HOST, NULL, NULL );
+			g_hWnd_new_fps_host = _CreateWindowW( WC_BUTTON, ST_V_New, WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, ( HMENU )BTN_SFH_NEW_HOST, NULL, NULL );
+			g_hWnd_save_fps_host = _CreateWindowW( WC_BUTTON, ST_V_Save, WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, ( HMENU )BTN_SFH_SAVE_HOST, NULL, NULL );
+			g_hWnd_remove_fps_host = _CreateWindowW( WC_BUTTON, ST_V_Remove, WS_CHILD | WS_DISABLED | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, ( HMENU )BTN_SFH_REMOVE_HOST, NULL, NULL );
 
 			_SendMessageW( g_hWnd_edit_sftp_fps_host, EM_LIMITTEXT, MAX_DOMAIN_LENGTH, 0 );
 
@@ -306,16 +312,16 @@ LRESULT CALLBACK SFTPFpsTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 
 			//
 
-			_SendMessageW( g_hWnd_sftp_fps_host_list, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( hWnd_static_sftp_fps_host, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_edit_sftp_fps_host, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( hWnd_static_sftp_fps_key_algorithm, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_cb_sftp_fps_key_algorithm, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( hWnd_static_sftp_fps_fingerprint, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_edit_sftp_fps_fingerprint, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_new_fps_host, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_save_fps_host, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_remove_fps_host, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_sftp_fps_host_list, WM_SETFONT, ( WPARAM )hFont_options, 0 );
+			_SendMessageW( g_hWnd_static_sftp_fps_host, WM_SETFONT, ( WPARAM )hFont_options, 0 );
+			_SendMessageW( g_hWnd_edit_sftp_fps_host, WM_SETFONT, ( WPARAM )hFont_options, 0 );
+			_SendMessageW( g_hWnd_static_sftp_fps_key_algorithm, WM_SETFONT, ( WPARAM )hFont_options, 0 );
+			_SendMessageW( g_hWnd_cb_sftp_fps_key_algorithm, WM_SETFONT, ( WPARAM )hFont_options, 0 );
+			_SendMessageW( g_hWnd_static_sftp_fps_fingerprint, WM_SETFONT, ( WPARAM )hFont_options, 0 );
+			_SendMessageW( g_hWnd_edit_sftp_fps_fingerprint, WM_SETFONT, ( WPARAM )hFont_options, 0 );
+			_SendMessageW( g_hWnd_new_fps_host, WM_SETFONT, ( WPARAM )hFont_options, 0 );
+			_SendMessageW( g_hWnd_save_fps_host, WM_SETFONT, ( WPARAM )hFont_options, 0 );
+			_SendMessageW( g_hWnd_remove_fps_host, WM_SETFONT, ( WPARAM )hFont_options, 0 );
 
 			//
 
@@ -352,6 +358,52 @@ LRESULT CALLBACK SFTPFpsTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 			}
 
 			return 0;
+		}
+		break;
+
+		case WM_SIZE:
+		{
+			RECT rc;
+			_GetClientRect( hWnd, &rc );
+
+			HDWP hdwp = _BeginDeferWindowPos( 10 );
+			_DeferWindowPos( hdwp, g_hWnd_sftp_fps_host_list, HWND_TOP, 0, 0, rc.right, _SCALE_O_( 330 ), SWP_NOZORDER );
+
+			_DeferWindowPos( hdwp, g_hWnd_static_sftp_fps_host, HWND_TOP, 0, _SCALE_O_( 337 ), _SCALE_O_( 190 ), _SCALE_O_( 17 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_edit_sftp_fps_host, HWND_TOP, 0, _SCALE_O_( 355 ), _SCALE_O_( 190 ), _SCALE_O_( 23 ), SWP_NOZORDER );
+
+			_DeferWindowPos( hdwp, g_hWnd_static_sftp_fps_key_algorithm, HWND_TOP, _SCALE_O_( 195 ), _SCALE_O_( 337 ), _SCALE_O_( 150 ), _SCALE_O_( 17 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_cb_sftp_fps_key_algorithm, HWND_TOP, _SCALE_O_( 195 ), _SCALE_O_( 355 ), _SCALE_O_( 150 ), _SCALE_O_( 23 ), SWP_NOZORDER );
+
+			_DeferWindowPos( hdwp, g_hWnd_static_sftp_fps_fingerprint, HWND_TOP, _SCALE_O_( 350 ), _SCALE_O_( 337 ), rc.right - _SCALE_O_( 350 ), _SCALE_O_( 17 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_edit_sftp_fps_fingerprint, HWND_TOP, _SCALE_O_( 350 ), _SCALE_O_( 355 ), rc.right - _SCALE_O_( 350 ), _SCALE_O_( 23 ), SWP_NOZORDER );
+
+			_DeferWindowPos( hdwp, g_hWnd_new_fps_host, HWND_TOP, 0, _SCALE_O_( 388 ), _SCALE_O_( 105 ), _SCALE_O_( 23 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_save_fps_host, HWND_TOP, _SCALE_O_( 110 ), _SCALE_O_( 388 ), _SCALE_O_( 105 ), _SCALE_O_( 23 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_remove_fps_host, HWND_TOP, _SCALE_O_( 220 ), _SCALE_O_( 388 ), _SCALE_O_( 105 ), _SCALE_O_( 23 ), SWP_NOZORDER );
+
+			_EndDeferWindowPos( hdwp );
+
+			return 0;
+		}
+		break;
+
+		case WM_GET_DPI:
+		{
+			return current_dpi_options;
+		}
+		break;
+
+		case WM_DPICHANGED_AFTERPARENT:
+		{
+			for ( int i = 0; i < 4; ++i )
+			{
+				int column_width = ( int )_SendMessageA( g_hWnd_sftp_fps_host_list, LVM_GETCOLUMNWIDTH, ( WPARAM )i, 0 );
+				_SendMessageA( g_hWnd_sftp_fps_host_list, LVM_SETCOLUMNWIDTH, ( WPARAM )i, MAKELPARAM( _SCALE2_( column_width, dpi_options ), 0 ) );
+			}
+
+			// Return value is ignored.
+			return TRUE;
 		}
 		break;
 
@@ -623,8 +675,8 @@ LRESULT CALLBACK SFTPFpsTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 					last_rc = dis->rcItem;
 
 					// This will adjust the text to fit nicely into the rectangle.
-					last_rc.left = 5 + last_left;
-					last_rc.right = lvc.cx + last_left - 5;
+					last_rc.left = _SCALE_O_( 5 ) + last_left;
+					last_rc.right = lvc.cx + last_left - _SCALE_O_( 5 );
 
 					// Save the last left position of our column.
 					last_left += lvc.cx;
@@ -651,7 +703,7 @@ LRESULT CALLBACK SFTPFpsTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 					HBITMAP ohbm = ( HBITMAP )_SelectObject( hdcMem, hbm );
 					_DeleteObject( ohbm );
 					_DeleteObject( hbm );
-					HFONT ohf = ( HFONT )_SelectObject( hdcMem, g_hFont );
+					HFONT ohf = ( HFONT )_SelectObject( hdcMem, hFont_options );
 					_DeleteObject( ohf );
 
 					// Transparent background for text.
@@ -936,7 +988,7 @@ LRESULT CALLBACK SFTPFpsTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 			// Set the row height of the list view.
 			if ( ( ( LPMEASUREITEMSTRUCT )lParam )->CtlType == ODT_LISTVIEW )
 			{
-				( ( LPMEASUREITEMSTRUCT )lParam )->itemHeight = g_default_row_height;
+				( ( LPMEASUREITEMSTRUCT )lParam )->itemHeight = _SCALE_O_( g_default_row_height );
 			}
 			return TRUE;
 		}

@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
-	Copyright (C) 2015-2024 Eric Kutcher
+	Copyright (C) 2015-2025 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -31,9 +31,10 @@
 
 	//__pragma( comment( lib, "comctl32.lib" ) )
 
-	//#define _ImageList_Create		ImageList_Create
+	#define _ImageList_Create		ImageList_Create
 	#define _ImageList_Destroy		ImageList_Destroy
 	//#define _ImageList_Add			ImageList_Add
+	#define _ImageList_AddMasked	ImageList_AddMasked
 	#define _ImageList_LoadImageW	ImageList_LoadImageW
 	//#define _ImageList_ReplaceIcon	ImageList_ReplaceIcon
 	//#define _ImageList_GetIcon			ImageList_GetIcon
@@ -55,9 +56,10 @@
 	#define COMCTL32_STATE_SHUTDOWN		0
 	#define COMCTL32_STATE_RUNNING		1
 
-	//typedef HIMAGELIST ( WINAPI *pImageList_Create )( int cx, int cy, UINT flags, int cInitial, int cGrow );
+	typedef HIMAGELIST ( WINAPI *pImageList_Create )( int cx, int cy, UINT flags, int cInitial, int cGrow );
 	typedef BOOL ( WINAPI *pImageList_Destroy )( HIMAGELIST himl );
 	//typedef int ( WINAPI *pImageList_Add )( HIMAGELIST himl, HBITMAP hbmImage, HBITMAP hbmMask );
+	typedef int ( WINAPI *pImageList_AddMasked )( HIMAGELIST himl, HBITMAP hbmImage, COLORREF crMask );
 	typedef HIMAGELIST ( WINAPI *pImageList_LoadImageW )( HINSTANCE hi, LPCWSTR lpbmp, int cx, int cGrow, COLORREF crMask, UINT uType, UINT uFlags );
 	//typedef int ( WINAPI *pImageList_ReplaceIcon )( HIMAGELIST himl, int i, HICON hicon );
 	//typedef HICON ( WINAPI *pImageList_GetIcon )( HIMAGELIST himl, int i, UINT flags );
@@ -74,9 +76,10 @@
 	//typedef BOOL ( WINAPI *pImageList_DragShowNolock )( BOOL fShow );
 	//typedef void ( WINAPI *pImageList_EndDrag )();
 
-	//extern pImageList_Create			_ImageList_Create;
+	extern pImageList_Create			_ImageList_Create;
 	extern pImageList_Destroy			_ImageList_Destroy;
 	//extern pImageList_Add				_ImageList_Add;
+	extern pImageList_AddMasked			_ImageList_AddMasked;
 	extern pImageList_LoadImageW		_ImageList_LoadImageW;
 	//extern pImageList_ReplaceIcon		_ImageList_ReplaceIcon;
 	//extern pImageList_GetIcon			_ImageList_GetIcon;

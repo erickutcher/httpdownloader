@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
-	Copyright (C) 2015-2024 Eric Kutcher
+	Copyright (C) 2015-2025 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -21,6 +21,8 @@
 #include "lite_comctl32.h"
 #include "lite_gdi32.h"
 
+#include "sftp.h"
+
 #define KEEP_ALIVE_MAX				172800
 #define KEEP_ALIVE_MAX_S			"172800"
 
@@ -40,6 +42,16 @@
 #define EDIT_SFTP_REKEY_DATA_LIMIT			1006
 
 // SFTP Tab
+HWND g_hWnd_static_algorithm_policies = NULL;
+HWND g_hWnd_static_sftp_kex_algorithm = NULL;
+HWND g_hWnd_static_sftp_host_key = NULL;
+HWND g_hWnd_static_sftp_encryption_cipher = NULL;
+HWND g_hWnd_static_drag_order = NULL;
+HWND g_hWnd_sftp_send_keep_alive = NULL;
+HWND g_hWnd_sftp_rekey = NULL;
+HWND g_hWnd_sftp_gss_rekey = NULL;
+HWND g_hWnd_static_sftp_rekey_data_limit = NULL;
+
 HWND g_hWnd_sftp_kex_algorithm = NULL;
 HWND g_hWnd_sftp_host_key = NULL;
 HWND g_hWnd_sftp_encryption_cipher = NULL;
@@ -74,6 +86,9 @@ WNDPROC PriorityTreeViewProc = NULL;
 unsigned char g_priority_kex_algorithm[ KEX_ALGORITHM_COUNT ];
 unsigned char g_priority_host_key[ HOST_KEY_COUNT ];
 unsigned char g_priority_encryption_cipher[ ENCRYPTION_CIPHER_COUNT ];
+
+int sftp_spinner_width = 0;
+int sftp_spinner_height = 0;
 
 void SetPriorityList( HWND hWnd, unsigned char *priority_list )
 {
@@ -143,8 +158,7 @@ LRESULT CALLBACK PriorityTreeViewSubProc( HWND hWnd, UINT msg, WPARAM wParam, LP
 						}
 					}
 
-					options_state_changed = true;
-					_EnableWindow( g_hWnd_options_apply, TRUE );
+					_SendMessageW( g_hWnd_options, WM_OPTIONS_CHANGED, TRUE, 0 );
 				}
 
 				_SendMessageW( hWnd, TVM_SELECTITEM, TVGN_CARET, ( LPARAM )hti );
@@ -163,17 +177,14 @@ LRESULT CALLBACK SFTPTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 	{
 		case WM_CREATE:
 		{
-			RECT rc;
-			_GetClientRect( hWnd, &rc );
+			g_hWnd_static_algorithm_policies = _CreateWindowW( WC_BUTTON, ST_V_Algorithm_Selection_Policies, BS_GROUPBOX | WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 
-			HWND hWnd_static_algorithm_policies = _CreateWindowW( WC_BUTTON, ST_V_Algorithm_Selection_Policies, BS_GROUPBOX | WS_CHILD | WS_VISIBLE, 0, 0, rc.right, 203, hWnd, NULL, NULL, NULL );
-
-			HWND hWnd_static_sftp_kex_algorithm = _CreateWindowW( WC_STATIC, ST_V_Key_Group_exchange_, WS_CHILD | WS_VISIBLE, 11, 19, 197, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_sftp_kex_algorithm = _CreateWindowExW( WS_EX_CLIENTEDGE | TVS_EX_DOUBLEBUFFER, WC_TREEVIEW, NULL, TVS_SHOWSELALWAYS | TVS_FULLROWSELECT | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 11, 37, 197, 135, hWnd, NULL, NULL, NULL );
-			HWND hWnd_static_sftp_host_key = _CreateWindowW( WC_STATIC, ST_V_Host_key_, WS_CHILD | WS_VISIBLE, 218, 19, 160, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_sftp_host_key = _CreateWindowExW( WS_EX_CLIENTEDGE | TVS_EX_DOUBLEBUFFER, WC_TREEVIEW, NULL, TVS_SHOWSELALWAYS | TVS_FULLROWSELECT | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 218, 37, 160, 135, hWnd, NULL, NULL, NULL );
-			HWND hWnd_static_sftp_encryption_cipher = _CreateWindowW( WC_STATIC, ST_V_Encryption_cipher_, WS_CHILD | WS_VISIBLE, 388, 19, 160, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_sftp_encryption_cipher = _CreateWindowExW( WS_EX_CLIENTEDGE | TVS_EX_DOUBLEBUFFER, WC_TREEVIEW, NULL, TVS_SHOWSELALWAYS | TVS_FULLROWSELECT | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 388, 37, 160, 135, hWnd, NULL, NULL, NULL );
+			g_hWnd_static_sftp_kex_algorithm = _CreateWindowW( WC_STATIC, ST_V_Key_Group_exchange_, WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+			g_hWnd_sftp_kex_algorithm = _CreateWindowExW( WS_EX_CLIENTEDGE | TVS_EX_DOUBLEBUFFER, WC_TREEVIEW, NULL, TVS_SHOWSELALWAYS | TVS_FULLROWSELECT | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+			g_hWnd_static_sftp_host_key = _CreateWindowW( WC_STATIC, ST_V_Host_key_, WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+			g_hWnd_sftp_host_key = _CreateWindowExW( WS_EX_CLIENTEDGE | TVS_EX_DOUBLEBUFFER, WC_TREEVIEW, NULL, TVS_SHOWSELALWAYS | TVS_FULLROWSELECT | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+			g_hWnd_static_sftp_encryption_cipher = _CreateWindowW( WC_STATIC, ST_V_Encryption_cipher_, WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+			g_hWnd_sftp_encryption_cipher = _CreateWindowExW( WS_EX_CLIENTEDGE | TVS_EX_DOUBLEBUFFER, WC_TREEVIEW, NULL, TVS_SHOWSELALWAYS | TVS_FULLROWSELECT | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 
 			// Checboxes don't get set when the style is applied in CreateWindow().
 			// https://docs.microsoft.com/en-us/windows/win32/controls/tree-view-control-window-styles
@@ -225,16 +236,17 @@ LRESULT CALLBACK SFTPTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 				_SendMessageW( g_hWnd_sftp_encryption_cipher, TVM_INSERTITEM, 0, ( LPARAM )&tvis );
 			}
 
-			HWND hWnd_static_drag_order = _CreateWindowW( WC_STATIC, ST_V_Drag_items_to_reorder_priority, WS_CHILD | WS_VISIBLE, 11, 179, rc.right - 22, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_static_drag_order = _CreateWindowW( WC_STATIC, ST_V_Drag_items_to_reorder_priority, WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 
-			g_hWnd_chk_enable_compression = _CreateWindowW( WC_BUTTON, ST_V_Enable_compression, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 209, rc.right, 20, hWnd, ( HMENU )BTN_ENABLE_COMPRESSION, NULL, NULL );
-			g_hWnd_chk_attempt_gssapi_authentication = _CreateWindowW( WC_BUTTON, ST_V_Attempt_GSSAPI_authentication, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 229, rc.right, 20, hWnd, ( HMENU )BTN_ATTEMPT_GSSAPI_AUTHENTICATION, NULL, NULL );
-			g_hWnd_chk_attempt_gssapi_key_exchange = _CreateWindowW( WC_BUTTON, ST_V_Attempt_GSSAPI_key_exchange, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 249, rc.right, 20, hWnd, ( HMENU )BTN_ATTEMPT_GSSAPI_KEY_EXCHANGE, NULL, NULL );
+			g_hWnd_chk_enable_compression = _CreateWindowW( WC_BUTTON, ST_V_Enable_compression, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, ( HMENU )BTN_ENABLE_COMPRESSION, NULL, NULL );
+			g_hWnd_chk_attempt_gssapi_authentication = _CreateWindowW( WC_BUTTON, ST_V_Attempt_GSSAPI_authentication, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, ( HMENU )BTN_ATTEMPT_GSSAPI_AUTHENTICATION, NULL, NULL );
+			g_hWnd_chk_attempt_gssapi_key_exchange = _CreateWindowW( WC_BUTTON, ST_V_Attempt_GSSAPI_key_exchange, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, ( HMENU )BTN_ATTEMPT_GSSAPI_KEY_EXCHANGE, NULL, NULL );
 
 			//
 
-			HWND hWnd_sftp_send_keep_alive = _CreateWindowW( WC_STATIC, ST_V_Send_keep_alive_requests__seconds__, WS_CHILD | WS_VISIBLE, 0, 277, 350, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_sftp_keep_alive_time = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 100, 273, 100, 23, hWnd, ( HMENU )EDIT_SFTP_KEEP_ALIVE_TIME, NULL, NULL );
+			g_hWnd_sftp_send_keep_alive = _CreateWindowW( WC_STATIC, ST_V_Send_keep_alive_requests__seconds__, WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+			// Needs dimensions so that the spinner control can size itself.
+			g_hWnd_sftp_keep_alive_time = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 100, 23, hWnd, ( HMENU )EDIT_SFTP_KEEP_ALIVE_TIME, NULL, NULL );
 			g_hWnd_ud_sftp_keep_alive_time = _CreateWindowW( UPDOWN_CLASS, NULL, UDS_ALIGNRIGHT | UDS_ARROWKEYS | UDS_NOTHOUSANDS | UDS_SETBUDDYINT | WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 
 			_SendMessageW( g_hWnd_sftp_keep_alive_time, EM_LIMITTEXT, 6, 0 );
@@ -245,15 +257,14 @@ LRESULT CALLBACK SFTPTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 			RECT rc_spinner;
 			_GetClientRect( g_hWnd_ud_sftp_keep_alive_time, &rc_spinner );
-			int spinner_width = rc_spinner.right - rc_spinner.left;
-
-			_SetWindowPos( g_hWnd_sftp_keep_alive_time, HWND_TOP, rc.right - ( 100 + spinner_width ), 273, 100, 23, SWP_NOZORDER );
-			_SetWindowPos( g_hWnd_ud_sftp_keep_alive_time, HWND_TOP, rc.right - spinner_width, 273, 0, 0, SWP_NOZORDER | SWP_NOSIZE );
+			sftp_spinner_width = rc_spinner.right - rc_spinner.left;
+			sftp_spinner_height = rc_spinner.bottom - rc_spinner.top;
 
 			//
 
-			HWND hWnd_sftp_rekey = _CreateWindowW( WC_STATIC, ST_V_Rekey_time__minutes__, WS_CHILD | WS_VISIBLE, 0, 305, 350, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_sftp_rekey_time = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 100, 301, 100, 23, hWnd, ( HMENU )EDIT_SFTP_REKEY_TIME, NULL, NULL );
+			g_hWnd_sftp_rekey = _CreateWindowW( WC_STATIC, ST_V_Rekey_time__minutes__, WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+			// Needs dimensions so that the spinner control can size itself.
+			g_hWnd_sftp_rekey_time = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 100, 23, hWnd, ( HMENU )EDIT_SFTP_REKEY_TIME, NULL, NULL );
 			g_hWnd_ud_sftp_rekey_time = _CreateWindowW( UPDOWN_CLASS, NULL, UDS_ALIGNRIGHT | UDS_ARROWKEYS | UDS_NOTHOUSANDS | UDS_SETBUDDYINT | WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 
 			_SendMessageW( g_hWnd_sftp_rekey_time, EM_LIMITTEXT, 6, 0 );
@@ -262,13 +273,11 @@ LRESULT CALLBACK SFTPTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			_SendMessageW( g_hWnd_ud_sftp_rekey_time, UDM_SETRANGE32, 0, REKEY_MAX );	// 0 = no limit, 1 minute to 2 days max.
 			_SendMessageW( g_hWnd_ud_sftp_rekey_time, UDM_SETPOS, 0, cfg_sftp_rekey_time );
 
-			_SetWindowPos( g_hWnd_sftp_rekey_time, HWND_TOP, rc.right - ( 100 + spinner_width ), 301, 100, 23, SWP_NOZORDER );
-			_SetWindowPos( g_hWnd_ud_sftp_rekey_time, HWND_TOP, rc.right - spinner_width, 301, 0, 0, SWP_NOZORDER | SWP_NOSIZE );
-
 			//
 
-			HWND hWnd_sftp_gss_rekey = _CreateWindowW( WC_STATIC, ST_V_GSS_rekey_time__minutes__, WS_CHILD | WS_VISIBLE, 0, 333, 350, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_sftp_gss_rekey_time = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 100, 329, 100, 23, hWnd, ( HMENU )EDIT_SFTP_GSS_REKEY_TIME, NULL, NULL );
+			g_hWnd_sftp_gss_rekey = _CreateWindowW( WC_STATIC, ST_V_GSS_rekey_time__minutes__, WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+			// Needs dimensions so that the spinner control can size itself.
+			g_hWnd_sftp_gss_rekey_time = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 100, 23, hWnd, ( HMENU )EDIT_SFTP_GSS_REKEY_TIME, NULL, NULL );
 			g_hWnd_ud_sftp_gss_rekey_time = _CreateWindowW( UPDOWN_CLASS, NULL, UDS_ALIGNRIGHT | UDS_ARROWKEYS | UDS_NOTHOUSANDS | UDS_SETBUDDYINT | WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 
 			_SendMessageW( g_hWnd_sftp_gss_rekey_time, EM_LIMITTEXT, 6, 0 );
@@ -277,14 +286,11 @@ LRESULT CALLBACK SFTPTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			_SendMessageW( g_hWnd_ud_sftp_gss_rekey_time, UDM_SETRANGE32, 0, GSS_REKEY_MAX );	// 0 = no limit, 1 minute to 2 days max.
 			_SendMessageW( g_hWnd_ud_sftp_gss_rekey_time, UDM_SETPOS, 0, cfg_sftp_gss_rekey_time );
 
-			_SetWindowPos( g_hWnd_sftp_gss_rekey_time, HWND_TOP, rc.right - ( 100 + spinner_width ), 329, 100, 23, SWP_NOZORDER );
-			_SetWindowPos( g_hWnd_ud_sftp_gss_rekey_time, HWND_TOP, rc.right - spinner_width, 329, 0, 0, SWP_NOZORDER | SWP_NOSIZE );
-
 			//
 
-			HWND hWnd_static_sftp_rekey_data_limit = _CreateWindowW( WC_STATIC, ST_V_Rekey_data_limit__bytes__, WS_CHILD | WS_VISIBLE, 0, 361, 350, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_static_sftp_rekey_data_limit = _CreateWindowW( WC_STATIC, ST_V_Rekey_data_limit__bytes__, WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 
-			g_hWnd_sftp_rekey_data_limit = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 100, 357, 100, 23, hWnd, ( HMENU )EDIT_SFTP_REKEY_DATA_LIMIT, NULL, NULL );
+			g_hWnd_sftp_rekey_data_limit = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, ( HMENU )EDIT_SFTP_REKEY_DATA_LIMIT, NULL, NULL );
 
 			_SendMessageW( g_hWnd_sftp_rekey_data_limit, EM_LIMITTEXT, 10, 0 );
 
@@ -316,29 +322,29 @@ LRESULT CALLBACK SFTPTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 			//
 
-			_SendMessageW( hWnd_static_algorithm_policies, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( hWnd_static_sftp_kex_algorithm, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_sftp_kex_algorithm, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( hWnd_static_sftp_host_key, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_sftp_host_key, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( hWnd_static_sftp_encryption_cipher, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_sftp_encryption_cipher, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( hWnd_static_drag_order, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_chk_enable_compression, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_chk_attempt_gssapi_authentication, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_chk_attempt_gssapi_key_exchange, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_static_algorithm_policies, WM_SETFONT, ( WPARAM )hFont_options, 0 );
+			_SendMessageW( g_hWnd_static_sftp_kex_algorithm, WM_SETFONT, ( WPARAM )hFont_options, 0 );
+			_SendMessageW( g_hWnd_sftp_kex_algorithm, WM_SETFONT, ( WPARAM )hFont_options, 0 );
+			_SendMessageW( g_hWnd_static_sftp_host_key, WM_SETFONT, ( WPARAM )hFont_options, 0 );
+			_SendMessageW( g_hWnd_sftp_host_key, WM_SETFONT, ( WPARAM )hFont_options, 0 );
+			_SendMessageW( g_hWnd_static_sftp_encryption_cipher, WM_SETFONT, ( WPARAM )hFont_options, 0 );
+			_SendMessageW( g_hWnd_sftp_encryption_cipher, WM_SETFONT, ( WPARAM )hFont_options, 0 );
+			_SendMessageW( g_hWnd_static_drag_order, WM_SETFONT, ( WPARAM )hFont_options, 0 );
+			_SendMessageW( g_hWnd_chk_enable_compression, WM_SETFONT, ( WPARAM )hFont_options, 0 );
+			_SendMessageW( g_hWnd_chk_attempt_gssapi_authentication, WM_SETFONT, ( WPARAM )hFont_options, 0 );
+			_SendMessageW( g_hWnd_chk_attempt_gssapi_key_exchange, WM_SETFONT, ( WPARAM )hFont_options, 0 );
 
-			_SendMessageW( hWnd_sftp_send_keep_alive, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_sftp_keep_alive_time, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_sftp_send_keep_alive, WM_SETFONT, ( WPARAM )hFont_options, 0 );
+			_SendMessageW( g_hWnd_sftp_keep_alive_time, WM_SETFONT, ( WPARAM )hFont_options, 0 );
 
-			_SendMessageW( hWnd_sftp_rekey, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_sftp_rekey_time, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_sftp_rekey, WM_SETFONT, ( WPARAM )hFont_options, 0 );
+			_SendMessageW( g_hWnd_sftp_rekey_time, WM_SETFONT, ( WPARAM )hFont_options, 0 );
 
-			_SendMessageW( hWnd_sftp_gss_rekey, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_sftp_gss_rekey_time, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_sftp_gss_rekey, WM_SETFONT, ( WPARAM )hFont_options, 0 );
+			_SendMessageW( g_hWnd_sftp_gss_rekey_time, WM_SETFONT, ( WPARAM )hFont_options, 0 );
 
-			_SendMessageW( hWnd_static_sftp_rekey_data_limit, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_sftp_rekey_data_limit, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_static_sftp_rekey_data_limit, WM_SETFONT, ( WPARAM )hFont_options, 0 );
+			_SendMessageW( g_hWnd_sftp_rekey_data_limit, WM_SETFONT, ( WPARAM )hFont_options, 0 );
 
 			// Set settings.
 
@@ -350,6 +356,58 @@ LRESULT CALLBACK SFTPTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 		}
 		break;
 
+		case WM_SIZE:
+		{
+			RECT rc;
+			_GetClientRect( hWnd, &rc );
+
+			int spinner_width = _SCALE_O_( sftp_spinner_width );
+			int spinner_height = _SCALE_O_( sftp_spinner_height );
+
+			HDWP hdwp = _BeginDeferWindowPos( 22 );
+			_DeferWindowPos( hdwp, g_hWnd_static_algorithm_policies, HWND_TOP, 0, 0, rc.right, _SCALE_O_( 203 ), SWP_NOZORDER );
+
+			_DeferWindowPos( hdwp, g_hWnd_static_sftp_kex_algorithm, HWND_TOP, _SCALE_O_( 11 ), _SCALE_O_( 19 ), _SCALE_O_( 197 ), _SCALE_O_( 17 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_sftp_kex_algorithm, HWND_TOP, _SCALE_O_( 11 ), _SCALE_O_( 37 ), _SCALE_O_( 197 ), _SCALE_O_( 135 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_static_sftp_host_key, HWND_TOP, _SCALE_O_( 218 ), _SCALE_O_( 19 ), _SCALE_O_( 160 ), _SCALE_O_( 17 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_sftp_host_key, HWND_TOP, _SCALE_O_( 218 ), _SCALE_O_( 37 ), _SCALE_O_( 160 ), _SCALE_O_( 135 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_static_sftp_encryption_cipher, HWND_TOP, _SCALE_O_( 388 ), _SCALE_O_( 19 ), _SCALE_O_( 160 ), _SCALE_O_( 17 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_sftp_encryption_cipher, HWND_TOP, _SCALE_O_( 388 ), _SCALE_O_( 37 ), _SCALE_O_( 160 ), _SCALE_O_( 135 ), SWP_NOZORDER );
+
+			_DeferWindowPos( hdwp, g_hWnd_static_drag_order, HWND_TOP, _SCALE_O_( 11 ), _SCALE_O_( 179 ), rc.right - _SCALE_O_( 22 ), _SCALE_O_( 17 ), SWP_NOZORDER );
+
+			_DeferWindowPos( hdwp, g_hWnd_chk_enable_compression, HWND_TOP, 0, _SCALE_O_( 209 ), rc.right, _SCALE_O_( 20 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_chk_attempt_gssapi_authentication, HWND_TOP, 0, _SCALE_O_( 229 ), rc.right, _SCALE_O_( 20 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_chk_attempt_gssapi_key_exchange, HWND_TOP, 0, _SCALE_O_( 249 ), rc.right, _SCALE_O_( 20 ), SWP_NOZORDER );
+
+			_DeferWindowPos( hdwp, g_hWnd_sftp_send_keep_alive, HWND_TOP, 0, _SCALE_O_( 277 ), _SCALE_O_( 350 ), _SCALE_O_( 17 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_sftp_keep_alive_time, HWND_TOP, rc.right - ( _SCALE_O_( 100 ) + spinner_width ), _SCALE_O_( 273 ), _SCALE_O_( 100 ), _SCALE_O_( 23 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_ud_sftp_keep_alive_time, HWND_TOP, rc.right - spinner_width, _SCALE_O_( 273 ), spinner_width, spinner_height, SWP_NOZORDER );
+
+			_DeferWindowPos( hdwp, g_hWnd_sftp_rekey, HWND_TOP, 0, _SCALE_O_( 305 ), _SCALE_O_( 350 ), _SCALE_O_( 17 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_sftp_rekey_time, HWND_TOP, rc.right - ( _SCALE_O_( 100 ) + spinner_width ), _SCALE_O_( 301 ), _SCALE_O_( 100 ), _SCALE_O_( 23 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_ud_sftp_rekey_time, HWND_TOP, rc.right - spinner_width, _SCALE_O_( 301 ), spinner_width, spinner_height, SWP_NOZORDER );
+
+			_DeferWindowPos( hdwp, g_hWnd_sftp_gss_rekey, HWND_TOP, 0, _SCALE_O_( 333 ), _SCALE_O_( 350 ), _SCALE_O_( 17 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_sftp_gss_rekey_time, HWND_TOP, rc.right - ( _SCALE_O_( 100 ) + spinner_width ), _SCALE_O_( 329 ), _SCALE_O_( 100 ), _SCALE_O_( 23 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_ud_sftp_gss_rekey_time, HWND_TOP, rc.right - spinner_width, _SCALE_O_( 329 ), spinner_width, spinner_height, SWP_NOZORDER );
+
+			_DeferWindowPos( hdwp, g_hWnd_static_sftp_rekey_data_limit, HWND_TOP, 0, _SCALE_O_( 361 ), _SCALE_O_( 350 ), _SCALE_O_( 17 ), SWP_NOZORDER );
+
+			_DeferWindowPos( hdwp, g_hWnd_sftp_rekey_data_limit, HWND_TOP, rc.right - _SCALE_O_( 100 ), _SCALE_O_( 357 ), _SCALE_O_( 100 ), _SCALE_O_( 23 ), SWP_NOZORDER );
+
+			_EndDeferWindowPos( hdwp );
+
+			return 0;
+		}
+		break;
+
+		case WM_GET_DPI:
+		{
+			return current_dpi_options;
+		}
+		break;
+
 		case WM_COMMAND:
 		{
 			switch ( LOWORD( wParam ) )
@@ -358,8 +416,7 @@ LRESULT CALLBACK SFTPTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 				case BTN_ATTEMPT_GSSAPI_AUTHENTICATION:
 				case BTN_ATTEMPT_GSSAPI_KEY_EXCHANGE:
 				{
-					options_state_changed = true;
-					_EnableWindow( g_hWnd_options_apply, TRUE );
+					_SendMessageW( g_hWnd_options, WM_OPTIONS_CHANGED, TRUE, 0 );
 				}
 				break;
 
@@ -384,8 +441,7 @@ LRESULT CALLBACK SFTPTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 						if ( num != ( unsigned long )cfg_sftp_keep_alive_time )
 						{
-							options_state_changed = true;
-							_EnableWindow( g_hWnd_options_apply, TRUE );
+							_SendMessageW( g_hWnd_options, WM_OPTIONS_CHANGED, TRUE, 0 );
 						}
 					}
 				}
@@ -412,8 +468,7 @@ LRESULT CALLBACK SFTPTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 						if ( num != ( unsigned long )cfg_sftp_rekey_time )
 						{
-							options_state_changed = true;
-							_EnableWindow( g_hWnd_options_apply, TRUE );
+							_SendMessageW( g_hWnd_options, WM_OPTIONS_CHANGED, TRUE, 0 );
 						}
 					}
 				}
@@ -440,8 +495,7 @@ LRESULT CALLBACK SFTPTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 						if ( num != ( unsigned long )cfg_sftp_gss_rekey_time )
 						{
-							options_state_changed = true;
-							_EnableWindow( g_hWnd_options_apply, TRUE );
+							_SendMessageW( g_hWnd_options, WM_OPTIONS_CHANGED, TRUE, 0 );
 						}
 					}
 				}
@@ -484,8 +538,7 @@ LRESULT CALLBACK SFTPTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 						if ( num != cfg_sftp_rekey_data_limit )
 						{
-							options_state_changed = true;
-							_EnableWindow( g_hWnd_options_apply, TRUE );
+							_SendMessageW( g_hWnd_options, WM_OPTIONS_CHANGED, TRUE, 0 );
 						}
 					}
 				}
@@ -581,12 +634,12 @@ LRESULT CALLBACK SFTPTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 #ifdef ENABLE_DARK_MODE
 				if ( g_use_dark_mode )
 				{
-					line_color = _CreatePen( PS_DOT, 1, dm_color_list_highlight );
+					line_color = _CreatePen( PS_DOT, _SCALE_O_( 1 ), dm_color_list_highlight );
 				}
 				else
 #endif
 				{
-					line_color = _CreatePen( PS_DOT, 1, ( COLORREF )_GetSysColor( COLOR_HOTLIGHT ) );
+					line_color = _CreatePen( PS_DOT, _SCALE_O_( 1 ), ( COLORREF )_GetSysColor( COLOR_HOTLIGHT ) );
 				}
 
 				HPEN old_color = ( HPEN )_SelectObject( hdcMem, line_color );
@@ -659,8 +712,7 @@ LRESULT CALLBACK SFTPTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 					else { priority = NULL; }
 					SetPriorityList( g_hWnd_tv_current, priority );
 
-					options_state_changed = true;
-					_EnableWindow( g_hWnd_options_apply, TRUE );
+					_SendMessageW( g_hWnd_options, WM_OPTIONS_CHANGED, TRUE, 0 );
 				}
 
 				g_tv_oob = false;
@@ -674,6 +726,94 @@ LRESULT CALLBACK SFTPTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			}
 
 			return TRUE;
+		}
+		break;
+
+		case WM_SAVE_OPTIONS:
+		{
+			unsigned short sftp_update = 0x0000;
+
+			bool sftp_enable_compression = ( _SendMessageW( g_hWnd_chk_enable_compression, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
+			if ( sftp_enable_compression != cfg_sftp_enable_compression ) { sftp_update |= 0x0001; }
+			cfg_sftp_enable_compression = sftp_enable_compression;
+
+			bool sftp_attempt_gssapi_authentication = ( _SendMessageW( g_hWnd_chk_attempt_gssapi_authentication, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
+			if ( sftp_attempt_gssapi_authentication != cfg_sftp_attempt_gssapi_authentication ) { sftp_update |= 0x0002; }
+			cfg_sftp_attempt_gssapi_authentication = sftp_attempt_gssapi_authentication;
+
+			bool sftp_attempt_gssapi_key_exchange = ( _SendMessageW( g_hWnd_chk_attempt_gssapi_key_exchange, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
+			if ( sftp_attempt_gssapi_key_exchange != cfg_sftp_attempt_gssapi_key_exchange ) { sftp_update |= 0x0004; }
+			cfg_sftp_attempt_gssapi_key_exchange = sftp_attempt_gssapi_key_exchange;
+
+			char value[ 11 ];
+
+			_SendMessageA( g_hWnd_sftp_keep_alive_time, WM_GETTEXT, 11, ( LPARAM )value );
+			int sftp_keep_alive_time = ( int )_strtoul( value, NULL, 10 );
+			if ( sftp_keep_alive_time != cfg_sftp_keep_alive_time ) { sftp_update |= 0x0008; }
+			cfg_sftp_keep_alive_time = sftp_keep_alive_time;
+
+			_SendMessageA( g_hWnd_sftp_rekey_time, WM_GETTEXT, 11, ( LPARAM )value );
+			int sftp_rekey_time = ( int )_strtoul( value, NULL, 10 );
+			if ( sftp_rekey_time != cfg_sftp_rekey_time ) { sftp_update |= 0x0010; }
+			cfg_sftp_rekey_time = sftp_rekey_time;
+
+			_SendMessageA( g_hWnd_sftp_gss_rekey_time, WM_GETTEXT, 11, ( LPARAM )value );
+			int sftp_gss_rekey_time = ( int )_strtoul( value, NULL, 10 );
+			if ( sftp_gss_rekey_time != cfg_sftp_gss_rekey_time ) { sftp_update |= 0x0020; }
+			cfg_sftp_gss_rekey_time = sftp_gss_rekey_time;
+
+			_SendMessageA( g_hWnd_sftp_rekey_data_limit, WM_GETTEXT, 11, ( LPARAM )value );
+			unsigned long sftp_rekey_data_limit = ( unsigned long )_strtoul( value, NULL, 10 );
+			if ( sftp_rekey_data_limit != cfg_sftp_rekey_data_limit ) { sftp_update |= 0x0040; }
+			cfg_sftp_rekey_data_limit = sftp_rekey_data_limit;
+
+			char i;
+			for ( i = 0; i < KEX_ALGORITHM_COUNT; ++i )
+			{
+				if ( cfg_priority_kex_algorithm[ i ] != g_priority_kex_algorithm[ i ] )
+				{ cfg_priority_kex_algorithm[ i ] = g_priority_kex_algorithm[ i ]; sftp_update |= 0x0080; }
+			}
+			for ( i = 0; i < HOST_KEY_COUNT; ++i )
+			{
+				if ( cfg_priority_host_key[ i ] != g_priority_host_key[ i ] )
+				{ cfg_priority_host_key[ i ] = g_priority_host_key[ i ]; sftp_update |= 0x0100; }
+			}
+			for ( i = 0; i < ENCRYPTION_CIPHER_COUNT; ++i )
+			{
+				if ( cfg_priority_encryption_cipher[ i ] != g_priority_encryption_cipher[ i ] )
+				{ cfg_priority_encryption_cipher[ i ] = g_priority_encryption_cipher[ i ]; sftp_update |= 0x0200; }
+			}
+
+			if ( psftp_state == PSFTP_STATE_RUNNING )
+			{
+				if ( sftp_update & 0x0001 ) { _SFTP_SetConfigInfo( 0, ( cfg_sftp_enable_compression ? 1 : 0 ) ); }
+				if ( sftp_update & 0x0002 ) { _SFTP_SetConfigInfo( 1, ( cfg_sftp_attempt_gssapi_authentication ? 1 : 0 ) ); }
+				if ( sftp_update & 0x0004 ) { _SFTP_SetConfigInfo( 2, ( cfg_sftp_attempt_gssapi_key_exchange ? 1 : 0 ) ); }
+
+				if ( sftp_update & 0x0008 ) { _SFTP_SetConfigInfo( 3, cfg_sftp_keep_alive_time ); }
+				if ( sftp_update & 0x0010 ) { _SFTP_SetConfigInfo( 4, cfg_sftp_rekey_time ); }
+				if ( sftp_update & 0x0020 ) { _SFTP_SetConfigInfo( 5, cfg_sftp_gss_rekey_time ); }
+				if ( sftp_update & 0x0040 ) { _SFTP_SetConfigInfo( 6, cfg_sftp_rekey_data_limit ); }
+
+				if ( sftp_update & 0x0080 ) { _SFTP_SetAlgorithmPriorities( 0, cfg_priority_kex_algorithm, KEX_ALGORITHM_COUNT ); }
+				if ( sftp_update & 0x0100 ) { _SFTP_SetAlgorithmPriorities( 1, cfg_priority_host_key, HOST_KEY_COUNT ); }
+				if ( sftp_update & 0x0200 ) { _SFTP_SetAlgorithmPriorities( 2, cfg_priority_encryption_cipher, ENCRYPTION_CIPHER_COUNT ); }
+			}
+
+			return 0;
+		}
+		break;
+
+		case WM_DESTROY:
+		{
+#ifdef ENABLE_DARK_MODE
+			if ( g_use_dark_mode )
+			{
+				CleanupButtonGlyphs( hWnd );
+			}
+#endif
+
+			return 0;
 		}
 		break;
 

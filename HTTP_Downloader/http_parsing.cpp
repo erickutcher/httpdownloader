@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
-	Copyright (C) 2015-2024 Eric Kutcher
+	Copyright (C) 2015-2025 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -22,11 +22,13 @@
 #include "utilities.h"
 #include "dllrbt.h"
 #include "site_manager_utilities.h"
+#include "categories.h"
 
 #include "lite_ole32.h"
 #include "lite_zlib1.h"
 #include "lite_normaliz.h"
 
+#include "string_tables.h"
 #include "cmessagebox.h"
 
 #pragma warning( push )
@@ -1221,6 +1223,85 @@ unsigned int DecompressStream( SOCKET_CONTEXT *context, char *buffer, unsigned i
 	}
 
 	return total_data_length;
+}
+
+void HandleFileRename( SOCKET_CONTEXT *context )
+{
+	if ( context != NULL && context->download_info != NULL )
+	{
+		// Make sure any existing file hasn't started downloading.
+		if ( context->download_info->shared_info->downloaded == 0 )
+		{
+			unsigned int file_extension_offset = min( MAX_PATH - 1, context->download_info->shared_info->file_extension_offset + 1 );	// Exclude the period.
+
+			// Find the category file extension info.
+			CATEGORY_FILE_EXTENSION_INFO *cfei;
+			if ( cfg_category_move )
+			{
+				cfei = ( CATEGORY_FILE_EXTENSION_INFO * )dllrbt_find( g_category_file_extensions, ( void * )( context->download_info->shared_info->file_path + file_extension_offset ), true );
+			}
+			else
+			{
+				cfei = NULL;
+			}
+
+			if ( !( context->download_info->shared_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
+			{
+				if ( cfei != NULL && cfei->ci != NULL )
+				{
+					UpdateDownloadDirectoryInfo( context->download_info->shared_info, cfei->ci->download_directory, lstrlenW( cfei->ci->download_directory ) );
+				}
+
+				wchar_t file_path[ MAX_PATH ];
+				if ( cfg_use_temp_download_directory )
+				{
+					GetTemporaryFilePath( context->download_info, file_path );
+				}
+				else
+				{
+					GetDownloadFilePath( context->download_info, file_path );
+				}
+
+				if ( GetFileAttributesW( file_path ) != INVALID_FILE_ATTRIBUTES )
+				{
+					context->got_filename = 2;
+				}
+				else	// No need to rename.
+				{
+					context->got_filename = 1;
+				}
+			}
+			else	// No need to rename.
+			{
+				context->got_filename = 1;
+			}
+
+			if ( cfei != NULL && cfei->ci != NULL )
+			{
+				RemoveCachedCategory( context->download_info->shared_info->category );
+				context->download_info->shared_info->category = CacheCategory( cfei->ci->category );
+			}
+		}
+		else	// No need to rename.
+		{
+			context->got_filename = 1;
+		}
+	}
+}
+
+void HandleIconUpdate( DOWNLOAD_INFO *di )
+{
+	if ( di != NULL )
+	{
+		// Cache our file's icon.
+		ICON_INFO *ii = CacheIcon( di->shared_info );
+
+		EnterCriticalSection( &di->shared_info->di_cs );
+
+		di->shared_info->icon = ( ii != NULL ? &ii->icon : NULL );
+
+		LeaveCriticalSection( &di->shared_info->di_cs );
+	}
 }
 
 //
@@ -2890,52 +2971,11 @@ char ParseHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int
 
 					context->download_info->shared_info->file_extension_offset = context->download_info->shared_info->filename_offset + get_file_extension_offset( context->download_info->shared_info->file_path + context->download_info->shared_info->filename_offset, w_filename_length );
 
-					// Make sure any existing file hasn't started downloading.
-					if ( !( context->download_info->shared_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) && context->download_info->shared_info->downloaded == 0 )
-					{
-						wchar_t file_path[ MAX_PATH ];
-						if ( cfg_use_temp_download_directory )
-						{
-							//int filename_length = lstrlenW( context->download_info->shared_info->file_path + context->download_info->shared_info->filename_offset );
-
-							_wmemcpy_s( file_path, MAX_PATH, cfg_temp_download_directory, g_temp_download_directory_length );
-							file_path[ g_temp_download_directory_length ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
-							_wmemcpy_s( file_path + ( g_temp_download_directory_length + 1 ), MAX_PATH - ( g_temp_download_directory_length - 1 ), context->download_info->shared_info->file_path + context->download_info->shared_info->filename_offset, w_filename_length );
-							file_path[ g_temp_download_directory_length + w_filename_length + 1 ] = 0;	// Sanity.
-						}
-						else
-						{
-							GetDownloadFilePath( context->download_info, file_path );
-						}
-
-						if ( GetFileAttributesW( file_path ) != INVALID_FILE_ATTRIBUTES )
-						{
-							context->got_filename = 2;
-						}
-						else	// No need to rename.
-						{
-							context->got_filename = 1;
-						}
-					}
-					else	// No need to rename.
-					{
-						context->got_filename = 1;
-					}
+					HandleFileRename( context );
 
 					LeaveCriticalSection( &context->download_info->shared_info->di_cs );
 
-					SHFILEINFO *sfi = ( SHFILEINFO * )GlobalAlloc( GMEM_FIXED, sizeof( SHFILEINFO ) );
-
-					// Cache our file's icon.
-					ICON_INFO *ii = CacheIcon( context->download_info->shared_info, sfi );
-
-					EnterCriticalSection( &context->download_info->shared_info->di_cs );
-
-					context->download_info->shared_info->icon = ( ii != NULL ? &ii->icon : NULL );
-
-					LeaveCriticalSection( &context->download_info->shared_info->di_cs );
-
-					GlobalFree( sfi );
+					HandleIconUpdate( context->download_info );
 
 					GlobalFree( filename );
 
@@ -2953,54 +2993,15 @@ char ParseHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int
 
 			if ( GetContentType( header_buffer, context->download_info->shared_info->file_path + context->download_info->shared_info->file_extension_offset, MAX_PATH - context->download_info->shared_info->file_extension_offset ) )
 			{
-				RemoveCachedIcon( context->download_info->shared_info, L"" );
-
-				int w_filename_length = lstrlenW( context->download_info->shared_info->file_path + context->download_info->shared_info->filename_offset );
-
-				// Make sure any existing file hasn't started downloading.
-				if ( !( context->download_info->shared_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) && context->download_info->shared_info->downloaded == 0 )
-				{
-					wchar_t file_path[ MAX_PATH ];
-					if ( cfg_use_temp_download_directory )
-					{
-						//int filename_length = lstrlenW( context->download_info->shared_info->file_path + context->download_info->shared_info->filename_offset );
-
-						_wmemcpy_s( file_path, MAX_PATH, cfg_temp_download_directory, g_temp_download_directory_length );
-						file_path[ g_temp_download_directory_length ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
-						_wmemcpy_s( file_path + ( g_temp_download_directory_length + 1 ), MAX_PATH - ( g_temp_download_directory_length - 1 ), context->download_info->shared_info->file_path + context->download_info->shared_info->filename_offset, w_filename_length );
-						file_path[ g_temp_download_directory_length + w_filename_length + 1 ] = 0;	// Sanity.
-					}
-					else
-					{
-						GetDownloadFilePath( context->download_info, file_path );
-					}
-
-					if ( GetFileAttributesW( file_path ) != INVALID_FILE_ATTRIBUTES )
-					{
-						context->got_filename = 2;
-					}
-					else	// No need to rename.
-					{
-						context->got_filename = 1;
-					}
-				}
-				else	// No need to rename.
-				{
-					context->got_filename = 1;
-				}
-
-				SHFILEINFO *sfi = ( SHFILEINFO * )GlobalAlloc( GMEM_FIXED, sizeof( SHFILEINFO ) );
-
-				// Cache our file's icon.
-				ICON_INFO *ii = CacheIcon( context->download_info->shared_info, sfi );
+				RemoveCachedIcon( context->download_info->shared_info, L"" );	// Remove the extensionless file icon.
 
 				EnterCriticalSection( &context->download_info->shared_info->di_cs );
 
-				context->download_info->shared_info->icon = ( ii != NULL ? &ii->icon : NULL );
+				HandleFileRename( context );
 
 				LeaveCriticalSection( &context->download_info->shared_info->di_cs );
 
-				GlobalFree( sfi );
+				HandleIconUpdate( context->download_info );
 			}
 		}
 
@@ -3265,52 +3266,11 @@ char GetHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int h
 						context->download_info->shared_info->download_operations |= DOWNLOAD_OPERATION_GET_EXTENSION;
 					}
 
-					// Make sure any existing file hasn't started downloading.
-					if ( !( context->download_info->shared_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) && context->download_info->shared_info->downloaded == 0 )
-					{
-						wchar_t file_path[ MAX_PATH ];
-						if ( cfg_use_temp_download_directory )
-						{
-							//int filename_length = lstrlenW( context->download_info->shared_info->file_path + context->download_info->shared_info->filename_offset );
-
-							_wmemcpy_s( file_path, MAX_PATH, cfg_temp_download_directory, g_temp_download_directory_length );
-							file_path[ g_temp_download_directory_length ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
-							_wmemcpy_s( file_path + ( g_temp_download_directory_length + 1 ), MAX_PATH - ( g_temp_download_directory_length - 1 ), context->download_info->shared_info->file_path + context->download_info->shared_info->filename_offset, w_filename_length );
-							file_path[ g_temp_download_directory_length + w_filename_length + 1 ] = 0;	// Sanity.
-						}
-						else
-						{
-							GetDownloadFilePath( context->download_info, file_path );
-						}
-
-						if ( GetFileAttributesW( file_path ) != INVALID_FILE_ATTRIBUTES )
-						{
-							context->got_filename = 2;
-						}
-						else	// No need to rename.
-						{
-							context->got_filename = 1;
-						}
-					}
-					else	// No need to rename.
-					{
-						context->got_filename = 1;
-					}
+					HandleFileRename( context );
 
 					LeaveCriticalSection( &context->download_info->shared_info->di_cs );
 
-					SHFILEINFO *sfi = ( SHFILEINFO * )GlobalAlloc( GMEM_FIXED, sizeof( SHFILEINFO ) );
-
-					// Cache our file's icon.
-					ICON_INFO *ii = CacheIcon( context->download_info->shared_info, sfi );
-
-					EnterCriticalSection( &context->download_info->shared_info->di_cs );
-
-					context->download_info->shared_info->icon = ( ii != NULL ? &ii->icon : NULL );
-
-					LeaveCriticalSection( &context->download_info->shared_info->di_cs );
-
-					GlobalFree( sfi );
+					HandleIconUpdate( context->download_info );
 
 					GlobalFree( resource );
 				}
@@ -3570,52 +3530,11 @@ char GetHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int h
 					context->download_info->shared_info->file_extension_offset = w_file_path_length;	// The new extension starts after this.
 					//context->download_info->shared_info->file_extension_offset = context->download_info->shared_info->filename_offset + get_file_extension_offset( context->download_info->shared_info->file_path + context->download_info->shared_info->filename_offset, w_filename_length );
 
-					// Make sure any existing file hasn't started downloading.
-					if ( !( context->download_info->shared_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) && context->download_info->shared_info->downloaded == 0 )
-					{
-						wchar_t file_path[ MAX_PATH ];
-						if ( cfg_use_temp_download_directory )
-						{
-							//int filename_length = lstrlenW( context->download_info->shared_info->file_path + context->download_info->shared_info->filename_offset );
-
-							_wmemcpy_s( file_path, MAX_PATH, cfg_temp_download_directory, g_temp_download_directory_length );
-							file_path[ g_temp_download_directory_length ] = L'\\';	// Replace the download directory NULL terminator with a directory slash.
-							_wmemcpy_s( file_path + ( g_temp_download_directory_length + 1 ), MAX_PATH - ( g_temp_download_directory_length - 1 ), context->download_info->shared_info->file_path + context->download_info->shared_info->filename_offset, w_filename_length );
-							file_path[ g_temp_download_directory_length + w_filename_length + 1 ] = 0;	// Sanity.
-						}
-						else
-						{
-							GetDownloadFilePath( context->download_info, file_path );
-						}
-
-						if ( GetFileAttributesW( file_path ) != INVALID_FILE_ATTRIBUTES )
-						{
-							context->got_filename = 2;
-						}
-						else	// No need to rename.
-						{
-							context->got_filename = 1;
-						}
-					}
-					else	// No need to rename.
-					{
-						context->got_filename = 1;
-					}
+					HandleFileRename( context );
 
 					LeaveCriticalSection( &context->download_info->shared_info->di_cs );
 
-					SHFILEINFO *sfi = ( SHFILEINFO * )GlobalAlloc( GMEM_FIXED, sizeof( SHFILEINFO ) );
-
-					// Cache our file's icon.
-					ICON_INFO *ii = CacheIcon( context->download_info->shared_info, sfi );
-
-					EnterCriticalSection( &context->download_info->shared_info->di_cs );
-
-					context->download_info->shared_info->icon = ( ii != NULL ? &ii->icon : NULL );
-
-					LeaveCriticalSection( &context->download_info->shared_info->di_cs );
-
-					GlobalFree( sfi );
+					HandleIconUpdate( context->download_info );
 				}
 			}
 
@@ -3852,7 +3771,8 @@ char HandleRedirect( SOCKET_CONTEXT *context )
 			DLL_AddNode( &redirect_context->download_info->parts_list, &redirect_context->parts_node, -1 );
 
 			// Absolute URI redirection. See if the protocol, host, and port have changed.
-			if ( is_absolute_uri &&
+			if ( !cfg_apply_initial_proxy &&
+				 is_absolute_uri &&
 			   ( redirect_context->request_info.port != context->request_info.port ||
 				 redirect_context->request_info.protocol != context->request_info.protocol ||
 				 lstrcmpiA( redirect_context->request_info.host, context->request_info.host ) != 0 ) )
@@ -4780,7 +4700,7 @@ char AllocateFile( SOCKET_CONTEXT *context, IO_OPERATION current_operation )
 		return CONTENT_STATUS_FAILED;
 	}
 
-	unsigned char file_status = 0;	// 0 = failed, 1 = allocate, 2 = already allocated
+	unsigned char file_status = 0;	// 0 = failed, 1 = allocate, 2 = already allocated, 3 = sharing violation
 
 	if ( context->download_info != NULL )
 	{
@@ -4847,96 +4767,129 @@ char AllocateFile( SOCKET_CONTEXT *context, IO_OPERATION current_operation )
 				}
 				else	// Pre-allocate our file on the disk if it does not exist, or if we're overwriting one that already exists.
 				{
-					context->download_info->shared_info->hFile = CreateFile( file_path, GENERIC_READ | GENERIC_WRITE | FILE_WRITE_ATTRIBUTES | delete_mask, FILE_SHARE_READ | FILE_SHARE_WRITE | share_delete_mask, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED, NULL );
+					EnterCriticalSection( &file_allocation_cs );
 
-					if ( context->download_info->shared_info->hFile != INVALID_HANDLE_VALUE )
+					// Check to see if a file has already been opened.
+					// If it has, then we'll get a sharing violation.
+					HANDLE hFile = CreateFile( file_path, GENERIC_READ, 0, NULL, OPEN_EXISTING, 0, NULL );
+					if ( hFile != INVALID_HANDLE_VALUE )
 					{
-						if ( cfg_set_filetime && context->got_last_modified == 1 )
+						CloseHandle( hFile );
+
+						if ( context->download_info->shared_info->download_operations & ( DOWNLOAD_OPERATION_RESTARTING | DOWNLOAD_OPERATION_RESUME ) )
 						{
-							SetFileTime( context->download_info->shared_info->hFile, &context->header_info.last_modified, &context->header_info.last_modified, &context->header_info.last_modified );
+							context->download_info->shared_info->download_operations &= ~( DOWNLOAD_OPERATION_RESTARTING | DOWNLOAD_OPERATION_RESUME );
 						}
-
-						g_hIOCP = CreateIoCompletionPort( context->download_info->shared_info->hFile, g_hIOCP, 0, 0 );
-						if ( g_hIOCP != NULL )
+						else if ( !( context->download_info->shared_info->download_operations & DOWNLOAD_OPERATION_OVERWRITE ) )
 						{
-//							context->overlapped.context = context;
+							file_status = 3;
+						}
+					}
+					else if ( GetLastError() == ERROR_SHARING_VIOLATION )
+					{
+						file_status = 3;
+					}
 
-							LARGE_INTEGER li;
-							li.QuadPart = context->header_info.range_info->content_length;
+					if ( file_status != 3 )
+					{
+						context->download_info->shared_info->hFile = CreateFile( file_path, GENERIC_READ | GENERIC_WRITE | FILE_WRITE_ATTRIBUTES | delete_mask, FILE_SHARE_READ | FILE_SHARE_WRITE | share_delete_mask, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED, NULL );
 
-							if ( SetFilePointerEx( context->download_info->shared_info->hFile, li, NULL, FILE_BEGIN ) == TRUE &&
-								 SetEndOfFile( context->download_info->shared_info->hFile ) == TRUE )
+						LeaveCriticalSection( &file_allocation_cs );
+
+						if ( context->download_info->shared_info->hFile != INVALID_HANDLE_VALUE )
+						{
+							if ( cfg_set_filetime && context->got_last_modified == 1 )
 							{
-								if ( cfg_enable_quick_allocation && g_can_fast_allocate )	// Fast disk allocation if we're an administrator.
+								SetFileTime( context->download_info->shared_info->hFile, &context->header_info.last_modified, &context->header_info.last_modified, &context->header_info.last_modified );
+							}
+
+							g_hIOCP = CreateIoCompletionPort( context->download_info->shared_info->hFile, g_hIOCP, 0, 0 );
+							if ( g_hIOCP != NULL )
+							{
+//								context->overlapped.context = context;
+
+								LARGE_INTEGER li;
+								li.QuadPart = context->header_info.range_info->content_length;
+
+								if ( SetFilePointerEx( context->download_info->shared_info->hFile, li, NULL, FILE_BEGIN ) == TRUE &&
+									 SetEndOfFile( context->download_info->shared_info->hFile ) == TRUE )
 								{
-									if ( SetFileValidData( context->download_info->shared_info->hFile, li.QuadPart ) == TRUE )
+									if ( cfg_enable_quick_allocation && g_can_fast_allocate )	// Fast disk allocation if we're an administrator.
 									{
-										file_status = 2;	// Start writing to the file immediately.
-									}
-									else
-									{
-										CloseHandle( context->download_info->shared_info->hFile );
-										context->download_info->shared_info->hFile = INVALID_HANDLE_VALUE;
-									}
-								}
-								else	// Trigger the system to allocate the file on disk. Sloooow (if not a sparse file).
-								{
-									if ( li.QuadPart > 0 )
-									{
-										file_status = 1;
-
-										context->download_info->status = STATUS_ALLOCATING_FILE;
-										context->status = STATUS_ALLOCATING_FILE;
-
-										// For groups.
-										if ( IS_GROUP( context->download_info ) )
+										if ( SetFileValidData( context->download_info->shared_info->hFile, li.QuadPart ) == TRUE )
 										{
-											context->download_info->shared_info->status = STATUS_ALLOCATING_FILE;
+											file_status = 2;	// Start writing to the file immediately.
 										}
-
-										InterlockedIncrement( &context->pending_operations );
-
-										context->overlapped.current_operation = IO_SparseFileAllocate;
-										context->overlapped.next_operation = current_operation;
-
-										BOOL bRet = FALSE;
-
-										// If this fails, then we'll fall back to the slow allocation.
-										if ( cfg_enable_sparse_file_allocation )
+										else
 										{
-											bRet = DeviceIoControl( context->download_info->shared_info->hFile, FSCTL_SET_SPARSE, NULL, 0, NULL, 0, NULL, ( OVERLAPPED * )&context->overlapped );
+											CloseHandle( context->download_info->shared_info->hFile );
+											context->download_info->shared_info->hFile = INVALID_HANDLE_VALUE;
 										}
-
-										if ( !cfg_enable_sparse_file_allocation || ( bRet == FALSE && ( GetLastError() != ERROR_IO_PENDING ) ) )
+									}
+									else	// Trigger the system to allocate the file on disk. Sloooow (if not a sparse file).
+									{
+										if ( li.QuadPart > 0 )
 										{
-											--li.QuadPart;	// Adjust the offset back 1.
+											file_status = 1;
 
-											context->overlapped.current_operation = current_operation;
+											context->download_info->status = STATUS_ALLOCATING_FILE;
+											context->status = STATUS_ALLOCATING_FILE;
 
-											context->overlapped.overlapped.hEvent = NULL;
-											context->overlapped.overlapped.Internal = NULL;
-											context->overlapped.overlapped.InternalHigh = NULL;
-											//context->overlapped.overlapped.Pointer = NULL; // union
-											context->overlapped.overlapped.Offset = li.LowPart;
-											context->overlapped.overlapped.OffsetHigh = li.HighPart;
-
-											// Write a non-NULL character to the end of the file to zero it out.
-											bRet = WriteFile( context->download_info->shared_info->hFile, "\x03", 1, NULL, ( OVERLAPPED * )&context->overlapped );
-											if ( bRet == FALSE && ( GetLastError() != ERROR_IO_PENDING ) )
+											// For groups.
+											if ( IS_GROUP( context->download_info ) )
 											{
-												InterlockedDecrement( &context->pending_operations );
+												context->download_info->shared_info->status = STATUS_ALLOCATING_FILE;
+											}
 
-												file_status = 0;
+											InterlockedIncrement( &context->pending_operations );
 
-												CloseHandle( context->download_info->shared_info->hFile );
-												context->download_info->shared_info->hFile = INVALID_HANDLE_VALUE;
+											context->overlapped.current_operation = IO_SparseFileAllocate;
+											context->overlapped.next_operation = current_operation;
+
+											BOOL bRet = FALSE;
+
+											// If this fails, then we'll fall back to the slow allocation.
+											if ( cfg_enable_sparse_file_allocation )
+											{
+												bRet = DeviceIoControl( context->download_info->shared_info->hFile, FSCTL_SET_SPARSE, NULL, 0, NULL, 0, NULL, ( OVERLAPPED * )&context->overlapped );
+											}
+
+											if ( !cfg_enable_sparse_file_allocation || ( bRet == FALSE && ( GetLastError() != ERROR_IO_PENDING ) ) )
+											{
+												--li.QuadPart;	// Adjust the offset back 1.
+
+												context->overlapped.current_operation = current_operation;
+
+												context->overlapped.overlapped.hEvent = NULL;
+												context->overlapped.overlapped.Internal = NULL;
+												context->overlapped.overlapped.InternalHigh = NULL;
+												//context->overlapped.overlapped.Pointer = NULL; // union
+												context->overlapped.overlapped.Offset = li.LowPart;
+												context->overlapped.overlapped.OffsetHigh = li.HighPart;
+
+												// Write a non-NULL character to the end of the file to zero it out.
+												bRet = WriteFile( context->download_info->shared_info->hFile, "\x03", 1, NULL, ( OVERLAPPED * )&context->overlapped );
+												if ( bRet == FALSE && ( GetLastError() != ERROR_IO_PENDING ) )
+												{
+													InterlockedDecrement( &context->pending_operations );
+
+													file_status = 0;
+
+													CloseHandle( context->download_info->shared_info->hFile );
+													context->download_info->shared_info->hFile = INVALID_HANDLE_VALUE;
+												}
 											}
 										}
+										else
+										{
+											file_status = 2;	// Start writing to the file immediately. If it's a 0 byte file, then it'll just be closed.
+										}
 									}
-									else
-									{
-										file_status = 2;	// Start writing to the file immediately. If it's a 0 byte file, then it'll just be closed.
-									}
+								}
+								else
+								{
+									CloseHandle( context->download_info->shared_info->hFile );
+									context->download_info->shared_info->hFile = INVALID_HANDLE_VALUE;
 								}
 							}
 							else
@@ -4945,11 +4898,10 @@ char AllocateFile( SOCKET_CONTEXT *context, IO_OPERATION current_operation )
 								context->download_info->shared_info->hFile = INVALID_HANDLE_VALUE;
 							}
 						}
-						else
-						{
-							CloseHandle( context->download_info->shared_info->hFile );
-							context->download_info->shared_info->hFile = INVALID_HANDLE_VALUE;
-						}
+					}
+					else
+					{
+						LeaveCriticalSection( &file_allocation_cs );
 					}
 				}
 
@@ -4965,6 +4917,11 @@ char AllocateFile( SOCKET_CONTEXT *context, IO_OPERATION current_operation )
 						context->download_info->status = STATUS_FILE_IO_ERROR;
 						context->status = STATUS_FILE_IO_ERROR;
 					}
+				}
+				else if ( file_status == 3 )
+				{
+					context->download_info->status = STATUS_SKIPPED;
+					context->status = STATUS_SKIPPED;
 				}
 			}
 		}
@@ -4986,6 +4943,10 @@ char AllocateFile( SOCKET_CONTEXT *context, IO_OPERATION current_operation )
 		else if ( file_status == 1 )
 		{
 			return CONTENT_STATUS_ALLOCATE_FILE;	// Allocate the file asynchronously.
+		}
+		else if ( file_status == 3 )	// A sharing violation occurred. We'll skip it.
+		{
+			return CONTENT_STATUS_FAILED;
 		}
 	}
 
@@ -5844,41 +5805,58 @@ char GetHTTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, uns
 				context->buffer[ context->header_info.range_info->content_length ] = 0;	// Sanity.
 
 				char *version_start_ptr = context->buffer;
-				char *verion_end_ptr;
+				char *version_end_ptr;
 #ifdef _WIN64
 				version_start_ptr = _StrStrA( version_start_ptr, "\r\n" );
 				if ( version_start_ptr != NULL ) { version_start_ptr += 2; }
 				version_start_ptr = _StrStrA( version_start_ptr, "\r\n" );
 				if ( version_start_ptr != NULL ) { version_start_ptr += 2; }
+#ifdef IS_BETA
+				version_start_ptr = _StrStrA( version_start_ptr, "\r\n" );
+				if ( version_start_ptr != NULL ) { version_start_ptr += 2; }
 #endif
-				verion_end_ptr = _StrStrA( version_start_ptr, "\r\n" );
-				if ( verion_end_ptr != NULL )
+#endif
+				version_end_ptr = _StrStrA( version_start_ptr, "\r\n" );
+				if ( version_end_ptr != NULL )
 				{
-					*verion_end_ptr = 0;	// Sanity.
-					verion_end_ptr += 2;
+					*version_end_ptr = 0;	// Sanity.
+					version_end_ptr += 2;
 
 					g_new_version = _strtoul( version_start_ptr, NULL, 10 );
-
-					int new_version_url_length;
-
-					version_start_ptr = _StrStrA( verion_end_ptr, "\r\n" );
+#ifdef IS_BETA
+					version_start_ptr = _StrStrA( version_end_ptr, "\r\n" );
 					if ( version_start_ptr != NULL )
 					{
 						*version_start_ptr = 0;	// Sanity.
+						version_start_ptr += 2;
 
-						new_version_url_length = ( int )( version_start_ptr - verion_end_ptr );
-					}
-					else
-					{
-						new_version_url_length = ( int )( ( context->buffer + context->header_info.range_info->content_length ) - verion_end_ptr );
-					}
+						g_new_beta = _strtoul( version_end_ptr, NULL, 10 );
 
-					g_new_version_url = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( new_version_url_length + 1 ) );
-					if ( g_new_version_url != NULL )
-					{
-						_memcpy_s( g_new_version_url, new_version_url_length + 1, verion_end_ptr, new_version_url_length );
-						g_new_version_url[ new_version_url_length ] = 0;	// Sanity.
+						version_end_ptr = version_start_ptr;
+#endif
+						int new_version_url_length;
+
+						version_start_ptr = _StrStrA( version_end_ptr, "\r\n" );
+						if ( version_start_ptr != NULL )
+						{
+							*version_start_ptr = 0;	// Sanity.
+
+							new_version_url_length = ( int )( version_start_ptr - version_end_ptr );
+						}
+						else
+						{
+							new_version_url_length = ( int )( ( context->buffer + context->header_info.range_info->content_length ) - version_end_ptr );
+						}
+
+						g_new_version_url = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( new_version_url_length + 1 ) );
+						if ( g_new_version_url != NULL )
+						{
+							_memcpy_s( g_new_version_url, new_version_url_length + 1, version_end_ptr, new_version_url_length );
+							g_new_version_url[ new_version_url_length ] = 0;	// Sanity.
+						}
+#ifdef IS_BETA
 					}
+#endif
 				}
 			}
 
@@ -5986,32 +5964,55 @@ char ParsePOSTData( SOCKET_CONTEXT *context, char *post_data, unsigned int post_
 		context->post_info = ( POST_INFO * )GlobalAlloc( GPTR, sizeof( POST_INFO ) );
 	}
 
-	char **value_buf[ 19 ];
+	char **value_buf[ 21 ];
 
 	if ( context->post_info != NULL )
 	{
+		unsigned char version = 0;
+
+		char *data_end = _StrChrA( post_data, '\x1f' );
+		if ( data_end != NULL )
+		{
+			int data_length = ( int )( data_end - post_data );
+			if ( data_length == 5 && _memcmp( post_data, "HDME", 4 ) == 0 )
+			{
+				*data_end = 0;
+				version = ( unsigned char )( *( post_data + 4 ) );
+
+				post_data_offset = data_length + 1;
+			}
+		}
+
 		value_buf[ 0 ] = &context->post_info->method;
 		value_buf[ 1 ] = &context->post_info->urls;
-		value_buf[ 2 ] = &context->post_info->directory;
-		value_buf[ 3 ] = &context->post_info->parts;
-		value_buf[ 4 ] = &context->post_info->ssl_tls_version;
-		value_buf[ 5 ] = &context->post_info->username;
-		value_buf[ 6 ] = &context->post_info->password;
-		value_buf[ 7 ] = &context->post_info->download_speed_limit;
-		value_buf[ 8 ] = &context->post_info->download_operations;
-		value_buf[ 9 ] = &context->post_info->cookies;
-		value_buf[ 10 ] = &context->post_info->headers;
-		value_buf[ 11 ] = &context->post_info->data;
-		value_buf[ 12 ] = &context->post_info->proxy_type;
-		value_buf[ 13 ] = &context->post_info->proxy_hostname_ip;
-		value_buf[ 14 ] = &context->post_info->proxy_port;
-		value_buf[ 15 ] = &context->post_info->proxy_username;
-		value_buf[ 16 ] = &context->post_info->proxy_password;
-		value_buf[ 17 ] = &context->post_info->proxy_resolve_domain_names;
-		value_buf[ 18 ] = &context->post_info->proxy_use_authentication;
+		value_buf[ 2 ] = &context->post_info->category;
+		value_buf[ 3 ] = &context->post_info->directory;
+		value_buf[ 4 ] = &context->post_info->parts;
+		value_buf[ 5 ] = &context->post_info->ssl_tls_version;
+		value_buf[ 6 ] = &context->post_info->username;
+		value_buf[ 7 ] = &context->post_info->password;
+		value_buf[ 8 ] = &context->post_info->download_speed_limit;
+		value_buf[ 9 ] = &context->post_info->download_operations;
+		value_buf[ 10 ] = &context->post_info->comments;
+		value_buf[ 11 ] = &context->post_info->cookies;
+		value_buf[ 12 ] = &context->post_info->headers;
+		value_buf[ 13 ] = &context->post_info->data;
+		value_buf[ 14 ] = &context->post_info->proxy_type;
+		value_buf[ 15 ] = &context->post_info->proxy_hostname_ip;
+		value_buf[ 16 ] = &context->post_info->proxy_port;
+		value_buf[ 17 ] = &context->post_info->proxy_username;
+		value_buf[ 18 ] = &context->post_info->proxy_password;
+		value_buf[ 19 ] = &context->post_info->proxy_resolve_domain_names;
+		value_buf[ 20 ] = &context->post_info->proxy_use_authentication;
 
-		for ( unsigned char i = 0; i < 19; ++i )
+		for ( unsigned char i = 0; i < 21; ++i )
 		{
+			// Old versions won't have a category or comments.
+			if ( version < 1 && ( i == 2 || i == 10 ) )
+			{
+				continue;
+			}
+
 			if ( *value_buf[ i ] == NULL )
 			{
 				value_length = ( unsigned int )context->header_info.chunk_length;
@@ -6247,6 +6248,14 @@ char GetHTTPRequestContent( SOCKET_CONTEXT *context, char *request_buffer, unsig
 				wchar_t *urls = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * urls_length );
 				MultiByteToWideChar( CP_UTF8, 0, context->post_info->urls, -1, urls, urls_length );
 
+				wchar_t *category = NULL;
+				int category_length = MultiByteToWideChar( CP_UTF8, 0, context->post_info->category, -1, NULL, 0 );	// Include the NULL terminator.
+				if ( category_length > 0 )
+				{
+					category = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * category_length );
+					MultiByteToWideChar( CP_UTF8, 0, context->post_info->category, -1, category, category_length );
+				}
+
 				bool use_download_directory;
 				wchar_t *download_directory = NULL;
 
@@ -6361,6 +6370,14 @@ char GetHTTPRequestContent( SOCKET_CONTEXT *context, char *request_buffer, unsig
 
 				unsigned char method = ( context->post_info->method != NULL && *context->post_info->method == '2' ? METHOD_POST : METHOD_GET );
 
+				wchar_t *comments = NULL;
+				int comments_length = MultiByteToWideChar( CP_UTF8, 0, context->post_info->comments, -1, NULL, 0 );	// Include the NULL terminator.
+				if ( comments_length > 0 )
+				{
+					comments = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * comments_length );
+					MultiByteToWideChar( CP_UTF8, 0, context->post_info->comments, -1, comments, comments_length );
+				}
+
 				char *headers = NULL;
 
 				// If the headers are valid.
@@ -6465,11 +6482,83 @@ char GetHTTPRequestContent( SOCKET_CONTEXT *context, char *request_buffer, unsig
 
 				context->header_info.http_status = 200;	// Let our MakeResponse() know that we want to send an HTTP 200 back.
 
+				wchar_t *peer_info = NULL;
+
+				if ( cfg_tray_icon && cfg_enable_server && cfg_show_remote_connection_notification )
+				{
+					sockaddr_storage addr;
+					_memzero( &addr, sizeof( sockaddr_storage ) );
+					socklen_t addr_len = sizeof( sockaddr_storage );
+					_getpeername( context->socket, ( sockaddr * )&addr, &addr_len );
+
+					wchar_t cs_ip[ INET6_ADDRSTRLEN ];
+					_memzero( cs_ip, sizeof( wchar_t ) * INET6_ADDRSTRLEN );
+					DWORD cs_ip_length = INET6_ADDRSTRLEN;
+					if ( !_WSAAddressToStringW( ( sockaddr * )&addr, ( DWORD )addr_len, NULL, cs_ip, &cs_ip_length ) )
+					{
+						WSAPROTOCOL_INFO wsapi;
+						_memzero( &wsapi, sizeof( WSAPROTOCOL_INFO ) );
+						int wsapi_size = sizeof( wsapi );
+
+						// Find out if connection is IPV4 or IPV6.
+						_getsockopt( context->socket, SOL_SOCKET, SO_PROTOCOL_INFO, ( char * )&wsapi, &wsapi_size );
+
+						if ( wsapi.iAddressFamily == AF_INET6 )	// IPV6.
+						{
+							// Exclude the brackets from the IPV6 string.
+							if ( cs_ip[ 0 ] == L'[' )
+							{
+								for ( unsigned char i = 1; i < cs_ip_length; ++i )
+								{
+									if ( cs_ip[ i ] == L']' )
+									{
+										cs_ip[ i - 1 ] = 0;
+										cs_ip_length = i;
+
+										break;
+									}
+
+									cs_ip[ i - 1 ] = cs_ip[ i ];
+								}
+							}
+						}
+						else	// IPV4
+						{
+							while ( cs_ip_length > 0 )
+							{
+								if ( cs_ip[ cs_ip_length ] == L':' )
+								{
+									cs_ip[ cs_ip_length ] = 0;	// Don't include the port.
+
+									break;
+								}
+
+								--cs_ip_length;
+							}
+						}
+
+						wchar_t cs_host[ NI_MAXHOST ];
+						_memzero( cs_host, sizeof( wchar_t ) * NI_MAXHOST );
+						_GetNameInfoW( ( sockaddr * )&addr, addr_len, cs_host, NI_MAXHOST, NULL, 0, 0 );
+
+						int peer_info_length = INET6_ADDRSTRLEN + NI_MAXHOST + ST_L_IP_address_ + ST_L_Hostname_ + 5;
+						peer_info = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * peer_info_length );
+						int peer_info_offset = __snwprintf( peer_info, peer_info_length, L"%s %s", ST_V_IP_address_, cs_ip );
+						if ( cs_host[ 0 ] != NULL )
+						{
+							__snwprintf( peer_info + peer_info_offset, peer_info_length - peer_info_offset, L"\r\n%s %s", ST_V_Hostname_, cs_host );
+						}
+					}
+				}
+
 				ADD_INFO *ai = ( ADD_INFO * )GlobalAlloc( GPTR, sizeof( ADD_INFO ) );
 				if ( ai != NULL )
 				{
+					ai->peer_info = peer_info;
+
 					ai->method = method;
 					ai->urls = urls;
+					ai->category = category;
 					ai->use_download_directory = use_download_directory;
 					ai->download_directory = download_directory;
 					ai->use_parts = use_parts;
@@ -6480,6 +6569,7 @@ char GetHTTPRequestContent( SOCKET_CONTEXT *context, char *request_buffer, unsig
 					ai->use_download_speed_limit = use_download_speed_limit;
 					ai->download_speed_limit = download_speed_limit;
 					ai->download_operations = download_operations;
+					ai->comments = comments;
 					ai->utf8_cookies = context->post_info->cookies;
 					ai->utf8_headers = context->post_info->headers;
 					ai->utf8_data = context->post_info->data;
@@ -6511,6 +6601,20 @@ char GetHTTPRequestContent( SOCKET_CONTEXT *context, char *request_buffer, unsig
 					{
 						FreeAddInfo( &ai );
 					}
+				}
+				else
+				{
+					GlobalFree( peer_info );
+					GlobalFree( urls );
+					GlobalFree( category );
+					GlobalFree( download_directory );
+					GlobalFree( comments );
+					GlobalFree( proxy_hostname );
+					GlobalFree( proxy_punycode_hostname );
+					GlobalFree( w_proxy_username );
+					GlobalFree( w_proxy_password );
+					GlobalFree( proxy_username );
+					GlobalFree( proxy_password );
 				}
 			}
 

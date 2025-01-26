@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
-	Copyright (C) 2015-2024 Eric Kutcher
+	Copyright (C) 2015-2025 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -58,6 +58,8 @@ STRING_TABLE_DATA download_string_table[] =
 {
 	{ L"#", 1 },
 	{ L"Active Parts", 12 },
+	{ L"Category", 8 },
+	{ L"Comments", 8 },
 	{ L"Date and Time Added", 19 },
 	{ L"Download Directory", 18 },
 	{ L"Download Speed", 14 },
@@ -78,11 +80,15 @@ STRING_TABLE_DATA menu_string_table[] =
 	{ L"#", 1 },
 	{ L"&About", 6 },
 	{ L"Active Parts", 12 },
+	{ L"Add Category...", 15 },
 	{ L"&Add URL(s)...\tCtrl+N", 21 },
 	{ L"Add URL(s)...", 13 },
 	{ L"Always on Top", 13 },
+	{ L"C&ategories", 11 },
+	{ L"Category", 8 },
 	{ L"&Check for Updates...", 21 },
 	{ L"&Column Headers", 15 },
+	{ L"Comments", 8 },
 	{ L"&Copy URL(s)\tCtrl+C", 19 },
 	{ L"Copy URL(s)", 11 },
 	{ L"Date and Time Added", 19 },
@@ -147,6 +153,7 @@ STRING_TABLE_DATA menu_string_table[] =
 	{ L"Time Remaining", 14 },
 	{ L"&Toolbar", 8 },
 	{ L"&Tools", 6 },
+	{ L"Update Category...", 18 },
 	{ L"&Update Download...\tCtrl+U", 26 },
 	{ L"Update Download...", 18 },
 	{ L"URL", 3 },
@@ -172,6 +179,7 @@ STRING_TABLE_DATA options_advanced_string_table[] =
 {
 	{ L"Add in Stopped state", 20 },
 	{ L"Allow only one instance of the program to run", 45 },
+	{ L"Apply initially set proxy to redirected URL(s)", 46 },
 	{ L"Continue Download", 17 },
 	{ L"Default download directory:", 27 },
 	{ L"Display Prompt", 14 },
@@ -187,6 +195,7 @@ STRING_TABLE_DATA options_advanced_string_table[] =
 	{ L"Lock", 4 },
 	{ L"Log off", 7 },
 	{ L"Move deleted downloads to Recycle Bin", 37 },
+	{ L"Move files that match category file extension filters", 53 },
 	{ L"None", 4 },
 	{ L"Override download list action prompts", 37 },
 	{ L"Overwrite File", 14 },
@@ -234,6 +243,7 @@ STRING_TABLE_DATA options_appearance_string_table[] =
 	{ L"Progress Font Color", 19 },
 	{ L"Scroll to last item when adding URL(s)", 38 },
 	{ L"Selection Marquee Color", 23 },
+	{ L"Show executable's embedded icon", 31 },
 	{ L"Show gridlines in download list", 31 },
 	{ L"Show progress for each part", 27 },
 	{ L"Sort added and updating items", 29 },
@@ -251,7 +261,8 @@ STRING_TABLE_DATA options_connection_string_table[] =
 	{ L"Default download parts:", 23 },
 	{ L"Default SSL / TLS version:", 26 },
 	{ L"Maximum redirects:", 18 },
-	{ L"Reallocate parts to maximize connections", 40 },
+	{ L"Reallocate parts to maximize connections:", 41 },
+	{ L"Reallocate threshold size (bytes):", 34 },
 	{ L"Retry incomplete downloads:", 27 },
 	{ L"Retry incomplete parts:", 23 },
 	{ L"Timeout (seconds):", 18 }
@@ -277,13 +288,16 @@ STRING_TABLE_DATA options_general_string_table[] =
 	{ L"Close to System Tray", 20 },
 	{ L"Enable System Tray icon:", 24 },
 	{ L"Enable URL drop window:", 23 },
+	{ L"Failure:", 8 },
 	{ L"Load Download Finish Sound File", 31 },
 	{ L"Minimize to System Tray", 23 },
-	{ L"Play sound when all downloads finish:", 37 },
+	{ L"Play sound when all downloads finish", 36 },
 	{ L"Show notification when all downloads finish", 43 },
 	{ L"Show progress bar", 17 },
 	{ L"Start in System Tray", 20 },
-	{ L"Transparency:", 13 }
+	{ L"Success:", 8 },
+	{ L"Transparency:", 13 },
+	{ L"\x25B6", 2 }
 };
 
 STRING_TABLE_DATA options_proxy_string_table[] =
@@ -320,7 +334,8 @@ STRING_TABLE_DATA options_server_string_table[] =
 	{ L"Public / Private key pair:", 26 },
 	{ L"Require authentication:", 23 },
 	{ L"Server", 6 },
-	{ L"Server SSL / TLS version:", 25 }
+	{ L"Server SSL / TLS version:", 25 },
+	{ L"Show System Tray notification for remote connections", 52 }
 };
 
 STRING_TABLE_DATA options_sftp_string_table[] =
@@ -427,6 +442,11 @@ STRING_TABLE_DATA site_manager_string_table[] =
 	{ L"Username", 8 }
 };
 
+STRING_TABLE_DATA add_category_string_table[] =
+{
+	{ L"Associate file extension(s) with category:", 42 }
+};
+
 STRING_TABLE_DATA fingerprint_prompt_string_table[] =
 {
 	{ L"Add host and key information to cache", 37 },
@@ -450,19 +470,27 @@ STRING_TABLE_DATA common_string_table[] =
 {
 	{ L"...", 3 },
 	{ L"[Simulated]", 11 },
+	{ L"Add Category", 12 },
 	{ L"Add URL(s)", 10 },
 	{ L"Added", 5 },
+	{ L"All", 3 },
 	{ L"Allocating File", 15 },
 	{ L"Authorization Required", 22 },
 	{ L"Cancel", 6 },
+	{ L"Categories", 10 },
+	{ L"Category:", 9 },
 	{ L"Check For Updates", 17 },
+	{ L"Comments:", 9 },
 	{ L"Completed", 9 },
 	{ L"Connecting", 10 },
 	{ L"Default", 7 },
 	{ L"Default download speed limit (bytes/s):", 39 },
+	{ L"Desktop", 7 },
+	{ L"Documents", 9 },
 	{ L"Download speed:", 15 },
 	{ L"Download speed limit (bytes/s):", 31 },
 	{ L"Downloading", 11 },
+	{ L"Downloads", 9 },
 	{ L"Downloads Have Finished", 23 },
 	{ L"Error", 5 },
 	{ L"Export Download History", 23 },
@@ -475,17 +503,23 @@ STRING_TABLE_DATA common_string_table[] =
 	{ L"HTTPS", 5 },
 	{ L"Import Download History", 23 },
 	{ L"Insufficient Disk Space", 23 },
+	{ L"IP address:", 11 },
 	{ L"Items:", 6 },
 	{ L"Moving File", 11 },
+	{ L"Music", 5 },
 	{ L"Options", 7 },
+	{ L"Other", 5 },
 	{ L"Paused", 6 },
+	{ L"Pictures", 8 },
 	{ L"Proxy Authentication Required", 29 },
 	{ L"Queued", 6 },
+	{ L"Remote Connection", 17 },
 	{ L"Restarting", 10 },
 	{ L"Save Download History", 21 },
 	{ L"Set", 3 },
 	{ L"Site Manager", 12 },
 	{ L"Skipped", 7 },
+	{ L"Status", 6 },
 	{ L"Stopped", 7 },
 	{ L"SSL 2.0", 7 },
 	{ L"SSL 3.0", 7 },
@@ -496,8 +530,11 @@ STRING_TABLE_DATA common_string_table[] =
 	{ L"Total downloaded:", 17 },
 	{ L"Unlimited", 9 },
 	{ L"Update", 6 },
+	{ L"Update Category", 15 },
 	{ L"Update Download", 15 },
-	{ L"URL:", 4 }
+	{ L"URL:", 4 },
+	{ L"URL(s) added:", 13 },
+	{ L"Videos", 6 }
 };
 
 STRING_TABLE_DATA common_message_string_table[] =
@@ -516,9 +553,12 @@ STRING_TABLE_DATA common_message_string_table[] =
 	{ L"Are you sure you want to remove the selected entries?", 53 },
 	{ L"Are you sure you want to restart the selected entries?", 54 },
 	{ L"Do you want to accept the server's host key?", 44 },
+	{ L"Item ID List was not freed.", 27 },
+	{ L"One or more file extensions already exist in another category.", 62 },
 	{ L"One or more files are in use and cannot be deleted.", 51 },
 	{ L"One or more files were not found.", 33 },
 	{ L"One or more paths were not found.", 33 },
+	{ L"Select the category download directory.", 39 },
 	{ L"Select the default download directory.", 38 },
 	{ L"Select the download directory.", 30 },
 	{ L"Select the temporary download directory.", 40 },
@@ -527,6 +567,7 @@ STRING_TABLE_DATA common_message_string_table[] =
 	{ L"The file is currently in use and cannot be renamed.", 51 },
 	{ L"The file(s) could not be imported because the format is incorrect.", 66 },
 	{ L"The key fingerprint does not match the cached entry.\r\nDo you want to accept the server's host key?", 98 },
+	{ L"The specified category already exists.", 38 },
 	{ L"The specified file was not found.", 33 },
 	{ L"The specified file was not found.\r\n\r\nDo you want to download the file again?", 76 },
 	{ L"The specified host already exists.", 34 },
@@ -541,6 +582,7 @@ STRING_TABLE_DATA common_message_string_table[] =
 
 STRING_TABLE_DATA about_string_table[] =
 {
+	{ L"Beta", 4 },
 	{ L"Built on", 8 },
 	{ L"Copyright", 9 },
 	{ L"HTTP Downloader is made free under the GPLv3 license.", 53 },
@@ -638,6 +680,7 @@ void InitializeLocaleValues()
 	for ( i = 0; i < ADD_URLS_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = add_urls_string_table[ i ]; }
 	for ( i = 0; i < SEARCH_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = search_string_table[ i ]; }
 	for ( i = 0; i < SITE_MANAGER_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = site_manager_string_table[ i ]; }
+	for ( i = 0; i < ADD_CATEGORY_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = add_category_string_table[ i ]; }
 	for ( i = 0; i < FINGERPRINT_PROMPT_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = fingerprint_prompt_string_table[ i ]; }
 	for ( i = 0; i < UPDATE_CHECK_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = update_check_string_table[ i ]; }
 	for ( i = 0; i < COMMON_STRING_TABLE_SIZE; ++i ) { g_locale_table[ string_count++ ] = common_string_table[ i ]; }

@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
-	Copyright (C) 2015-2024 Eric Kutcher
+	Copyright (C) 2015-2025 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -21,9 +21,10 @@
 
 #ifndef COMCTL32_USE_STATIC_LIB
 
-	//pImageList_Create			_ImageList_Create;
+	pImageList_Create			_ImageList_Create;
 	pImageList_Destroy			_ImageList_Destroy;
 	//pImageList_Add			_ImageList_Add;
+	pImageList_AddMasked		_ImageList_AddMasked;
 	pImageList_LoadImageW		_ImageList_LoadImageW;
 	//pImageList_ReplaceIcon	_ImageList_ReplaceIcon;
 	//pImageList_GetIcon		_ImageList_GetIcon;
@@ -58,9 +59,10 @@
 			return false;
 		}
 
-		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_comctl32, ( void ** )&_ImageList_Create, "ImageList_Create" ) )
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_comctl32, ( void ** )&_ImageList_Create, "ImageList_Create" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_comctl32, ( void ** )&_ImageList_Destroy, "ImageList_Destroy" ) )
 		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_comctl32, ( void ** )&_ImageList_Add, "ImageList_Add" ) )
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_comctl32, ( void ** )&_ImageList_AddMasked, "ImageList_AddMasked" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_comctl32, ( void ** )&_ImageList_LoadImageW, "ImageList_LoadImageW" ) )
 		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_comctl32, ( void ** )&_ImageList_ReplaceIcon, "ImageList_ReplaceIcon" ) )
 		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_comctl32, ( void ** )&_ImageList_GetIcon, "ImageList_GetIcon" ) )

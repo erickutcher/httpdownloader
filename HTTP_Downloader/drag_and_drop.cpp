@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
-	Copyright (C) 2015-2024 Eric Kutcher
+	Copyright (C) 2015-2025 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -23,6 +23,7 @@
 
 #include "drag_and_drop.h"
 #include "list_operations.h"
+#include "categories.h"
 
 void HandleFileList( HDROP hdrop )
 {
@@ -573,12 +574,12 @@ void PositionCursor( HWND hWnd, POINTL pt )
 	}
 }
 
-ULONG STDMETHODCALLTYPE AddRef( IDropTarget *This )
+ULONG STDMETHODCALLTYPE IDropTarget_AddRef( IDropTarget *This )
 {
 	return InterlockedIncrement( &( ( _IDropTarget * )This )->m_lRefCount );
 }
 
-HRESULT STDMETHODCALLTYPE QueryInterface( IDropTarget *This, REFIID riid, void **ppvObject )
+HRESULT STDMETHODCALLTYPE IDropTarget_QueryInterface( IDropTarget *This, REFIID riid, void **ppvObject )
 {
 	if ( ppvObject == NULL )
 	{
@@ -588,7 +589,7 @@ HRESULT STDMETHODCALLTYPE QueryInterface( IDropTarget *This, REFIID riid, void *
 	{
 		if ( _memcmp( &riid, &_IID_IUnknown, sizeof( GUID ) ) == 0 || _memcmp( &riid, &_IID_IDropTarget, sizeof( GUID ) ) == 0 )
 		{
-			AddRef( This );
+			IDropTarget_AddRef( This );
 
 			*ppvObject = This;
 
@@ -603,7 +604,7 @@ HRESULT STDMETHODCALLTYPE QueryInterface( IDropTarget *This, REFIID riid, void *
 	}
 }
 
-ULONG STDMETHODCALLTYPE Release( IDropTarget *This )
+ULONG STDMETHODCALLTYPE IDropTarget_Release( IDropTarget *This )
 {
 	_IDropTarget *_This = ( _IDropTarget * )This;
 
@@ -617,7 +618,7 @@ ULONG STDMETHODCALLTYPE Release( IDropTarget *This )
 	return count;
 }
 
-HRESULT STDMETHODCALLTYPE DragEnter( IDropTarget *This, IDataObject *pDataObj, DWORD /*grfKeyState*/, POINTL pt, DWORD *pdwEffect )
+HRESULT STDMETHODCALLTYPE IDropTarget_DragEnter( IDropTarget *This, IDataObject *pDataObj, DWORD /*grfKeyState*/, POINTL pt, DWORD *pdwEffect )
 {
 	_IDropTarget *_This = ( _IDropTarget * )This;
 
@@ -629,8 +630,8 @@ HRESULT STDMETHODCALLTYPE DragEnter( IDropTarget *This, IDataObject *pDataObj, D
 	fetc.lindex = -1;
 	fetc.tymed = TYMED_HGLOBAL;
 
-	UINT clip_formats[ 4 ] = { CF_HTML, CF_UNICODETEXT, CF_HDROP, CF_TEXT };
-	for ( char i = 0; i < 4; ++i )
+	UINT clip_formats[ 5 ] = { CF_HTML, CF_UNICODETEXT, CF_HDROP, CF_TEXT, CF_TREELISTVIEW };
+	for ( char i = 0; i < 5; ++i )
 	{
 		fetc.cfFormat = ( CLIPFORMAT )clip_formats[ i ];
 		if ( pDataObj->QueryGetData( &fetc ) == S_OK )
@@ -641,7 +642,20 @@ HRESULT STDMETHODCALLTYPE DragEnter( IDropTarget *This, IDataObject *pDataObj, D
 		}
 	}
 
-	if ( _This->m_ClipFormat != 0 )
+	*pdwEffect = DROPEFFECT_NONE;
+
+	if ( _This->m_ClipFormat == CF_TREELISTVIEW )
+	{
+		if ( _This->m_hWnd == g_hWnd_categories )
+		{
+			_SetFocus( g_hWnd_categories );
+
+			g_drag_and_drop_cti = NULL;
+
+			*pdwEffect = DROPEFFECT_MOVE;
+		}
+	}
+	else if ( _This->m_ClipFormat != 0 )
 	{
 		_SetFocus( _This->m_hWnd );
 
@@ -654,37 +668,77 @@ HRESULT STDMETHODCALLTYPE DragEnter( IDropTarget *This, IDataObject *pDataObj, D
 
 		*pdwEffect = DROPEFFECT_COPY;
 	}
-	else
-	{
-		*pdwEffect = DROPEFFECT_NONE;
-	}
 
 	return S_OK;
 }
 
-HRESULT STDMETHODCALLTYPE DragOver( IDropTarget *This, DWORD /*grfKeyState*/, POINTL pt, DWORD *pdwEffect )
+HRESULT STDMETHODCALLTYPE IDropTarget_DragOver( IDropTarget *This, DWORD /*grfKeyState*/, POINTL pt, DWORD *pdwEffect )
 {
 	_IDropTarget *_This = ( _IDropTarget * )This;
 
-	if ( _This->m_ClipFormat != 0 )
+	*pdwEffect = DROPEFFECT_NONE;
+
+	if ( _This->m_ClipFormat == CF_TREELISTVIEW )
+	{
+		if ( _This->m_hWnd == g_hWnd_categories )
+		{
+			POINT p;
+			_GetCursorPos( &p );
+
+			TVHITTESTINFO tvht;
+			_memzero( &tvht, sizeof( TVHITTESTINFO ) );
+			tvht.pt.x = p.x;
+			tvht.pt.y = p.y;
+			_ScreenToClient( g_hWnd_categories, &tvht.pt );
+			HTREEITEM hti = ( HTREEITEM )_SendMessageW( g_hWnd_categories, TVM_HITTEST, 0, ( LPARAM )&tvht );
+			if ( hti != NULL )
+			{
+				TVITEM tvi;
+				_memzero( &tvi, sizeof( TVITEM ) );
+				tvi.mask = TVIF_PARAM;
+				tvi.hItem = tvht.hItem;
+				_SendMessageW( g_hWnd_categories, TVM_GETITEM, 0, ( LPARAM )&tvi );
+
+				DoublyLinkedList *dll_node = ( DoublyLinkedList * )tvi.lParam;
+				if ( dll_node != NULL )
+				{
+					CATEGORY_TREE_INFO *cti = ( CATEGORY_TREE_INFO * )dll_node->data;
+					if ( cti != NULL &&
+					   ( cti->type == CATEGORY_TREE_INFO_TYPE_CATEGORY_INFO ||
+						 cti->type == CATEGORY_TREE_INFO_TYPE_STATUS && cti->data == NULL ) )
+					{
+						g_drag_and_drop_cti = cti;
+
+						*pdwEffect = DROPEFFECT_MOVE;
+					}
+				}
+			}
+
+			_SendMessageW( g_hWnd_categories, TVM_SELECTITEM, TVGN_DROPHILITE, ( LPARAM )hti );
+			_SetFocus( g_hWnd_categories );
+		}
+	}
+	else if ( _This->m_ClipFormat != 0 )
 	{
 		PositionCursor( _This->m_hWnd, pt );
 
 		*pdwEffect = DROPEFFECT_COPY;
 	}
-	else
-	{
-		*pdwEffect = DROPEFFECT_NONE;
-	}
 
 	return S_OK;
 }
 
-HRESULT STDMETHODCALLTYPE DragLeave( IDropTarget *This )
+HRESULT STDMETHODCALLTYPE IDropTarget_DragLeave( IDropTarget *This )
 {
 	_IDropTarget *_This = ( _IDropTarget * )This;
 
-	if ( _This->m_hWnd == g_hWnd_url_drop_window )
+	if ( _This->m_hWnd == g_hWnd_categories )
+	{
+		g_drag_and_drop_cti = NULL;
+
+		_SendMessageW( g_hWnd_categories, TVM_SELECTITEM, TVGN_DROPHILITE, NULL );
+	}
+	else if ( _This->m_hWnd == g_hWnd_url_drop_window )
 	{
 		_SetLayeredWindowAttributes( g_hWnd_url_drop_window, 0, cfg_drop_window_transparency, LWA_ALPHA );
 	}
@@ -692,11 +746,19 @@ HRESULT STDMETHODCALLTYPE DragLeave( IDropTarget *This )
 	return S_OK;
 }
 
-HRESULT STDMETHODCALLTYPE Drop( IDropTarget *This, IDataObject *pDataObj, DWORD /*grfKeyState*/, POINTL pt, DWORD *pdwEffect )
+HRESULT STDMETHODCALLTYPE IDropTarget_Drop( IDropTarget *This, IDataObject *pDataObj, DWORD /*grfKeyState*/, POINTL pt, DWORD *pdwEffect )
 {
 	_IDropTarget *_This = ( _IDropTarget * )This;
 
-	if ( _This->m_ClipFormat != 0 )
+	*pdwEffect = DROPEFFECT_NONE;
+
+	if ( _This->m_ClipFormat == CF_TREELISTVIEW )
+	{
+		_SendMessageW( g_hWnd_categories, TVM_SELECTITEM, TVGN_DROPHILITE, NULL );
+
+		*pdwEffect = DROPEFFECT_MOVE;
+	}
+	else if ( _This->m_ClipFormat != 0 )
 	{
 		PositionCursor( _This->m_hWnd, pt );
 
@@ -789,23 +851,19 @@ HRESULT STDMETHODCALLTYPE Drop( IDropTarget *This, IDataObject *pDataObj, DWORD 
 
 		*pdwEffect = DROPEFFECT_COPY;
 	}
-	else
-	{
-		*pdwEffect = DROPEFFECT_NONE;
-	}
 
 	return S_OK;
 }
 
 struct IDropTargetVtbl Vtbl =
 {
-	QueryInterface,
-	AddRef,
-	Release,
-	DragEnter,
-	DragOver,
-	DragLeave,
-	Drop
+	IDropTarget_QueryInterface,
+	IDropTarget_AddRef,
+	IDropTarget_Release,
+	IDropTarget_DragEnter,
+	IDropTarget_DragOver,
+	IDropTarget_DragLeave,
+	IDropTarget_Drop
 };
 
 _IDropTarget *Create_IDropTarget( HWND hWnd )
@@ -849,4 +907,291 @@ void UnregisterDropWindow( HWND hWnd, IDropTarget *DropTarget )
 
 		DropTarget->Release();
 	}
+}
+
+///////////////////////////////////////////////////////////////////
+
+ULONG STDMETHODCALLTYPE IDataObject_AddRef( IDataObject *This )
+{
+	return InterlockedIncrement( &( ( _IDataObject * )This )->m_lRefCount );
+}
+
+HRESULT STDMETHODCALLTYPE IDataObject_QueryInterface( IDataObject *This, REFIID riid, void **ppvObject )
+{
+	if ( ppvObject == NULL )
+	{
+		return E_POINTER;
+	}
+	else
+	{
+		if ( _memcmp( &riid, &_IID_IUnknown, sizeof( GUID ) ) == 0 || _memcmp( &riid, &_IID_IDataObject, sizeof( GUID ) ) == 0 )
+		{
+			IDataObject_AddRef( This );
+
+			*ppvObject = This;
+
+			return S_OK;
+		}
+		else
+		{
+			*ppvObject = NULL;
+
+			return E_NOINTERFACE;
+		}
+	}
+}
+
+ULONG STDMETHODCALLTYPE IDataObject_Release( IDataObject *This )
+{
+	_IDataObject *_This = ( _IDataObject * )This;
+
+	LONG count = InterlockedDecrement( &_This->m_lRefCount );
+
+	if ( count == 0 )
+	{
+		GlobalFree( _This );
+	}
+
+	return count;
+}
+
+int LookupFormatEtc( _IDataObject *pDataObj, FORMATETC *pFormatEtc )
+{
+	for ( int i = 0; i < pDataObj->m_nNumFormats; ++i )
+	{
+		if ( ( pDataObj->m_pFormatEtc[ i ].tymed & pFormatEtc->tymed ) &&
+			   pDataObj->m_pFormatEtc[ i ].cfFormat == pFormatEtc->cfFormat &&
+			   pDataObj->m_pFormatEtc[ i ].dwAspect == pFormatEtc->dwAspect )
+		{
+			return i;
+		}
+	}
+
+	return -1;
+}
+
+HRESULT STDMETHODCALLTYPE IDataObject_QueryGetData( IDataObject *This, FORMATETC *pformatetc )
+{
+	return LookupFormatEtc( ( _IDataObject * )This, pformatetc ) == -1 ? DV_E_FORMATETC : S_OK;
+}
+
+HRESULT STDMETHODCALLTYPE IDataObject_GetData( IDataObject *This, FORMATETC *pformatetcIn, STGMEDIUM *pmedium )
+{
+	_IDataObject *_This = ( _IDataObject * )This;
+
+	int i;
+
+	// Match the specified FORMATETC with one of our supported formats.
+	if ( ( i = LookupFormatEtc( _This, pformatetcIn ) ) == -1 )
+	{
+		return DV_E_FORMATETC;
+	}
+
+	// Transfer data into supplied storage medium.
+	pmedium->tymed = _This->m_pFormatEtc[ i ].tymed;
+	pmedium->pUnkForRelease = 0;
+
+	// Copy the data into the caller's storage medium.
+	switch ( _This->m_pFormatEtc[ i ].tymed )
+	{
+		case TYMED_HGLOBAL:
+		{
+			SIZE_T len = GlobalSize( _This->m_pStgMedium[ i ].hGlobal );
+			PVOID source = GlobalLock( _This->m_pStgMedium[ i ].hGlobal );
+
+			pmedium->hGlobal = GlobalAlloc( GMEM_FIXED, len );
+
+			_memcpy_s( pmedium->hGlobal, len, source, len );
+
+			GlobalUnlock( _This->m_pStgMedium[ i ].hGlobal );
+		}
+		break;
+
+		default:
+		{
+			return DV_E_FORMATETC;
+		}
+		break;
+	}
+
+	return S_OK;
+}
+
+HRESULT STDMETHODCALLTYPE IDataObject_EnumFormatEtc( IDataObject *This, DWORD dwDirection, IEnumFORMATETC **ppenumFormatEtc )
+{
+	_IDataObject *_This = ( _IDataObject * )This;
+
+	// Only the get direction is supported for OLE.
+	if ( dwDirection == DATADIR_GET )
+	{
+		return _SHCreateStdEnumFmtEtc( _This->m_nNumFormats, _This->m_pFormatEtc, ppenumFormatEtc );
+	}
+	else
+	{
+		// The direction specified is not supported for drag and drop.
+		return E_NOTIMPL;
+	}
+}
+
+HRESULT STDMETHODCALLTYPE IDataObject_DAdvise( IDataObject * /*This*/, FORMATETC * /*pformatetc*/, DWORD /*advf*/, IAdviseSink * /*pAdvSink*/, DWORD * /*pdwConnection*/ )
+{
+	return OLE_E_ADVISENOTSUPPORTED;
+}
+
+HRESULT STDMETHODCALLTYPE IDataObject_DUnadvise( IDataObject * /*This*/, DWORD /*dwConnection*/ )
+{
+	return OLE_E_ADVISENOTSUPPORTED;
+}
+
+HRESULT STDMETHODCALLTYPE IDataObject_EnumDAdvise( IDataObject * /*This*/, IEnumSTATDATA ** /*ppenumAdvise*/ )
+{
+	return OLE_E_ADVISENOTSUPPORTED;
+}
+
+HRESULT STDMETHODCALLTYPE IDataObject_GetDataHere( IDataObject * /*This*/, FORMATETC * /*pformatetc*/, STGMEDIUM * /*pmedium*/ )
+{
+	return DATA_E_FORMATETC;
+}
+
+HRESULT STDMETHODCALLTYPE IDataObject_GetCanonicalFormatEtc( IDataObject * /*This*/, FORMATETC * /*pformatectIn*/, FORMATETC *pformatetcOut )
+{
+	// Apparently we have to set this field to NULL even though we don't do anything else.
+	pformatetcOut->ptd = NULL;
+
+	return E_NOTIMPL;
+}
+
+HRESULT STDMETHODCALLTYPE IDataObject_SetData( IDataObject * /*This*/, FORMATETC * /*pformatetc*/, STGMEDIUM * /*pmedium */, BOOL /*fRelease*/ )
+{
+	return E_NOTIMPL;
+}
+
+struct IDataObjectVtbl DataVtbl =
+{
+	IDataObject_QueryInterface,
+	IDataObject_AddRef,
+	IDataObject_Release,
+	IDataObject_GetData,
+	IDataObject_GetDataHere,
+	IDataObject_QueryGetData,
+	IDataObject_GetCanonicalFormatEtc,
+	IDataObject_SetData,
+	IDataObject_EnumFormatEtc,
+	IDataObject_DAdvise,
+	IDataObject_DUnadvise,
+	IDataObject_EnumDAdvise
+};
+
+_IDataObject *Create_IDataObject( FORMATETC *fmtetc, STGMEDIUM *stgmed, int count )
+{
+	_IDataObject *DataObject = ( _IDataObject * )GlobalAlloc( GMEM_FIXED, sizeof( _IDataObject ) );
+
+	if ( DataObject != NULL )
+	{
+		DataObject->lpVtbl = &DataVtbl;
+
+		DataObject->m_lRefCount = 1;
+		DataObject->m_nNumFormats = count;
+
+		DataObject->m_pFormatEtc = ( FORMATETC * )GlobalAlloc( GMEM_FIXED, sizeof( FORMATETC ) * count );
+		DataObject->m_pStgMedium = ( STGMEDIUM * )GlobalAlloc( GMEM_FIXED, sizeof( STGMEDIUM ) * count );
+
+		for ( int i = 0; i < count; ++i )
+		{
+			_memcpy_s( DataObject->m_pFormatEtc + i, sizeof( FORMATETC ), fmtetc + i, sizeof( FORMATETC ) );
+			_memcpy_s( DataObject->m_pStgMedium + i, sizeof( STGMEDIUM ), stgmed + i, sizeof( STGMEDIUM ) );
+		}
+	}
+
+	return DataObject;
+}
+
+///////////////////////////////////////////////////////////////////
+
+ULONG STDMETHODCALLTYPE IDropSource_AddRef( IDropSource *This )
+{
+	return InterlockedIncrement( &( ( _IDropSource * )This )->m_lRefCount );
+}
+
+HRESULT STDMETHODCALLTYPE IDropSource_QueryInterface( IDropSource *This, REFIID riid, void **ppvObject )
+{
+	if ( ppvObject == NULL )
+	{
+		return E_POINTER;
+	}
+	else
+	{
+		if ( _memcmp( &riid, &_IID_IUnknown, sizeof( GUID ) ) == 0 || _memcmp( &riid, &_IID_IDropSource, sizeof( GUID ) ) == 0 )
+		{
+			IDropSource_AddRef( This );
+
+			*ppvObject = This;
+
+			return S_OK;
+		}
+		else
+		{
+			*ppvObject = NULL;
+
+			return E_NOINTERFACE;
+		}
+	}
+}
+
+ULONG STDMETHODCALLTYPE IDropSource_Release( IDropSource *This )
+{
+	_IDropSource *_This = ( _IDropSource * )This;
+
+	LONG count = InterlockedDecrement( &_This->m_lRefCount );
+
+	if ( count == 0 )
+	{
+		GlobalFree( _This );
+	}
+
+	return count;
+}
+
+HRESULT STDMETHODCALLTYPE IDropSource_QueryContinueDrag( IDropSource * /*This*/, BOOL fEscapePressed, DWORD grfKeyState )
+{
+	if ( fEscapePressed == TRUE )
+	{
+		return DRAGDROP_S_CANCEL;
+	}
+
+	if ( ( grfKeyState & MK_LBUTTON ) == 0 )
+	{
+		return DRAGDROP_S_DROP;
+	}
+
+	return S_OK;
+}
+
+HRESULT STDMETHODCALLTYPE IDropSource_GiveFeedback( IDropSource * /*This*/, DWORD /*dwEffect*/ )
+{
+	return DRAGDROP_S_USEDEFAULTCURSORS;
+}
+
+struct IDropSourceVtbl SourceVtbl =
+{
+	IDropSource_QueryInterface,
+	IDropSource_AddRef,
+	IDropSource_Release,
+	IDropSource_QueryContinueDrag,
+	IDropSource_GiveFeedback
+};
+
+_IDropSource *Create_IDropSource( HWND hWnd )
+{
+	_IDropSource *DropSource = ( _IDropSource * )GlobalAlloc( GMEM_FIXED, sizeof( _IDropSource ) );
+
+	if ( DropSource != NULL )
+	{
+		DropSource->lpVtbl = &SourceVtbl;
+
+		DropSource->m_hWnd = hWnd;
+		DropSource->m_lRefCount = 1;
+	}
+
+	return DropSource;
 }

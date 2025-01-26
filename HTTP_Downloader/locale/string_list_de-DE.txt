@@ -19,6 +19,8 @@ Freitag
 Samstag
 #
 Aktive Teile
+Category
+Comments
 Hinzugefügt am
 Verzeichnis
 Geschwindigkeit
@@ -35,11 +37,15 @@ URL
 #
 &Über
 Aktive Teile
+Add Category...
 URL(s) &hinzufügen...\tStrg+N
 URL(s) hinzufügen...
 Immer im Vordergrund
+C&ategories
+Category
 Auf Aktualisierung &prüfen...
 &Spaltenüberschrift
+Comments
 URL(s) &kopieren\tStrg+C
 URL(s) kopieren
 Hinzugefügt am
@@ -104,6 +110,7 @@ Zeit verstrichen
 Zeit verbleibend
 &Werkzeugleiste
 &Werkzeuge
+Update Category...
 Akt&ualisierung herunterladen...\tStrg+U
 Aktualisierung herunterladen...
 URL
@@ -121,6 +128,7 @@ Proxy
 SFTP
 Nur hinzufügen aber nicht starten
 Nur eine Instanz des Programms zulassen
+Apply initially set proxy to redirected URL(s)
 Download fortsetzen
 Standard Downloadverzeichnis:
 Abfrage anzeigen
@@ -136,6 +144,7 @@ Hybrid-Herunterfahren
 Sperren
 Abmelden
 Gelöschte Downloads in den Papierkorb verschieben
+Move files that match category file extension filters
 Nichts
 Abfragedialoge zu Aktionen in der Downloadliste unterbinden
 Datei überschreiben
@@ -179,6 +188,7 @@ Fortschrittsleiste:
 Fortschrittsschriftfarbe
 Beim hinzufügen von URL(s) zu letztem Eintrag gehen
 Auswahlfarbe
+Show executable's embedded icon
 Gitternetzlinien in Downloadliste anzeigen
 Fortschritt für jeden Teil anzeigen
 hinzugefügte/aktualisierte Downloads sortieren
@@ -192,7 +202,8 @@ Downloadlimit:
 Standard Teile:
 Standard SSL / TLS Version:
 Maximale Weiterleitungen:
-Neuzuteilung der Teile für maximale Verbindungsanzahl
+Neuzuteilung der Teile für maximale Verbindungsanzahl:
+Reallocate threshold size (bytes):
 Unvollständige Downloads wiederholen:
 Unvollständige Teile wiederholen:
 Zeitbeschränkung (Sekunden):
@@ -210,13 +221,16 @@ Beim Start auf Aktualisierung prüfen
 In Infobereich (Tray) schließen
 Smybol für Infobereich (Tray) aktivieren:
 Drag&&Drop-Fenster aktivieren:
+Failure:
 Audiodatei für fertiggestellte Downloads auswählen
 In Infobereich (Tray) minimieren
-Ton abspielen wenn alle Downloads fertiggestellt wurden:
+Ton abspielen wenn alle Downloads fertiggestellt wurden
 Benachrichtigung anzeigen wenn alle Downloads fertiggestellt wurden
 Fortschrittsleiste anzeigen
 In Infobereich (Tray) starten
+Success:
 Durchsichtigkeit:
+\x25B6
 Proxy erlauben den Domänennamen aufzulösen
 Proxy erlauben den Domänennamen aufzulösen (SOCKS v4a benutzen)
 Hostname:
@@ -246,6 +260,7 @@ Port:
 Authentifikation erforderlich:
 Server
 Server SSL / TLS Version:
+Show System Tray notification for remote connections
 Algorithmusauswahlrichtlinien
 GSSAPI-Authentifizierung versuchen
 GSSAPI-Schlüsselaustausch versuchen
@@ -330,6 +345,7 @@ Simulieren
 Seite
 Seite:
 Benutzername
+Associate file extension(s) with category:
 Host- und Schlüsselinformation dem Cache hinzufügen
 Schlüsselgröße:
 Eine neue Version ist verfügbar.
@@ -343,19 +359,27 @@ Die Prüfung auf Aktualisierungen ist fehlgeschlagen.
 Webseite besuchen
 ...
 [Simuliert]
+Add Category
 URL(s) hinzufügen
 Hinzugefügt
+All
 Dateizuordnung läuft
 Autorisierung erforderlich
 Abbrechen
+Categories
+Category:
 Prüfe auf Aktualisierung
+Comments:
 Fertiggestellt
 Verbinde
 Standard
 Standard Geschwindigkeitslimit (bytes/s):
+Desktop
+Documents
 Downloadgeschwindigkeit: 
 Geschwindigkeitslimit (bytes/s):
 Wird heruntergeladen
+Downloads
 Downloads wurden fertiggestellt
 Fehler
 Verlauf exportieren
@@ -368,17 +392,23 @@ HTTP
 HTTPS
 Verlauf importieren
 Unzureichender Speicherplatz
+IP address:
 Einträge:
 Verschiebe Datei
+Music
 Optionen
+Other
 Pausiert
+Pictures
 Proxy-Authentifikation erforderlich
 Wartend
+Remote Connection
 Neu startend
 Verlauf speichern
 Festlegen
 Seitenverwaltung
 Übersprungen
+Status
 Angehalten
 SSL 2.0
 SSL 3.0
@@ -389,8 +419,11 @@ TLS 1.2
 Heruntergeladen:
 Unbegrenzt
 Aktualisieren
+Update Category
 Download aktualisieren
 URL:
+URL(s) added:
+Videos
 Es muss ein Schlüsselalgorithmus mitgegeben werden.
 Es ist eine private Schlüsseldatei erforderlich.
 Es muss ein Protokoll (HTTP(S), FTP(S) oder SFTP) mitgegeben werden.
@@ -405,9 +438,12 @@ Sind Sie sicher, dass Sie die ausgewählten Einträge entfernen und löschen wol
 Sind Sie sicher, dass Sie die ausgewählten Einträge entfernen wollen?
 Sind Sie sicher, dass Sie die ausgewählten Einträge neustarten wollen?
 Möchten Sie den Hostschlüssel des Servers akzeptieren?
+Item ID List was not freed.
+One or more file extensions already exist in another category.
 Eine oder mehrere Dateien werden derzeit benutzt und können nicht gelöscht werden.
 Eine oder mehrere Dateien wurden nicht gefunden.
 Ein oder mehrere Pfade wurden nicht gefunden.
+Select the category download directory.
 Wählen Sie das Standard-Downloadverzeichnis aus.
 Wählen Sie das Downloadverzeichnis aus.
 Wählen Sie das temporäre Downloadverzeichnis aus.
@@ -416,6 +452,7 @@ Die Datei wird derzeit benutzt und kann deswegen nicht gelöscht werden.
 Die Datei wird derzeit benutzt und kann deswegen nicht umbenannt werden.
 Die Datei(en) konnten wegen fehlerhaftem Format nicht importiert werden.
 Der Fingerabdruck des Schlüssels stimmt nicht mit dem im Cache überein.\r\nMöchten Sie den Hostschlüssel des Servers akzeptieren?
+The specified category already exists.
 Die festgelegte Datei konnte nicht gefunden werden.
 Die festgelegte Datei konnte nicht gefunden werden.\r\n\r\nMöchten Sie die Datei erneut herunterladen?
 Der festgelegte Host existiert bereits.
@@ -426,6 +463,7 @@ Die festgelegte Seite ist ungültig.
 Der festgelegte Benutzername und Host existieren bereits.
 Es existiert bereits eine Datei mit dem selben Namen.
 Sie müssen ein Downloadverzeichnis angeben.
+Beta
 Erstellt am
 Copyright
 HTTP Downloader ist frei unter der GPLv3-Lizenz.

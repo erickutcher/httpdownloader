@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
-	Copyright (C) 2015-2024 Eric Kutcher
+	Copyright (C) 2015-2025 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -52,7 +52,7 @@
 	#define _WSAAddressToStringW	WSAAddressToStringW
 	#define _FreeAddrInfoW	FreeAddrInfoW
 	#define _GetAddrInfoW	GetAddrInfoW
-	//#define _GetNameInfoW	GetNameInfoW
+	#define _GetNameInfoW	GetNameInfoW
 	//#define _GetHostNameW	GetHostNameW
 
 	#define _WSAGetLastError	WSAGetLastError
@@ -70,6 +70,7 @@
 	#define _shutdown		shutdown
 	#define _closesocket	closesocket
 
+	#define _getsockopt		getsockopt
 	#define _setsockopt		setsockopt
 
 	//#define _send			send
@@ -77,7 +78,7 @@
 
 	#define _getaddrinfo	getaddrinfo
 	#define _freeaddrinfo	freeaddrinfo
-	//#define _getpeername	getpeername
+	#define _getpeername	getpeername
 	#define _getsockname	getsockname
 	#define _gethostname	gethostname
 
@@ -104,7 +105,7 @@
 	typedef INT ( WSAAPI *pWSAAddressToStringW )( LPSOCKADDR lpsaAddress, DWORD dwAddressLength, LPWSAPROTOCOL_INFOW lpProtocolInfo, LPWSTR lpszAddressString, LPDWORD lpdwAddressStringLength );
 	typedef void ( WSAAPI *pFreeAddrInfoW )( PADDRINFOW pAddrInfo );
 	typedef int ( WSAAPI *pGetAddrInfoW )( PCWSTR pNodeName, PCWSTR pServiceName, const ADDRINFOW *pHints, PADDRINFOW *ppResult );
-	//typedef int ( WSAAPI *pGetNameInfoW )( const SOCKADDR *pSockaddr, socklen_t SockaddrLength, PWCHAR pNodeBuffer, DWORD NodeBufferSize, PWCHAR pServiceBuffer, DWORD ServiceBufferSize, INT Flags );
+	typedef int ( WSAAPI *pGetNameInfoW )( const SOCKADDR *pSockaddr, socklen_t SockaddrLength, PWCHAR pNodeBuffer, DWORD NodeBufferSize, PWCHAR pServiceBuffer, DWORD ServiceBufferSize, INT Flags );
 	//typedef int ( WSAAPI *pGetHostNameW )( PWSTR name, int namelen );
 
 	typedef int ( WSAAPI *pWSAGetLastError )( void );
@@ -122,6 +123,7 @@
 	typedef int ( WSAAPI *pshutdown )( SOCKET s, int how );
 	typedef int ( WSAAPI *pclosesocket )( SOCKET s );
 
+	typedef int ( WSAAPI *pgetsockopt )( SOCKET s, int level, int optname, char *optval, int *optlen );
 	typedef int ( WSAAPI *psetsockopt )( SOCKET s, int level, int optname, const char *optval, int optlen );
 
 	//typedef int ( WSAAPI *psend )( SOCKET s, const char *buf, int len, int flags );
@@ -129,7 +131,7 @@
 
 	typedef int ( WSAAPI *pgetaddrinfo )( PCSTR pNodeName, PCSTR pServiceName, const ADDRINFOA *pHints, PADDRINFOA *ppResult );
 	typedef void ( WSAAPI *pfreeaddrinfo )( struct addrinfo *ai );
-	//typedef int ( WSAAPI *pgetpeername )( SOCKET s, struct sockaddr *name, int *namelen );
+	typedef int ( WSAAPI *pgetpeername )( SOCKET s, struct sockaddr *name, int *namelen );
 	typedef int ( WSAAPI *pgetsockname )( SOCKET s, struct sockaddr *name, int *namelen );
 	typedef int ( WSAAPI *pgethostname )( char *name, int namelen );
 
@@ -154,7 +156,7 @@
 	extern pWSAAddressToStringW		_WSAAddressToStringW;
 	extern pFreeAddrInfoW	_FreeAddrInfoW;
 	extern pGetAddrInfoW	_GetAddrInfoW;
-	//extern pGetNameInfoW	_GetNameInfoW;
+	extern pGetNameInfoW	_GetNameInfoW;
 	//extern pGetHostNameW	_GetHostNameW;
 
 	extern pWSAGetLastError	_WSAGetLastError;
@@ -172,6 +174,7 @@
 	extern pshutdown		_shutdown;
 	extern pclosesocket		_closesocket;
 
+	extern pgetsockopt		_getsockopt;
 	extern psetsockopt		_setsockopt;
 
 	//extern psend			_send;
@@ -179,7 +182,7 @@
 
 	extern pgetaddrinfo	_getaddrinfo;
 	extern pfreeaddrinfo	_freeaddrinfo;
-	//extern pgetpeername	_getpeername;
+	extern pgetpeername	_getpeername;
 	extern pgetsockname		_getsockname;
 	extern pgethostname	_gethostname;
 

@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
-	Copyright (C) 2015-2024 Eric Kutcher
+	Copyright (C) 2015-2025 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -24,14 +24,18 @@
 #include "lite_shell32.h"
 #include "lite_gdi32.h"
 #include "lite_uxtheme.h"
+#include "lite_ole32.h"
 
 #include "menus.h"
 
 #include "treelistview.h"
+#include "categories.h"
 #include "doublylinkedlist.h"
 
 #include "connection.h"
 #include "list_operations.h"
+
+#include "drag_and_drop.h"
 
 #include "dark_mode.h"
 
@@ -74,6 +78,8 @@ WNDPROC EditBoxProc = NULL;
 int g_header_width = 0;
 int g_header_height = 0;
 
+int g_row_height = 0;
+
 int g_visible_rows = 0;
 
 int hs_step = 4;
@@ -90,6 +96,8 @@ RECT g_client_rc;
 HBITMAP g_hbm = NULL;
 bool g_size_changed = false;
 
+bool g_skip_window_change = false;
+
 RECT g_edit_column_rc;
 
 unsigned char g_show_edit_state = 0;		// 0 = Not activated/showing, 1 = Activating (wait GetDoubleClickTime), 2 = Activated/Showing
@@ -100,7 +108,12 @@ unsigned char g_h_scroll_line_amount = 1;
 HTHEME g_hTheme = NULL;
 
 #define GLYPH_OFFSET		2
+
+LONG g_glyph_offset = GLYPH_OFFSET;
 SIZE g_glyph_size;
+
+FONT_SETTINGS tlv_odd_row_font_settings;
+FONT_SETTINGS tlv_even_row_font_settings;
 
 ///////////////////
 wchar_t g_typing_buf[ MAX_PATH ];
@@ -112,7 +125,7 @@ DWORD g_last_typing_time = 0;
 TREELISTNODE *g_search_start_node = NULL;
 //////////////////
 
-TREELISTNODE *g_tree_list;
+TREELISTNODE *g_tree_list = NULL;
 
 TREELISTNODE *g_focused_node = NULL;		// Is the last selected node that was clicked or was dragged to.
 int g_focused_index = -1;
@@ -124,12 +137,14 @@ TREELISTNODE *g_first_visible_node = NULL;
 int g_first_visible_index = 0;
 int g_first_visible_root_index = 0;
 
-int g_visible_item_count = 0;				// Number of items that are visible in the window.
-int g_total_item_count = 0;					// All items in the list (both expanded and contracted).
-int g_root_item_count = 0;					// Total number of parents.
-int g_expanded_item_count = 0;				// Parents + children of expanded parents.
+volatile LONG g_visible_item_count = 0;		// Number of items that are visible in the window.
+volatile LONG g_total_item_count = 0;		// All items in the list (both expanded and contracted).
+volatile LONG g_root_item_count = 0;		// Total number of parents.
+volatile LONG g_expanded_item_count = 0;	// Parents + children of expanded parents.
 
 int g_drag_start_index = -1;
+
+volatile LONG g_total_parent_item_nodes = 0;
 
 ////////////
 
@@ -150,7 +165,7 @@ TREELISTNODE *g_mod_last_selection_node = NULL;
 
 ////////////
 
-int g_selected_count = 0;
+volatile LONG g_selected_count = 0;
 
 ////////////
 
@@ -171,7 +186,69 @@ bool g_draw_drag = false;
 
 ////////////
 
-void ClearDrag()
+// Drag and Drop from TreeListView.
+
+bool g_tlv_is_drag_and_drop = false;
+
+////////////
+
+// Filter items.
+
+unsigned int g_status_filter = STATUS_NONE;
+wchar_t *g_category_filter = NULL;
+volatile LONG g_refresh_list = 0x00;	// 0x01 = refresh list, 0x02 cancel rename, 0x04 cancel drag, 0x08 cancel select
+
+////////////
+
+UINT current_dpi_tlv = USER_DEFAULT_SCREEN_DPI;
+HFONT hFont_tlv = NULL;
+
+#define _SCALE_TLV_( x )						_SCALE_( ( x ), dpi_tlv )
+
+bool IsFilterSet( DOWNLOAD_INFO *di, unsigned int status )
+{
+	if ( di != NULL )
+	{
+		if ( status == CATEGORY_STATUS )
+		{
+			if ( g_category_filter != NULL && di->category == g_category_filter )
+			{
+				return true;
+			}
+		}
+		else if ( ( status == STATUS_PAUSED && IS_STATUS( di->status, STATUS_PAUSED ) ) ||
+				  ( status == STATUS_QUEUED && IS_STATUS( di->status, STATUS_QUEUED ) ) ||
+				  ( status == STATUS_RESTART && IS_STATUS( di->status, STATUS_RESTART ) ) ||
+					status == di->status )
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
+unsigned int TLV_GetStatusFilter()
+{
+	return g_status_filter;
+}
+
+void TLV_SetStatusFilter( unsigned int status )
+{
+	g_status_filter = status;
+}
+
+wchar_t *TLV_GetCategoryFilter()
+{
+	return g_category_filter;
+}
+
+void TLV_SetCategoryFilter( wchar_t *category )
+{
+	g_category_filter = category;
+}
+
+void TLV_ClearDrag()
 {
 	if ( g_is_dragging )
 	{
@@ -185,6 +262,22 @@ void ClearDrag()
 	}
 }
 
+void TLV_CancelRename( HWND hWnd )
+{
+	// Hide the edit textbox if it's displayed.
+	if ( g_show_edit_state != 0 )
+	{
+		_KillTimer( hWnd, IDT_EDIT_TIMER );
+
+		g_show_edit_state = 0;
+
+		if ( g_hWnd_edit_box != NULL )
+		{
+			_SetFocus( hWnd );
+		}
+	}
+}
+
 int TLV_GetParentIndex( TREELISTNODE *tln, int index )
 {
 	if ( tln != NULL && tln->parent != NULL && index > 0 )
@@ -193,9 +286,49 @@ int TLV_GetParentIndex( TREELISTNODE *tln, int index )
 
 		while ( tln != tln_parent )
 		{
-			tln = TLV_PrevNode( tln, false );
+			tln = TLV_PrevNode( tln, false, false );
 			--index;
 		}
+	}
+
+	return index;
+}
+
+int TLV_GetItemIndex( TREELISTNODE *tln )
+{
+	int index = 0;
+
+	TREELISTNODE *node = g_tree_list;
+
+	while ( node != NULL )
+	{
+		if ( node == tln )
+		{
+			break;
+		}
+
+		if ( g_status_filter == STATUS_NONE )
+		{
+			++index;
+			if ( node->is_expanded )
+			{
+				index += node->child_count;
+			}
+		}
+		else
+		{
+			DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )node->data;
+			if ( IsFilterSet( di, g_status_filter ) )
+			{
+				++index;
+				if ( node->is_expanded )
+				{
+					index += node->child_count;
+				}
+			}
+		}
+
+		node = TLV_NextNode( node, false );
 	}
 
 	return index;
@@ -219,6 +352,17 @@ void TLV_ExpandCollapseAll( bool expand )
 	TREELISTNODE *tln = g_tree_list;
 	while ( tln != NULL )
 	{
+		if ( g_status_filter != STATUS_NONE )
+		{
+			DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )tln->data;
+			if ( di != NULL && !IsFilterSet( di, g_status_filter ) )
+			{
+				tln = tln->next;
+
+				continue;
+			}
+		}
+
 		if ( expand )
 		{
 			if ( tln == first_visible_node )
@@ -254,7 +398,7 @@ void TLV_ExpandCollapseAll( bool expand )
 
 				tln->is_expanded = true;
 
-				g_expanded_item_count += tln->child_count;
+				TLV_AddExpandedItemCount( tln->child_count );
 			}
 		}
 		else	// Collapse
@@ -344,7 +488,7 @@ void TLV_ExpandCollapseAll( bool expand )
 
 				tln->is_expanded = false;
 
-				g_expanded_item_count -= tln->child_count;
+				TLV_AddExpandedItemCount( -( tln->child_count ) );
 
 				// Deselect any children that are selected.
 				TREELISTNODE *tln_child = tln->child;
@@ -377,11 +521,36 @@ void TLV_ExpandCollapseParent( TREELISTNODE *tln, int index, bool expand )
 {
 	if ( tln != NULL && index >= 0 )
 	{
+		if ( tln->data != NULL )
+		{
+			bool skip_expand_collapse = false;
+
+			DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )tln->data;
+			EnterCriticalSection( &di->di_cs );
+			if ( g_status_filter != STATUS_NONE )
+			{
+				if ( !IsFilterSet( di, g_status_filter ) || ( tln->flag & TLVS_EXPANDING_COLLAPSING ) )
+				{
+					skip_expand_collapse = true;
+				}
+				else
+				{
+					tln->flag |= TLVS_EXPANDING_COLLAPSING;
+				}
+			}
+			LeaveCriticalSection( &di->di_cs );
+
+			if ( skip_expand_collapse )
+			{
+				return;
+			}
+		}
+
 		tln->is_expanded = expand;
 
 		if ( expand )
 		{
-			g_expanded_item_count += tln->child_count;
+			TLV_AddExpandedItemCount( tln->child_count );
 
 			// We need to update the indices of the current and last selected items as well as the selection range.
 
@@ -407,7 +576,7 @@ void TLV_ExpandCollapseParent( TREELISTNODE *tln, int index, bool expand )
 		}
 		else
 		{
-			g_expanded_item_count -= tln->child_count;
+			TLV_AddExpandedItemCount( -( tln->child_count ) );
 
 			// Adjust the first visible node and index.
 			if ( g_first_visible_index + g_visible_item_count > g_expanded_item_count )
@@ -555,6 +724,14 @@ void TLV_ExpandCollapseParent( TREELISTNODE *tln, int index, bool expand )
 			}
 		}
 
+		if ( tln->data != NULL )
+		{
+			DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )tln->data;
+			EnterCriticalSection( &di->di_cs );
+			tln->flag &= ~TLVS_EXPANDING_COLLAPSING;
+			LeaveCriticalSection( &di->di_cs );
+		}
+
 		g_download_history_changed = true;
 	}
 }
@@ -586,72 +763,158 @@ TREELISTNODE *GetLastExpandedNode()
 	// Find the last node in the expanded list. Go through any children to find it.
 	TREELISTNODE *node = g_tree_list;
 
-	while ( node != NULL )
+	do
 	{
-		if ( node->prev != NULL )
+		bool is_child = false;
+
+		while ( node != NULL )
 		{
-			node = node->prev;
+			if ( node->prev != NULL )
+			{
+				node = node->prev;
+			}
+
+			if ( node != NULL && node->child != NULL && node->is_expanded )
+			{
+				is_child = true;
+
+				node = node->child;
+			}
+			else
+			{
+				break;
+			}
 		}
 
-		if ( node != NULL && node->child != NULL && node->is_expanded )
+		if ( g_status_filter != STATUS_NONE )
 		{
-			node = node->child;
+			TREELISTNODE *t_node = ( is_child ? node->parent : node );
+
+			if ( t_node != NULL )
+			{
+				DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )t_node->data;
+				if ( IsFilterSet( di, g_status_filter ) )
+				{
+					break;
+				}
+
+				node = t_node;
+
+				if ( node == g_tree_list )
+				{
+					break;
+				}
+			}
 		}
 		else
 		{
 			break;
 		}
 	}
+	while ( node != NULL );
 
 	return node;
 }
 
-int TLV_GetTotalItemCount()
+LONG TLV_GetTotalItemCount()
 {
 	return g_total_item_count;
 }
 
-int TLV_SetTotalItemCount( int total_item_count )
+LONG TLV_SetTotalItemCount( LONG total_item_count )
 {
-	g_total_item_count = total_item_count;
-
+	InterlockedExchange( &g_total_item_count, total_item_count );
 	return g_total_item_count;
 }
 
-int TLV_GetExpandedItemCount()
+LONG TLV_AddTotalItemCount( LONG value )
+{
+#ifdef _WIN64
+	return InterlockedAdd( &g_total_item_count, value );
+#else
+	InterlockedExchangeAdd( &g_total_item_count, value );
+	return g_total_item_count;
+#endif
+}
+
+/*LONG TLV_IncTotalItemCount()
+{
+	return InterlockedIncrement( &g_total_item_count );
+}
+
+LONG TLV_DecTotalItemCount()
+{
+	return InterlockedDecrement( &g_total_item_count );
+}*/
+
+LONG TLV_GetExpandedItemCount()
 {
 	return g_expanded_item_count;
 }
 
-int TLV_SetExpandedItemCount( int expanded_item_count )
+LONG TLV_SetExpandedItemCount( LONG expanded_item_count )
 {
-	g_expanded_item_count = expanded_item_count;
-
+	InterlockedExchange( &g_expanded_item_count, expanded_item_count );
 	return g_expanded_item_count;
 }
 
-int TLV_GetRootItemCount()
+LONG TLV_AddExpandedItemCount( LONG value )
+{
+#ifdef _WIN64
+	return InterlockedAdd( &g_expanded_item_count, value );
+#else
+	InterlockedExchangeAdd( &g_expanded_item_count, value );
+	return g_expanded_item_count;
+#endif
+}
+
+LONG TLV_GetRootItemCount()
 {
 	return g_root_item_count;
 }
 
-int TLV_SetRootItemCount( int root_item_count )
+LONG TLV_SetRootItemCount( LONG root_item_count )
 {
 	g_root_item_count = root_item_count;
 
 	return g_root_item_count;
 }
 
-int TLV_GetSelectedCount()
+LONG TLV_AddRootItemCount( LONG value )
+{
+#ifdef _WIN64
+	return InterlockedAdd( &g_root_item_count, value );
+#else
+	InterlockedExchangeAdd( &g_root_item_count, value );
+	return g_root_item_count;
+#endif
+}
+
+LONG TLV_GetParentItemNodeCount()
+{
+	return g_total_parent_item_nodes;
+}
+
+LONG TLV_GetSelectedCount()
 {
 	return g_selected_count;
 }
 
-int TLV_SetSelectedCount( int selected_count )
+LONG TLV_SetSelectedCount( LONG selected_count )
 {
 	g_selected_count = selected_count;
 
 	return g_selected_count;
+}
+
+LONG TLV_AddSelectedCount( LONG value )
+{
+#ifdef _WIN64
+	return InterlockedAdd( &g_selected_count, value );
+#else
+	InterlockedExchangeAdd( &g_selected_count, value );
+	return g_selected_count;
+#endif
 }
 
 TREELISTNODE *TLV_GetFocusedItem()
@@ -718,7 +981,22 @@ void TLV_SetFirstVisibleRootIndex( int first_visible_root_index )
 
 TREELISTNODE *TLV_GetFirstVisibleItem()
 {
-	return g_first_visible_node;
+	TREELISTNODE *ret_node = g_first_visible_node;
+
+if ( g_status_filter != STATUS_NONE )
+{
+	while ( ret_node != NULL )
+	{
+		DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )ret_node->data;
+		if ( IsFilterSet( di, g_status_filter ) )
+		{
+			break;
+		}
+
+		ret_node = TLV_NextNode( ret_node, false );
+	}
+}
+	return ret_node;
 }
 
 void TLV_SetFirstVisibleItem( TREELISTNODE *tln )
@@ -726,7 +1004,7 @@ void TLV_SetFirstVisibleItem( TREELISTNODE *tln )
 	g_first_visible_node = tln;
 }
 
-int TLV_GetVisibleItemCount()
+LONG TLV_GetVisibleItemCount()
 {
 	return g_visible_item_count;
 }
@@ -866,11 +1144,11 @@ void TLV_SetSelectionBounds( int index, TREELISTNODE *tln )
 	}
 }
 
-TREELISTNODE *TLV_PrevNode( TREELISTNODE *node, bool allow_collapsed )
+TREELISTNODE *TLV_PrevNode( TREELISTNODE *node, bool allow_collapsed, bool enable_filter )
 {
 	TREELISTNODE *ret_node = NULL;
 
-	if ( node != NULL )
+	while ( node != NULL )
 	{
 		// Make sure we're not looking at the head of the linked list.
 		if ( node != node->prev )
@@ -902,46 +1180,91 @@ TREELISTNODE *TLV_PrevNode( TREELISTNODE *node, bool allow_collapsed )
 				ret_node = node;
 			}
 		}
-	}
 
-	return ret_node;
-}
-
-TREELISTNODE *TLV_NextNode( TREELISTNODE *node, bool allow_collapsed )
-{
-	TREELISTNODE *ret_node = NULL;
-
-	if ( node != NULL )
-	{
-		// If the node is a parent with children.
-		if ( node->child != NULL && ( node->is_expanded || allow_collapsed ) )
+		if ( enable_filter && g_status_filter != STATUS_NONE && ret_node != NULL  )
 		{
-			ret_node = node->child;
-		}
-		else if ( node->next == NULL && node->parent != NULL )	// Node is a child with no more siblings. Go to its parent's sibling.
-		{
-			do
+			// If it's a child node, then test the parent.
+			DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )( ret_node->parent == NULL ? ret_node->data : ret_node->parent->data );
+			if ( IsFilterSet( di, g_status_filter ) )
 			{
-				node = node->parent;
+				break;
 			}
-			while ( node->next == NULL && node->parent != NULL );
 
-			ret_node = node->next;
+			if ( ret_node == g_tree_list )
+			{
+				break;
+			}
+
+			node = ret_node;
 		}
 		else
 		{
-			ret_node = node->next;
+			break;
 		}
 	}
 
 	return ret_node;
 }
 
-void TLV_AddNode( TREELISTNODE **head, TREELISTNODE *node, int position )
+TREELISTNODE *TLV_NextNode( TREELISTNODE *node, bool allow_collapsed, bool enable_filter )
+{
+	TREELISTNODE *ret_node = NULL;
+
+	while ( node != NULL )
+	{
+		if ( node != NULL )
+		{
+			// If the node is a parent with children.
+			if ( node->child != NULL && ( node->is_expanded || allow_collapsed ) )
+			{
+				ret_node = node->child;
+			}
+			else if ( node->next == NULL && node->parent != NULL )	// Node is a child with no more siblings. Go to its parent's sibling.
+			{
+				do
+				{
+					node = node->parent;
+				}
+				while ( node->next == NULL && node->parent != NULL );
+
+				ret_node = node->next;
+			}
+			else
+			{
+				ret_node = node->next;
+			}
+		}
+
+		if ( enable_filter && g_status_filter != STATUS_NONE && ret_node != NULL )
+		{
+			// If it's a child node, then test the parent.
+			DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )( ret_node->parent == NULL ? ret_node->data : ret_node->parent->data );
+			if ( IsFilterSet( di, g_status_filter ) )
+			{
+				break;
+			}
+
+			node = ret_node;
+		}
+		else
+		{
+			break;
+		}
+	}
+
+	return ret_node;
+}
+
+void TLV_AddNode( TREELISTNODE **head, TREELISTNODE *node, int position, bool is_child )
 {
 	if ( node == NULL )
 	{
 		return;
+	}
+
+	if ( !is_child )
+	{
+		++g_total_parent_item_nodes;
 	}
 
 	if ( *head == NULL )
@@ -1006,10 +1329,15 @@ void TLV_AddNode( TREELISTNODE **head, TREELISTNODE *node, int position )
 	}
 }
 
-void TLV_RemoveNode( TREELISTNODE **head, TREELISTNODE *node )
+void TLV_RemoveNode( TREELISTNODE **head, TREELISTNODE *node, bool is_child )
 {
 	if ( *head != NULL && node != NULL )
 	{
+		if ( !is_child )
+		{
+			--g_total_parent_item_nodes;
+		}
+
 		if ( node == *head ) // Node is the head.
 		{
 			if ( node->next != NULL )	// See if we can make a new head.
@@ -1200,6 +1528,8 @@ int merge_compare( void *a, void *b, void *sort )
 
 	switch ( si->column )
 	{
+		case COLUMN_CATEGORY:				{ return _wcsicmp_s( di1->shared_info->category, di2->shared_info->category ); } break;
+		case COLUMN_COMMENTS:				{ return _wcsicmp_s( di1->comments, di2->comments ); } break;
 		case COLUMN_DOWNLOAD_DIRECTORY:		{ return _wcsicmp_s( di1->shared_info->file_path, di2->shared_info->file_path ); } break;
 		case COLUMN_FILE_TYPE:				{ return _wcsicmp_s( di1->shared_info->file_path + di1->shared_info->file_extension_offset, di2->shared_info->file_path + di2->shared_info->file_extension_offset ); } break;
 		case COLUMN_FILENAME:				{ return _wcsicmp_s( di1->shared_info->file_path + di1->shared_info->filename_offset, di2->shared_info->file_path + di2->shared_info->filename_offset ); } break;
@@ -1559,7 +1889,7 @@ int Scroll( SCROLLINFO *si, unsigned char type, int scroll_amount )
 
 			if ( type == SCROLL_TYPE_DOWN )
 			{
-				TREELISTNODE *first_visible_node = g_first_visible_node;
+				TREELISTNODE *first_visible_node = TLV_GetFirstVisibleItem();
 
 				for ( int i = 0; i < offset && first_visible_node != NULL; ++i )
 				{
@@ -1799,6 +2129,11 @@ VOID CALLBACK ScrollTimerProc( HWND hWnd, UINT /*msg*/, UINT /*idTimer*/, DWORD 
 
 void HandleWindowChange( HWND hWnd, bool scroll_to_end = false, bool adjust_column = true )
 {
+	if ( g_skip_window_change )
+	{
+		return;
+	}
+
 	_GetClientRect( hWnd, &g_client_rc );
 
 	g_client_rc.top = g_header_height;	// Offset the top of our list area to the bottom of the header control.
@@ -1843,7 +2178,7 @@ void HandleWindowChange( HWND hWnd, bool scroll_to_end = false, bool adjust_colu
 	{
 		if ( g_tree_list != NULL )
 		{
-			ClearDrag();
+			TLV_ClearDrag();
 			TLV_ClearSelected( false, false );
 
 			TREELISTNODE *focused_node;
@@ -1998,7 +2333,7 @@ void HandleMouseMovement( HWND hWnd )
 		pick_index += g_first_visible_index;
 
 		// From the first visible node, get the node that was clicked.
-		TREELISTNODE *tli_node = g_first_visible_node;
+		TREELISTNODE *tli_node = TLV_GetFirstVisibleItem();
 		for ( int i = g_first_visible_index; i < pick_index && tli_node != NULL; ++i )
 		{
 			tli_node = TLV_NextNode( tli_node, false );
@@ -2633,7 +2968,7 @@ void HandleMouseDrag( HWND hWnd )
 		pick_index += g_first_visible_index;
 
 		// From the first visible node, get the node that was clicked.
-		TREELISTNODE *tli_node = g_first_visible_node;
+		TREELISTNODE *tli_node = TLV_GetFirstVisibleItem();
 		for ( int i = g_first_visible_index; i < pick_index && tli_node != NULL; ++i )
 		{
 			tli_node = TLV_NextNode( tli_node, false );
@@ -2827,7 +3162,7 @@ void HandleMouseClick( HWND hWnd, bool right_button )
 	pick_index += g_first_visible_index;
 
 	// From the first visible node, get the node that was clicked.
-	TREELISTNODE *tli_node = g_first_visible_node;
+	TREELISTNODE *tli_node = TLV_GetFirstVisibleItem();
 	for ( int i = g_first_visible_index; i < pick_index && tli_node != NULL; ++i )
 	{
 		tli_node = TLV_NextNode( tli_node, false );
@@ -2836,9 +3171,9 @@ void HandleMouseClick( HWND hWnd, bool right_button )
 	// Handle clicking on the +/- glyph
 	if ( !right_button && tli_node != NULL && tli_node->child_count > 0 )
 	{
-		int glyph_top = g_client_rc.top + ( ( pick_index - g_first_visible_index ) * g_row_height ) + ( ( g_row_height - g_glyph_size.cy ) / 2 ) + 1;
+		int glyph_top = g_client_rc.top + ( ( pick_index - g_first_visible_index ) * g_row_height ) + ( ( g_row_height - g_glyph_size.cy ) / 2 ) + _SCALE_TLV_( 1 );
 
-		if ( ( g_drag_pos.x >= GLYPH_OFFSET && g_drag_pos.x < GLYPH_OFFSET + g_glyph_size.cx ) &&
+		if ( ( g_drag_pos.x >= g_glyph_offset && g_drag_pos.x < g_glyph_offset + g_glyph_size.cx ) &&
 			 ( g_drag_pos.y >= glyph_top && g_drag_pos.y < glyph_top + g_glyph_size.cy ) )
 		{
 			TLV_ExpandCollapseParent( tli_node, pick_index, !tli_node->is_expanded );
@@ -3132,7 +3467,8 @@ LRESULT CALLBACK EditBoxSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 	switch ( msg )
 	{
-		case WM_KEYDOWN:
+		case WM_GETDLGCODE:
+		//case WM_KEYDOWN:
 		{
 			if ( wParam == VK_RETURN )
 			{
@@ -3142,7 +3478,7 @@ LRESULT CALLBACK EditBoxSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 				_DestroyWindow( hWnd );
 
-				return 0;
+				//return 0;
 			}
 			else if ( wParam == VK_ESCAPE )
 			{
@@ -3150,8 +3486,10 @@ LRESULT CALLBACK EditBoxSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 				_DestroyWindow( hWnd );
 
-				return 0;
+				//return 0;
 			}
+
+			return DLGC_WANTALLKEYS;
 		}
 		break;
 
@@ -3170,6 +3508,8 @@ LRESULT CALLBACK EditBoxSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 		case WM_DESTROY:
 		{
+			//_SetFocus( _GetParent( hWnd ) );
+
 			ignore_kill_focus = false;
 
 			g_hWnd_edit_box = NULL;
@@ -3486,7 +3826,7 @@ void DrawTreeListView( HWND hWnd )
 
 	int gridline_offset = ( cfg_show_gridlines ? 1 : 0 );
 
-	TREELISTNODE *tln = g_first_visible_node;
+	TREELISTNODE *tln = TLV_GetFirstVisibleItem();
 	while ( tln != NULL )
 	{
 		row_rc.top = row_rc.bottom;
@@ -3514,8 +3854,8 @@ void DrawTreeListView( HWND hWnd )
 		_FillRect( hdcMem, &row_bg_rc, color );
 		_DeleteObject( color );
 
-		HFONT ohf = ( HFONT )_SelectObject( hdcMem, ( node_count & 1 ? cfg_even_row_font_settings.font : cfg_odd_row_font_settings.font ) );
-		if ( ohf != cfg_even_row_font_settings.font && ohf != cfg_odd_row_font_settings.font )
+		HFONT ohf = ( HFONT )_SelectObject( hdcMem, ( node_count & 1 ? tlv_even_row_font_settings.font : tlv_odd_row_font_settings.font ) );
+		if ( ohf != tlv_even_row_font_settings.font && ohf != tlv_odd_row_font_settings.font )
 		{
 			_DeleteObject( ohf );
 		}
@@ -3528,7 +3868,7 @@ void DrawTreeListView( HWND hWnd )
 		{
 			if ( tln->child != NULL )
 			{
-				if ( rc_array[ 0 ].right >= ( GLYPH_OFFSET + g_glyph_size.cx + 2 ) )
+				if ( rc_array[ 0 ].right >= ( g_glyph_offset + g_glyph_size.cx + _SCALE_TLV_( 2 ) ) )
 				{
 					if ( g_hTheme != NULL )
 					{
@@ -3536,8 +3876,8 @@ void DrawTreeListView( HWND hWnd )
 						glyph_rc.top = row_rc.top + ( ( g_row_height - g_glyph_size.cy ) / 2 ) + gridline_offset;
 						glyph_rc.bottom = glyph_rc.top + g_glyph_size.cy;//row_rc.bottom;
 
-						glyph_rc.left = rc_array[ 0 ].left + GLYPH_OFFSET;
-						glyph_rc.right = rc_array[ 0 ].left + GLYPH_OFFSET + g_glyph_size.cx;
+						glyph_rc.left = rc_array[ 0 ].left + g_glyph_offset;
+						glyph_rc.right = rc_array[ 0 ].left + g_glyph_offset + g_glyph_size.cx;
 
 						_DrawThemeBackground( g_hTheme, hdcMem, TVP_GLYPH, ( tln->is_expanded ? GLPS_OPENED : GLPS_CLOSED ), &glyph_rc, 0 );
 					}
@@ -3550,490 +3890,496 @@ void DrawTreeListView( HWND hWnd )
 		wchar_t *buf = tbuf;
 
 		DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )tln->data;
-
-		for ( char i = start_index; i <= end_index; ++i )
+		if ( di != NULL )
 		{
-			RECT item_rc;
-			item_rc.top = row_rc.top;
-			item_rc.bottom = row_rc.bottom;
-			item_rc.left = rc_array[ i ].left;
-			item_rc.right = rc_array[ i ].right;
-
-			RECT text_rc;
-
-			if ( i == 0 )
+			for ( char i = start_index; i <= end_index; ++i )
 			{
-				text_rc.left = item_rc.left + GLYPH_OFFSET + g_glyph_size.cx + 3;
-			}
-			else
-			{
-				text_rc.left = item_rc.left + 5;
-			}
+				RECT item_rc;
+				item_rc.top = row_rc.top;
+				item_rc.bottom = row_rc.bottom;
+				item_rc.left = rc_array[ i ].left;
+				item_rc.right = rc_array[ i ].right;
 
-			text_rc.right = item_rc.right - 5;
-			if ( text_rc.right < text_rc.left )
-			{
-				text_rc.right = text_rc.left;
-			}
-			text_rc.top = item_rc.top + gridline_offset;
-			text_rc.bottom = item_rc.bottom;
+				RECT text_rc;
 
-			// Save the appropriate text in our buffer for the current column.
-			buf = GetDownloadInfoString( di, arr2[ i ], root_count, child_count, tbuf, 128 );
-
-			if ( buf == NULL )
-			{
-				tbuf[ 0 ] = L'\0';
-				buf = tbuf;
-			}
-
-			unsigned int align = 0;	// 0 = Left, 1, = Right, 2 = Center
-
-			switch ( arr2[ i ] )
-			{
-				case COLUMN_NUM:
-				case COLUMN_DATE_AND_TIME_ADDED:
-				case COLUMN_DOWNLOAD_DIRECTORY:
-				case COLUMN_FILENAME:
-				case COLUMN_SSL_TLS_VERSION:
-				case COLUMN_URL:
+				if ( i == 0 )
 				{
-					align = _DT_LEFT;
+					text_rc.left = item_rc.left + g_glyph_offset + g_glyph_size.cx + _SCALE_TLV_( 3 );
 				}
-				break;
-
-				case COLUMN_ACTIVE_PARTS:
-				case COLUMN_DOWNLOAD_SPEED:
-				case COLUMN_DOWNLOAD_SPEED_LIMIT:
-				case COLUMN_DOWNLOADED:
-				case COLUMN_FILE_SIZE:
-				case COLUMN_TIME_ELAPSED:
-				case COLUMN_TIME_REMAINING:
+				else
 				{
-					align = _DT_RIGHT;
+					text_rc.left = item_rc.left + _SCALE_TLV_( 5 );
 				}
-				break;
 
-				/*case COLUMN_FILE_TYPE:
+				text_rc.right = item_rc.right - _SCALE_TLV_( 5 );
+				if ( text_rc.right < text_rc.left )
 				{
+					text_rc.right = text_rc.left;
 				}
-				break;*/
+				text_rc.top = item_rc.top + gridline_offset;
+				text_rc.bottom = item_rc.bottom;
 
-				case COLUMN_PROGRESS:
+				// Save the appropriate text in our buffer for the current column.
+				buf = GetDownloadInfoString( di, arr2[ i ], root_count, child_count, tbuf, 128 );
+
+				if ( buf == NULL )
 				{
-					align = _DT_CENTER;
+					tbuf[ 0 ] = L'\0';
+					buf = tbuf;
 				}
-				break;
-			}
 
-			int buf_length = lstrlenW( buf );
+				unsigned int align = 0;	// 0 = Left, 1, = Right, 2 = Center
 
-			if ( arr2[ i ] == COLUMN_FILE_TYPE )	// File Type
-			{
-				if ( tln->data_type & TLVDT_GROUP && di->shared_info->icon != NULL )
+				switch ( arr2[ i ] )
 				{
-					int icon_top_offset = g_row_height - 18;
-					if ( icon_top_offset > 0 )
+					case COLUMN_NUM:
+					case COLUMN_DATE_AND_TIME_ADDED:
+					case COLUMN_CATEGORY:
+					case COLUMN_COMMENTS:
+					case COLUMN_DOWNLOAD_DIRECTORY:
+					case COLUMN_FILENAME:
+					case COLUMN_SSL_TLS_VERSION:
+					case COLUMN_URL:
 					{
-						if ( icon_top_offset & 1 )
+						align = _DT_LEFT;
+					}
+					break;
+
+					case COLUMN_ACTIVE_PARTS:
+					case COLUMN_DOWNLOAD_SPEED:
+					case COLUMN_DOWNLOAD_SPEED_LIMIT:
+					case COLUMN_DOWNLOADED:
+					case COLUMN_FILE_SIZE:
+					case COLUMN_TIME_ELAPSED:
+					case COLUMN_TIME_REMAINING:
+					{
+						align = _DT_RIGHT;
+					}
+					break;
+
+					/*case COLUMN_FILE_TYPE:
+					{
+					}
+					break;*/
+
+					case COLUMN_PROGRESS:
+					{
+						align = _DT_CENTER;
+					}
+					break;
+				}
+
+				int buf_length = lstrlenW( buf );
+
+				if ( arr2[ i ] == COLUMN_FILE_TYPE )	// File Type
+				{
+					if ( tln->data_type & TLVDT_GROUP && di->shared_info->icon != NULL )
+					{
+						int icon_top_offset = g_row_height - _SCALE_TLV_( 18 );
+						if ( icon_top_offset > 0 )
 						{
-							++icon_top_offset;
+							if ( icon_top_offset & 1 )
+							{
+								//++icon_top_offset;
+								icon_top_offset = icon_top_offset + _SCALE_TLV_( 1 );
+							}
+
+							icon_top_offset /= 2;
+						}
+						else
+						{
+							icon_top_offset = _SCALE_TLV_( 1 );
 						}
 
-						icon_top_offset /= 2;
-					}
-					else
-					{
-						icon_top_offset = 1;
-					}
+						RECT icon_rc;
+						icon_rc.top = item_rc.top + gridline_offset;
+						icon_rc.bottom = item_rc.bottom - _SCALE_TLV_( 1 );
+						icon_rc.left = item_rc.left + _SCALE_TLV_( 2 );
+						if ( i == 0 )
+						{
+							icon_rc.left += ( g_glyph_offset + g_glyph_size.cx );
+						}
+						icon_rc.right = item_rc.right - _SCALE_TLV_( 1 );
+						if ( icon_rc.right < icon_rc.left )
+						{
+							icon_rc.right = icon_rc.left;
+						}
 
-					RECT icon_rc;
-					icon_rc.top = item_rc.top + gridline_offset;
-					icon_rc.bottom = item_rc.bottom - 1;
-					icon_rc.left = item_rc.left + 2;
+						int icon_width = icon_rc.right - icon_rc.left;
+						int icon_height = icon_rc.bottom - ( icon_rc.top + icon_top_offset );
+
+						// Create a memory buffer to draw to.
+						HDC hdcMem2 = _CreateCompatibleDC( hDC );
+
+						HBITMAP hbm = _CreateCompatibleBitmap( hDC, icon_width, icon_height );
+
+						ohbm = ( HBITMAP )_SelectObject( hdcMem2, hbm );
+						_DeleteObject( ohbm );
+
+						RECT icon_color_rc;
+						icon_color_rc.left = 0;
+						icon_color_rc.top = 0;
+						icon_color_rc.right = icon_width;
+						icon_color_rc.bottom = icon_height;
+
+						if ( tln->flag & TLVS_SELECTED )
+						{
+							color = _CreateSolidBrush( ( node_count & 1 ? cfg_even_row_highlight_color : cfg_odd_row_highlight_color ) );
+						}
+						else
+						{
+							color = _CreateSolidBrush( ( node_count & 1 ? cfg_even_row_background_color : cfg_odd_row_background_color ) );
+						}
+						_FillRect( hdcMem2, &icon_color_rc, color );
+						_DeleteObject( color );
+
+						_DrawIconEx( hdcMem2, 0, 0, *di->shared_info->icon, _SCALE_TLV_( 16 ), _SCALE_TLV_( 16 ), NULL, NULL, DI_NORMAL );
+
+						_BitBlt( hdcMem, icon_rc.left, icon_rc.top + icon_top_offset, icon_width, icon_height, hdcMem2, 0, 0, SRCCOPY );
+
+						_DeleteObject( hbm );
+						_DeleteDC( hdcMem2 );
+					}
+				}
+				else if ( arr2[ i ] == COLUMN_PROGRESS )	// Progress
+				{
+					RECT progress_rc;
+					progress_rc.top = item_rc.top + _SCALE_TLV_( 2 ) + gridline_offset;
+					progress_rc.bottom = item_rc.bottom - _SCALE_TLV_( 2 );
+					progress_rc.left = item_rc.left + _SCALE_TLV_( 2 );
 					if ( i == 0 )
 					{
-						icon_rc.left += ( GLYPH_OFFSET + g_glyph_size.cx );
+						progress_rc.left += ( g_glyph_offset + g_glyph_size.cx );
 					}
-					icon_rc.right = item_rc.right - 1;
-					if ( icon_rc.right < icon_rc.left )
+					progress_rc.right = item_rc.right - _SCALE_TLV_( 2 );
+					if ( progress_rc.right < progress_rc.left )
 					{
-						icon_rc.right = icon_rc.left;
+						progress_rc.right = progress_rc.left;
 					}
 
-					int icon_width = icon_rc.right - icon_rc.left;
-					int icon_height = icon_rc.bottom - ( icon_rc.top + icon_top_offset );
+					COLORREF color_ref_body = 0, color_ref_border = 0, color_ref_background = 0, color_ref_body_text = 0, color_ref_background_text = 0;
+
+					if		( di->status == STATUS_CONNECTING )					{ color_ref_body = cfg_color_4a; color_ref_background = cfg_color_4b; color_ref_body_text = cfg_color_4c; color_ref_background_text = cfg_color_4d; color_ref_border = cfg_color_4e; }
+					else if ( IS_STATUS( di->status, STATUS_RESTART ) )			{ color_ref_body = cfg_color_13a; color_ref_background = cfg_color_13b; color_ref_body_text = cfg_color_13c; color_ref_background_text = cfg_color_13d; color_ref_border = cfg_color_13e; }
+					else if ( IS_STATUS( di->status, STATUS_PAUSED ) )			{ color_ref_body = cfg_color_10a; color_ref_background = cfg_color_10b; color_ref_body_text = cfg_color_10c; color_ref_background_text = cfg_color_10d; color_ref_border = cfg_color_10e; }
+					else if ( IS_STATUS( di->status, STATUS_QUEUED ) )			{ color_ref_body = cfg_color_12a; color_ref_background = cfg_color_12b; color_ref_body_text = cfg_color_12c; color_ref_background_text = cfg_color_12d; color_ref_border = cfg_color_12e; }
+					else if ( di->status == STATUS_COMPLETED )					{ color_ref_body = cfg_color_3a; color_ref_background = cfg_color_3b; color_ref_body_text = cfg_color_3c; color_ref_background_text = cfg_color_3d; color_ref_border = cfg_color_3e; }
+					else if ( di->status == STATUS_STOPPED )					{ color_ref_body = cfg_color_15a; color_ref_background = cfg_color_15b; color_ref_body_text = cfg_color_15c; color_ref_background_text = cfg_color_15d; color_ref_border = cfg_color_15e; }
+					else if ( di->status == STATUS_TIMED_OUT )					{ color_ref_body = cfg_color_16a; color_ref_background = cfg_color_16b; color_ref_body_text = cfg_color_16c; color_ref_background_text = cfg_color_16d; color_ref_border = cfg_color_16e; }
+					else if ( di->status == STATUS_FAILED )						{ color_ref_body = cfg_color_6a; color_ref_background = cfg_color_6b; color_ref_body_text = cfg_color_6c; color_ref_background_text = cfg_color_6d; color_ref_border = cfg_color_6e; }
+					else if ( di->status == STATUS_FILE_IO_ERROR )				{ color_ref_body = cfg_color_7a; color_ref_background = cfg_color_7b; color_ref_body_text = cfg_color_7c; color_ref_background_text = cfg_color_7d; color_ref_border = cfg_color_7e; }
+					else if ( di->status == STATUS_SKIPPED )					{ color_ref_body = cfg_color_14a; color_ref_background = cfg_color_14b; color_ref_body_text = cfg_color_14c; color_ref_background_text = cfg_color_14d; color_ref_border = cfg_color_14e; }
+					else if ( di->status == STATUS_AUTH_REQUIRED )				{ color_ref_body = cfg_color_2a; color_ref_background = cfg_color_2b; color_ref_body_text = cfg_color_2c; color_ref_background_text = cfg_color_2d; color_ref_border = cfg_color_2e; }
+					else if ( di->status == STATUS_PROXY_AUTH_REQUIRED )		{ color_ref_body = cfg_color_11a; color_ref_background = cfg_color_11b; color_ref_body_text = cfg_color_11c; color_ref_background_text = cfg_color_11d; color_ref_border = cfg_color_11e; }
+					else if	( di->status == STATUS_ALLOCATING_FILE )			{ color_ref_body = cfg_color_1a; color_ref_background = cfg_color_1b; color_ref_body_text = cfg_color_1c; color_ref_background_text = cfg_color_1d; color_ref_border = cfg_color_1e; }
+					else if	( di->status == STATUS_MOVING_FILE )				{ color_ref_body = cfg_color_9a; color_ref_background = cfg_color_9b; color_ref_body_text = cfg_color_9c; color_ref_background_text = cfg_color_9d; color_ref_border = cfg_color_9e; }
+					else if ( di->status == STATUS_INSUFFICIENT_DISK_SPACE )	{ color_ref_body = cfg_color_8a; color_ref_background = cfg_color_8b; color_ref_body_text = cfg_color_8c; color_ref_background_text = cfg_color_8d; color_ref_border = cfg_color_8e; }
+					else														{ color_ref_body = cfg_color_5a; color_ref_background = cfg_color_5b; color_ref_body_text = cfg_color_5c; color_ref_background_text = cfg_color_5d; color_ref_border = cfg_color_5e; }
+
+					int progress_width = progress_rc.right - progress_rc.left;
+					int progress_height = progress_rc.bottom - progress_rc.top;
+
+					color = _CreateSolidBrush( color_ref_background );
+					_FillRect( hdcMem, &progress_rc, color );
+					_DeleteObject( color );
+
+					_SetTextColor( hdcMem, color_ref_background_text );
+					__DrawTextW( hdcMem, progress_rc.left, progress_rc.top, align | _DT_VCENTER, &progress_rc, buf, buf_length );
+
+					////////////////////
 
 					// Create a memory buffer to draw to.
 					HDC hdcMem2 = _CreateCompatibleDC( hDC );
 
-					HBITMAP hbm = _CreateCompatibleBitmap( hDC, icon_width, icon_height );
+					HBITMAP hbm = _CreateCompatibleBitmap( hDC, progress_width, progress_height );
 
 					ohbm = ( HBITMAP )_SelectObject( hdcMem2, hbm );
 					_DeleteObject( ohbm );
 
-					RECT icon_color_rc;
-					icon_color_rc.left = 0;
-					icon_color_rc.top = 0;
-					icon_color_rc.right = icon_width;
-					icon_color_rc.bottom = icon_height;
-
-					if ( tln->flag & TLVS_SELECTED )
+					ohf = ( HFONT )_SelectObject( hdcMem2, ( node_count & 1 ? tlv_even_row_font_settings.font : tlv_odd_row_font_settings.font ) );
+					if ( ohf != tlv_even_row_font_settings.font && ohf != tlv_odd_row_font_settings.font )
 					{
-						color = _CreateSolidBrush( ( node_count & 1 ? cfg_even_row_highlight_color : cfg_odd_row_highlight_color ) );
-					}
-					else
-					{
-						color = _CreateSolidBrush( ( node_count & 1 ? cfg_even_row_background_color : cfg_odd_row_background_color ) );
-					}
-					_FillRect( hdcMem2, &icon_color_rc, color );
-					_DeleteObject( color );
-
-					_DrawIconEx( hdcMem2, 0, 0, *di->shared_info->icon, 0, 0, NULL, NULL, DI_NORMAL );
-
-					_BitBlt( hdcMem, icon_rc.left, icon_rc.top + icon_top_offset, icon_width, icon_height, hdcMem2, 0, 0, SRCCOPY );
-
-					_DeleteObject( hbm );
-					_DeleteDC( hdcMem2 );
-				}
-			}
-			else if ( arr2[ i ] == COLUMN_PROGRESS )	// Progress
-			{
-				RECT progress_rc;
-				progress_rc.top = item_rc.top + 2 + gridline_offset;
-				progress_rc.bottom = item_rc.bottom - 2;
-				progress_rc.left = item_rc.left + 2;
-				if ( i == 0 )
-				{
-					progress_rc.left += ( GLYPH_OFFSET + g_glyph_size.cx );
-				}
-				progress_rc.right = item_rc.right - 2;
-				if ( progress_rc.right < progress_rc.left )
-				{
-					progress_rc.right = progress_rc.left;
-				}
-
-				COLORREF color_ref_body = 0, color_ref_border = 0, color_ref_background = 0, color_ref_body_text = 0, color_ref_background_text = 0;
-
-				if		( di->status == STATUS_CONNECTING )					{ color_ref_body = cfg_color_4a; color_ref_background = cfg_color_4b; color_ref_body_text = cfg_color_4c; color_ref_background_text = cfg_color_4d; color_ref_border = cfg_color_4e; }
-				else if ( IS_STATUS( di->status, STATUS_RESTART ) )			{ color_ref_body = cfg_color_13a; color_ref_background = cfg_color_13b; color_ref_body_text = cfg_color_13c; color_ref_background_text = cfg_color_13d; color_ref_border = cfg_color_13e; }
-				else if ( IS_STATUS( di->status, STATUS_PAUSED ) )			{ color_ref_body = cfg_color_10a; color_ref_background = cfg_color_10b; color_ref_body_text = cfg_color_10c; color_ref_background_text = cfg_color_10d; color_ref_border = cfg_color_10e; }
-				else if ( IS_STATUS( di->status, STATUS_QUEUED ) )			{ color_ref_body = cfg_color_12a; color_ref_background = cfg_color_12b; color_ref_body_text = cfg_color_12c; color_ref_background_text = cfg_color_12d; color_ref_border = cfg_color_12e; }
-				else if ( di->status == STATUS_COMPLETED )					{ color_ref_body = cfg_color_3a; color_ref_background = cfg_color_3b; color_ref_body_text = cfg_color_3c; color_ref_background_text = cfg_color_3d; color_ref_border = cfg_color_3e; }
-				else if ( di->status == STATUS_STOPPED )					{ color_ref_body = cfg_color_15a; color_ref_background = cfg_color_15b; color_ref_body_text = cfg_color_15c; color_ref_background_text = cfg_color_15d; color_ref_border = cfg_color_15e; }
-				else if ( di->status == STATUS_TIMED_OUT )					{ color_ref_body = cfg_color_16a; color_ref_background = cfg_color_16b; color_ref_body_text = cfg_color_16c; color_ref_background_text = cfg_color_16d; color_ref_border = cfg_color_16e; }
-				else if ( di->status == STATUS_FAILED )						{ color_ref_body = cfg_color_6a; color_ref_background = cfg_color_6b; color_ref_body_text = cfg_color_6c; color_ref_background_text = cfg_color_6d; color_ref_border = cfg_color_6e; }
-				else if ( di->status == STATUS_FILE_IO_ERROR )				{ color_ref_body = cfg_color_7a; color_ref_background = cfg_color_7b; color_ref_body_text = cfg_color_7c; color_ref_background_text = cfg_color_7d; color_ref_border = cfg_color_7e; }
-				else if ( di->status == STATUS_SKIPPED )					{ color_ref_body = cfg_color_14a; color_ref_background = cfg_color_14b; color_ref_body_text = cfg_color_14c; color_ref_background_text = cfg_color_14d; color_ref_border = cfg_color_14e; }
-				else if ( di->status == STATUS_AUTH_REQUIRED )				{ color_ref_body = cfg_color_2a; color_ref_background = cfg_color_2b; color_ref_body_text = cfg_color_2c; color_ref_background_text = cfg_color_2d; color_ref_border = cfg_color_2e; }
-				else if ( di->status == STATUS_PROXY_AUTH_REQUIRED )		{ color_ref_body = cfg_color_11a; color_ref_background = cfg_color_11b; color_ref_body_text = cfg_color_11c; color_ref_background_text = cfg_color_11d; color_ref_border = cfg_color_11e; }
-				else if	( di->status == STATUS_ALLOCATING_FILE )			{ color_ref_body = cfg_color_1a; color_ref_background = cfg_color_1b; color_ref_body_text = cfg_color_1c; color_ref_background_text = cfg_color_1d; color_ref_border = cfg_color_1e; }
-				else if	( di->status == STATUS_MOVING_FILE )				{ color_ref_body = cfg_color_9a; color_ref_background = cfg_color_9b; color_ref_body_text = cfg_color_9c; color_ref_background_text = cfg_color_9d; color_ref_border = cfg_color_9e; }
-				else if ( di->status == STATUS_INSUFFICIENT_DISK_SPACE )	{ color_ref_body = cfg_color_8a; color_ref_background = cfg_color_8b; color_ref_body_text = cfg_color_8c; color_ref_background_text = cfg_color_8d; color_ref_border = cfg_color_8e; }
-				else														{ color_ref_body = cfg_color_5a; color_ref_background = cfg_color_5b; color_ref_body_text = cfg_color_5c; color_ref_background_text = cfg_color_5d; color_ref_border = cfg_color_5e; }
-
-				int progress_width = progress_rc.right - progress_rc.left;
-				int progress_height = progress_rc.bottom - progress_rc.top;
-
-				color = _CreateSolidBrush( color_ref_background );
-				_FillRect( hdcMem, &progress_rc, color );
-				_DeleteObject( color );
-
-				_SetTextColor( hdcMem, color_ref_background_text );
-				__DrawTextW( hdcMem, progress_rc.left, progress_rc.top, align | _DT_VCENTER, &progress_rc, buf, buf_length );
-
-				////////////////////
-
-				// Create a memory buffer to draw to.
-				HDC hdcMem2 = _CreateCompatibleDC( hDC );
-
-				HBITMAP hbm = _CreateCompatibleBitmap( hDC, progress_width, progress_height );
-
-				ohbm = ( HBITMAP )_SelectObject( hdcMem2, hbm );
-				_DeleteObject( ohbm );
-
-				ohf = ( HFONT )_SelectObject( hdcMem2, ( node_count & 1 ? cfg_even_row_font_settings.font : cfg_odd_row_font_settings.font ) );
-				if ( ohf != cfg_even_row_font_settings.font && ohf != cfg_odd_row_font_settings.font )
-				{
-					_DeleteObject( ohf );
-				}
-
-				// Transparent background for text.
-				_SetBkMode( hdcMem2, TRANSPARENT );
-
-				if ( cfg_show_part_progress &&
-				   ( IS_STATUS( di->status,
-						STATUS_CONNECTING |
-						STATUS_DOWNLOADING |
-						STATUS_STOPPED |
-						STATUS_QUEUED ) ||
-						di->status == STATUS_NONE ) &&
-					di->print_range_list != NULL && di->parts > 1 )
-				{
-					RECT progress_parts_rc;
-					progress_parts_rc.top = 0;
-					progress_parts_rc.left = 0;
-					progress_parts_rc.right = progress_width;
-					progress_parts_rc.bottom = progress_height;
-
-					// We'll pick out sections of this bitmap to paint the progress bar.
-					color = _CreateSolidBrush( color_ref_body );
-					_FillRect( hdcMem2, &progress_parts_rc, color );
-					_DeleteObject( color );
-
-					RECT parts_text_rc;
-					parts_text_rc.left = 0;
-					parts_text_rc.right = progress_rc.right - progress_rc.left;
-					parts_text_rc.top = 0;
-					parts_text_rc.bottom = progress_rc.bottom - progress_rc.top;
-
-					_SetTextColor( hdcMem2, color_ref_body_text );
-					__DrawTextW( hdcMem2, 0, 0, align | _DT_VCENTER, &parts_text_rc, buf, buf_length );
-
-					unsigned short range_info_count = 0;
-					unsigned short total_range_info_count = ( di->hosts > 0 ? di->hosts : di->parts );
-
-					unsigned long long last_range_end = 0;
-					unsigned long long last_host_end = di->file_size;
-
-					// If our hosts in a group have multiple parts, then we need to figure out what the previous offset is.
-					if ( di->shared_info->host_list != &di->shared_info_node &&
-						 di->shared_info_node.prev != NULL && di->shared_info_node.prev->data != NULL )
-					{
-						DOWNLOAD_INFO *last_di = ( DOWNLOAD_INFO * )di->shared_info_node.prev->data;
-						if ( last_di->range_list != NULL )
-						{
-							RANGE_INFO *last_ri = ( RANGE_INFO * )( last_di->range_list->prev != NULL ? last_di->range_list->prev->data : last_di->range_list->data );
-							if ( last_ri != NULL )
-							{
-								last_host_end = last_ri->range_end + 1;
-							}
-						}
+						_DeleteObject( ohf );
 					}
 
-					DoublyLinkedList *range_node = di->print_range_list;
+					// Transparent background for text.
+					_SetBkMode( hdcMem2, TRANSPARENT );
 
-					// Determine the number of ranges that still need downloading.
-					while ( range_node != di->range_list_end && range_node->data != NULL )
-					{
-						++range_info_count;
-
-						unsigned long long range_end;
-						unsigned long long range_size;
-						unsigned long long content_offset;
-
-						// We're a group item in the list.
-						if ( di == di->shared_info && di != ( DOWNLOAD_INFO * )di->shared_info->host_list->data )
-						{
-							DOWNLOAD_INFO *di_host = ( DOWNLOAD_INFO * )range_node->data;
-
-							range_end = last_range_end + di_host->file_size;
-							range_size = di_host->file_size;
-							content_offset = di_host->downloaded;
-						}
-						else	// We're a host (either in a group or alone).
-						{
-							RANGE_INFO *ri = ( RANGE_INFO * )range_node->data;
-
-							if ( ri->range_start >= last_host_end )
-							{
-								range_end = ( ri->range_end + 1 ) - last_host_end;
-								range_size = ( range_end - last_range_end );
-								content_offset = ri->content_offset;
-
-								if ( ( ri->range_start - last_host_end ) > last_range_end )
-								{
-									content_offset += ( ( ri->range_start - last_host_end ) - last_range_end );
-								}
-							}
-							else
-							{
-								range_end = ri->range_end + 1;
-								range_size = ( range_end - last_range_end );
-								content_offset = ri->content_offset;
-
-								if ( ri->range_start > last_range_end )
-								{
-									content_offset += ( ri->range_start - last_range_end );
-								}
-							}
-						}
-
-						int range_offset = 0;
-						int range_width = 0;
-						if ( di->file_size > 0 )
-						{
-#ifdef _WIN64
-							range_offset = ( int )_ceil( ( double )progress_width * ( ( double )last_range_end / ( double )di->file_size ) );
-							range_width = ( int )_ceil( ( double )progress_width * ( ( double )range_size / ( double )di->file_size ) );
-#else
-							double f_range_offset = _ceil( ( double )progress_width * ( ( double )last_range_end / ( double )di->file_size ) );
-							__asm
-							{
-								fld f_range_offset;	//; Load the floating point value onto the FPU stack.
-								fistp range_offset;	//; Convert the floating point value into an integer, store it in an integer, and then pop it off the stack.
-							}
-
-							double f_range_width = _ceil( ( double )progress_width * ( ( double )range_size / ( double )di->file_size ) );
-							__asm
-							{
-								fld f_range_width;	//; Load the floating point value onto the FPU stack.
-								fistp range_width;	//; Convert the floating point value into an integer, store it in an integer, and then pop it off the stack.
-							}
-#endif
-						}
-
-						int range_progress_offset = 0;
-						if ( range_size > 0 )
-						{
-#ifdef _WIN64
-							range_progress_offset = ( int )_ceil( ( double )range_width * ( ( double )content_offset / ( double )range_size ) );
-#else
-							double f_range_progress_offset = _ceil( ( double )range_width * ( ( double )content_offset / ( double )range_size ) );
-							__asm
-							{
-								fld f_range_progress_offset;	//; Load the floating point value onto the FPU stack.
-								fistp range_progress_offset;	//; Convert the floating point value into an integer, store it in an integer, and then pop it off the stack.
-							}
-#endif
-						}
-
-						_BitBlt( hdcMem, progress_rc.left + range_offset, progress_rc.top, range_progress_offset, progress_height, hdcMem2, range_offset, 0, SRCCOPY );
-
-						last_range_end = range_end;
-
-						range_node = range_node->next;
-					}
-
-					// Fill out the remaining progress bar if later parts have completed.
-					if ( ( IS_STATUS_NOT( di->status, STATUS_CONNECTING ) || range_info_count >= total_range_info_count ) && /*last_host_end*/ last_range_end < di->file_size )
-					{
-						int range_offset = 0;
-						if ( di->file_size > 0 )
-						{
-#ifdef _WIN64
-							range_offset = ( int )_ceil( ( double )progress_width * ( ( double )last_range_end / ( double )di->file_size ) );
-#else
-							double f_range_offset = _ceil( ( double )progress_width * ( ( double )last_range_end / ( double )di->file_size ) );
-							__asm
-							{
-								fld f_range_offset;	//; Load the floating point value onto the FPU stack.
-								fistp range_offset;	//; Convert the floating point value into an integer, store it in an integer, and then pop it off the stack.
-							}
-#endif
-						}
-
-						_BitBlt( hdcMem, progress_rc.left + range_offset, progress_rc.top, progress_width - range_offset, progress_height, hdcMem2, range_offset, 0, SRCCOPY );
-					}
-				}
-				else
-				{
-					int progress_offset;
-
-					// Connecting, Downloading, Paused, Queued, Stopped.
-					if ( IS_STATUS( di->status,
+					if ( cfg_show_part_progress &&
+					   ( IS_STATUS( di->status,
 							STATUS_CONNECTING |
 							STATUS_DOWNLOADING |
 							STATUS_STOPPED |
 							STATUS_QUEUED ) ||
-							di->status == STATUS_NONE )
+							di->status == STATUS_NONE ) &&
+						di->print_range_list != NULL && di->parts > 1 )
 					{
-						if ( di->file_size > 0 )
+						RECT progress_parts_rc;
+						progress_parts_rc.top = 0;
+						progress_parts_rc.left = 0;
+						progress_parts_rc.right = progress_width;
+						progress_parts_rc.bottom = progress_height;
+
+						// We'll pick out sections of this bitmap to paint the progress bar.
+						color = _CreateSolidBrush( color_ref_body );
+						_FillRect( hdcMem2, &progress_parts_rc, color );
+						_DeleteObject( color );
+
+						RECT parts_text_rc;
+						parts_text_rc.left = 0;
+						parts_text_rc.right = progress_rc.right - progress_rc.left;
+						parts_text_rc.top = 0;
+						parts_text_rc.bottom = progress_rc.bottom - progress_rc.top;
+
+						_SetTextColor( hdcMem2, color_ref_body_text );
+						__DrawTextW( hdcMem2, 0, 0, align | _DT_VCENTER, &parts_text_rc, buf, buf_length );
+
+						unsigned short range_info_count = 0;
+						unsigned short total_range_info_count = ( di->hosts > 0 ? di->hosts : di->parts );
+
+						unsigned long long last_range_end = 0;
+						unsigned long long last_host_end = di->file_size;
+
+						// If our hosts in a group have multiple parts, then we need to figure out what the previous offset is.
+						if ( di->shared_info->host_list != &di->shared_info_node &&
+							 di->shared_info_node.prev != NULL && di->shared_info_node.prev->data != NULL )
 						{
-							int i_percentage;
-#ifdef _WIN64
-							i_percentage = ( int )_ceil( ( double )progress_width * ( ( double )di->last_downloaded / ( double )di->file_size ) );
-#else
-							// Multiply the floating point division by 100%.
-							double f_percentage = _ceil( ( double )progress_width * ( ( double )di->last_downloaded / ( double )di->file_size ) );
-							__asm
+							DOWNLOAD_INFO *last_di = ( DOWNLOAD_INFO * )di->shared_info_node.prev->data;
+							if ( last_di->range_list != NULL )
 							{
-								fld f_percentage;	//; Load the floating point value onto the FPU stack.
-								fistp i_percentage;	//; Convert the floating point value into an integer, store it in an integer, and then pop it off the stack.
+								RANGE_INFO *last_ri = ( RANGE_INFO * )( last_di->range_list->prev != NULL ? last_di->range_list->prev->data : last_di->range_list->data );
+								if ( last_ri != NULL )
+								{
+									last_host_end = last_ri->range_end + 1;
+								}
 							}
+						}
+
+						DoublyLinkedList *range_node = di->print_range_list;
+
+						// Determine the number of ranges that still need downloading.
+						while ( range_node != di->range_list_end && range_node->data != NULL )
+						{
+							++range_info_count;
+
+							unsigned long long range_end;
+							unsigned long long range_size;
+							unsigned long long content_offset;
+
+							// We're a group item in the list.
+							if ( di == di->shared_info && di != ( DOWNLOAD_INFO * )di->shared_info->host_list->data )
+							{
+								DOWNLOAD_INFO *di_host = ( DOWNLOAD_INFO * )range_node->data;
+
+								range_end = last_range_end + di_host->file_size;
+								range_size = di_host->file_size;
+								content_offset = di_host->downloaded;
+							}
+							else	// We're a host (either in a group or alone).
+							{
+								RANGE_INFO *ri = ( RANGE_INFO * )range_node->data;
+
+								if ( ri->range_start >= last_host_end )
+								{
+									range_end = ( ri->range_end + 1 ) - last_host_end;
+									range_size = ( range_end - last_range_end );
+									content_offset = ri->content_offset;
+
+									if ( ( ri->range_start - last_host_end ) > last_range_end )
+									{
+										content_offset += ( ( ri->range_start - last_host_end ) - last_range_end );
+									}
+								}
+								else
+								{
+									range_end = ri->range_end + 1;
+									range_size = ( range_end - last_range_end );
+									content_offset = ri->content_offset;
+
+									if ( ri->range_start > last_range_end )
+									{
+										content_offset += ( ri->range_start - last_range_end );
+									}
+								}
+							}
+
+							int range_offset = 0;
+							int range_width = 0;
+							if ( di->file_size > 0 )
+							{
+#ifdef _WIN64
+								range_offset = ( int )_ceil( ( double )progress_width * ( ( double )last_range_end / ( double )di->file_size ) );
+								range_width = ( int )_ceil( ( double )progress_width * ( ( double )range_size / ( double )di->file_size ) );
+#else
+								double f_range_offset = _ceil( ( double )progress_width * ( ( double )last_range_end / ( double )di->file_size ) );
+								__asm
+								{
+									fld f_range_offset;	//; Load the floating point value onto the FPU stack.
+									fistp range_offset;	//; Convert the floating point value into an integer, store it in an integer, and then pop it off the stack.
+								}
+
+								double f_range_width = _ceil( ( double )progress_width * ( ( double )range_size / ( double )di->file_size ) );
+								__asm
+								{
+									fld f_range_width;	//; Load the floating point value onto the FPU stack.
+									fistp range_width;	//; Convert the floating point value into an integer, store it in an integer, and then pop it off the stack.
+								}
 #endif
-							//rc_clip.right = i_percentage;
-							progress_offset = i_percentage;
+							}
+
+							int range_progress_offset = 0;
+							if ( range_size > 0 )
+							{
+#ifdef _WIN64
+								range_progress_offset = ( int )_ceil( ( double )range_width * ( ( double )content_offset / ( double )range_size ) );
+#else
+								double f_range_progress_offset = _ceil( ( double )range_width * ( ( double )content_offset / ( double )range_size ) );
+								__asm
+								{
+									fld f_range_progress_offset;	//; Load the floating point value onto the FPU stack.
+									fistp range_progress_offset;	//; Convert the floating point value into an integer, store it in an integer, and then pop it off the stack.
+								}
+#endif
+							}
+
+							_BitBlt( hdcMem, progress_rc.left + range_offset, progress_rc.top, range_progress_offset, progress_height, hdcMem2, range_offset, 0, SRCCOPY );
+
+							last_range_end = range_end;
+
+							range_node = range_node->next;
+						}
+
+						// Fill out the remaining progress bar if later parts have completed.
+						if ( ( IS_STATUS_NOT( di->status, STATUS_CONNECTING ) || range_info_count >= total_range_info_count ) && /*last_host_end*/ last_range_end < di->file_size )
+						{
+							int range_offset = 0;
+							if ( di->file_size > 0 )
+							{
+#ifdef _WIN64
+								range_offset = ( int )_ceil( ( double )progress_width * ( ( double )last_range_end / ( double )di->file_size ) );
+#else
+								double f_range_offset = _ceil( ( double )progress_width * ( ( double )last_range_end / ( double )di->file_size ) );
+								__asm
+								{
+									fld f_range_offset;	//; Load the floating point value onto the FPU stack.
+									fistp range_offset;	//; Convert the floating point value into an integer, store it in an integer, and then pop it off the stack.
+								}
+#endif
+							}
+
+							_BitBlt( hdcMem, progress_rc.left + range_offset, progress_rc.top, progress_width - range_offset, progress_height, hdcMem2, range_offset, 0, SRCCOPY );
+						}
+					}
+					else
+					{
+						int progress_offset;
+
+						// Connecting, Downloading, Paused, Queued, Stopped.
+						if ( IS_STATUS( di->status,
+								STATUS_CONNECTING |
+								STATUS_DOWNLOADING |
+								STATUS_STOPPED |
+								STATUS_QUEUED ) ||
+								di->status == STATUS_NONE )
+						{
+							if ( di->file_size > 0 )
+							{
+								int i_percentage;
+#ifdef _WIN64
+								i_percentage = ( int )_ceil( ( double )progress_width * ( ( double )di->last_downloaded / ( double )di->file_size ) );
+#else
+								// Multiply the floating point division by 100%.
+								double f_percentage = _ceil( ( double )progress_width * ( ( double )di->last_downloaded / ( double )di->file_size ) );
+								__asm
+								{
+									fld f_percentage;	//; Load the floating point value onto the FPU stack.
+									fistp i_percentage;	//; Convert the floating point value into an integer, store it in an integer, and then pop it off the stack.
+								}
+#endif
+								//rc_clip.right = i_percentage;
+								progress_offset = i_percentage;
+							}
+							else
+							{
+								//rc_clip.right = 0;
+								progress_offset = 0;
+							}
 						}
 						else
 						{
-							//rc_clip.right = 0;
-							progress_offset = 0;
+							progress_offset = progress_width;
 						}
+
+						RECT progress_parts_rc;
+						progress_parts_rc.top = 0;
+						progress_parts_rc.left = 0;
+						progress_parts_rc.right = progress_width;
+						progress_parts_rc.bottom = progress_height;
+
+						// We'll pick out sections of this bitmap to paint the progress bar.
+						color = _CreateSolidBrush( color_ref_body );
+						_FillRect( hdcMem2, &progress_parts_rc, color );
+						_DeleteObject( color );
+
+						RECT parts_text_rc;
+						parts_text_rc.left = 0;
+						parts_text_rc.right = progress_rc.right - progress_rc.left;
+						parts_text_rc.top = 0;
+						parts_text_rc.bottom = progress_rc.bottom - progress_rc.top;
+
+						_SetTextColor( hdcMem2, color_ref_body_text );
+						__DrawTextW( hdcMem2, 0, 0, align | _DT_VCENTER, &parts_text_rc, buf, buf_length );
+
+						_BitBlt( hdcMem, progress_rc.left, progress_rc.top, progress_offset, progress_height, hdcMem2, 0, 0, SRCCOPY );
 					}
-					else
+
+					_DeleteObject( hbm );
+					_DeleteDC( hdcMem2 );
+
+					////////////////////
+
+					RECT frame_rc;
+					frame_rc.top = item_rc.top + _SCALE_TLV_( 1 ) + gridline_offset;
+					frame_rc.bottom = item_rc.bottom - _SCALE_TLV_( 1 );
+					frame_rc.left = item_rc.left + _SCALE_TLV_( 2 );
+					if ( i == 0 )
 					{
-						progress_offset = progress_width;
+						frame_rc.left += ( g_glyph_offset + g_glyph_size.cx );
 					}
-
-					RECT progress_parts_rc;
-					progress_parts_rc.top = 0;
-					progress_parts_rc.left = 0;
-					progress_parts_rc.right = progress_width;
-					progress_parts_rc.bottom = progress_height;
-
-					// We'll pick out sections of this bitmap to paint the progress bar.
-					color = _CreateSolidBrush( color_ref_body );
-					_FillRect( hdcMem2, &progress_parts_rc, color );
-					_DeleteObject( color );
-
-					RECT parts_text_rc;
-					parts_text_rc.left = 0;
-					parts_text_rc.right = progress_rc.right - progress_rc.left;
-					parts_text_rc.top = 0;
-					parts_text_rc.bottom = progress_rc.bottom - progress_rc.top;
-
-					_SetTextColor( hdcMem2, color_ref_body_text );
-					__DrawTextW( hdcMem2, 0, 0, align | _DT_VCENTER, &parts_text_rc, buf, buf_length );
-
-					_BitBlt( hdcMem, progress_rc.left, progress_rc.top, progress_offset, progress_height, hdcMem2, 0, 0, SRCCOPY );
-				}
-
-				_DeleteObject( hbm );
-				_DeleteDC( hdcMem2 );
-
-				////////////////////
-
-				RECT frame_rc;
-				frame_rc.top = item_rc.top + 1 + gridline_offset;
-				frame_rc.bottom = item_rc.bottom - 1;
-				frame_rc.left = item_rc.left + 2;
-				if ( i == 0 )
-				{
-					frame_rc.left += ( GLYPH_OFFSET + g_glyph_size.cx );
-				}
-				frame_rc.right = item_rc.right - 1;
-				if ( frame_rc.right < frame_rc.left )
-				{
-					frame_rc.right = frame_rc.left;
-				}
-
-				HPEN hPen = _CreatePen( PS_SOLID, 1, color_ref_border );
-				HPEN old_color = ( HPEN )_SelectObject( hdcMem, hPen );
-				_DeleteObject( old_color );
-				HBRUSH old_brush = ( HBRUSH )_SelectObject( hdcMem, _GetStockObject( NULL_BRUSH ) );
-				_DeleteObject( old_brush );
-				_Rectangle( hdcMem, frame_rc.left, frame_rc.top, frame_rc.right, frame_rc.bottom );
-				_DeleteObject( hPen );
-			}
-			else
-			{
-				if ( tln->data_type & TLVDT_GROUP ||
-				   ( arr2[ i ] != COLUMN_DATE_AND_TIME_ADDED &&
-					 arr2[ i ] != COLUMN_DOWNLOAD_DIRECTORY &&
-					 arr2[ i ] != COLUMN_FILENAME ) )
-				{
-					// Draw selected text
-					if ( selected )
+					frame_rc.right = item_rc.right - _SCALE_TLV_( 1 );
+					if ( frame_rc.right < frame_rc.left )
 					{
-						_SetTextColor( hdcMem, ( node_count & 1 ? cfg_even_row_highlight_font_color : cfg_odd_row_highlight_font_color ) );
-					}
-					else
-					{
-						_SetTextColor( hdcMem, ( node_count & 1 ? cfg_even_row_font_settings.font_color : cfg_odd_row_font_settings.font_color ) );
+						frame_rc.right = frame_rc.left;
 					}
 
-					__DrawTextW( hdcMem, text_rc.left, text_rc.top, align | _DT_VCENTER, &text_rc, buf, buf_length );
+					HPEN hPen = _CreatePen( PS_SOLID, _SCALE_TLV_( 1 ), color_ref_border );
+					HPEN old_color = ( HPEN )_SelectObject( hdcMem, hPen );
+					_DeleteObject( old_color );
+					HBRUSH old_brush = ( HBRUSH )_SelectObject( hdcMem, _GetStockObject( NULL_BRUSH ) );
+					_DeleteObject( old_brush );
+					_Rectangle( hdcMem, frame_rc.left, frame_rc.top, frame_rc.right, frame_rc.bottom );
+					_DeleteObject( hPen );
+				}
+				else
+				{
+					if ( tln->data_type & TLVDT_GROUP ||
+					   ( arr2[ i ] != COLUMN_DATE_AND_TIME_ADDED &&
+						 arr2[ i ] != COLUMN_CATEGORY &&
+						 arr2[ i ] != COLUMN_DOWNLOAD_DIRECTORY &&
+						 arr2[ i ] != COLUMN_FILENAME ) )
+					{
+						// Draw selected text
+						if ( selected )
+						{
+							_SetTextColor( hdcMem, ( node_count & 1 ? cfg_even_row_highlight_font_color : cfg_odd_row_highlight_font_color ) );
+						}
+						else
+						{
+							_SetTextColor( hdcMem, ( node_count & 1 ? cfg_even_row_font_settings.font_color : cfg_odd_row_font_settings.font_color ) );
+						}
+
+						__DrawTextW( hdcMem, text_rc.left, text_rc.top, align | _DT_VCENTER, &text_rc, buf, buf_length );
+					}
 				}
 			}
 		}
@@ -4068,7 +4414,7 @@ void DrawTreeListView( HWND hWnd )
 			row_rc.bottom += g_row_height;
 
 			RECT row_bg_rc;
-			row_bg_rc.top = row_rc.top + 1;
+			row_bg_rc.top = row_rc.top + _SCALE_TLV_( 1 );
 			row_bg_rc.left = row_rc.left;
 			row_bg_rc.right = ( cfg_draw_full_rows ? g_client_rc.right : row_rc.right );
 			row_bg_rc.bottom = row_rc.bottom;
@@ -4091,7 +4437,7 @@ void DrawTreeListView( HWND hWnd )
 
 		if ( start_index != end_index || g_visible_rows > 0 )
 		{
-			line_color = _CreatePen( PS_SOLID, 1, cfg_gridline_color );
+			line_color = _CreatePen( PS_SOLID, _SCALE_TLV_( 1 ), cfg_gridline_color );
 			HPEN old_color = ( HPEN )_SelectObject( hdcMem, line_color );
 			_DeleteObject( old_color );
 		}
@@ -4132,12 +4478,12 @@ void DrawTreeListView( HWND hWnd )
 #ifdef ENABLE_DARK_MODE
 			if ( g_use_dark_mode )
 			{
-				line_color = _CreatePen( PS_DOT, 1, dm_color_list_highlight );
+				line_color = _CreatePen( PS_DOT, _SCALE_TLV_( 1 ), dm_color_list_highlight );
 			}
 			else
 #endif
 			{
-				line_color = _CreatePen( PS_DOT, 1, ( COLORREF )_GetSysColor( COLOR_HOTLIGHT ) );
+				line_color = _CreatePen( PS_DOT, _SCALE_TLV_( 1 ), ( COLORREF )_GetSysColor( COLOR_HOTLIGHT ) );
 			}
 
 			HPEN old_color = ( HPEN )_SelectObject( hdcMem, line_color );
@@ -4227,7 +4573,10 @@ void DrawTreeListView( HWND hWnd )
 				_DeleteDC( hdcMem2 );
 
 				// Draw a solid border around rectangle.
-				_FrameRect( hdcMem, &drag_rc, background );
+				//_FrameRect( hdcMem, &drag_rc, background );
+				HRGN hRgn = _CreateRectRgn( drag_rc.left, drag_rc.top, drag_rc.right, drag_rc.bottom );
+				_FrameRgn( hdcMem, hRgn, background, _SCALE_TLV_( 1 ), _SCALE_TLV_( 1 ) );
+				_DeleteObject( hRgn );
 
 				_DeleteObject( background );
 			}
@@ -4240,7 +4589,7 @@ void DrawTreeListView( HWND hWnd )
 	{
 		// Draw the single border line at the top of the window.
 		// It will overlap the first item's top line if there's no header visible.
-		HPEN line_color = _CreatePen( PS_SOLID, 1, ( COLORREF )_GetSysColor( COLOR_3DSHADOW ) );
+		HPEN line_color = _CreatePen( PS_SOLID, _SCALE_TLV_( 1 ), ( COLORREF )_GetSysColor( COLOR_3DSHADOW ) );
 		HPEN old_color = ( HPEN )_SelectObject( hdcMem, line_color );
 		_DeleteObject( old_color );
 
@@ -4276,15 +4625,60 @@ void CreateTooltip( HWND hWnd )
 	_SendMessageW( g_hWnd_tlv_tooltip, TTM_SETDELAYTIME, TTDT_AUTOPOP, 32767 );
 }
 
+void AdjustRowHeight()
+{
+	int height1, height2;
+	TEXTMETRIC tm;
+	HDC hDC = _GetDC( NULL );
+	HFONT ohf = ( HFONT )_SelectObject( hDC, tlv_odd_row_font_settings.font );
+	_GetTextMetricsW( hDC, &tm );
+	height1 = tm.tmHeight + tm.tmExternalLeading + _SCALE_TLV_( 5 );
+	_SelectObject( hDC, ohf );	// Reset old font.
+	ohf = ( HFONT )_SelectObject( hDC, tlv_even_row_font_settings.font );
+	_GetTextMetricsW( hDC, &tm );
+	height2 = tm.tmHeight + tm.tmExternalLeading + _SCALE_TLV_( 5 );
+	_SelectObject( hDC, ohf );	// Reset old font.
+	_ReleaseDC( NULL, hDC );
+
+	g_row_height = ( height1 > height2 ? height1 : height2 );
+
+	int icon_height = __GetSystemMetricsForDpi( SM_CYSMICON, current_dpi_tlv ) + _SCALE_TLV_( 2 );
+	if ( g_row_height < icon_height )
+	{
+		g_row_height = icon_height;
+	}
+}
+
 LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
 {
 	switch ( msg )
 	{
 		case WM_CREATE:
 		{
+			current_dpi_tlv = __GetDpiForWindow( hWnd );
+			hFont_tlv = UpdateFont( current_dpi_tlv );
+
+			//tlv_odd_row_font_settings.font = _CreateFontIndirectW( &cfg_odd_row_font_settings.lf );
+			tlv_odd_row_font_settings.font_color = cfg_odd_row_font_settings.font_color;
+			_memcpy_s( &tlv_odd_row_font_settings.lf, sizeof( LOGFONT ), &cfg_odd_row_font_settings.lf, sizeof( LOGFONT ) );
+
+			//tlv_even_row_font_settings.font = _CreateFontIndirectW( &cfg_even_row_font_settings.lf );
+			tlv_even_row_font_settings.font_color = cfg_even_row_font_settings.font_color;
+			_memcpy_s( &tlv_even_row_font_settings.lf, sizeof( LOGFONT ), &cfg_even_row_font_settings.lf, sizeof( LOGFONT ) );
+
+			// The font will not have changed here, only its height.
+			tlv_odd_row_font_settings.lf.lfHeight = _SCALE_TLV_( cfg_odd_row_font_settings.lf.lfHeight );
+			tlv_odd_row_font_settings.font = _CreateFontIndirectW( &tlv_odd_row_font_settings.lf );
+
+			// The font will not have changed here, only its height.
+			tlv_even_row_font_settings.lf.lfHeight = _SCALE_TLV_( cfg_even_row_font_settings.lf.lfHeight );
+			tlv_even_row_font_settings.font = _CreateFontIndirectW( &tlv_even_row_font_settings.lf );
+
 			g_hWnd_tlv_header = _CreateWindowW( WC_HEADER, NULL, HDS_BUTTONS | HDS_DRAGDROP | HDS_FULLDRAG | HDS_HOTTRACK | HDS_HORZ | WS_CHILDWINDOW, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 
 			CreateTooltip( hWnd );
+
+			AdjustRowHeight();
 
 			int arr[ NUM_COLUMNS ];
 
@@ -4324,18 +4718,19 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 				{
 					hdi.pszText = g_locale_table[ DOWNLOAD_STRING_TABLE_OFFSET + i ].value;
 					hdi.cchTextMax = g_locale_table[ DOWNLOAD_STRING_TABLE_OFFSET + i ].length;
-					hdi.cxy = *download_columns_width[ i ];
+					hdi.cxy = _SCALE_TLV_( *download_columns_width[ i ] );
+
+					g_header_width += hdi.cxy;
+
 					_SendMessageW( g_hWnd_tlv_header, HDM_INSERTITEM, g_total_columns, ( LPARAM )&hdi );
 
 					arr[ g_total_columns++ ] = *download_columns[ i ];
-
-					g_header_width += *download_columns_width[ i ];
 				}
 			}
 
 			_SendMessageW( g_hWnd_tlv_header, HDM_SETORDERARRAY, g_total_columns, ( LPARAM )arr );
 
-			_SendMessageW( g_hWnd_tlv_header, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_tlv_header, WM_SETFONT, ( WPARAM )hFont_tlv, 0 );
 
 			if ( cfg_show_column_headers )
 			{
@@ -4343,7 +4738,7 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 				_memzero( &wp, sizeof ( WINDOWPOS ) );
 				RECT rc;
 				rc.top = rc.left = 0;
-				rc.bottom = 100;
+				rc.bottom = _SCALE_TLV_( 100 );
 				rc.right = g_header_width;
 				HDLAYOUT hdl;
 				hdl.prc = &rc;
@@ -4385,6 +4780,23 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 			}
 
 			return 0;
+		}
+		break;
+
+		case WM_GETDLGCODE:
+		{
+			// Don't process the tab key if we're focusing on a window with scrollbars.
+			if ( wParam == VK_TAB && !( _GetKeyState( VK_SHIFT ) & 0x8000 ) )
+			{
+				// returning DLGC_WANTTAB will cause a beep.
+				LRESULT ret = _DefWindowProcW( hWnd, msg, wParam, lParam );
+
+				//_SetFocus( g_hWnd_tlv_files );
+
+				return ret;
+			}
+
+			return DLGC_WANTALLKEYS;
 		}
 		break;
 
@@ -4460,6 +4872,12 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 		}
 		break;
 
+		case TLVM_CANCEL_EDIT:
+		{
+			TLV_CancelRename( hWnd );
+		}
+		break;
+
 		case TLVM_SH_COLUMN_HEADERS:
 		{
 			if ( wParam == TRUE )
@@ -4502,9 +4920,40 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 
 		case TLVM_SORT_ITEMS:
 		{
-			TLV_MergeSort( &g_tree_list, g_root_item_count, &merge_compare, ( void * )lParam );
+			TLV_MergeSort( &g_tree_list, g_total_parent_item_nodes/*g_root_item_count*/, &merge_compare, ( void * )lParam );
 
 			TLV_CleanupSort();
+		}
+		break;
+
+		case TLVM_CANCEL_DRAG:
+		{
+			if ( g_draw_drag )
+			{
+				TLV_ClearDrag();
+			}
+		}
+		break;
+
+		case TLVM_CANCEL_SELECT:
+		{
+			TLV_ClearDrag();
+		}
+		break;
+
+		case TLVM_UPDATE_FONTS:
+		{
+			_memcpy_s( &tlv_odd_row_font_settings.lf, sizeof( LOGFONT ), &cfg_odd_row_font_settings.lf, sizeof( LOGFONT ) );
+			tlv_odd_row_font_settings.lf.lfHeight = _SCALE_TLV_( tlv_odd_row_font_settings.lf.lfHeight );
+			_DeleteObject( tlv_odd_row_font_settings.font );
+			tlv_odd_row_font_settings.font = _CreateFontIndirectW( &tlv_odd_row_font_settings.lf );
+
+			_memcpy_s( &tlv_even_row_font_settings.lf, sizeof( LOGFONT ), &cfg_even_row_font_settings.lf, sizeof( LOGFONT ) );
+			tlv_even_row_font_settings.lf.lfHeight = _SCALE_TLV_( tlv_even_row_font_settings.lf.lfHeight );
+			_DeleteObject( tlv_even_row_font_settings.font );
+			tlv_even_row_font_settings.font = _CreateFontIndirectW( &tlv_even_row_font_settings.lf );
+
+			AdjustRowHeight();
 		}
 		break;
 
@@ -4615,81 +5064,100 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 				DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )tln->data;
 				if ( di != NULL )
 				{
-					if ( _StrCmpNIW( di->file_path + di->filename_offset, g_typing_buf, g_typing_buf_offset ) == 0 )
+					// Only adjust the node values (indices and nodes) if we're on the current filter.
+					if ( g_status_filter == STATUS_NONE || IsFilterSet( di, g_status_filter ) )
 					{
-						++sel_count;
-
-						TLV_SetSelectionBounds( current_item_index, tln );
-
-						TLV_SetFocusedItem( tln );
-						TLV_SetFocusedIndex( current_item_index );
-
-						if ( last_sel_tln != NULL )
+						if ( _StrCmpNIW( di->file_path + di->filename_offset, g_typing_buf, g_typing_buf_offset ) == 0 )
 						{
-							last_sel_tln->flag = TLVS_SELECTED;
-						}
+							++sel_count;
 
-						tln->flag = TLVS_SELECTED | TLVS_FOCUSED;
+							TLV_SetSelectionBounds( current_item_index, tln );
 
-						last_sel_tln = tln;
+							TLV_SetFocusedItem( tln );
+							TLV_SetFocusedIndex( current_item_index );
 
-						int visible_item_count = TLV_GetVisibleItemCount();
-						int first_visible_index = TLV_GetFirstVisibleIndex();
-
-						if ( current_item_index >= first_visible_index + visible_item_count )
-						{
-							TREELISTNODE *first_visible_node = tln;
-
-							for ( ; visible_item_count > 1 && first_visible_node != g_tree_list; --current_item_index, --visible_item_count )
+							if ( last_sel_tln != NULL )
 							{
-								first_visible_node = TLV_PrevNode( first_visible_node, false );
+								last_sel_tln->flag = TLVS_SELECTED;
 							}
 
-							int root_index = TLV_GetFirstVisibleRootIndex();
+							tln->flag = TLVS_SELECTED | TLVS_FOCUSED;
 
-							TREELISTNODE *current_first_visible_parent_node = TLV_GetFirstVisibleItem();
-							current_first_visible_parent_node = ( current_first_visible_parent_node != NULL && current_first_visible_parent_node->parent != NULL ? current_first_visible_parent_node->parent : current_first_visible_parent_node );
-							TREELISTNODE *first_visible_parent_node = ( first_visible_node != NULL && first_visible_node->parent != NULL ? first_visible_node->parent : first_visible_node );
-							while ( current_first_visible_parent_node != NULL && current_first_visible_parent_node != first_visible_parent_node )
+							last_sel_tln = tln;
+
+							int visible_item_count = TLV_GetVisibleItemCount();
+							int first_visible_index = TLV_GetFirstVisibleIndex();
+
+							if ( current_item_index >= first_visible_index + visible_item_count )
 							{
-								++root_index;
+								TREELISTNODE *first_visible_node = tln;
 
-								current_first_visible_parent_node = current_first_visible_parent_node->next;
+								for ( ; visible_item_count > 1 && first_visible_node != g_tree_list; --current_item_index, --visible_item_count )
+								{
+									first_visible_node = TLV_PrevNode( first_visible_node, false );
+								}
+
+								int root_index = TLV_GetFirstVisibleRootIndex();
+
+								TREELISTNODE *current_first_visible_parent_node = TLV_GetFirstVisibleItem();
+								current_first_visible_parent_node = ( current_first_visible_parent_node != NULL && current_first_visible_parent_node->parent != NULL ? current_first_visible_parent_node->parent : current_first_visible_parent_node );
+								TREELISTNODE *first_visible_parent_node = ( first_visible_node != NULL && first_visible_node->parent != NULL ? first_visible_node->parent : first_visible_node );
+								while ( current_first_visible_parent_node != NULL && current_first_visible_parent_node != first_visible_parent_node )
+								{
+									di = ( DOWNLOAD_INFO * )current_first_visible_parent_node->data;
+
+									current_first_visible_parent_node = current_first_visible_parent_node->next;
+
+									// This shouldn't be true since we're filtering as we're iterating across the entire list.
+									if ( g_status_filter != STATUS_NONE && !IsFilterSet( di, g_status_filter ) )
+									{
+										continue;
+									}
+
+									++root_index;
+								}
+
+								TLV_SetFirstVisibleRootIndex( root_index );
+								TLV_SetFirstVisibleItem( first_visible_node );
+								TLV_SetFirstVisibleIndex( current_item_index );
+							}
+							else if ( current_item_index < first_visible_index )
+							{
+								int root_index = TLV_GetFirstVisibleRootIndex();
+
+								TREELISTNODE *current_first_visible_parent_node = TLV_GetFirstVisibleItem();
+								current_first_visible_parent_node = ( current_first_visible_parent_node != NULL && current_first_visible_parent_node->parent != NULL ? current_first_visible_parent_node->parent : current_first_visible_parent_node );
+								TREELISTNODE *first_visible_parent_node = ( tln != NULL && tln->parent != NULL ? tln->parent : tln );
+								while ( current_first_visible_parent_node != NULL && current_first_visible_parent_node != first_visible_parent_node )
+								{
+									di = ( DOWNLOAD_INFO * )current_first_visible_parent_node->data;
+
+									current_first_visible_parent_node = current_first_visible_parent_node->prev;
+
+									if ( g_status_filter != STATUS_NONE && !IsFilterSet( di, g_status_filter ) )
+									{
+										continue;
+									}
+
+									--root_index;
+								}
+
+								TLV_SetFirstVisibleRootIndex( root_index );
+
+								TLV_SetFirstVisibleItem( tln );
+								TLV_SetFirstVisibleIndex( current_item_index );
 							}
 
-							TLV_SetFirstVisibleRootIndex( root_index );
-							TLV_SetFirstVisibleItem( first_visible_node );
-							TLV_SetFirstVisibleIndex( current_item_index );
+							break;
 						}
-						else if ( current_item_index < first_visible_index )
+
+						++current_item_index;
+
+						if ( tln->is_expanded )
 						{
-							int root_index = TLV_GetFirstVisibleRootIndex();
-
-							TREELISTNODE *current_first_visible_parent_node = TLV_GetFirstVisibleItem();
-							current_first_visible_parent_node = ( current_first_visible_parent_node != NULL && current_first_visible_parent_node->parent != NULL ? current_first_visible_parent_node->parent : current_first_visible_parent_node );
-							TREELISTNODE *first_visible_parent_node = ( tln != NULL && tln->parent != NULL ? tln->parent : tln );
-							while ( current_first_visible_parent_node != NULL && current_first_visible_parent_node != first_visible_parent_node )
-							{
-								--root_index;
-
-								current_first_visible_parent_node = current_first_visible_parent_node->prev;
-							}
-
-							TLV_SetFirstVisibleRootIndex( root_index );
-
-							TLV_SetFirstVisibleItem( tln );
-							TLV_SetFirstVisibleIndex( current_item_index );
+							current_item_index += tln->child_count;
 						}
-
-						break;
 					}
-				}
-
-				++current_item_index;
-
-				if ( tln->is_expanded )
-				{
-					current_item_index += tln->child_count;
 				}
 
 				// Search root nodes.
@@ -4817,7 +5285,7 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 					{
 						if ( g_tree_list != NULL )
 						{
-							ClearDrag();
+							TLV_ClearDrag();
 							TLV_ClearSelected( false, false );
 
 							TREELISTNODE *focused_node;
@@ -4829,7 +5297,7 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 							{
 								offset = 0;
 
-								focused_node = g_first_visible_node;
+								focused_node = TLV_GetFirstVisibleItem();
 								focused_index = g_first_visible_index;
 							}
 							else
@@ -4837,9 +5305,23 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 								focused_node = g_focused_node;
 								focused_index = g_focused_index;
 
+								TREELISTNODE *first_node = g_tree_list;
+								if ( g_status_filter != STATUS_NONE )
+								{
+									DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )first_node->data;
+									if ( !IsFilterSet( di, g_status_filter ) )
+									{
+										first_node = TLV_NextNode( first_node, false );
+										if ( first_node == NULL )
+										{
+											break;
+										}
+									}
+								}
+
 								int visible_item_count = max( ( g_visible_item_count - 1 ), 1 );
 
-								while ( focused_node != g_tree_list && visible_item_count > 0 )
+								while ( focused_node != first_node && visible_item_count > 0 )
 								{
 									focused_node = TLV_PrevNode( focused_node, false );
 									--focused_index;
@@ -4900,7 +5382,7 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 					{
 						if ( g_tree_list != NULL )
 						{
-							ClearDrag();
+							TLV_ClearDrag();
 							TLV_ClearSelected( false, false );
 
 							TREELISTNODE *focused_node;
@@ -4915,7 +5397,7 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 								focused_node = TLV_NextNode( g_first_visible_node, false );
 								if ( focused_node == NULL )
 								{
-									focused_node = g_first_visible_node;
+									focused_node = TLV_GetFirstVisibleItem();
 									focused_index = g_first_visible_index;
 								}
 								else
@@ -4927,7 +5409,7 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 							{
 								offset = 0;
 
-								focused_node = g_first_visible_node;
+								focused_node = TLV_GetFirstVisibleItem();
 								focused_index = g_first_visible_index;
 							}
 							else
@@ -5003,7 +5485,7 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 					{
 						if ( g_tree_list != NULL )
 						{
-							ClearDrag();
+							TLV_ClearDrag();
 							TLV_ClearSelected( false, false );
 
 							TREELISTNODE *focused_node;
@@ -5018,7 +5500,26 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 								focused_node = g_tree_list;
 							}
 
-							focused_index = g_expanded_item_count - 1;
+							if ( g_status_filter != STATUS_NONE )
+							{
+								while ( focused_node != NULL )
+								{
+									DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )focused_node->data;
+									if ( IsFilterSet( di, g_status_filter ) )
+									{
+										break;
+									}
+
+									if ( focused_node == g_tree_list )
+									{
+										focused_node = NULL;
+									}
+									else
+									{
+										focused_node = TLV_PrevNode( focused_node, false );
+									}
+								}
+							}
 
 							if ( focused_node != NULL )
 							{
@@ -5042,6 +5543,7 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 
 								focused_node->flag |= ( TLVS_SELECTED | TLVS_FOCUSED );
 
+								focused_index = g_expanded_item_count - 1;
 								g_selected_count = 1;
 							}
 							else
@@ -5082,11 +5584,20 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 					{
 						if ( g_tree_list != NULL )
 						{
-							ClearDrag();
+							TLV_ClearDrag();
 							TLV_ClearSelected( false, false );
 
 							TREELISTNODE *focused_node = g_tree_list;
 							int focused_index = 0;
+
+							if ( g_status_filter != STATUS_NONE )
+							{
+								DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )focused_node->data;
+								if ( !IsFilterSet( di, g_status_filter ) )
+								{
+									focused_node = TLV_NextNode( focused_node, false );
+								}
+							}
 
 							if ( focused_node != NULL )
 							{
@@ -5131,7 +5642,7 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 					case VK_LEFT:
 					case VK_RIGHT:
 					{
-						ClearDrag();
+						TLV_ClearDrag();
 
 						if ( g_focused_node != NULL )
 						{
@@ -5206,19 +5717,22 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 					case VK_UP:
 					case VK_DOWN:
 					{
-						ClearDrag();
+						TLV_ClearDrag();
 
 						// If the base selected node is NULL, then so is the focused node. The opposite is not necessarily true.
 						if ( g_base_selected_node == NULL )
 						{
 							TLV_ClearSelected( false, false );
 
-							g_focused_node = g_base_selected_node = g_first_visible_node;
+							g_focused_node = g_base_selected_node = TLV_GetFirstVisibleItem();
 							g_focused_index = g_base_selected_index = g_first_visible_index;
 
-							g_focused_node->flag = TLVS_SELECTED | TLVS_FOCUSED;
+							if ( g_focused_node != NULL )
+							{
+								g_focused_node->flag = TLVS_SELECTED | TLVS_FOCUSED;
 
-							g_selected_count = 1;
+								g_selected_count = 1;
+							}
 
 							g_first_selection_node = g_last_selection_node = g_focused_node;
 							g_first_selection_index = g_last_selection_index = g_focused_index;
@@ -5333,80 +5847,104 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 								{
 									TREELISTNODE *focused_node = TLV_PrevNode( g_focused_node, false );
 
-									if ( focused_node != NULL )
+									bool valid_node = true;
+									if ( g_status_filter != STATUS_NONE && focused_node == g_tree_list )
 									{
-										g_focused_node->flag &= ~TLVS_FOCUSED;
-
-										if ( ctrl_down )
+										DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )focused_node->data;
+										if ( !IsFilterSet( di, g_status_filter ) )
 										{
-											if ( g_focused_index > g_base_selected_index )
-											{
-												if ( g_focused_node->flag & TLVS_SELECTED ) { --g_selected_count; }
-												else { ++g_selected_count; }
-
-												g_focused_node->flag ^= TLVS_SELECTED;
-											}
-											else
-											{
-												if ( focused_node->flag & TLVS_SELECTED ) { --g_selected_count; }
-												else { ++g_selected_count; }
-
-												focused_node->flag ^= TLVS_SELECTED;
-											}
+											valid_node = false;
 										}
-										else if ( shift_down )
-										{
-											if ( g_focused_index > g_base_selected_index )
-											{
-												if ( g_focused_node->flag & TLVS_SELECTED ) { --g_selected_count; }
+									}
 
-												g_focused_node->flag = TLVS_NONE;
+									if ( valid_node )
+									{
+										if ( focused_node != NULL )
+										{
+											g_focused_node->flag &= ~TLVS_FOCUSED;
+
+											if ( ctrl_down )
+											{
+												if ( g_focused_index > g_base_selected_index )
+												{
+													if ( g_focused_node->flag & TLVS_SELECTED ) { --g_selected_count; }
+													else { ++g_selected_count; }
+
+													g_focused_node->flag ^= TLVS_SELECTED;
+												}
+												else
+												{
+													if ( focused_node->flag & TLVS_SELECTED ) { --g_selected_count; }
+													else { ++g_selected_count; }
+
+													focused_node->flag ^= TLVS_SELECTED;
+												}
+											}
+											else if ( shift_down )
+											{
+												if ( g_focused_index > g_base_selected_index )
+												{
+													if ( g_focused_node->flag & TLVS_SELECTED ) { --g_selected_count; }
+
+													g_focused_node->flag = TLVS_NONE;
+												}
+												else
+												{
+													if ( !( focused_node->flag & TLVS_SELECTED ) ) { ++g_selected_count; }
+
+													focused_node->flag |= TLVS_SELECTED;
+												}
 											}
 											else
 											{
-												if ( !( focused_node->flag & TLVS_SELECTED ) ) { ++g_selected_count; }
+												TLV_ClearSelected( false, false );
 
 												focused_node->flag |= TLVS_SELECTED;
+
+												g_base_selected_node = focused_node;
+												g_base_selected_index = g_focused_index - 1;
+
+												g_selected_count = 1;
+
+												g_first_selection_node = g_last_selection_node = g_base_selected_node;
+												g_first_selection_index = g_last_selection_index = g_base_selected_index;
 											}
+
+											focused_node->flag |= TLVS_FOCUSED;
+
+											g_focused_node = focused_node;
+											--g_focused_index;
 										}
-										else
+										else	// No focus node was selected.
 										{
-											TLV_ClearSelected( false, false );
+											g_focused_node = g_base_selected_node = g_first_selection_node;
+											g_focused_index = g_base_selected_index = g_first_selection_index;
 
-											focused_node->flag |= TLVS_SELECTED;
+											if ( !ctrl_down && !shift_down )
+											{
+												TLV_ClearSelected( false, false );
 
-											g_base_selected_node = focused_node;
-											g_base_selected_index = g_focused_index - 1;
+												g_selected_count = 1;
+											}
 
-											g_selected_count = 1;
+											if ( g_focused_node != NULL )
+											{
+												g_focused_node->flag = TLVS_SELECTED | TLVS_FOCUSED;
+											}
 
-											g_first_selection_node = g_last_selection_node = g_base_selected_node;
-											g_first_selection_index = g_last_selection_index = g_base_selected_index;
+											update_selection_bounds = false;
 										}
-
-										focused_node->flag |= TLVS_FOCUSED;
-
-										g_focused_node = focused_node;
-										--g_focused_index;
 									}
-									else	// No focus node was selected.
+									else if ( !ctrl_down && !shift_down )	// We've reached the beginning of the list.
 									{
-										g_focused_node = g_base_selected_node = g_first_selection_node;
-										g_focused_index = g_base_selected_index = g_first_selection_index;
+										TLV_ClearSelected( false, false );
 
-										if ( !ctrl_down && !shift_down )
-										{
-											TLV_ClearSelected( false, false );
+										g_focused_node->flag = TLVS_SELECTED | TLVS_FOCUSED;
 
-											g_selected_count = 1;
-										}
+										g_selected_count = 1;
 
-										if ( g_focused_node != NULL )
-										{
-											g_focused_node->flag = TLVS_SELECTED | TLVS_FOCUSED;
-										}
-
-										update_selection_bounds = false;
+										g_first_selection_node = g_last_selection_node = g_base_selected_node = g_focused_node;
+										g_first_selection_index = g_last_selection_index = g_base_selected_index = g_focused_index;
 									}
 								}
 								else if ( !ctrl_down && !shift_down )	// We've reached the beginning of the list.
@@ -5522,7 +6060,7 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 		{
 			_SetFocus( hWnd );
 
-			ClearDrag();
+			TLV_ClearDrag();
 
 			SCROLLINFO si;
 			_memzero( &si, sizeof( SCROLLINFO ) );
@@ -5586,7 +6124,7 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 							g_tlv_last_tooltip_item = pick_index;
 
 							// From the first visible node, get the node that was hovered.
-							tli_node = g_first_visible_node;
+							tli_node = TLV_GetFirstVisibleItem();
 
 							for ( int i = g_first_visible_index; i < pick_index && tli_node != NULL; ++i )
 							{
@@ -5658,6 +6196,54 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 
 		case WM_MOUSEMOVE:
 		{
+			if ( g_tlv_is_drag_and_drop )
+			{
+				IDropSource *DropSource = ( IDropSource * )Create_IDropSource( hWnd );
+				if ( DropSource != NULL )
+				{
+					FORMATETC fetc;
+					fetc.cfFormat = ( CLIPFORMAT )CF_TREELISTVIEW;
+					fetc.ptd = NULL;
+					fetc.dwAspect = DVASPECT_CONTENT;
+					fetc.lindex = -1;
+					fetc.tymed = TYMED_HGLOBAL;
+
+					STGMEDIUM stgm;
+					_memzero( &stgm, sizeof( STGMEDIUM ) );
+
+					IDataObject *DataObject = ( IDataObject * )Create_IDataObject( &fetc, &stgm, 1 );
+					if ( DataObject != NULL )
+					{
+						DWORD dwEffect;
+						DWORD ret = _DoDragDrop( DataObject, DropSource, DROPEFFECT_MOVE, &dwEffect );
+
+						if ( ret == DRAGDROP_S_DROP )
+						{
+							if ( g_drag_and_drop_cti != NULL )
+							{
+								HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, handle_category_move, ( void * )g_drag_and_drop_cti, 0, NULL );
+								if ( thread != NULL )
+								{
+									CloseHandle( thread );
+								}
+							}
+						}
+						/*else if ( ret == DRAGDROP_S_CANCEL )
+						{
+						}*/
+
+						DataObject->Release();
+					}
+
+					DropSource->Release();
+				}
+
+				_ReleaseCapture();
+				g_tlv_is_drag_and_drop = false;
+
+				break;
+			}
+
 			// Allow the lasso selection if we're not in the edit mode, or we've dragged from outside of the item list.
 			if ( !g_in_list_edit_mode || g_drag_start_index == -1 || g_drag_pos.x > g_header_width )
 			{
@@ -5699,7 +6285,36 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 		{
 			_SetFocus( hWnd );
 
-			HandleMouseClick( hWnd, ( msg == WM_LBUTTONDOWN ? false : true ) );
+			if ( msg == WM_LBUTTONDOWN && _GetKeyState( VK_MENU ) & 0x8000 )
+			{
+				POINT pt;
+				_GetCursorPos( &pt );
+				_ScreenToClient( hWnd, &pt );
+
+				int pick_index = ( pt.y - g_client_rc.top ) / g_row_height;
+				if ( pick_index < 0 )
+				{
+					pick_index = 0;
+				}
+				pick_index += g_first_visible_index;
+
+				// From the first visible node, get the node that was clicked.
+				TREELISTNODE *tli_node = TLV_GetFirstVisibleItem();
+				for ( int i = g_first_visible_index; i < pick_index && tli_node != NULL; ++i )
+				{
+					tli_node = TLV_NextNode( tli_node, false );
+				}
+
+				if ( tli_node != NULL && tli_node->flag & TLVS_SELECTED )
+				{
+					_SetCapture( hWnd );
+					g_tlv_is_drag_and_drop = true;
+				}
+			}
+			else
+			{
+				HandleMouseClick( hWnd, ( msg == WM_LBUTTONDOWN ? false : true ) );
+			}
 		}
 		break;
 
@@ -5725,7 +6340,7 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 			pick_index += g_first_visible_index;
 
 			// From the first visible node, get the node that was clicked.
-			TREELISTNODE *tli_node = g_first_visible_node;
+			TREELISTNODE *tli_node = TLV_GetFirstVisibleItem();
 
 			for ( int i = g_first_visible_index; i < pick_index && tli_node != NULL; ++i )
 			{
@@ -5751,7 +6366,21 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 					}
 					else
 					{
-						HandleCommand( hWnd, MENU_UPDATE_DOWNLOAD );
+						DOWNLOAD_INFO *di = ( DOWNLOAD_INFO * )tli_node->data;
+						if ( di != NULL &&
+							 IS_STATUS( di->status,
+								STATUS_CONNECTING |
+								STATUS_DOWNLOADING |
+								STATUS_COMPLETED |
+								STATUS_STOPPED |
+								STATUS_TIMED_OUT |
+								STATUS_FAILED |
+								STATUS_SKIPPED |
+								STATUS_AUTH_REQUIRED |
+								STATUS_PROXY_AUTH_REQUIRED ) )
+						{
+							HandleCommand( hWnd, MENU_UPDATE_DOWNLOAD );
+						}
 					}
 				}
 			}
@@ -5768,6 +6397,12 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 		case WM_RBUTTONUP:
 		case WM_MBUTTONUP:
 		{
+			if ( msg == WM_LBUTTONUP && g_tlv_is_drag_and_drop )
+			{
+				_ReleaseCapture();
+				g_tlv_is_drag_and_drop = false;
+			}
+
 			if ( g_scroll_timer_active )
 			{
 				_KillTimer( hWnd, IDT_SCROLL_TIMER );
@@ -6135,7 +6770,7 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 					}
 				}
 
-				ClearDrag();
+				TLV_ClearDrag();
 
 				_InvalidateRect( hWnd, &g_client_rc, TRUE );
 			}
@@ -6436,7 +7071,7 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 						}
 						else
 						{
-							TLV_MergeSort( &g_tree_list, g_root_item_count, &merge_compare, ( void * )&si );
+							TLV_MergeSort( &g_tree_list, g_total_parent_item_nodes/*g_root_item_count*/, &merge_compare, ( void * )&si );
 						}
 
 						TLV_CleanupSort();
@@ -6451,7 +7086,7 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 					wchar_t tbuf[ 128 ];
 					RECT rc;
 					HDITEM hdi;
-					int largest_width = 20;
+					int largest_width = _SCALE_TLV_( 20 );
 
 					int arr[ NUM_COLUMNS ];
 					_SendMessageW( g_hWnd_tlv_header, HDM_GETORDERARRAY, g_total_columns, ( LPARAM )arr );
@@ -6470,7 +7105,7 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 							_memzero( &rc, sizeof( RECT ) );
 							_SendMessageW( g_hWnd_tlv_header, HDM_GETITEMRECT, nmh->iItem, ( LPARAM )&rc );
 
-							largest_width = ( g_client_rc.right - 1 ) - rc.left;
+							largest_width = ( g_client_rc.right - _SCALE_TLV_( 1 ) ) - rc.left;
 						}
 
 						_memzero( &hdi, sizeof( HDITEM ) );
@@ -6489,7 +7124,7 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 							SIZE size;
 							if ( _GetTextExtentPoint32W( hDC, hdi.pszText, lstrlenW( hdi.pszText ), &size ) != FALSE )
 							{
-								int width = size.cx + 12;	// 6 + 6 padding.
+								int width = size.cx + _SCALE_TLV_( 6 ) + _SCALE_TLV_( 6 );	// 6 + 6 padding.
 								if ( width > largest_width )
 								{
 									largest_width = width;
@@ -6525,7 +7160,7 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 							int root_count = g_first_visible_root_index + 1;
 							int child_count = g_first_visible_index - TLV_GetParentIndex( g_first_visible_node, g_first_visible_index );
 
-							bool switch_fonts = ( cfg_even_row_font_settings.lf.lfHeight != cfg_odd_row_font_settings.lf.lfHeight );
+							bool switch_fonts = ( tlv_even_row_font_settings.lf.lfHeight != tlv_odd_row_font_settings.lf.lfHeight );
 
 							HDC hDC = _GetDC( hWnd );
 
@@ -6535,16 +7170,16 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 								_DeleteObject( ohf );
 							}
 
-							TREELISTNODE *tln = g_first_visible_node;
+							TREELISTNODE *tln = TLV_GetFirstVisibleItem();
 
 							for ( ; index <= index_end && tln != NULL; ++index )
 							{
 								if ( switch_fonts )
 								{
-									HFONT *hFont = ( index & 1 ? &cfg_even_row_font_settings.font : &cfg_odd_row_font_settings.font );
+									HFONT *hFont = ( index & 1 ? &tlv_even_row_font_settings.font : &tlv_odd_row_font_settings.font );
 
 									HFONT ohf = ( HFONT )_SelectObject( hDC, *hFont );
-									if ( ohf != cfg_even_row_font_settings.font && ohf != cfg_odd_row_font_settings.font )
+									if ( ohf != tlv_even_row_font_settings.font && ohf != tlv_odd_row_font_settings.font )
 									{
 										_DeleteObject( ohf );
 									}
@@ -6565,7 +7200,7 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 
 									_DrawTextW( hDC, buf, -1, &rc, DT_SINGLELINE | DT_NOPREFIX | DT_CALCRECT );
 
-									int width = ( rc.right - rc.left ) + 10;	// 5 + 5 padding.
+									int width = ( rc.right - rc.left ) + _SCALE_TLV_( 5 ) + _SCALE_TLV_( 5 );	// 5 + 5 padding.
 									if ( column_index == 0 )
 									{
 										width += g_glyph_size.cx;
@@ -6698,6 +7333,20 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 				}
 			}
 
+			if ( cfg_show_categories )
+			{
+				if ( wParam == FALSE )
+				{
+					RECT *pRect = ( RECT * )lParam;
+					++pRect->left;
+				}
+				else// if ( wParam == TRUE )
+				{
+					NCCALCSIZE_PARAMS *nccsp = ( NCCALCSIZE_PARAMS * )lParam;
+					++nccsp->rgrc[ 0 ].left;
+				}
+			}
+
 			return ret;
 		}
 		break;
@@ -6735,6 +7384,34 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 				_ReleaseDC( hWnd, hDC );
 			}
 
+			if ( cfg_show_categories )
+			{
+				RECT rc;
+				_GetWindowRect( hWnd, &rc );
+
+				HDC hDC = _GetWindowDC( hWnd );
+				HPEN line_color;
+#ifdef ENABLE_DARK_MODE
+				if ( g_use_dark_mode )
+				{
+					line_color = _CreatePen( PS_SOLID, 1, dm_color_window_border );
+				}
+				else
+#endif
+				{
+					line_color = _CreatePen( PS_SOLID, 1, ( COLORREF )_GetSysColor( COLOR_3DSHADOW ) );
+				}
+
+				HPEN old_color = ( HPEN )_SelectObject( hDC, line_color );
+				_DeleteObject( old_color );
+
+				_MoveToEx( hDC, 0, 0, NULL );
+				_LineTo( hDC, 0, rc.bottom - rc.top );
+				_DeleteObject( line_color );
+
+				_ReleaseDC( hWnd, hDC );
+			}
+
 			return ret;
 		}
 		break;
@@ -6758,8 +7435,114 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 		}
 		break;
 
+		case WM_DPICHANGED_AFTERPARENT:
+		{
+			g_skip_window_change = false;
+
+			g_size_changed = true;
+
+			HandleWindowChange( hWnd );
+
+			_InvalidateRect( hWnd, NULL, TRUE );
+
+			// There is no return value.
+		}
+		break;
+
+		case WM_DPICHANGED_BEFOREPARENT:
+		{
+			g_skip_window_change = true;
+
+			UINT last_dpi_tlv = current_dpi_tlv;
+			current_dpi_tlv = __GetDpiForWindow( hWnd );
+
+			g_glyph_offset = _SCALE_TLV_( GLYPH_OFFSET );
+
+			if ( g_hTheme != NULL )
+			{
+				_CloseThemeData( g_hTheme );
+
+				g_hTheme = _OpenThemeData( hWnd, L"TreeView" );
+
+				g_glyph_size.cx = 0;
+				g_glyph_size.cy = 0;
+
+				if ( g_hTheme != NULL )
+				{
+					_GetThemePartSize( g_hTheme, NULL, TVP_GLYPH, GLPS_OPENED, NULL, TS_DRAW, &g_glyph_size );
+				}
+			}
+
+			// The font will not have changed here, only its height.
+			tlv_odd_row_font_settings.lf.lfHeight = _SCALE_TLV_( cfg_odd_row_font_settings.lf.lfHeight );
+			_DeleteObject( tlv_odd_row_font_settings.font );
+			tlv_odd_row_font_settings.font = _CreateFontIndirectW( &tlv_odd_row_font_settings.lf );
+
+			// The font will not have changed here, only its height.
+			tlv_even_row_font_settings.lf.lfHeight = _SCALE_TLV_( cfg_even_row_font_settings.lf.lfHeight );
+			_DeleteObject( tlv_even_row_font_settings.font );
+			tlv_even_row_font_settings.font = _CreateFontIndirectW( &tlv_even_row_font_settings.lf );
+
+			AdjustRowHeight();
+
+			_DeleteObject( hFont_tlv );
+			hFont_tlv = UpdateFont( current_dpi_tlv );
+
+			_SendMessageW( g_hWnd_tlv_header, WM_SETFONT, ( WPARAM )hFont_tlv, 0 );
+
+			if ( cfg_show_column_headers )
+			{
+				WINDOWPOS wp;
+				_memzero( &wp, sizeof ( WINDOWPOS ) );
+				RECT rc;
+				rc.top = rc.left = 0;
+				rc.bottom = _SCALE_TLV_( 100 );
+				rc.right = g_header_width;
+				HDLAYOUT hdl;
+				hdl.prc = &rc;
+				hdl.pwpos = &wp;
+				_SendMessageW( g_hWnd_tlv_header, HDM_LAYOUT, 0, ( LPARAM )&hdl );
+
+				g_header_height = ( wp.cy - wp.y );
+			}
+
+			int arr[ NUM_COLUMNS ];
+			int arr2[ NUM_COLUMNS ];
+
+			_SendMessageW( g_hWnd_tlv_header, HDM_GETORDERARRAY, g_total_columns, ( LPARAM )arr );
+
+			_memcpy_s( arr2, sizeof( int ) * NUM_COLUMNS, arr, sizeof( int ) * NUM_COLUMNS );
+
+			// Offset the virtual indices to match the actual index.
+			OffsetVirtualIndices( arr2, download_columns, NUM_COLUMNS, g_total_columns );
+
+			RECT rc;
+
+			HDITEM hdi;
+			_memzero( &hdi, sizeof( HDITEM ) );
+			hdi.mask = HDI_WIDTH;
+
+			for ( unsigned char i = 0; i < g_total_columns; ++i )
+			{
+				// Get the width of the column header.
+				_SendMessageW( g_hWnd_tlv_header, HDM_GETITEMRECT, arr[ i ], ( LPARAM )&rc );
+
+				hdi.cxy = _SCALE2_( ( rc.right - rc.left ), dpi_tlv );
+				_SendMessageW( g_hWnd_tlv_header, HDM_SETITEM, arr[ i ], ( LPARAM )&hdi );
+			}
+
+			// There is no return value.
+		}
+		break;
+
 		case WM_DESTROY:
 		{
+			// Delete our font.
+			_DeleteObject( hFont_tlv );
+
+			if ( tlv_even_row_font_settings.font != NULL ){ _DeleteObject( tlv_even_row_font_settings.font ); }
+			if ( tlv_odd_row_font_settings.font != NULL ){ _DeleteObject( tlv_odd_row_font_settings.font ); }
+
 			if ( g_hbm != NULL )
 			{
 				_DeleteObject( g_hbm );

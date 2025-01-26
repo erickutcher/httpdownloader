@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
-	Copyright (C) 2015-2024 Eric Kutcher
+	Copyright (C) 2015-2025 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -37,6 +37,10 @@
 //
 
 #define DM_UPDATE_CHECK_URL			"https://raw.githubusercontent.com/erickutcher/httpdownloader/master/HTTP_Downloader/dm_version.txt"
+
+#ifdef IS_BETA
+#define DM_UPDATE_CHECK_URL_BETA	"https://raw.githubusercontent.com/erickutcher/httpdownloader/master/HTTP_Downloader/dm_version_beta.txt"
+#endif
 
 //
 
@@ -380,6 +384,8 @@ bool UninitDarkMode();
 BOOL CALLBACK EnumChildProc( HWND hWnd, LPARAM lParam );
 BOOL CALLBACK EnumTLWProc( HWND hWnd, LPARAM lParam );
 BOOL CALLBACK EnumMsgBoxChildProc( HWND hWnd, LPARAM lParam );
+
+void CleanupButtonGlyphs( HWND hWnd );
 
 //
 

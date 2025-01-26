@@ -93,14 +93,15 @@
 			}
 
 			.tab > input:nth-child(1):checked ~ .tab_frame > .tab_panel:nth-child(1),
-			.tab > input:nth-child(9):checked ~ .tab_frame > .tab_panel:nth-child(5)
+			.tab > input:nth-child(11):checked ~ .tab_frame > .tab_panel:nth-child(6)
 			{
 				display: block;
 			}
 
 			.tab > input:nth-child(3):checked ~ .tab_frame > .tab_panel:nth-child(2),
 			.tab > input:nth-child(5):checked ~ .tab_frame > .tab_panel:nth-child(3),
-			.tab > input:nth-child(7):checked ~ .tab_frame > .tab_panel:nth-child(4)
+			.tab > input:nth-child(7):checked ~ .tab_frame > .tab_panel:nth-child(4),
+			.tab > input:nth-child(9):checked ~ .tab_frame > .tab_panel:nth-child(5)
 			{
 				display: flex;
 				flex-flow: column;
@@ -139,15 +140,25 @@
 				</div>
 				<div id="advanced_info" style="display: none; margin-top: 15px;">
 					<div class="tab">
-						<input type="radio" name="tabs" id="tab_general" checked><label for="tab_general" data-i18n="general">General</label><input type="radio" name="tabs" id="tab_cookies"><label for="tab_cookies" data-i18n="cookies">Cookies</label><input type="radio" name="tabs" id="tab_headers"><label for="tab_headers" data-i18n="headers">Headers</label><input type="radio" name="tabs" id="tab_post_data"><label for="tab_post_data" data-i18n="post_data">POST Data</label><input type="radio" name="tabs" id="tab_proxy"><label for="tab_proxy" data-i18n="proxy">Proxy</label>
+						<input type="radio" name="tabs" id="tab_general" checked><label for="tab_general" data-i18n="general">General</label><input type="radio" name="tabs" id="tab_comments"><label for="tab_comments" data-i18n="comments">Comments</label><input type="radio" name="tabs" id="tab_cookies"><label for="tab_cookies" data-i18n="cookies">Cookies</label><input type="radio" name="tabs" id="tab_headers"><label for="tab_headers" data-i18n="headers">Headers</label><input type="radio" name="tabs" id="tab_post_data"><label for="tab_post_data" data-i18n="post_data">POST Data</label><input type="radio" name="tabs" id="tab_proxy"><label for="tab_proxy" data-i18n="proxy">Proxy</label>
 						<div class="tab_frame">
 							<div class="tab_panel" style="margin: 10px;">
-								<div style="margin: auto;">
-									<div style="margin-top: auto;">
-										<input type="checkbox" id="enable_directory"><label for="enable_directory" data-i18n="download_directory_">Download directory:</label>
-									</div>
+								<div style="display: flex; flex-flow: row wrap; gap: 15px; align-items: flex-end;">
 									<div>
-										<input type="text" id="directory" value="" data-i18n="_use_program_default_" placeholder="[Use Program Default]" style="box-sizing: border-box; width: 100%;" disabled>
+										<div style="margin-top: auto;">
+											<label for="category" data-i18n="category_">Category:</label>
+										</div>
+										<div>
+											<input type="text" id="category" value="" data-i18n="default" placeholder="Default" style="width: 15ch;">
+										</div>
+									</div>
+									<div style="flex: 1;">
+										<div style="margin-top: auto;">
+											<input type="checkbox" id="enable_directory"><label for="enable_directory" data-i18n="download_directory_">Download directory:</label>
+										</div>
+										<div>
+											<input type="text" id="directory" value="" data-i18n="_use_program_default_" placeholder="[Use Program Default]" style="box-sizing: border-box; width: 100%;" disabled>
+										</div>
 									</div>
 								</div>
 								<div style="display: flex; flex-flow: row wrap; margin-top: 10px;">
@@ -206,6 +217,14 @@
 								</div>
 								<div style="margin-top: 10px;">
 									<input type="checkbox" id="simulate_download"><label for="simulate_download" data-i18n="simulate_download">Simulate download</label>
+								</div>
+							</div>
+							<div class="tab_panel" style="margin: 10px;">
+								<div style="margin-top: auto;">
+									<label for="comments" data-i18n="comments_">Comments:</label>
+								</div>
+								<div style="flex: 1;">
+									<textarea id="comments" rows="5"></textarea>
 								</div>
 							</div>
 							<div class="tab_panel" style="margin: 10px;">

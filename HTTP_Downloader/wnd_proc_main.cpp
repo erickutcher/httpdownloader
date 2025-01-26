@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
-	Copyright (C) 2015-2024 Eric Kutcher
+	Copyright (C) 2015-2025 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -46,10 +46,13 @@
 #include "treelistview.h"
 #include "cmessagebox.h"
 
+#include "categories.h"
+
 #include "dark_mode.h"
 
 HWND g_hWnd_toolbar = NULL;
 HWND g_hWnd_files_columns = NULL;		// The header control window for the listview.
+HWND g_hWnd_categories = NULL;
 HWND g_hWnd_tlv_files = NULL;
 HWND g_hWnd_status = NULL;
 
@@ -67,6 +70,19 @@ int cy = 0;								// Current y (top) position of the main window based on the m
 
 int g_border_width = 0;
 
+HCURSOR g_splitter_cursor = NULL;
+bool g_splitter_moving = false;
+
+//
+
+HTREEITEM g_cat_tv_start_item = NULL;
+HTREEITEM g_cat_tv_end_item = NULL;
+bool g_cat_tv_dragging = false;
+bool g_cat_tv_oob = false;	// Out of bounds.
+RECT g_cat_lb_item_rc;
+
+//
+
 unsigned char g_total_columns = 0;
 
 unsigned long long g_session_total_downloaded = 0;
@@ -83,6 +99,7 @@ HANDLE g_timer_semaphore = NULL;
 
 bool use_drag_and_drop_main = true;		// Assumes OLE32_STATE_RUNNING is true.
 IDropTarget *List_DropTarget;
+IDropTarget *Tree_DropTarget;
 
 bool use_taskbar_progress_main = false;	// Assume WM_TASKBARBUTTONCREATED is never called (Wine does this).
 _ITaskbarList3 *g_taskbar = NULL;
@@ -100,6 +117,12 @@ UINT WM_TASKBARCREATED = 0;
 UINT WM_TASKBARBUTTONCREATED = 0;
 
 #define IDT_UPDATE_CHECK_TIMER	10000
+
+UINT current_dpi_main = USER_DEFAULT_SCREEN_DPI;
+UINT last_dpi_main = 0;
+HFONT hFont_main = NULL;
+
+#define _SCALE_M_( x )						_SCALE_( ( x ), dpi_main )
 
 /////////////////////////////////////////////////////
 
@@ -127,6 +150,62 @@ VOID CALLBACK UpdateCheckTimerProc( HWND hWnd, UINT /*msg*/, UINT /*idTimer*/, D
 	_KillTimer( hWnd, IDT_UPDATE_CHECK_TIMER );
 }
 
+HIMAGELIST UpdateToolbarIcons( HWND hWnd )
+{
+	HBITMAP hBmp;
+
+	_wmemcpy_s( g_program_directory + g_program_directory_length, MAX_PATH - g_program_directory_length, L"\\toolbar.bmp\0", 13 );
+	if ( GetFileAttributesW( g_program_directory ) != INVALID_FILE_ATTRIBUTES )
+	{
+		hBmp = ( HBITMAP )_LoadImageW( NULL, g_program_directory, IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE | LR_CREATEDIBSECTION );
+	}
+	else
+	{
+		hBmp = ( HBITMAP )_LoadImageW( GetModuleHandleW( NULL ), MAKEINTRESOURCE( IDB_BITMAP_TOOLBAR ), IMAGE_BITMAP, 0, 0, LR_CREATEDIBSECTION );
+	}
+
+	HDC hDC = _GetDC( hWnd );
+
+	HDC hdcMem_bmp = _CreateCompatibleDC( hDC );
+	HBITMAP ohbm = ( HBITMAP )_SelectObject( hdcMem_bmp, hBmp );
+	_DeleteObject( ohbm );
+
+	BITMAP bmp;
+	_memzero( &bmp, sizeof( BITMAP ) );
+	_GetObjectW( hBmp, sizeof( BITMAP ), &bmp );
+
+	int res_height = _SCALE_M_( 24 );
+	//int res_width = _SCALE_M_( 312 );
+	int res_width = res_height * 13;	// Ensures proportionality.
+
+	HBITMAP hBmp_scaled = _CreateCompatibleBitmap( hDC, res_width, res_height );
+
+	HDC hdcMem_scaled = _CreateCompatibleDC( hDC );
+	ohbm = ( HBITMAP )_SelectObject( hdcMem_scaled, hBmp_scaled );
+	_DeleteObject( ohbm );
+
+	_SetStretchBltMode( hdcMem_scaled, COLORONCOLOR );
+	_StretchBlt( hdcMem_scaled, 0, 0, res_width, res_height, hdcMem_bmp, 0, 0, bmp.bmWidth, bmp.bmHeight, SRCCOPY );
+
+	_DeleteDC( hdcMem_scaled );
+	_DeleteDC( hdcMem_bmp );
+	_ReleaseDC( hWnd, hDC );
+
+	// bmBitsPixel should match the ILC_COLOR4, ILC_COLOR8, etc. masks.
+	if ( bmp.bmBitsPixel < 4 || bmp.bmBitsPixel > 32 )
+	{
+		bmp.bmBitsPixel = 8;	// ILC_COLOR8
+	}
+	// Height and width of each icon is the same.
+	HIMAGELIST hil = _ImageList_Create( res_height, res_height, ILC_MASK | bmp.bmBitsPixel, 13, 0 );
+	_ImageList_AddMasked( hil, hBmp_scaled, ( COLORREF )RGB( 0xFF, 0x00, 0xFF ) );
+
+	_DeleteObject( hBmp_scaled );
+	_DeleteObject( hBmp );
+
+	return hil;
+}
+
 void ClearProgressBars()
 {
 	if ( g_progress_info.download_state == 1 )
@@ -146,6 +225,7 @@ void ClearProgressBars()
 		if ( cfg_tray_icon )
 		{
 			g_nid.uFlags &= ~NIF_INFO;
+			g_nid.dwInfoFlags &= ~NIIF_NOSOUND;
 			g_nid.hIcon = g_default_tray_icon;
 			_Shell_NotifyIconW( NIM_MODIFY, &g_nid );
 		}
@@ -158,17 +238,19 @@ void ResetSessionStatus()
 	_memzero( g_session_status_count, sizeof( unsigned int ) * NUM_SESSION_STATUS );
 }
 
-void FormatTooltipStatus()
+bool FormatTooltipStatus()
 {
 	unsigned int buf_length = 0;
 
 	wchar_t *status_strings[ NUM_SESSION_STATUS ] = { ST_V_Completed, ST_V_Stopped, ST_V_Timed_Out, ST_V_Failed, ST_V_File_IO_Error, ST_V_Skipped, ST_V_Authorization_Required, ST_V_Proxy_Authentication_Required, ST_V_Insufficient_Disk_Space };
 
+	SetNotificationTitle( ST_V_Downloads_Have_Finished, ST_L_Downloads_Have_Finished );	// Downloads Have Finished
+
 	for ( unsigned char i = 0; i < NUM_SESSION_STATUS; ++i )
 	{
 		if ( g_session_status_count[ i ] > 0 )
 		{
-			int ret = __snwprintf( g_nid.szInfo + buf_length, sizeof( g_nid.szInfo ) / sizeof( g_nid.szInfo[ 0 ] ) - buf_length, L"%s%s: %lu", ( buf_length > 0 ? L"\r\n" : L"" ), status_strings[ i ], g_session_status_count[ i ] );
+			int ret = __snwprintf( g_nid.szInfo + buf_length, ( sizeof( g_nid.szInfo ) / sizeof( g_nid.szInfo[ 0 ] ) ) - buf_length, L"%s%s: %lu", ( buf_length > 0 ? L"\r\n" : L"" ), status_strings[ i ], g_session_status_count[ i ] );
 
 			if ( ret >= 0 )
 			{
@@ -182,6 +264,8 @@ void FormatTooltipStatus()
 			}
 		}
 	}
+
+	return ( buf_length != 0 ? true : false );
 }
 
 unsigned int FormatSizes( wchar_t *buffer, unsigned int buffer_size, unsigned char toggle_type, unsigned long long data_size )
@@ -261,7 +345,14 @@ void UpdateSBItemCount()
 	_wmemcpy_s( status_bar_buf, 64, ST_V_Items_, buf_length );
 	status_bar_buf[ buf_length++ ] = ' ';
 
-	__snwprintf( status_bar_buf + buf_length, 64 - buf_length, L"%lu", TLV_GetRootItemCount() );
+	if ( g_status_filter == STATUS_NONE )
+	{
+		__snwprintf( status_bar_buf + buf_length, 64 - buf_length, L"%lu", TLV_GetParentItemNodeCount() );
+	}
+	else
+	{
+		__snwprintf( status_bar_buf + buf_length, 64 - buf_length, L"%lu/%lu", TLV_GetRootItemCount(), TLV_GetParentItemNodeCount() );
+	}
 
 	_SendMessageW( g_hWnd_status, SB_SETTIPTEXT, 0, ( LPARAM )status_bar_buf );
 	_SendMessageW( g_hWnd_status, SB_SETTEXT, MAKEWPARAM( 0, 0 ), ( LPARAM )status_bar_buf );
@@ -524,6 +615,7 @@ DWORD WINAPI UpdateWindow( LPVOID /*WorkThreadContext*/ )
 					}
 
 					g_nid.uFlags &= ~NIF_INFO;
+					g_nid.dwInfoFlags &= ~NIIF_NOSOUND;
 
 					_wmemcpy_s( g_nid.szTip + tooltip_offset, ( sizeof( g_nid.szTip ) / sizeof( g_nid.szTip[ 0 ] ) ) - tooltip_offset, L"\r\n", 2 );
 					tooltip_offset += 2;
@@ -560,6 +652,7 @@ DWORD WINAPI UpdateWindow( LPVOID /*WorkThreadContext*/ )
 				 cfg_sort_added_and_updating_items &&
 				 cfg_sorted_column_index != COLUMN_NUM &&
 				 cfg_sorted_column_index != COLUMN_DATE_AND_TIME_ADDED &&
+				 cfg_sorted_column_index != COLUMN_CATEGORY &&
 				 cfg_sorted_column_index != COLUMN_DOWNLOAD_DIRECTORY &&
 				 cfg_sorted_column_index != COLUMN_URL )
 			{
@@ -569,6 +662,35 @@ DWORD WINAPI UpdateWindow( LPVOID /*WorkThreadContext*/ )
 				si.direction = cfg_sorted_direction;
 
 				_SendMessageW( g_hWnd_tlv_files, TLVM_SORT_ITEMS, NULL, ( LPARAM )&si );
+			}
+
+			if ( g_refresh_list != 0x00 )
+			{
+				if ( g_refresh_list & 0x08 )
+				{
+					InterlockedExchange( &g_refresh_list, ( g_refresh_list & ~0x08 ) );
+					_SendMessageW( g_hWnd_tlv_files, TLVM_CANCEL_SELECT, NULL, NULL );
+				}
+
+				if ( g_refresh_list & 0x04 )
+				{
+					InterlockedExchange( &g_refresh_list, ( g_refresh_list & ~0x04 ) );
+					_SendMessageW( g_hWnd_tlv_files, TLVM_CANCEL_DRAG, NULL, NULL );
+				}
+
+				if ( g_refresh_list & 0x02 )
+				{
+					InterlockedExchange( &g_refresh_list, ( g_refresh_list & ~0x02 ) );
+					_SendMessageW( g_hWnd_tlv_files, TLVM_CANCEL_EDIT, NULL, NULL );
+				}
+
+				if ( g_refresh_list & 0x01 )
+				{
+					UpdateSBItemCount();
+
+					InterlockedExchange( &g_refresh_list, ( g_refresh_list & ~0x01 ) );
+					_SendMessageW( g_hWnd_tlv_files, TLVM_REFRESH_LIST, TRUE, FALSE );
+				}
 			}
 		}
 		else
@@ -624,15 +746,31 @@ DWORD WINAPI UpdateWindow( LPVOID /*WorkThreadContext*/ )
 
 				if ( cfg_show_notification )
 				{
-					FormatTooltipStatus();
-
-					g_nid.uFlags |= NIF_INFO;
+					if ( FormatTooltipStatus() )
+					{
+						g_nid.uFlags |= NIF_INFO;
+						if ( ( cfg_play_sound && cfg_sound_file_path != NULL ) ||
+							 ( cfg_play_sound_fail && cfg_sound_fail_file_path != NULL ) )
+						{
+							g_nid.dwInfoFlags |= NIIF_NOSOUND;
+						}
+						else
+						{
+							g_nid.dwInfoFlags &= ~NIIF_NOSOUND;
+						}
+					}
+					else	// It's possible that nothing was downloaded (unsupported URL).
+					{
+						g_nid.uFlags &= ~NIF_INFO;
+						g_nid.dwInfoFlags &= ~NIIF_NOSOUND;
+					}
 				}
 				else
 				{
 					g_nid.uFlags &= ~NIF_INFO;
+					g_nid.dwInfoFlags &= ~NIIF_NOSOUND;
 				}
-				g_nid.szTip[ 15 ] = 0;	// Sanity.
+				g_nid.szTip[ 15 ] = 0;	// Sanity. PROGRAM_CAPTION length
 				_Shell_NotifyIconW( NIM_MODIFY, &g_nid );
 			}
 
@@ -643,6 +781,7 @@ DWORD WINAPI UpdateWindow( LPVOID /*WorkThreadContext*/ )
 				 cfg_sort_added_and_updating_items &&
 				 cfg_sorted_column_index != COLUMN_NUM &&
 				 cfg_sorted_column_index != COLUMN_DATE_AND_TIME_ADDED &&
+				 cfg_sorted_column_index != COLUMN_CATEGORY &&
 				 cfg_sorted_column_index != COLUMN_DOWNLOAD_DIRECTORY &&
 				 cfg_sorted_column_index != COLUMN_URL )
 			{
@@ -654,22 +793,68 @@ DWORD WINAPI UpdateWindow( LPVOID /*WorkThreadContext*/ )
 				_SendMessageW( g_hWnd_tlv_files, TLVM_SORT_ITEMS, NULL, ( LPARAM )&si );
 			}
 
+			if ( g_refresh_list != 0x00 )
+			{
+				if ( g_refresh_list & 0x08 )
+				{
+					InterlockedExchange( &g_refresh_list, ( g_refresh_list & ~0x08 ) );
+					_SendMessageW( g_hWnd_tlv_files, TLVM_CANCEL_SELECT, NULL, NULL );
+				}
+
+				if ( g_refresh_list & 0x04 )
+				{
+					InterlockedExchange( &g_refresh_list, ( g_refresh_list & ~0x04 ) );
+					_SendMessageW( g_hWnd_tlv_files, TLVM_CANCEL_DRAG, NULL, NULL );
+				}
+
+				if ( g_refresh_list & 0x02 )
+				{
+					InterlockedExchange( &g_refresh_list, ( g_refresh_list & ~0x02 ) );
+					_SendMessageW( g_hWnd_tlv_files, TLVM_CANCEL_EDIT, NULL, NULL );
+				}
+
+				if ( g_refresh_list & 0x01 )
+				{
+					UpdateSBItemCount();
+
+					InterlockedExchange( &g_refresh_list, ( g_refresh_list & ~0x01 ) );
+					_SendMessageW( g_hWnd_tlv_files, TLVM_REFRESH_LIST, TRUE, FALSE );
+				}
+			}
+
 			if ( !in_worker_thread )
 			{
 				UpdateMenus( true );
 			}
 
-			if ( cfg_play_sound && cfg_sound_file_path != NULL )
+			if ( ( cfg_play_sound && cfg_sound_file_path != NULL ) ||
+				 ( cfg_play_sound_fail && cfg_sound_fail_file_path != NULL ) )
 			{
 				bool play = true;
 				#ifndef WINMM_USE_STATIC_LIB
 					if ( winmm_state == WINMM_STATE_SHUTDOWN )
 					{
-						play = false;	// Should have been loaded in main if cfg_play_sound was true. 
+						play = false;	// Should have been loaded in main if cfg_play_sound or cfg_play_sound_fail was true.
 					}
 				#endif
 
-				if ( play ) { _PlaySoundW( cfg_sound_file_path, NULL, SND_ASYNC | SND_FILENAME ); }
+				if ( play )
+				{
+					if ( error )
+					{
+						if ( cfg_play_sound_fail && cfg_sound_fail_file_path != NULL )
+						{
+							_PlaySoundW( cfg_sound_fail_file_path, NULL, SND_ASYNC | SND_FILENAME );
+						}
+					}
+					else
+					{
+						if ( cfg_play_sound && cfg_sound_file_path != NULL )
+						{
+							_PlaySoundW( cfg_sound_file_path, NULL, SND_ASYNC | SND_FILENAME );
+						}
+					}
+				}
 			}
 
 			HANDLE save_session_handle = NULL;
@@ -798,6 +983,42 @@ wchar_t *GetDownloadInfoString( DOWNLOAD_INFO *di, int column, int root_index, i
 		case COLUMN_DATE_AND_TIME_ADDED:
 		{
 			buf = di->shared_info->w_add_time;
+		}
+		break;
+
+		case COLUMN_CATEGORY:
+		{
+			buf = di->shared_info->category;
+		}
+		break;
+
+		case COLUMN_COMMENTS:
+		{
+			if ( di->comments != NULL )
+			{
+				buf = tbuf;	// Reset the buffer pointer.
+
+				// tbuf_size is always 128, so this will never happen.
+				//if ( tbuf_size <= 4 )
+				//{
+				//	buf = L"...";
+				//}
+				//else
+				//{
+					int buf_length = __snwprintf( buf, tbuf_size, L"%.*s", tbuf_size, di->comments );
+					if ( buf_length >= tbuf_size )
+					{
+						buf[ tbuf_size - 4 ] = L'.';
+						buf[ tbuf_size - 3 ] = L'.';
+						buf[ tbuf_size - 2 ] = L'.';
+						buf[ tbuf_size - 1 ] = 0;	// Sanity.
+					}
+				//}
+			}
+			else
+			{
+				buf = L"";
+			}
 		}
 		break;
 
@@ -1138,7 +1359,7 @@ wchar_t *GetDownloadInfoString( DOWNLOAD_INFO *di, int column, int root_index, i
 		{
 			// Use the infinity symbol for remaining time if it can't be calculated.
 			if ( column == COLUMN_TIME_REMAINING &&
-			   ( IS_STATUS( di->status, STATUS_CONNECTING | STATUS_PAUSED ) ||
+			 ( ( di->status == STATUS_CONNECTING || IS_STATUS( di->status, STATUS_PAUSED ) ) ||
 			   ( di->status == STATUS_DOWNLOADING && ( di->file_size == 0 || di->speed == 0 ) ) ) )
 			{
 				buf = L"\x221E\0";	// Infinity symbol.
@@ -1199,20 +1420,16 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 	{
 		case WM_CREATE:
 		{
+			current_dpi_main = __GetDpiForWindow( hWnd );
+			last_dpi_main = 0;
+			hFont_main = UpdateFont( current_dpi_main );
+
 			g_hWnd_toolbar = _CreateWindowExW( WS_EX_TOOLWINDOW, TOOLBARCLASSNAME, NULL, CCS_NODIVIDER | WS_CHILDWINDOW | TBSTYLE_TOOLTIPS | TBSTYLE_TRANSPARENT | TBSTYLE_FLAT | TBSTYLE_WRAPABLE | ( cfg_show_toolbar ? WS_VISIBLE : 0 ), 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 
 			HWND hWnd_toolbar_tooltip = _CreateWindowExW( WS_EX_TOPMOST, TOOLTIPS_CLASS, NULL, WS_POPUP | TTS_NOPREFIX | TTS_ALWAYSTIP, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, g_hWnd_toolbar, NULL, NULL, NULL );
 			_SendMessageW( g_hWnd_toolbar, TB_SETTOOLTIPS, ( WPARAM )hWnd_toolbar_tooltip, 0 );
 
-			_wmemcpy_s( g_program_directory + g_program_directory_length, MAX_PATH - g_program_directory_length, L"\\toolbar.bmp\0", 13 );
-			if ( GetFileAttributesW( g_program_directory ) != INVALID_FILE_ATTRIBUTES )
-			{
-				g_toolbar_imagelist = _ImageList_LoadImageW( NULL, g_program_directory, 24, 0, ( COLORREF )RGB( 0xFF, 0x00, 0xFF ), IMAGE_BITMAP, LR_LOADFROMFILE | LR_CREATEDIBSECTION );
-			}
-			else
-			{
-				g_toolbar_imagelist = _ImageList_LoadImageW( GetModuleHandleW( NULL ), MAKEINTRESOURCE( IDB_BITMAP_TOOLBAR ), 24, 0, ( COLORREF )RGB( 0xFF, 0x00, 0xFF ), IMAGE_BITMAP, LR_CREATEDIBSECTION );
-			}
+			g_toolbar_imagelist = UpdateToolbarIcons( hWnd );
 			_SendMessageW( g_hWnd_toolbar, TB_SETIMAGELIST, 0, ( LPARAM )g_toolbar_imagelist );
 
 			_SendMessageW( g_hWnd_toolbar, TB_BUTTONSTRUCTSIZE, ( WPARAM )sizeof( TBBUTTON ), 0 );
@@ -1242,12 +1459,24 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 
 			_SendMessageW( g_hWnd_toolbar, TB_ADDBUTTONS, 16, ( LPARAM )&tbb );
 
-			g_hWnd_tlv_files = _CreateWindowW( L"TreeListView", NULL, WS_VSCROLL | WS_HSCROLL | WS_CHILDWINDOW | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+			//
+
+			g_splitter_cursor = _LoadCursorW( NULL, MAKEINTRESOURCE( IDC_SIZEWE ) );
+
+			g_hWnd_categories = _CreateWindowExW( TVS_EX_DOUBLEBUFFER, WC_TREEVIEW, NULL, TVS_HASBUTTONS | TVS_HASLINES | TVS_LINESATROOT | TVS_EDITLABELS | TVS_SHOWSELALWAYS | TVS_NOTOOLTIPS/*TVS_INFOTIP*/ | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+
+			CreateCategoryTreeView( g_hWnd_categories );
+			_SetFocus( g_hWnd_categories );
+
+			//
+
+			g_hWnd_tlv_files = _CreateWindowW( L"TreeListView", NULL, WS_VSCROLL | WS_HSCROLL | WS_TABSTOP | WS_CHILDWINDOW | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 
 			g_hWnd_status = _CreateWindowW( STATUSCLASSNAME, NULL, SBARS_SIZEGRIP | SBARS_TOOLTIPS | WS_CHILDWINDOW | ( cfg_show_status_bar ? WS_VISIBLE : 0 ), 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 
-			_SendMessageW( g_hWnd_toolbar, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_status, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_toolbar, WM_SETFONT, ( WPARAM )hFont_main, 0 );
+			_SendMessageW( g_hWnd_categories, WM_SETFONT, ( WPARAM )hFont_main, 0 );
+			_SendMessageW( g_hWnd_status, WM_SETFONT, ( WPARAM )hFont_main, 0 );
 
 			#ifndef OLE32_USE_STATIC_LIB
 				if ( ole32_state == OLE32_STATE_SHUTDOWN )
@@ -1261,6 +1490,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 				_OleInitialize( NULL );
 
 				RegisterDropWindow( g_hWnd_tlv_files, &List_DropTarget );
+				RegisterDropWindow( g_hWnd_categories, &Tree_DropTarget );
 			}
 
 			int status_bar_widths[] = { 104, 312, 520, -1 };
@@ -1385,6 +1615,12 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 				}
 			}
 
+			HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, load_category_list, ( void * )NULL, 0, NULL );
+			if ( thread != NULL )
+			{
+				CloseHandle( thread );
+			}
+
 			tooltip_buffer = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * 512 );
 
 			_memzero( &g_progress_info, sizeof( PROGRESS_INFO ) );
@@ -1421,10 +1657,13 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 				}
 			}
 
+			int width = _SCALE_M_( cfg_width );
+			int height = _SCALE_M_( cfg_height );
+
 			rc.left = cfg_pos_x;
 			rc.top = cfg_pos_y;
-			rc.right = rc.left + cfg_width;
-			rc.bottom = rc.top + cfg_height;
+			rc.right = rc.left + width;
+			rc.bottom = rc.top + height;
 			HMONITOR hMon = _MonitorFromRect( &rc, MONITOR_DEFAULTTONEAREST );
 			MONITORINFO mi;
 			mi.cbSize = sizeof( MONITORINFO );
@@ -1435,10 +1674,10 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 				 rc.bottom <= mi.rcMonitor.top ||
 				 rc.top >= mi.rcMonitor.bottom )
 			{
-				rc.left = mi.rcMonitor.left + ( ( ( mi.rcMonitor.right - mi.rcMonitor.left ) - cfg_width ) / 2 );
-				rc.top = mi.rcMonitor.top + ( ( ( mi.rcMonitor.bottom - mi.rcMonitor.top ) - cfg_height ) / 2 );
+				rc.left = mi.rcMonitor.left + ( ( ( mi.rcMonitor.right - mi.rcMonitor.left ) - width ) / 2 );
+				rc.top = mi.rcMonitor.top + ( ( ( mi.rcMonitor.bottom - mi.rcMonitor.top ) - height ) / 2 );
 			}
-			_SetWindowPos( hWnd, NULL, rc.left, rc.top, cfg_width, cfg_height, 0 );
+			_SetWindowPos( hWnd, NULL, rc.left, rc.top, width, height, 0 );
 
 #ifdef ENABLE_DARK_MODE
 			if ( g_use_dark_mode )
@@ -1487,19 +1726,63 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 
 		case WM_NOTIFY:
 		{
-			// Get our listview codes.
+			// Get our window codes.
 			switch ( ( ( LPNMHDR )lParam )->code )
 			{
 				case NM_RCLICK:
 				{
-					NMMOUSE *nmm = ( NMMOUSE * )lParam;
+					NMHDR *nmhdr = ( NMHDR * )lParam;
 
-					if ( nmm->hdr.hwndFrom == g_hWnd_toolbar || nmm->hdr.hwndFrom == g_hWnd_status )
+					if ( nmhdr->hwndFrom == g_hWnd_toolbar || nmhdr->hwndFrom == g_hWnd_status )
 					{
 						POINT p;
 						_GetCursorPos( &p );
 
 						_TrackPopupMenu( g_hMenuSub_view, 0, p.x, p.y, 0, hWnd, NULL );
+					}
+					else if ( nmhdr->hwndFrom == g_hWnd_categories )
+					{
+						POINT p;
+						_GetCursorPos( &p );
+
+						TVHITTESTINFO tvht;
+						_memzero( &tvht, sizeof( TVHITTESTINFO ) );
+						tvht.pt.x = p.x;
+						tvht.pt.y = p.y;
+						_ScreenToClient( g_hWnd_categories, &tvht.pt );
+						HTREEITEM hti = ( HTREEITEM )_SendMessageW( g_hWnd_categories, TVM_HITTEST, 0, ( LPARAM )&tvht );
+						if ( hti != NULL )
+						{
+							_SendMessageW( g_hWnd_categories, TVM_SELECTITEM, TVGN_CARET, ( LPARAM )hti );
+							_SetFocus( g_hWnd_categories );
+
+							TVITEM tvi;
+							_memzero( &tvi, sizeof( TVITEM ) );
+							tvi.mask = TVIF_PARAM;
+							tvi.hItem = hti;
+							_SendMessageW( g_hWnd_categories, TVM_GETITEM, 0, ( LPARAM )&tvi );
+
+							DoublyLinkedList *dll_node = ( DoublyLinkedList * )tvi.lParam;
+							if ( dll_node != NULL )
+							{
+								CATEGORY_TREE_INFO *cti = ( CATEGORY_TREE_INFO * )dll_node->data;
+								if ( cti != NULL && cti->type == CATEGORY_TREE_INFO_TYPE_CATEGORY_INFO )
+								{
+									if ( cti->data != NULL )	// Update/Remove
+									{
+										_TrackPopupMenu( g_hMenuSub_categories_update_remove, 0, p.x, p.y, 0, hWnd, NULL );
+									}
+									else	// Add
+									{
+										_TrackPopupMenu( g_hMenuSub_categories_add, 0, p.x, p.y, 0, hWnd, NULL );
+									}
+								}
+							}
+						}
+						else
+						{
+							_TrackPopupMenu( g_hMenuSub_categories_add, 0, p.x, p.y, 0, hWnd, NULL );
+						}
 					}
 				}
 				break;
@@ -1616,6 +1899,160 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 					}
 				}
 				break;
+
+				case TVN_SELCHANGED:			// The tree item that gains focus
+				{
+					NMTREEVIEW *nmtv = ( NMTREEVIEW * )lParam;
+
+					unsigned int status = UINT_MAX;
+					wchar_t *category = NULL;
+
+					DoublyLinkedList *dll_node = ( DoublyLinkedList * )nmtv->itemNew.lParam;
+					if ( dll_node != NULL )
+					{
+						CATEGORY_TREE_INFO *cti = ( CATEGORY_TREE_INFO * )dll_node->data;
+						if ( cti != NULL )
+						{
+							if ( cti->type == CATEGORY_TREE_INFO_TYPE_STATUS )
+							{
+								status = ( unsigned int )cti->data;
+							}
+							else if ( cti->type == CATEGORY_TREE_INFO_TYPE_CATEGORY_INFO && cti->data != NULL )
+							{
+								CATEGORY_INFO_ *ci = ( CATEGORY_INFO_ * )cti->data;
+
+								status = UINT_MAX - 1;
+
+								SHARED_CATEGORY_INFO *sci = ( SHARED_CATEGORY_INFO * )dllrbt_find( g_shared_categories, ( void * )ci->category, true );
+								if ( sci != NULL )
+								{
+									category = sci->category;
+								}
+							}
+						}
+					}
+
+					if ( status != UINT_MAX && ( TLV_GetStatusFilter() != status || TLV_GetCategoryFilter() != category ) )
+					{
+						RefreshSelectedFilter( status, category );
+					}
+				}
+				break;
+
+				case TVN_BEGINLABELEDIT:
+				{
+					NMTVDISPINFO *tvdi = ( NMTVDISPINFO * )lParam;
+
+					DoublyLinkedList *dll_node = ( DoublyLinkedList * )tvdi->item.lParam;
+					if ( dll_node != NULL )
+					{
+						CATEGORY_TREE_INFO *cti = ( CATEGORY_TREE_INFO * )dll_node->data;
+						if ( cti != NULL && cti->type == CATEGORY_TREE_INFO_TYPE_CATEGORY_INFO && cti->data != NULL )
+						{
+							HWND hWnd_categories_edit = ( HWND )_SendMessageW( g_hWnd_categories, TVM_GETEDITCONTROL, 0, 0 );
+							if ( hWnd_categories_edit != NULL )
+							{
+								_SendMessageW( hWnd_categories_edit, EM_LIMITTEXT, MAX_PATH - 1, 0 );
+
+								CategoriesEditProc = ( WNDPROC )_GetWindowLongPtrW( hWnd_categories_edit, GWLP_WNDPROC );
+								_SetWindowLongPtrW( hWnd_categories_edit, GWLP_WNDPROC, ( LONG_PTR )CategoriesEditSubProc );
+
+#ifdef ENABLE_DARK_MODE
+								if ( g_use_dark_mode )
+								{
+									EnumChildProc( hWnd_categories_edit, NULL );
+									EnumTLWProc( g_hWnd_categories, NULL );
+								}
+#endif
+
+								return 0;
+							}
+						}
+					}
+
+					return TRUE;
+				}
+				break;
+
+				case TVN_ENDLABELEDIT:
+				{
+					NMTVDISPINFO *tvdi = ( NMTVDISPINFO * )lParam;
+
+					if ( tvdi->item.pszText != NULL && tvdi->item.pszText[ 0 ] != 0 )
+					{
+						DoublyLinkedList *dll_node = ( DoublyLinkedList * )tvdi->item.lParam;
+						if ( dll_node != NULL )
+						{
+							CATEGORY_TREE_INFO *cti = ( CATEGORY_TREE_INFO * )dll_node->data;
+							if ( cti != NULL && cti->type == CATEGORY_TREE_INFO_TYPE_CATEGORY_INFO && cti->data != NULL )
+							{
+								CATEGORY_INFO_ *old_ci = ( CATEGORY_INFO_ * )cti->data;
+								if ( lstrcmpW( old_ci->category, tvdi->item.pszText ) != 0 )
+								{
+									CATEGORY_UPDATE_INFO *cui = ( CATEGORY_UPDATE_INFO * )GlobalAlloc( GMEM_FIXED, sizeof( CATEGORY_UPDATE_INFO ) );
+									if ( cui != NULL )
+									{
+										cui->old_ci = old_ci;
+										cui->update_type = 1;	// Update
+										cui->hti = tvdi->item.hItem;
+
+										CATEGORY_INFO_ *ci = ( CATEGORY_INFO_ * )GlobalAlloc( GPTR, sizeof( CATEGORY_INFO_ ) );
+										if ( ci != NULL )
+										{
+											ci->category = GlobalStrDupW( tvdi->item.pszText );
+
+											ci->download_directory = GlobalStrDupW( old_ci->download_directory );
+
+											cui->ci = ci;
+
+											// cui is freed in handle_category_list.
+											HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, handle_category_list, ( void * )cui, 0, NULL );
+											if ( thread != NULL )
+											{
+												CloseHandle( thread );
+											}
+											else
+											{
+												FreeCategoryInfo( &cui->ci );
+												GlobalFree( cui );
+											}
+										}
+										else
+										{
+											GlobalFree( cui );
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+				break;
+
+				case TVN_BEGINDRAG:
+				{
+					NMTREEVIEW *nmtv = ( NMTREEVIEW * )lParam;
+					if ( nmtv != NULL && nmtv->itemNew.lParam != NULL )
+					{
+						DoublyLinkedList *dll_node = ( DoublyLinkedList * )nmtv->itemNew.lParam;
+						if ( dll_node->data != NULL )
+						{
+							CATEGORY_TREE_INFO *cti = ( CATEGORY_TREE_INFO * )dll_node->data;
+							if ( cti != NULL && cti->type == CATEGORY_TREE_INFO_TYPE_CATEGORY_INFO && cti->data != NULL )
+							{
+								g_cat_tv_start_item = g_cat_tv_end_item = nmtv->itemNew.hItem;
+
+								*( HTREEITEM * )&g_cat_lb_item_rc = g_cat_tv_start_item;
+								_SendMessageW( nmtv->hdr.hwndFrom, TVM_GETITEMRECT, TRUE, ( LPARAM )&g_cat_lb_item_rc );
+
+								_SetCapture( hWnd );
+
+								g_cat_tv_dragging = true;
+							}
+						}
+					}
+				}
+				break;
 			}
 
 			return FALSE;
@@ -1649,8 +2086,8 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 
 					if ( !( wp->flags & SWP_NOSIZE ) )
 					{
-						cfg_width = wp->cx;
-						cfg_height = wp->cy;
+						cfg_width = _UNSCALE_( wp->cx, dpi_main );
+						cfg_height = _UNSCALE_( wp->cy, dpi_main );
 					}
 
 					cfg_min_max = 0;
@@ -1670,7 +2107,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 				_GetClientRect( hWnd, &rc );
 
 				// Allow our listview to resize in proportion to the main window.
-				HDWP hdwp = _BeginDeferWindowPos( 1 );
+				HDWP hdwp = _BeginDeferWindowPos( ( cfg_show_categories ? 2 : 1 ) );
 
 				if ( cfg_show_toolbar )
 				{
@@ -1684,12 +2121,22 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 
 				if ( cfg_show_status_bar )
 				{
+					// Status bar will automatically resize its height to fit the font. No need to scale the height.
 					_GetWindowRect( g_hWnd_status, &rc_status );
+					int status_bar_height = rc_status.bottom - rc_status.top;
 
-					_DeferWindowPos( hdwp, g_hWnd_tlv_files, HWND_TOP, rc.left, rc.top, rc.right, rc.bottom - ( rc_status.bottom - rc_status.top ), SWP_NOZORDER );
+					if ( cfg_show_categories )
+					{
+						_DeferWindowPos( hdwp, g_hWnd_categories, HWND_TOP, rc.left, rc.top, _SCALE_M_( cfg_splitter_pos_x - SPLITTER_WIDTH ), rc.bottom - status_bar_height, SWP_NOZORDER );
+						_DeferWindowPos( hdwp, g_hWnd_tlv_files, HWND_TOP, rc.left + _SCALE_M_( cfg_splitter_pos_x ), rc.top, rc.right - _SCALE_M_( cfg_splitter_pos_x ), rc.bottom - status_bar_height, SWP_NOZORDER );
+					}
+					else
+					{
+						_DeferWindowPos( hdwp, g_hWnd_tlv_files, HWND_TOP, rc.left, rc.top, rc.right, rc.bottom - status_bar_height, SWP_NOZORDER );
+					}
 
 					//int status_bar_widths[] = { 104, 312, 520, -1 };
-					int sbi_width = ( ( rc.right - rc.left ) - 160 ) / 3;
+					int sbi_width = ( ( rc.right - rc.left ) - _SCALE_M_( 160 ) ) / 3;
 					int status_bar_widths[ 4 ];
 					status_bar_widths[ 0 ] = sbi_width / 2;
 					status_bar_widths[ 1 ] = status_bar_widths[ 0 ] + sbi_width;
@@ -1702,7 +2149,15 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 				}
 				else
 				{
-					_DeferWindowPos( hdwp, g_hWnd_tlv_files, HWND_TOP, rc.left, rc.top, rc.right, rc.bottom, SWP_NOZORDER );
+					if ( cfg_show_categories )
+					{
+						_DeferWindowPos( hdwp, g_hWnd_categories, HWND_TOP, rc.left, rc.top, _SCALE_M_( cfg_splitter_pos_x - SPLITTER_WIDTH ), rc.bottom, SWP_NOZORDER );
+						_DeferWindowPos( hdwp, g_hWnd_tlv_files, HWND_TOP, rc.left + _SCALE_M_( cfg_splitter_pos_x ), rc.top, rc.right - _SCALE_M_( cfg_splitter_pos_x ), rc.bottom, SWP_NOZORDER );
+					}
+					else
+					{
+						_DeferWindowPos( hdwp, g_hWnd_tlv_files, HWND_TOP, rc.left, rc.top, rc.right, rc.bottom, SWP_NOZORDER );
+					}
 				}
 
 				_EndDeferWindowPos( hdwp );
@@ -1717,6 +2172,272 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 		}
 		break;
 
+		case WM_MOUSEMOVE:
+		{
+			if ( g_cat_tv_dragging )
+			{
+				POINT pt;
+				pt.x = GET_X_LPARAM( lParam );
+				pt.y = GET_Y_LPARAM( lParam );
+				_ClientToScreen( hWnd, &pt );
+				_ScreenToClient( g_hWnd_categories, &pt );
+
+				TVHITTESTINFO tvht;
+				_memzero( &tvht, sizeof( TVHITTESTINFO ) );
+				tvht.pt.x = pt.x;
+				tvht.pt.y = pt.y;
+				HTREEITEM hti = ( HTREEITEM )_SendMessageW( g_hWnd_categories, TVM_HITTEST, 0, ( LPARAM )&tvht );
+				if ( hti != NULL )
+				{
+					HTREEITEM hti_parent = ( HTREEITEM )_SendMessageW( g_hWnd_categories, TVM_GETNEXTITEM, TVGN_PARENT, ( LPARAM )hti );
+					if ( hti_parent == g_hti_categories /*|| hti == g_hti_categories*/ )
+					{
+						g_cat_tv_oob = false;
+
+						*( HTREEITEM * )&g_cat_lb_item_rc = hti;
+						_SendMessageW( g_hWnd_categories, TVM_GETITEMRECT, TRUE, ( LPARAM )&g_cat_lb_item_rc );
+					}
+				}
+				else if ( !g_cat_tv_oob && pt.y > 0 )
+				{
+					g_cat_tv_oob = true;
+
+					int height = g_cat_lb_item_rc.bottom - g_cat_lb_item_rc.top;
+					g_cat_lb_item_rc.top += height;
+					g_cat_lb_item_rc.bottom += height;
+				}
+
+				RECT rc;
+				_GetClientRect( g_hWnd_categories, &rc );
+				g_cat_lb_item_rc.left = rc.left;
+				g_cat_lb_item_rc.right = rc.right;
+
+				HDC hDC = _GetDC( g_hWnd_categories );
+
+				// Create a memory buffer to draw to.
+				HDC hdcMem = _CreateCompatibleDC( hDC );
+
+				HBITMAP hbm = _CreateCompatibleBitmap( hDC, rc.right - rc.left, rc.bottom - rc.top );
+				HBITMAP ohbm = ( HBITMAP )_SelectObject( hdcMem, hbm );
+				_DeleteObject( ohbm );
+
+				// Fill the background.
+				HBRUSH color = _CreateSolidBrush( ( COLORREF )_GetSysColor( COLOR_WINDOW ) );
+				_FillRect( hdcMem, &rc, color );
+				_DeleteObject( color );
+
+				_SendMessageW( g_hWnd_categories, WM_PRINTCLIENT, ( WPARAM )hdcMem, ( LPARAM )( PRF_ERASEBKGND | PRF_CLIENT | PRF_NONCLIENT ) );
+
+				HPEN line_color;
+
+#ifdef ENABLE_DARK_MODE
+				if ( g_use_dark_mode )
+				{
+					line_color = _CreatePen( PS_DOT, 1, dm_color_list_highlight );
+				}
+				else
+#endif
+				{
+					line_color = _CreatePen( PS_DOT, 1, ( COLORREF )_GetSysColor( COLOR_HOTLIGHT ) );
+				}
+
+				HPEN old_color = ( HPEN )_SelectObject( hdcMem, line_color );
+				_DeleteObject( old_color );
+				_MoveToEx( hdcMem, g_cat_lb_item_rc.left, g_cat_lb_item_rc.top, NULL );
+				_LineTo( hdcMem, g_cat_lb_item_rc.right, g_cat_lb_item_rc.top );
+				_DeleteObject( line_color );
+
+				_BitBlt( hDC, 0, 0, rc.right - rc.left, rc.bottom - rc.top, hdcMem, 0, 0, SRCCOPY );
+
+				_DeleteObject( hbm );
+
+				_DeleteDC( hdcMem );
+				_ReleaseDC( g_hWnd_categories, hDC );
+
+				return TRUE;
+			}
+			else
+			{
+				_SetCursor( g_splitter_cursor );
+
+				if ( ( wParam == MK_LBUTTON ) && g_splitter_moving )
+				{
+					RECT rc;
+					_GetClientRect( hWnd, &rc );
+					int splitter_pox_x = _UNSCALE_( GET_X_LPARAM( lParam ), dpi_main );
+					if ( splitter_pox_x <= rc.right && splitter_pox_x >= SPLITTER_WIDTH )
+					{
+						cfg_splitter_pos_x = splitter_pox_x;
+
+						_SendMessageW( hWnd, WM_SIZE, 0, MAKELPARAM( rc.right, rc.bottom ) );
+					}
+				}
+
+				return 0;
+			}
+		}
+		break;
+
+		case WM_LBUTTONDOWN:
+		{
+			_SetCursor( g_splitter_cursor );
+
+			g_splitter_moving = true;
+
+			_SetCapture( hWnd );
+
+			return 0;
+		}
+		break;
+
+		case WM_LBUTTONUP:
+		{
+			if ( g_cat_tv_dragging ) 
+			{
+				POINT pt;
+				pt.x = GET_X_LPARAM( lParam );
+				pt.y = GET_Y_LPARAM( lParam );
+				_ClientToScreen( hWnd, &pt );
+				_ScreenToClient( g_hWnd_categories, &pt );
+
+				TVHITTESTINFO tvht;
+				_memzero( &tvht, sizeof( TVHITTESTINFO ) );
+				tvht.pt.x = pt.x;
+				tvht.pt.y = pt.y;
+				g_cat_tv_end_item = ( HTREEITEM )_SendMessageW( g_hWnd_categories, TVM_HITTEST, 0, ( LPARAM )&tvht );
+				if ( g_cat_tv_end_item != g_cat_tv_start_item )
+				{
+					TVINSERTSTRUCT tvis;
+					_memzero( &tvis, sizeof( TVINSERTSTRUCT ) );
+					tvis.item.mask = TVIF_PARAM;
+					tvis.item.hItem = g_cat_tv_start_item;
+					_SendMessageW( g_hWnd_categories, TVM_GETITEM, 0, ( LPARAM )&tvis.item );
+					_SendMessageW( g_hWnd_categories, TVM_DELETEITEM, 0, ( LPARAM )g_cat_tv_start_item );
+
+					tvis.hParent = g_hti_categories;
+
+					DoublyLinkedList *dll_node = NULL;
+					if ( tvis.item.lParam != NULL )
+					{
+						dll_node = ( DoublyLinkedList * )tvis.item.lParam;
+						if ( dll_node->data != NULL )
+						{
+							CATEGORY_TREE_INFO *cti = ( CATEGORY_TREE_INFO * )dll_node->data;
+							if ( cti != NULL && cti->type == CATEGORY_TREE_INFO_TYPE_CATEGORY_INFO && cti->data != NULL )
+							{
+								CATEGORY_INFO_ *ci = ( CATEGORY_INFO_ * )cti->data;
+								tvis.item.pszText = ci->category;
+							}
+						}
+					}
+
+					HTREEITEM hti;
+					if ( g_cat_tv_end_item != NULL )
+					{
+						hti = ( HTREEITEM )_SendMessageW( g_hWnd_categories, TVM_GETNEXTITEM, TVGN_PARENT, ( LPARAM )g_cat_tv_end_item );
+						if ( hti == g_hti_categories )
+						{
+							hti = ( HTREEITEM )_SendMessageW( g_hWnd_categories, TVM_GETNEXTITEM, TVGN_PREVIOUS, ( LPARAM )g_cat_tv_end_item );
+							tvis.hInsertAfter = ( hti != NULL ? hti : TVI_FIRST );
+						}
+						else
+						{
+							tvis.hInsertAfter = TVI_FIRST;
+						}
+					}
+					else
+					{
+						tvis.hInsertAfter = TVI_LAST;
+					}
+
+					tvis.item.mask |= TVIF_TEXT;
+					hti = ( HTREEITEM )_SendMessageW( g_hWnd_categories, TVM_INSERTITEM, 0, ( LPARAM )&tvis );
+					_SendMessageW( g_hWnd_categories, TVM_SELECTITEM, TVGN_CARET, ( LPARAM )hti );
+
+					hti = ( HTREEITEM )_SendMessageW( g_hWnd_categories, TVM_GETNEXTITEM, TVGN_PREVIOUS, ( LPARAM )hti );
+					tvis.item.mask = TVIF_PARAM;
+					tvis.item.hItem = hti;
+					_SendMessageW( g_hWnd_categories, TVM_GETITEM, 0, ( LPARAM )&tvis.item );
+
+					if ( tvis.item.lParam != NULL )
+					{
+						DoublyLinkedList *previous_dll_node = ( DoublyLinkedList * )tvis.item.lParam;
+						
+						// We're inserting at the head of the list.
+						if ( previous_dll_node == dll_node )
+						{
+							// If we're moving a node that isn't already at the head.
+							if ( dll_node != g_category_list )
+							{
+								DoublyLinkedList *prev = dll_node->prev;
+								DoublyLinkedList *next = dll_node->next;
+
+								DLL_RemoveNode( &g_treeview_list, dll_node );
+
+								prev->next = next;
+								dll_node->prev = g_category_list->prev;
+								dll_node->next = g_category_list;
+								g_category_list->prev->next = dll_node;
+								g_category_list->prev = dll_node;
+								g_category_list = dll_node;
+							}
+						}
+						else
+						{
+							if ( previous_dll_node->next != dll_node )
+							{
+								if ( dll_node == g_category_list )
+								{
+									g_category_list = dll_node->next;
+								}
+
+								DLL_RemoveNode( &g_treeview_list, dll_node );
+
+								// We're inserting at the end of the list.
+								if ( previous_dll_node->next == NULL )
+								{
+									previous_dll_node->next = dll_node;
+									dll_node->prev = previous_dll_node;
+									g_treeview_list->prev = dll_node;
+								}
+								else
+								{
+									previous_dll_node->next->prev = dll_node;
+									dll_node->next = previous_dll_node->next;
+									previous_dll_node->next = dll_node;
+									dll_node->prev = previous_dll_node;
+								}
+							}
+						}
+					}
+
+					category_list_changed = true;
+					g_update_add_category_window = true;
+					g_update_update_category_window = true;
+					g_update_site_manager_category_window = true;
+				}
+
+				g_cat_tv_oob = false;
+
+				_ReleaseCapture();
+
+				_InvalidateRect( g_hWnd_categories, NULL, TRUE );
+
+				g_cat_tv_dragging = false;
+
+				return TRUE;
+			}
+			else
+			{
+				_ReleaseCapture();
+
+				g_splitter_moving = false;
+
+				return 0;
+			}
+		}
+		break;
+
 		case WM_SIZING:
 		{
 			RECT *rc = ( RECT * )lParam;
@@ -1724,8 +2445,9 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 			// Save our settings for the position/dimensions of the window.
 			cfg_pos_x = rc->left;
 			cfg_pos_y = rc->top;
-			cfg_width = rc->right - rc->left;
-			cfg_height = rc->bottom - rc->top;
+
+			cfg_width = _UNSCALE_( ( rc->right - rc->left ), dpi_main );
+			cfg_height = _UNSCALE_( ( rc->bottom - rc->top ), dpi_main );
 
 			return TRUE;
 		}
@@ -1767,8 +2489,9 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 			// Save our settings for the position/dimensions of the window.
 			cfg_pos_x = rc->left;
 			cfg_pos_y = rc->top;
-			cfg_width = rc->right - rc->left;
-			cfg_height = rc->bottom - rc->top;
+
+			cfg_width = _UNSCALE_( ( rc->right - rc->left ), dpi_main );
+			cfg_height = _UNSCALE_( ( rc->bottom - rc->top ), dpi_main );
 
 			return TRUE;
 		}
@@ -1783,6 +2506,68 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 			_GetCursorPos( &cur_pos );
 			cx = cur_pos.x - rc.left;
 			cy = cur_pos.y - rc.top;
+
+			return 0;
+		}
+		break;
+
+		case WM_GET_DPI:
+		{
+			return current_dpi_main;
+		}
+		break;
+
+		case WM_DPICHANGED:
+		{
+			UINT last_dpi = current_dpi_main;
+			current_dpi_main = HIWORD( wParam );
+
+			HFONT hFont = UpdateFont( current_dpi_main );
+			EnumChildWindows( hWnd, EnumChildFontProc, ( LPARAM )hFont );
+			_DeleteObject( hFont_main );
+			hFont_main = hFont;
+
+			if ( g_toolbar_imagelist != NULL )
+			{
+				_ImageList_Destroy( g_toolbar_imagelist );
+			}
+			g_toolbar_imagelist = UpdateToolbarIcons( hWnd );
+			_SendMessageW( g_hWnd_toolbar, TB_SETIMAGELIST, 0, ( LPARAM )g_toolbar_imagelist );
+
+			RECT *rc = ( RECT * )lParam;
+			int width = rc->right - rc->left;
+			int height = rc->bottom - rc->top;
+
+			if ( last_dpi_main == 0 )
+			{
+				RECT rc_mon;
+				rc_mon.left = cfg_pos_x;
+				rc_mon.top = cfg_pos_y;
+				rc_mon.right = rc_mon.left + width;
+				rc_mon.bottom = rc_mon.top + height;
+				HMONITOR hMon = MonitorFromRect( &rc_mon, MONITOR_DEFAULTTONEAREST );	// This is a popup window and we can't use CW_USEDEFAULT. We'll place this window on the same monitor as the main window.
+				MONITORINFO mi;
+				mi.cbSize = sizeof( MONITORINFO );
+				_GetMonitorInfoW( hMon, &mi );
+				int pos_x = cfg_pos_x;
+				int pos_y = cfg_pos_y;
+				// If the window is offscreen, then move it into the current monitor.
+				if ( pos_x + width <= mi.rcMonitor.left ||
+					 pos_x >= mi.rcMonitor.right ||
+					 pos_y + height <= mi.rcMonitor.top ||
+					 pos_y >= mi.rcMonitor.bottom )
+				{
+					pos_x = mi.rcMonitor.left + ( ( ( mi.rcMonitor.right - mi.rcMonitor.left ) - width ) / 2 );
+					pos_y = mi.rcMonitor.top + ( ( ( mi.rcMonitor.bottom - mi.rcMonitor.top ) - height ) / 2 );
+				}
+				_SetWindowPos( hWnd, NULL, pos_x, pos_y, width, height, SWP_NOACTIVATE | SWP_NOOWNERZORDER );
+			}
+			else
+			{
+				_SetWindowPos( hWnd, NULL, rc->left, rc->top, width, height, SWP_NOZORDER | SWP_NOACTIVATE );
+			}
+
+			last_dpi_main = last_dpi;
 
 			return 0;
 		}
@@ -1884,6 +2669,31 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 		}
 		break;
 
+		case WM_PEER_CONNECTED:
+		{
+			if ( lParam != NULL )
+			{
+				SetNotificationTitle( ST_V_Remote_Connection, ST_L_Remote_Connection );	// Remote Connection
+
+				int notification_length = __snwprintf( g_nid.szInfo, sizeof( g_nid.szInfo ) / sizeof( g_nid.szInfo[ 0 ] ), L"%s %lu", ST_V_URL_s__added_, ( unsigned int )wParam );
+
+				wchar_t *peer_info = ( wchar_t * )lParam;
+
+				int peer_info_length = lstrlenW( peer_info );
+				if ( peer_info_length > 0 )
+				{
+					__snwprintf( g_nid.szInfo + notification_length, ( sizeof( g_nid.szInfo ) / sizeof( g_nid.szInfo[ 0 ] ) ) - notification_length, L"\r\n\r\n%s", ( wchar_t * )lParam );
+				}
+				g_nid.uFlags |= NIF_INFO;
+				g_nid.dwInfoFlags &= ~NIIF_NOSOUND;
+				g_nid.szInfo[ ( sizeof( g_nid.szInfo ) / sizeof( g_nid.szInfo[ 0 ] ) ) - 1 ] = 0;	// Sanity.
+				_Shell_NotifyIconW( NIM_MODIFY, &g_nid );
+			}
+
+			return 0;
+		}
+		break;
+
 		case WM_COPYDATA:
 		{
 			COPYDATASTRUCT *cds = ( COPYDATASTRUCT * )lParam;
@@ -1896,13 +2706,15 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 
 				// Our pointers were used to store each string's offset past the CL_ARGS struct.
 				// We're reverting them back to point to their respective string.
+				cla->category = ( cla->category_length > 0 ? cl_val + ( unsigned int )cla->category : NULL );
 				cla->download_directory = ( cla->download_directory_length > 0 ? cl_val + ( unsigned int )cla->download_directory : NULL );
 				cla->download_history_file = ( cla->download_history_file_length > 0 ? cl_val + ( unsigned int )cla->download_history_file : NULL );
 				cla->url_list_file = ( cla->url_list_file_length > 0 ? cl_val + ( unsigned int )cla->url_list_file : NULL );
 				cla->urls = ( cla->urls_length > 0 ? cl_val + ( unsigned int )cla->urls : NULL );
+				cla->comments = ( cla->comments_length > 0 ? cl_val + ( unsigned int )cla->comments : NULL );
 				cla->cookies = ( cla->cookies_length > 0 ? cl_val + ( unsigned int )cla->cookies : NULL );
-				cla->headers = ( cla->headers_length > 0 ? cl_val + ( unsigned int )cla->headers : NULL );
 				cla->data = ( cla->data_length > 0 ? cl_val + ( unsigned int )cla->data : NULL );
+				cla->headers = ( cla->headers_length > 0 ? cl_val + ( unsigned int )cla->headers : NULL );
 				cla->username = ( cla->username_length > 0 ? cl_val + ( unsigned int )cla->username : NULL );
 				cla->password = ( cla->password_length > 0 ? cl_val + ( unsigned int )cla->password : NULL );
 				cla->proxy_hostname = ( cla->proxy_hostname_length > 0 ? cl_val + ( unsigned int )cla->proxy_hostname : NULL );
@@ -1911,6 +2723,13 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 
 				CL_ARGS *new_cla = ( CL_ARGS * )GlobalAlloc( GMEM_FIXED, sizeof( CL_ARGS ) );
 				_memcpy_s( new_cla, sizeof( CL_ARGS ), cla, sizeof( CL_ARGS ) );
+
+				if ( cla->category != NULL )
+				{
+					new_cla->category = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( cla->category_length + 1 ) );
+					_wmemcpy_s( new_cla->category, cla->category_length + 1, cla->category, cla->category_length );
+					new_cla->category[ cla->category_length ] = 0;	// Sanity.
+				}
 
 				if ( cla->download_directory != NULL )
 				{
@@ -1938,6 +2757,13 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 					new_cla->urls = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( cla->urls_length + 1 ) );
 					_wmemcpy_s( new_cla->urls, cla->urls_length + 1, cla->urls, cla->urls_length );
 					new_cla->urls[ cla->urls_length ] = 0;	// Sanity.
+				}
+
+				if ( cla->comments != NULL )
+				{
+					new_cla->comments = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( cla->comments_length + 1 ) );
+					_wmemcpy_s( new_cla->comments, cla->comments_length + 1, cla->comments, cla->comments_length );
+					new_cla->comments[ cla->comments_length ] = 0;	// Sanity.
 				}
 
 				if ( cla->cookies != NULL )
@@ -2064,6 +2890,9 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 		{
 			ClearProgressBars();
 
+			// 0 = inactive, > 0 = active
+			g_hWnd_active = ( wParam == 0 ? NULL : hWnd );
+
 			_SetFocus( g_hWnd_tlv_files );
 
 			return 0;
@@ -2114,6 +2943,12 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 			{
 				_EnableWindow( g_hWnd_download_speed_limit, FALSE );
 				_ShowWindow( g_hWnd_download_speed_limit, SW_HIDE );
+			}
+
+			if ( g_hWnd_add_category != NULL )
+			{
+				_EnableWindow( g_hWnd_add_category, FALSE );
+				_ShowWindow( g_hWnd_add_category, SW_HIDE );
 			}
 
 			if ( g_hWnd_check_for_updates != NULL )
@@ -2208,6 +3043,11 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 				_DestroyWindow( g_hWnd_download_speed_limit );
 			}
 
+			if ( g_hWnd_add_category != NULL )
+			{
+				_DestroyWindow( g_hWnd_add_category );
+			}
+
 			if ( g_hWnd_check_for_updates != NULL )
 			{
 				_DestroyWindow( g_hWnd_check_for_updates );
@@ -2239,7 +3079,9 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 				if ( di != NULL )
 				{
 					// di->icon is stored in the icon_handles tree and is destroyed in main.
+					// di->category is stored in the g_shared_categories tree and is destroyed in main.
 					GlobalFree( di->url );
+					GlobalFree( di->comments );
 					GlobalFree( di->cookies );
 					GlobalFree( di->headers );
 					GlobalFree( di->data );
@@ -2264,6 +3106,11 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 
 					DeleteCriticalSection( &di->di_cs );
 
+					// The shared icon info will be cleaned up in main().
+					// The shared category info will be cleaned up in main().
+					// di->shared_info->comments is freed above.
+
+					GlobalFree( di->new_file_path );
 					GlobalFree( di->w_add_time );
 
 					if ( di->hFile != INVALID_HANDLE_VALUE )
@@ -2299,6 +3146,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 
 			if ( use_drag_and_drop_main )
 			{
+				UnregisterDropWindow( g_hWnd_categories, Tree_DropTarget );
 				UnregisterDropWindow( g_hWnd_tlv_files, List_DropTarget );
 
 				_OleUninitialize();
@@ -2320,6 +3168,9 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 				tooltip_buffer = NULL;
 			}
 
+			// Delete our font.
+			_DeleteObject( hFont_main );
+
 			_DestroyWindow( hWnd );
 
 			return TRUE;
@@ -2338,26 +3189,10 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 			// Save before we shut down/restart/log off of Windows.
 			save_config();
 
-			if ( site_list_changed )
-			{
-				save_site_info();
-
-				site_list_changed = false;
-			}
-
-			if ( sftp_fps_host_list_changed )
-			{
-				save_sftp_fps_host_info();
-
-				sftp_fps_host_list_changed = false;
-			}
-
-			if ( sftp_keys_host_list_changed )
-			{
-				save_sftp_keys_host_info();
-
-				sftp_keys_host_list_changed = false;
-			}
+			if ( site_list_changed ) { save_site_info(); site_list_changed = false; }
+			if ( sftp_fps_host_list_changed ) { save_sftp_fps_host_info(); sftp_fps_host_list_changed = false; }
+			if ( sftp_keys_host_list_changed ) { save_sftp_keys_host_info(); sftp_keys_host_list_changed = false; }
+			if ( category_list_changed ) { save_category_info(); category_list_changed = false; }
 
 			if ( cfg_enable_download_history && g_download_history_changed )
 			{

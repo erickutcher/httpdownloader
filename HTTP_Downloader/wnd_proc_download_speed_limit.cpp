@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
-	Copyright (C) 2015-2024 Eric Kutcher
+	Copyright (C) 2015-2025 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -17,11 +17,14 @@
 */
 
 #include "globals.h"
-#include "lite_comctl32.h"
+#include "lite_gdi32.h"
 #include "utilities.h"
 #include "string_tables.h"
 
 #include "dark_mode.h"
+
+#define DOWNLOAD_SPEED_LIMIT_WINDOW_WIDTH	330
+#define DOWNLOAD_SPEED_LIMIT_CLIENT_HEIGHT	94
 
 #define EDIT_SPEED_LIMIT		1000
 #define BTN_SPEED_LIMIT_SET		1001
@@ -29,11 +32,19 @@
 
 HWND g_hWnd_download_speed_limit = NULL;
 
+HWND g_hWnd_static_speed_limit = NULL;
 HWND g_hWnd_speed_limit = NULL;
 HWND g_hWnd_speed_limit_set = NULL;
+HWND g_hWnd_speed_limit_cancel = NULL;
 
 wchar_t limit_tooltip_text[ 32 ];
 HWND g_hWnd_limit_tooltip = NULL;
+
+UINT current_dpi_download_speed_limit = USER_DEFAULT_SCREEN_DPI;
+UINT last_dpi_download_speed_limit = 0;
+HFONT hFont_download_speed_limit = NULL;
+
+#define _SCALE_DSL_( x )						_SCALE_( ( x ), dpi_download_speed_limit )
 
 LRESULT CALLBACK DownloadSpeedLimitWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
 {
@@ -41,11 +52,15 @@ LRESULT CALLBACK DownloadSpeedLimitWndProc( HWND hWnd, UINT msg, WPARAM wParam, 
 	{
 		case WM_CREATE:
 		{
+			current_dpi_download_speed_limit = __GetDpiForWindow( hWnd );
+			last_dpi_download_speed_limit = ( current_dpi_download_speed_limit == current_dpi_main ? current_dpi_download_speed_limit : 0 );
+			hFont_download_speed_limit = UpdateFont( current_dpi_download_speed_limit );
+
 			RECT rc;
 			_GetClientRect( hWnd, &rc );
 
-			HWND hWnd_static_speed_limit = _CreateWindowW( WC_STATIC, ST_V_Global_download_speed_limit_bytes_, WS_CHILD | WS_VISIBLE, 10, 10, rc.right - 20, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_speed_limit = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 10, 28, rc.right - 20, 23, hWnd, ( HMENU )EDIT_SPEED_LIMIT, NULL, NULL );
+			g_hWnd_static_speed_limit = _CreateWindowW( WC_STATIC, ST_V_Global_download_speed_limit_bytes_, WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+			g_hWnd_speed_limit = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, ( HMENU )EDIT_SPEED_LIMIT, NULL, NULL );
 
 			_SendMessageW( g_hWnd_speed_limit, EM_LIMITTEXT, 20, 0 );
 
@@ -72,25 +87,27 @@ LRESULT CALLBACK DownloadSpeedLimitWndProc( HWND hWnd, UINT msg, WPARAM wParam, 
 			_SendMessageA( g_hWnd_speed_limit, EM_SETSEL, 0, -1 );
 
 
-			g_hWnd_speed_limit_set = _CreateWindowW( WC_BUTTON, ST_V_Set, BS_DEFPUSHBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE | WS_DISABLED, rc.right - 175, 61, 80, 23, hWnd, ( HMENU )BTN_SPEED_LIMIT_SET, NULL, NULL );
-			HWND hWnd_speed_limit_cancel = _CreateWindowW( WC_BUTTON, ST_V_Cancel, WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 90, 61, 80, 23, hWnd, ( HMENU )BTN_SPEED_LIMIT_CANCEL, NULL, NULL );
+			g_hWnd_speed_limit_set = _CreateWindowW( WC_BUTTON, ST_V_Set, BS_DEFPUSHBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE | WS_DISABLED, 0, 0, 0, 0, hWnd, ( HMENU )BTN_SPEED_LIMIT_SET, NULL, NULL );
+			g_hWnd_speed_limit_cancel = _CreateWindowW( WC_BUTTON, ST_V_Cancel, WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, ( HMENU )BTN_SPEED_LIMIT_CANCEL, NULL, NULL );
 
-			_SendMessageW( hWnd_static_speed_limit, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_speed_limit, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_speed_limit_set, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( hWnd_speed_limit_cancel, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_static_speed_limit, WM_SETFONT, ( WPARAM )hFont_download_speed_limit, 0 );
+			_SendMessageW( g_hWnd_speed_limit, WM_SETFONT, ( WPARAM )hFont_download_speed_limit, 0 );
+			_SendMessageW( g_hWnd_speed_limit_set, WM_SETFONT, ( WPARAM )hFont_download_speed_limit, 0 );
+			_SendMessageW( g_hWnd_speed_limit_cancel, WM_SETFONT, ( WPARAM )hFont_download_speed_limit, 0 );
 
 			_SetFocus( g_hWnd_speed_limit );
 
+			int width = _SCALE_DSL_( DOWNLOAD_SPEED_LIMIT_WINDOW_WIDTH );
+
 			// Accounts for differing title bar heights.
 			CREATESTRUCTW *cs = ( CREATESTRUCTW * )lParam;
-			int height = ( cs->cy - ( rc.bottom - rc.top ) ) + 94;	// Bottom of last window object + 10.
+			int height = ( cs->cy - ( rc.bottom - rc.top ) ) + _SCALE_DSL_( DOWNLOAD_SPEED_LIMIT_CLIENT_HEIGHT );	// Bottom of last window object + 10.
 
 			HMONITOR hMon = _MonitorFromWindow( g_hWnd_main, MONITOR_DEFAULTTONEAREST );
 			MONITORINFO mi;
 			mi.cbSize = sizeof( MONITORINFO );
 			_GetMonitorInfoW( hMon, &mi );
-			_SetWindowPos( hWnd, NULL, mi.rcMonitor.left + ( ( ( mi.rcMonitor.right - mi.rcMonitor.left ) - 330 ) / 2 ), mi.rcMonitor.top + ( ( ( mi.rcMonitor.bottom - mi.rcMonitor.top ) - height ) / 2 ), 330, height, 0 );
+			_SetWindowPos( hWnd, NULL, mi.rcMonitor.left + ( ( ( mi.rcMonitor.right - mi.rcMonitor.left ) - width ) / 2 ), mi.rcMonitor.top + ( ( ( mi.rcMonitor.bottom - mi.rcMonitor.top ) - height ) / 2 ), width, height, 0 );
 
 #ifdef ENABLE_DARK_MODE
 			if ( g_use_dark_mode )
@@ -199,6 +216,62 @@ LRESULT CALLBACK DownloadSpeedLimitWndProc( HWND hWnd, UINT msg, WPARAM wParam, 
 		}
 		break;
 
+		case WM_SIZE:
+		{
+			RECT rc;
+			_GetClientRect( hWnd, &rc );
+
+			HDWP hdwp = _BeginDeferWindowPos( 4 );
+			_DeferWindowPos( hdwp, g_hWnd_static_speed_limit, HWND_TOP, _SCALE_DSL_( 10 ), _SCALE_DSL_( 10 ), rc.right - _SCALE_DSL_( 20 ), _SCALE_DSL_( 17 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_speed_limit, HWND_TOP, _SCALE_DSL_( 10 ), _SCALE_DSL_( 28 ), rc.right - _SCALE_DSL_( 20 ), _SCALE_DSL_( 23 ), SWP_NOZORDER );
+
+			_DeferWindowPos( hdwp, g_hWnd_speed_limit_set, HWND_TOP, rc.right - _SCALE_DSL_( 175 ), _SCALE_DSL_( 61 ), _SCALE_DSL_( 80 ), _SCALE_DSL_( 23 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_speed_limit_cancel, HWND_TOP, rc.right - _SCALE_DSL_( 90 ), _SCALE_DSL_( 61 ), _SCALE_DSL_( 80 ), _SCALE_DSL_( 23 ), SWP_NOZORDER );
+			_EndDeferWindowPos( hdwp );
+
+			return 0;
+		}
+		break;
+
+		case WM_GET_DPI:
+		{
+			return current_dpi_download_speed_limit;
+		}
+		break;
+
+		case WM_DPICHANGED:
+		{
+			UINT last_dpi = current_dpi_download_speed_limit;
+			current_dpi_download_speed_limit = HIWORD( wParam );
+
+			HFONT hFont = UpdateFont( current_dpi_download_speed_limit );
+			EnumChildWindows( hWnd, EnumChildFontProc, ( LPARAM )hFont );
+			_DeleteObject( hFont_download_speed_limit );
+			hFont_download_speed_limit = hFont;
+
+			RECT *rc = ( RECT * )lParam;
+			int width = rc->right - rc->left;
+			int height = rc->bottom - rc->top;
+
+			if ( last_dpi_download_speed_limit == 0 )
+			{
+				HMONITOR hMon = _MonitorFromWindow( g_hWnd_main, MONITOR_DEFAULTTONEAREST );
+				MONITORINFO mi;
+				mi.cbSize = sizeof( MONITORINFO );
+				_GetMonitorInfoW( hMon, &mi );
+				_SetWindowPos( hWnd, NULL, mi.rcMonitor.left + ( ( ( mi.rcMonitor.right - mi.rcMonitor.left ) - width ) / 2 ), mi.rcMonitor.top + ( ( ( mi.rcMonitor.bottom - mi.rcMonitor.top ) - height ) / 2 ), width, height, 0 );
+			}
+			else
+			{
+				_SetWindowPos( hWnd, NULL, rc->left, rc->top, width, height, SWP_NOZORDER | SWP_NOACTIVATE );
+			}
+
+			last_dpi_download_speed_limit = last_dpi;
+
+			return 0;
+		}
+		break;
+
 		case WM_ACTIVATE:
 		{
 			// 0 = inactive, > 0 = active
@@ -218,6 +291,9 @@ LRESULT CALLBACK DownloadSpeedLimitWndProc( HWND hWnd, UINT msg, WPARAM wParam, 
 
 		case WM_DESTROY:
 		{
+			// Delete our font.
+			_DeleteObject( hFont_download_speed_limit );
+
 			g_hWnd_download_speed_limit = NULL;
 
 			return 0;

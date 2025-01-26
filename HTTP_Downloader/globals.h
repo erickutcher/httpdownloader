@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
-	Copyright (C) 2015-2024 Eric Kutcher
+	Copyright (C) 2015-2025 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -43,7 +43,16 @@
 #define DW_WIDTH			48
 #define DW_HEIGHT			48
 
+#define SPLITTER_WIDTH		3
+#define SPLITTER_POS_X		140
+
 #define SNAP_WIDTH			10		// The minimum distance at which our windows will attach together.
+
+#define WM_DPICHANGED		0x02E0
+#define WM_DPICHANGED_BEFOREPARENT	0x02E2
+#define WM_DPICHANGED_AFTERPARENT	0x02E3
+//#define WM_GETDPISCALEDSIZE	0x02E4
+
 
 #define WM_DESTROY_ALT		WM_APP		// Allows non-window threads to call DestroyWindow.
 #define WM_PROPAGATE		WM_APP + 1
@@ -56,25 +65,34 @@
 
 #define WM_RESET_PROGRESS	WM_APP + 7
 
+#define WM_UPDATE_CATEGORY	WM_APP + 8
+#define WM_GET_DPI			WM_APP + 9
+#define WM_OPTIONS_CHANGED	WM_APP + 10
+#define WM_SAVE_OPTIONS		WM_APP + 11
+
+#define WM_PEER_CONNECTED	WM_APP + 12
+
 #define FILETIME_TICKS_PER_SECOND	10000000LL
 
-#define NUM_COLUMNS			15
+#define NUM_COLUMNS			17
 
 #define COLUMN_NUM					0
 #define COLUMN_ACTIVE_PARTS			1
-#define COLUMN_DATE_AND_TIME_ADDED	2
-#define COLUMN_DOWNLOAD_DIRECTORY	3
-#define COLUMN_DOWNLOAD_SPEED		4
-#define COLUMN_DOWNLOAD_SPEED_LIMIT	5
-#define COLUMN_DOWNLOADED			6
-#define COLUMN_FILE_SIZE			7
-#define COLUMN_FILE_TYPE			8
-#define COLUMN_FILENAME				9
-#define COLUMN_PROGRESS				10
-#define COLUMN_SSL_TLS_VERSION		11
-#define COLUMN_TIME_ELAPSED			12
-#define COLUMN_TIME_REMAINING		13
-#define COLUMN_URL					14
+#define COLUMN_CATEGORY				2
+#define COLUMN_COMMENTS				3
+#define COLUMN_DATE_AND_TIME_ADDED	4
+#define COLUMN_DOWNLOAD_DIRECTORY	5
+#define COLUMN_DOWNLOAD_SPEED		6
+#define COLUMN_DOWNLOAD_SPEED_LIMIT	7
+#define COLUMN_DOWNLOADED			8
+#define COLUMN_FILE_SIZE			9
+#define COLUMN_FILE_TYPE			10
+#define COLUMN_FILENAME				11
+#define COLUMN_PROGRESS				12
+#define COLUMN_SSL_TLS_VERSION		13
+#define COLUMN_TIME_ELAPSED			14
+#define COLUMN_TIME_REMAINING		15
+#define COLUMN_URL					16
 
 #define NUM_COLORS			80
 #define TD_NUM_COLORS		12
@@ -109,12 +127,19 @@
 #define CURRENT_VERSION_A	1
 #define CURRENT_VERSION_B	0
 #define CURRENT_VERSION_C	6
-#define CURRENT_VERSION_D	5
+#define CURRENT_VERSION_D	6
 
 #define CURRENT_VERSION		( ( CURRENT_VERSION_A << 24 ) | \
 							  ( CURRENT_VERSION_B << 16 ) | \
 							  ( CURRENT_VERSION_C << 8 )  | \
 							  ( CURRENT_VERSION_D ) )
+
+#define IS_BETA
+
+#ifdef IS_BETA
+#define BETA_VERSION		1
+#define UPDATE_CHECK_URL_BETA	"https://raw.githubusercontent.com/erickutcher/httpdownloader/master/HTTP_Downloader/version_beta.txt"
+#endif
 
 #define SIZE_FORMAT_BYTE		0
 #define SIZE_FORMAT_KILOBYTE	1
@@ -176,10 +201,12 @@ union QFILETIME
 struct CL_ARGS
 {
 	unsigned long long download_speed_limit;
+	wchar_t *category;
 	wchar_t *download_directory;
 	wchar_t *download_history_file;
 	wchar_t *url_list_file;
 	wchar_t *urls;
+	wchar_t *comments;
 	wchar_t *cookies;
 	wchar_t *headers;
 	wchar_t *data;
@@ -190,10 +217,12 @@ struct CL_ARGS
 	wchar_t *proxy_password;
 	unsigned long proxy_ip_address;
 	unsigned int download_operations;
+	int category_length;
 	int download_directory_length;
 	int download_history_file_length;
 	int url_list_file_length;
 	int urls_length;
+	int comments_length;
 	int cookies_length;
 	int headers_length;
 	int data_length;
@@ -207,6 +236,7 @@ struct CL_ARGS
 	unsigned char download_immediately;
 	unsigned char proxy_type;
 	char ssl_version;
+	bool use_clipboard;
 	bool proxy_resolve_domain_names;	// v4a or v5 based on proxy_type
 	bool use_download_speed_limit;
 	bool use_download_directory;
@@ -229,6 +259,7 @@ extern HWND g_hWnd_options;
 extern HWND g_hWnd_update_download;
 extern HWND g_hWnd_search;
 extern HWND g_hWnd_download_speed_limit;
+extern HWND g_hWnd_add_category;
 extern HWND g_hWnd_url_drop_window;
 
 extern HWND g_hWnd_check_for_updates;
@@ -243,6 +274,7 @@ extern HWND g_hWnd_sftp_keys_host_list;
 
 extern HWND g_hWnd_toolbar;
 extern HWND g_hWnd_status;
+extern HWND g_hWnd_categories;
 extern HWND g_hWnd_tlv_files;
 
 extern HWND g_hWnd_active;				// Handle to the active window. Used to handle tab stops.
@@ -250,15 +282,17 @@ extern HWND g_hWnd_active;				// Handle to the active window. Used to handle tab
 extern LOGFONT g_default_log_font;
 extern HFONT g_hFont;
 
+extern UINT current_dpi_main;
+
 extern dllrbt_tree *g_icon_handles;
 
 extern dllrbt_tree *g_site_info;
 extern dllrbt_tree *g_sftp_fps_host_info;
 extern dllrbt_tree *g_sftp_keys_host_info;
+extern dllrbt_tree *g_category_info;
 
 extern bool	g_can_fast_allocate;			// Prevent the pre-allocation from zeroing the file.
 
-extern int g_row_height;
 extern int g_default_row_height;
 
 extern bool g_skip_list_draw;
@@ -290,7 +324,8 @@ extern unsigned int g_temp_download_directory_length;
 
 extern bool g_allow_rename;
 
-extern UINT CF_HTML;	// Clipboard format.
+extern UINT CF_HTML;			// Clipboard format.
+extern UINT CF_TREELISTVIEW;	// Clipboard format.
 
 extern unsigned long long g_session_total_downloaded;
 extern unsigned long long g_session_downloaded_speed;
@@ -307,6 +342,8 @@ extern int cfg_height;
 
 extern char cfg_min_max;
 
+extern int cfg_splitter_pos_x;
+
 extern int cfg_column_width1;
 extern int cfg_column_width2;
 extern int cfg_column_width3;
@@ -322,6 +359,8 @@ extern int cfg_column_width12;
 extern int cfg_column_width13;
 extern int cfg_column_width14;
 extern int cfg_column_width15;
+extern int cfg_column_width16;
+extern int cfg_column_width17;
 
 extern char cfg_column_order1;
 extern char cfg_column_order2;
@@ -338,8 +377,11 @@ extern char cfg_column_order12;
 extern char cfg_column_order13;
 extern char cfg_column_order14;
 extern char cfg_column_order15;
+extern char cfg_column_order16;
+extern char cfg_column_order17;
 
 extern bool cfg_show_toolbar;
+extern bool cfg_show_categories;
 extern bool cfg_show_column_headers;
 extern bool cfg_show_status_bar;
 
@@ -363,6 +405,8 @@ extern bool cfg_close_to_tray;
 extern bool cfg_start_in_tray;
 extern bool cfg_show_notification;
 
+extern bool cfg_show_remote_connection_notification;
+
 extern bool cfg_always_on_top;
 extern bool cfg_check_for_updates;
 extern bool cfg_enable_download_history;
@@ -370,12 +414,14 @@ extern bool cfg_enable_quick_allocation;
 extern bool cfg_enable_sparse_file_allocation;
 extern bool cfg_set_filetime;
 extern bool cfg_update_redirected;
+extern bool cfg_apply_initial_proxy;
 extern bool cfg_download_non_200_206;
 extern bool cfg_move_to_trash;
 extern bool cfg_override_list_prompts;
 extern bool cfg_use_one_instance;
 extern bool cfg_enable_drop_window;
 extern bool cfg_prevent_standby;
+extern bool cfg_category_move;
 
 extern unsigned char cfg_drag_and_drop_action;
 
@@ -384,6 +430,9 @@ extern unsigned char g_shutdown_action;
 
 extern bool cfg_play_sound;
 extern wchar_t *cfg_sound_file_path;
+
+extern bool cfg_play_sound_fail;
+extern wchar_t *cfg_sound_fail_file_path;
 
 extern unsigned long cfg_thread_count;
 extern unsigned long g_max_threads;
@@ -397,6 +446,7 @@ extern unsigned char cfg_default_ssl_version;
 extern unsigned char cfg_default_download_parts;
 
 extern bool cfg_reallocate_parts;
+extern unsigned long long cfg_reallocate_threshold_size;
 
 extern unsigned char cfg_max_redirects;
 
@@ -551,6 +601,7 @@ extern unsigned char cfg_sorted_direction;
 extern bool cfg_sort_added_and_updating_items;
 extern bool cfg_expand_added_group_items;
 extern bool cfg_scroll_to_last_item;
+extern bool cfg_show_embedded_icon;
 
 extern bool cfg_show_gridlines;
 extern bool cfg_show_part_progress;

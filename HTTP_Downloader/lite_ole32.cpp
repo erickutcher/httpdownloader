@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
-	Copyright (C) 2015-2024 Eric Kutcher
+	Copyright (C) 2015-2025 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -34,6 +34,8 @@
 	pRevokeDragDrop _RevokeDragDrop;
 	pReleaseStgMedium _ReleaseStgMedium;
 
+	pDoDragDrop _DoDragDrop;
+
 	pCoCreateInstance _CoCreateInstance;
 
 	HMODULE hModule_ole32 = NULL;
@@ -66,6 +68,8 @@
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_ole32, ( void ** )&_RegisterDragDrop, "RegisterDragDrop" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_ole32, ( void ** )&_RevokeDragDrop, "RevokeDragDrop" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_ole32, ( void ** )&_ReleaseStgMedium, "ReleaseStgMedium" ) )
+
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_ole32, ( void ** )&_DoDragDrop, "DoDragDrop" ) )
 
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_ole32, ( void ** )&_CoCreateInstance, "CoCreateInstance" ) )
 

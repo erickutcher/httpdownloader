@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
-	Copyright (C) 2015-2024 Eric Kutcher
+	Copyright (C) 2015-2025 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -29,6 +29,7 @@
 
 	//__pragma( comment( lib, "user32.lib" ) )
 
+	//#define _AdjustWindowRectEx		AdjustWindowRectEx
 	#define _BeginDeferWindowPos	BeginDeferWindowPos
 	#define _BeginPaint				BeginPaint
 	#define _CallWindowProcW		CallWindowProcW
@@ -70,6 +71,7 @@
 	#define _GetClipboardData		GetClipboardData
 	#define _GetCursorPos			GetCursorPos
 	#define _GetDC					GetDC
+	#define _GetDlgCtrlID			GetDlgCtrlID
 	//#define _GetDlgItem				GetDlgItem
 	#define _GetFocus				GetFocus
 	#define _GetIconInfo			GetIconInfo
@@ -153,6 +155,7 @@
 	#define USER32_STATE_SHUTDOWN	0
 	#define USER32_STATE_RUNNING	1
 
+	//typedef BOOL ( WINAPI *pAdjustWindowRectEx )( LPRECT lpRect, DWORD dwStyle, BOOL bMenu, DWORD dwExStyle );
 	typedef HDWP ( WINAPI *pBeginDeferWindowPos )( int nNumWindows );
 	typedef HDC ( WINAPI *pBeginPaint )( HWND hwnd, LPPAINTSTRUCT lpPaint );
 	typedef LRESULT ( WINAPI *pCallWindowProcW )( WNDPROC lpPrevWndFunc, HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lParam );
@@ -194,6 +197,7 @@
 	typedef HANDLE ( WINAPI *pGetClipboardData )( UINT uFormat );
 	typedef BOOL ( WINAPI *pGetCursorPos )( LPPOINT lpPoint );
 	typedef HDC ( WINAPI *pGetDC )( HWND hWnd );
+	typedef int ( WINAPI *pGetDlgCtrlID )( HWND hWnd );
 	//typedef HWND ( WINAPI *pGetDlgItem )( HWND hDlg, int nIDDlgItem );
 	typedef HWND ( WINAPI *pGetFocus )();
 	typedef BOOL ( WINAPI *pGetIconInfo )( HICON hIcon, PICONINFO piconinfo );
@@ -270,6 +274,7 @@
 	typedef BOOL ( WINAPI *pTrackPopupMenu )( HMENU hMenu, UINT uFlags, int x, int y, int nReserved, HWND hWnd, const RECT *prcRect );
 	typedef BOOL ( WINAPI *pTranslateMessage )( const MSG *lpMsg );
 
+	//extern pAdjustWindowRectEx		_AdjustWindowRectEx;
 	extern pBeginDeferWindowPos		_BeginDeferWindowPos;
 	extern pBeginPaint				_BeginPaint;
 	extern pCallWindowProcW			_CallWindowProcW;
@@ -311,6 +316,7 @@
 	extern pGetClipboardData		_GetClipboardData;
 	extern pGetCursorPos			_GetCursorPos;
 	extern pGetDC					_GetDC;
+	extern pGetDlgCtrlID			_GetDlgCtrlID;
 	//extern pGetDlgItem				_GetDlgItem;
 	extern pGetFocus				_GetFocus;
 	extern pGetIconInfo				_GetIconInfo;
@@ -395,5 +401,41 @@
 	bool UnInitializeUser32();
 
 #endif
+
+typedef enum MONITOR_DPI_TYPE
+{
+	MDT_EFFECTIVE_DPI = 0,
+	MDT_ANGULAR_DPI = 1,
+	MDT_RAW_DPI = 2,
+	MDT_DEFAULT
+};
+
+typedef UINT ( WINAPI *pGetDpiForWindow )( HWND hWnd );
+typedef BOOL ( WINAPI *pSystemParametersInfoForDpi )( UINT uiAction, UINT uiParam, PVOID pvParam, UINT fWinIni, UINT dpi );
+typedef int ( WINAPI *pGetSystemMetricsForDpi )( int nIndex, UINT dpi );
+//typedef BOOL ( WINAPI *pAdjustWindowRectExForDpi )( LPRECT lpRect, DWORD dwStyle, BOOL bMenu, DWORD dwExStyle, UINT dpi );
+
+typedef HRESULT ( WINAPI *pGetDpiForMonitor )( HMONITOR hmonitor, MONITOR_DPI_TYPE dpiType, UINT *dpiX, UINT *dpiY );
+
+//
+
+extern pGetDpiForWindow				_GetDpiForWindow;
+extern pSystemParametersInfoForDpi	_SystemParametersInfoForDpi;
+extern pGetSystemMetricsForDpi		_GetSystemMetricsForDpi;
+//extern pAdjustWindowRectExForDpi	_AdjustWindowRectExForDpi;
+
+extern pGetDpiForMonitor			_GetDpiForMonitor;
+
+UINT __GetDpiForWindow( HWND hWnd );
+BOOL __SystemParametersInfoForDpi( UINT uiAction, UINT uiParam, PVOID pvParam, UINT fWinIni, UINT dpi );
+int __GetSystemMetricsForDpi( int nIndex, UINT dpi );
+//BOOL __AdjustWindowRectExForDpi( LPRECT lpRect, DWORD dwStyle, BOOL bMenu, DWORD dwExStyle, UINT dpi );
+
+bool InitializeDPIFunctions();
+bool UnInitializeDPIFunctions();
+
+#define _SCALE_( x, var ) MulDiv( ( x ), current_##var, USER_DEFAULT_SCREEN_DPI )
+#define _SCALE2_( x, var ) MulDiv( ( x ), current_##var, last_##var )
+#define _UNSCALE_( x, var ) MulDiv( ( x ), USER_DEFAULT_SCREEN_DPI, current_##var )
 
 #endif

@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
-	Copyright (C) 2015-2024 Eric Kutcher
+	Copyright (C) 2015-2025 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -172,7 +172,6 @@ HBRUSH g_hBrush_window_background = NULL;
 HBRUSH g_hBrush_edit_background = NULL;
 
 HTHEME hTheme_status = NULL;
-HTHEME hTheme_button = NULL;
 
 HMODULE hModule_dm_user32 = NULL;
 HMODULE hModule_dm_comctl32 = NULL;
@@ -180,9 +179,6 @@ HMODULE hModule_dm_gdi32 = NULL;
 HMODULE hModule_dm_ntdll = NULL;
 HMODULE hModule_dm_uxtheme = NULL;
 HMODULE hModule_dm_dwmapi = NULL;
-
-HIMAGELIST hIL_buttons = NULL;
-HIMAGELIST hIL_tv_buttons = NULL;
 
 wchar_t status_bar_tooltip_text[ 64 ];
 HWND g_hWnd_status_bar_tooltip = NULL;
@@ -213,6 +209,7 @@ SUBCLASS_INFO g_sci_up_down = { 0, 0 };
 SUBCLASS_INFO g_sci_combo_box = { 0, 0 };
 SUBCLASS_INFO g_sci_ip = { 0, 0 };
 SUBCLASS_INFO g_sci_list_view = { 0, 0 };
+SUBCLASS_INFO g_sci_tree_view = { 0, 0 };
 SUBCLASS_INFO g_sci_status_bar = { 0, 0 };
 SUBCLASS_INFO g_sci_control_color = { 0, 0 };
 SUBCLASS_INFO g_sci_msg_box = { 0, 0 };
@@ -220,6 +217,97 @@ SUBCLASS_INFO g_sci_tab = { 0, 0 };
 SUBCLASS_INFO g_sci_toolbar = { 0, 0 };
 SUBCLASS_INFO g_sci_edit = { 0, 0 };
 SUBCLASS_INFO g_sci_edit_child = { 0, 0 };
+
+//
+
+#define _SCALE_DM_( x )						_SCALE_( ( x ), dpi_dark_mode )
+
+//
+
+void CleanupButtonGlyphs( HWND hWnd )
+{
+	HANDLE glyphs = _GetPropW( hWnd, L"GLYPHS" );
+	if ( glyphs != NULL )
+	{
+		unsigned char glyph_type = ( unsigned char )_GetPropW( hWnd, L"GLYPH_TYPE" );
+		if ( glyph_type == 0 )
+		{
+			_ImageList_Destroy( ( HIMAGELIST )glyphs );
+		}
+		else if ( glyph_type == 1 )
+		{
+			_CloseThemeData( ( HTHEME )glyphs );
+		}
+
+		_RemovePropW( hWnd, L"GLYPH_HW" );
+		_RemovePropW( hWnd, L"GLYPH_TYPE" );
+		_RemovePropW( hWnd, L"GLYPHS" );
+	}
+}
+
+HIMAGELIST UpdateButtonGlyphs( HWND hWnd, LONG *height_width )
+{
+	HBITMAP hBmp;
+
+	_wmemcpy_s( g_program_directory + g_program_directory_length, MAX_PATH - g_program_directory_length, L"\\buttons.bmp\0", 13 );
+	if ( GetFileAttributesW( g_program_directory ) != INVALID_FILE_ATTRIBUTES )
+	{
+		hBmp = ( HBITMAP )_LoadImageW( NULL, g_program_directory, IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE );
+	}
+	else
+	{
+		return NULL;
+	}
+
+	UINT current_dpi_dark_mode = ( UINT )_SendMessageW( _GetParent( hWnd ), WM_GET_DPI, 0, 0 );
+
+	HDC hDC = _GetDC( hWnd );
+
+	HDC hdcMem_bmp = _CreateCompatibleDC( hDC );
+	HBITMAP ohbm = ( HBITMAP )_SelectObject( hdcMem_bmp, hBmp );
+	_DeleteObject( ohbm );
+
+	BITMAP bmp;
+	_memzero( &bmp, sizeof( BITMAP ) );
+	_GetObjectW( hBmp, sizeof( BITMAP ), &bmp );
+
+	//int res_height = _SCALE_DM_( 13);
+	//int res_width = _SCALE_DM_( 221 );
+	int res_height = _SCALE_DM_( bmp.bmHeight );
+	int res_width = res_height * 17;	// Ensures proportionality.
+
+	if ( height_width != NULL )
+	{
+		*height_width = res_height;
+	}
+
+	HBITMAP hBmp_scaled = _CreateCompatibleBitmap( hDC, res_width, res_height );
+
+	HDC hdcMem_scaled = _CreateCompatibleDC( hDC );
+	ohbm = ( HBITMAP )_SelectObject( hdcMem_scaled, hBmp_scaled );
+	_DeleteObject( ohbm );
+
+	_SetStretchBltMode( hdcMem_scaled, COLORONCOLOR );
+	_StretchBlt( hdcMem_scaled, 0, 0, res_width, res_height, hdcMem_bmp, 0, 0, bmp.bmWidth, bmp.bmHeight, SRCCOPY );
+
+	_DeleteDC( hdcMem_scaled );
+	_DeleteDC( hdcMem_bmp );
+	_ReleaseDC( hWnd, hDC );
+
+	// bmBitsPixel should match the ILC_COLOR4, ILC_COLOR8, etc. masks.
+	if ( bmp.bmBitsPixel < 4 || bmp.bmBitsPixel > 32 )
+	{
+		bmp.bmBitsPixel = 8;	// ILC_COLOR8
+	}
+	// Height and width of each icon is the same.
+	HIMAGELIST hil = _ImageList_Create( res_height, res_height, ILC_MASK | bmp.bmBitsPixel, 17, 0 );
+	_ImageList_AddMasked( hil, hBmp_scaled, ( COLORREF )RGB( 0xFF, 0x00, 0xFF ) );
+
+	_DeleteObject( hBmp_scaled );
+	_DeleteObject( hBmp );
+
+	return hil;
+}
 
 //
 
@@ -248,6 +336,27 @@ LRESULT CALLBACK DMListBoxSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lP
 			_ReleaseDC( hWnd, hDC );
 
 			return ret;
+		}
+		break;
+
+		case WM_DPICHANGED_AFTERPARENT:
+		{
+			HWND hWnd_parent = _GetParent( hWnd );
+
+			UINT current_dpi_dark_mode = ( UINT )_SendMessageW( hWnd_parent, WM_GET_DPI, 0, 0 );
+			
+			UINT last_dpi_dark_mode = ( UINT )_GetPropW( hWnd, L"DPI" );
+
+			if ( current_dpi_dark_mode != 0 && last_dpi_dark_mode != 0 && current_dpi_dark_mode != last_dpi_dark_mode )
+			{
+				_SetPropW( hWnd, L"DPI", ( HANDLE )current_dpi_dark_mode );
+
+				int height = ( int )_SendMessageW( hWnd, LB_GETITEMHEIGHT, 0, 0 );
+				if ( height != LB_ERR )
+				{
+					_SendMessageW( hWnd, LB_SETITEMHEIGHT, 0, _SCALE2_( height, dpi_dark_mode ) );
+				}
+			}
 		}
 		break;
 
@@ -290,6 +399,7 @@ LRESULT CALLBACK DMLineSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 
 			RECT client_rc;
 			_GetClientRect( hWnd, &client_rc );
+			client_rc.bottom = client_rc.top + 1;	// 1px line. Do not scale.
 
 			// Create a memory buffer to draw to.
 			HDC hdcMem = _CreateCompatibleDC( hDC );
@@ -374,7 +484,8 @@ LRESULT CALLBACK DMStaticSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPa
 			}
 			else
 			{
-				HFONT ohf = ( HFONT )_SelectObject( hdcMem, g_hFont );
+				HFONT hFont = ( HFONT )_SendMessageW( hWnd, WM_GETFONT, 0, 0 );
+				HFONT ohf = ( HFONT )_SelectObject( hdcMem, hFont );
 				if ( _IsWindowEnabled( hWnd ) == TRUE )
 				{
 					_SetTextColor( hdcMem, dm_color_window_text );
@@ -454,6 +565,9 @@ LRESULT CALLBACK DMStaticSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPa
 
 void CBRBPaint( HWND hWnd, HDC hDC, COLORREF text_color, int draw_state )
 {
+	HWND hWnd_parent = _GetParent( hWnd );
+	UINT current_dpi_dark_mode = ( UINT )_SendMessageW( hWnd_parent, WM_GET_DPI, 0, 0 );
+
 	RECT client_rc;
 	_GetClientRect( hWnd, &client_rc );
 
@@ -472,19 +586,18 @@ void CBRBPaint( HWND hWnd, HDC hDC, COLORREF text_color, int draw_state )
 	_FillRect( hdcMem, &client_rc, color );
 	_DeleteObject( color );
 
-	if ( hIL_buttons != NULL )
+	HANDLE glyphs = _GetPropW( hWnd_parent, L"GLYPHS" );
+	if ( glyphs != NULL )
 	{
-		// Vertically center the button.
-		_ImageList_Draw( hIL_buttons, draw_state, hdcMem, client_rc.left, client_rc.top + ( ( height - 13 ) / 2 ), 0 );
-	}
-	else	// Default buttons if the buttons.bmp file is missing.
-	{
-		if ( hTheme_button == NULL )
+		unsigned char glyph_type = ( unsigned char )_GetPropW( hWnd_parent, L"GLYPH_TYPE" );
+		if ( glyph_type == 0 )
 		{
-			hTheme_button = _OpenThemeData( hWnd, L"Button" );
-		}
+			LONG height_width = ( LONG )_GetPropW( hWnd_parent, L"GLYPH_HW" );
 
-		if ( hTheme_button != NULL )
+			// Vertically center the button.
+			_ImageList_Draw( ( HIMAGELIST )glyphs, draw_state, hdcMem, client_rc.left, client_rc.top + ( ( height - height_width ) / 2 ), 0 );
+		}
+		else if ( glyph_type == 1 )	// Default buttons if the buttons.bmp file is missing.
 		{
 			switch ( draw_state )
 			{
@@ -508,18 +621,19 @@ void CBRBPaint( HWND hWnd, HDC hDC, COLORREF text_color, int draw_state )
 			}
 
 			SIZE button_size;
-			_GetThemePartSize( hTheme_button, NULL, BP_CHECKBOX, draw_state, NULL, TS_DRAW, &button_size );
+			_GetThemePartSize( ( HTHEME )glyphs, NULL, BP_CHECKBOX, draw_state, NULL, TS_DRAW, &button_size );
 
 			RECT rc;
 			rc.left = client_rc.left;
 			rc.top = client_rc.top + ( ( height - button_size.cy ) / 2 );
 			rc.right = rc.left + button_size.cx;
 			rc.bottom = rc.top + button_size.cy;
-			_DrawThemeBackground( hTheme_button, hdcMem, BP_CHECKBOX, draw_state, &rc, 0 );
+			_DrawThemeBackground( ( HTHEME )glyphs, hdcMem, BP_CHECKBOX, draw_state, &rc, 0 );
 		}
 	}
 
-	HFONT ohf = ( HFONT )_SelectObject( hdcMem, g_hFont );
+	HFONT hFont = ( HFONT )_SendMessageW( hWnd, WM_GETFONT, 0, 0 );
+	HFONT ohf = ( HFONT )_SelectObject( hdcMem, hFont );
 	_SetTextColor( hdcMem, text_color );
 	// Transparent background for text.
 	_SetBkMode( hdcMem, TRANSPARENT );
@@ -555,7 +669,7 @@ void CBRBPaint( HWND hWnd, HDC hDC, COLORREF text_color, int draw_state )
 		int text_width = text_rc.right - text_rc.left;
 
 		// Vertically center the text.
-		rc.left = client_rc.left + 13 + 3;
+		rc.left = client_rc.left + _SCALE_DM_( 13 ) + _SCALE_DM_( 3 );
 		rc.top = client_rc.top + ( ( height - text_height ) / 2 );
 		rc.right = rc.left + text_width;
 		rc.bottom = rc.top + text_height;
@@ -759,6 +873,54 @@ LRESULT CALLBACK DMCBRBSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 		}
 		break;
 
+		case WM_DPICHANGED_AFTERPARENT:
+		{
+			HWND hWnd_parent = _GetParent( hWnd );
+
+			UINT current_dpi_dark_mode = ( UINT )_SendMessageW( hWnd_parent, WM_GET_DPI, 0, 0 );
+			
+			UINT last_dpi_dark_mode = ( UINT )_GetPropW( hWnd, L"DPI" );
+
+			if ( current_dpi_dark_mode != 0 && last_dpi_dark_mode != 0 && current_dpi_dark_mode != last_dpi_dark_mode )
+			{
+				_SetPropW( hWnd, L"DPI", ( HANDLE )current_dpi_dark_mode );
+
+				HANDLE glyphs = _GetPropW( hWnd_parent, L"GLYPHS" );
+
+				unsigned char glyph_type = ( unsigned char )_GetPropW( hWnd, L"GLYPH_TYPE" );
+				if ( glyph_type == 0 )
+				{
+					_ImageList_Destroy( ( HIMAGELIST )glyphs );
+				}
+				else if ( glyph_type == 1 )
+				{
+					_CloseThemeData( ( HTHEME )glyphs );
+				}
+
+				LONG height_width = 0;
+				HIMAGELIST hIL = UpdateButtonGlyphs( hWnd, &height_width );
+				if ( hIL != NULL )
+				{
+					_SetPropW( hWnd_parent, L"GLYPH_HW", ( HANDLE )height_width );
+
+					_SetPropW( hWnd_parent, L"GLYPHS", ( HANDLE )hIL );
+
+					_SetPropW( hWnd_parent, L"GLYPH_TYPE", ( HANDLE )0 );	// Image List
+				}
+				else
+				{
+					HTHEME hTheme = _OpenThemeData( hWnd, L"Button" );
+
+					_SetPropW( hWnd_parent, L"GLYPHS", ( HANDLE )hTheme );
+
+					_SetPropW( hWnd_parent, L"GLYPH_TYPE", ( HANDLE )1 );	// Theme
+				}
+
+				_InvalidateRect( hWnd, NULL, TRUE );
+			}
+		}
+		break;
+
 		case WM_ERASEBKGND:
 		{
 			DWORD state = ( DWORD )_GetPropW( hWnd, L"STATE" );
@@ -893,6 +1055,12 @@ LRESULT CALLBACK DMCBRBSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 						text_color1 = _GetSysColor( COLOR_GRAYTEXT );
 					}
 
+					// Check was toggled while disabled.
+					if ( was_checked )
+					{
+						state &= ~0x40;
+					}
+
 					draw_state2 = GLYPH_CB_UNCHECKED_DISABLED;
 
 					text_color2 = _GetSysColor( COLOR_GRAYTEXT );
@@ -994,6 +1162,9 @@ LRESULT CALLBACK DMGBSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam,
 
 		case WM_PAINT:
 		{
+			HWND hWnd_parent = _GetParent( hWnd );
+			UINT current_dpi_dark_mode = ( UINT )_SendMessageW( hWnd_parent, WM_GET_DPI, 0, 0 );
+
 			PAINTSTRUCT ps;
 			HDC hDC = _BeginPaint( hWnd, &ps );
 
@@ -1017,10 +1188,11 @@ LRESULT CALLBACK DMGBSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam,
 			_DeleteObject( old_color );
 			HBRUSH old_brush = ( HBRUSH )_SelectObject( hdcMem, _GetStockObject( NULL_BRUSH ) );
 			_DeleteObject( old_brush );
-			_Rectangle( hdcMem, client_rc.left, client_rc.top + 7, client_rc.right, client_rc.bottom );
+			_Rectangle( hdcMem, client_rc.left, client_rc.top + _SCALE_DM_( 7 ), client_rc.right, client_rc.bottom );
 			_DeleteObject( hPen );
 
-			HFONT ohf = ( HFONT )_SelectObject( hdcMem, g_hFont );
+			HFONT hFont = ( HFONT )_SendMessageW( hWnd, WM_GETFONT, 0, 0 );
+			HFONT ohf = ( HFONT )_SelectObject( hdcMem, hFont );
 			if ( _IsWindowEnabled( hWnd ) == TRUE )
 			{
 				_SetTextColor( hdcMem, dm_color_window_text );
@@ -1033,14 +1205,14 @@ LRESULT CALLBACK DMGBSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam,
 			_SetBkColor( hdcMem, dm_color_window_background );
 
 			RECT rc;
-			rc.left = client_rc.left + 7;
+			rc.left = client_rc.left + _SCALE_DM_( 6 );
 			rc.top = client_rc.top;
 			rc.right = client_rc.right;
 			rc.bottom = client_rc.bottom;
 
 			wchar_t *buf;
 			wchar_t tbuf[ 128 ];
-			int len = ( int )_SendMessageW( hWnd, WM_GETTEXTLENGTH, 0, 0 ) + 1;	// Include the NULL character.
+			int len = ( int )_SendMessageW( hWnd, WM_GETTEXTLENGTH, 0, 0 ) + 3;	// Include the NULL character.
 			if ( len > 128 )
 			{
 				buf = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * len );
@@ -1052,7 +1224,10 @@ LRESULT CALLBACK DMGBSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam,
 
 			if ( buf != NULL )
 			{
-				len = ( int )_SendMessageW( hWnd, WM_GETTEXT, len, ( LPARAM )buf );
+				buf[ 0 ] = L' ';
+				len = ( int )_SendMessageW( hWnd, WM_GETTEXT, len - 2, ( LPARAM )( buf + 1 ) ) + 2;
+				buf[ len - 1 ] = L' ';
+				buf[ len ] = 0; // Sanity.
 
 				_DrawTextW( hdcMem, buf, len, &rc, DT_NOPREFIX | DT_SINGLELINE | DT_CALCRECT );
 				_DrawTextW( hdcMem, buf, len, &rc, DT_NOPREFIX | DT_SINGLELINE );
@@ -1632,6 +1807,9 @@ LRESULT CALLBACK DMUDSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam,
 
 void ComboBoxPaint( HWND hWnd, HDC hDC, COLORREF text_color, COLORREF arrow_color, COLORREF background_color, COLORREF border_color )
 {
+	HWND hWnd_parent = _GetParent( hWnd );
+	UINT current_dpi_dark_mode = ( UINT )_SendMessageW( hWnd_parent, WM_GET_DPI, 0, 0 );
+
 	RECT client_rc;
 	_GetClientRect( hWnd, &client_rc );
 
@@ -1647,14 +1825,14 @@ void ComboBoxPaint( HWND hWnd, HDC hDC, COLORREF text_color, COLORREF arrow_colo
 	_FillRect( hdcMem, &client_rc, color );
 	_DeleteObject( color );
 
-	LONG a_left = ( client_rc.right - 18 ) + ( ( 18 - 9 ) / 2 );
-	LONG da_top = ( ( ( client_rc.bottom - client_rc.top ) - 5 ) / 2 );
+	LONG a_left = ( client_rc.right - _SCALE_DM_( 18 ) ) + ( ( _SCALE_DM_( 18 ) - _SCALE_DM_( 9 ) ) / 2 );
+	LONG da_top = ( ( ( client_rc.bottom - client_rc.top ) - _SCALE_DM_( 4 ) ) / 2 );
 	POINT d_arrow[ 3 ];
 	d_arrow[ 0 ].x = a_left;
 	d_arrow[ 0 ].y = da_top;
-	d_arrow[ 1 ].x = a_left + 4;
-	d_arrow[ 1 ].y = da_top + 4;
-	d_arrow[ 2 ].x = a_left + 8;
+	d_arrow[ 1 ].x = a_left + _SCALE_DM_( 4 );
+	d_arrow[ 1 ].y = da_top + _SCALE_DM_( 4 );
+	d_arrow[ 2 ].x = a_left + _SCALE_DM_( 8 );
 	d_arrow[ 2 ].y = da_top;
 
 	RECT rc;
@@ -1682,7 +1860,7 @@ void ComboBoxPaint( HWND hWnd, HDC hDC, COLORREF text_color, COLORREF arrow_colo
 
 		rc.left = client_rc.left;
 		rc.top = client_rc.top;
-		rc.right = client_rc.right - 18;
+		rc.right = client_rc.right - _SCALE_DM_( 18 );
 		rc.bottom = client_rc.bottom;
 
 		color = _CreateSolidBrush( dm_color_edit_background );
@@ -1717,7 +1895,8 @@ void ComboBoxPaint( HWND hWnd, HDC hDC, COLORREF text_color, COLORREF arrow_colo
 		_DeleteObject( color );
 		_DeleteObject( hPen );
 
-		HFONT ohf = ( HFONT )_SelectObject( hdcMem, g_hFont );
+		HFONT hFont = ( HFONT )_SendMessageW( hWnd, WM_GETFONT, 0, 0 );
+		HFONT ohf = ( HFONT )_SelectObject( hdcMem, hFont );
 		_SetTextColor( hdcMem, text_color );
 		// Transparent background for text.
 		_SetBkMode( hdcMem, TRANSPARENT );
@@ -1737,7 +1916,7 @@ void ComboBoxPaint( HWND hWnd, HDC hDC, COLORREF text_color, COLORREF arrow_colo
 		int text_width = text_rc.right - text_rc.left;
 
 		// Vertically center the text.
-		rc.left = client_rc.left + 4;
+		rc.left = client_rc.left + _SCALE_DM_( 4 );
 		rc.top = client_rc.top + ( ( ( client_rc.bottom - client_rc.top ) - text_height ) / 2 );
 		rc.right = rc.left + text_width;
 		rc.bottom = rc.top + text_height;
@@ -1749,10 +1928,10 @@ void ComboBoxPaint( HWND hWnd, HDC hDC, COLORREF text_color, COLORREF arrow_colo
 			DWORD ui_state = ( DWORD )_SendMessageW( hWnd, WM_QUERYUISTATE, 0, 0 );
 			if ( !( ui_state & UISF_HIDEFOCUS ) && hWnd == _GetFocus() )
 			{
-				--rc.top;
-				++rc.bottom;
-				--rc.left;
-				rc.right = client_rc.right - 20;
+				rc.top = rc.top - _SCALE_DM_( 1 );
+				rc.bottom = rc.bottom + _SCALE_DM_( 1 );
+				rc.left = rc.left - _SCALE_DM_( 1 );
+				rc.right = client_rc.right - _SCALE_DM_( 20 );
 
 				LOGBRUSH lb;
 				lb.lbColor = dm_color_focus_rectangle;
@@ -1843,7 +2022,7 @@ LRESULT CALLBACK DMComboBoxSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 
 			_InvalidateRect( hWnd, NULL, TRUE );
 
-			return 0;
+			//return 0;
 		}
 		break;
 
@@ -1962,6 +2141,33 @@ LRESULT CALLBACK DMComboBoxSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 				_SetPropW( hWnd, L"STATE", ( HANDLE )( state | 0x100 ) );
 
 				_InvalidateRect( hWnd, NULL, TRUE );
+			}
+		}
+		break;
+
+		case WM_DPICHANGED_AFTERPARENT:
+		{
+			HWND hWnd_parent = _GetParent( hWnd );
+
+			UINT current_dpi_dark_mode = ( UINT )_SendMessageW( hWnd_parent, WM_GET_DPI, 0, 0 );
+			
+			UINT last_dpi_dark_mode = ( UINT )_GetPropW( hWnd, L"DPI" );
+
+			if ( current_dpi_dark_mode != 0 && last_dpi_dark_mode != 0 && current_dpi_dark_mode != last_dpi_dark_mode )
+			{
+				_SetPropW( hWnd, L"DPI", ( HANDLE )current_dpi_dark_mode );
+
+				int height = ( int )_SendMessageW( hWnd, CB_GETITEMHEIGHT, ( WPARAM )-1, 0 );
+				if ( height != CB_ERR )
+				{
+					_SendMessageW( hWnd, CB_SETITEMHEIGHT, ( WPARAM )-1, _SCALE2_( height, dpi_dark_mode ) );	// This isn't documented? Adjusts the box's height.
+				}
+
+				height = ( int )_SendMessageW( hWnd, CB_GETITEMHEIGHT, 0, 0 );
+				if ( height != CB_ERR )
+				{
+					_SendMessageW( hWnd, CB_SETITEMHEIGHT, 0, _SCALE2_( height, dpi_dark_mode ) );
+				}
 			}
 		}
 		break;
@@ -2444,7 +2650,8 @@ LRESULT CALLBACK DMIPSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam,
 
 			COLORREF background_color;
 
-			HFONT ohf = ( HFONT )_SelectObject( hdcMem, g_hFont );
+			HFONT hFont = ( HFONT )_SendMessageW( hWnd, WM_GETFONT, 0, 0 );
+			HFONT ohf = ( HFONT )_SelectObject( hdcMem, hFont );
 			if ( _IsWindowEnabled( hWnd ) == TRUE )
 			{
 				background_color = dm_color_edit_background;
@@ -2951,6 +3158,9 @@ LRESULT CALLBACK DMListViewCustomDrawSubProc( HWND hWnd, UINT msg, WPARAM wParam
 
 		case WM_PAINT:
 		{
+			HWND hWnd_parent = _GetParent( hWnd );
+			UINT current_dpi_dark_mode = ( UINT )_SendMessageW( hWnd_parent, WM_GET_DPI, 0, 0 );
+
 			PAINTSTRUCT ps;
 			HDC hDC = _BeginPaint( hWnd, &ps );
 
@@ -2990,7 +3200,7 @@ LRESULT CALLBACK DMListViewCustomDrawSubProc( HWND hWnd, UINT msg, WPARAM wParam
 				si.nPage = width;
 			}
 
-			HPEN hPen = _CreatePen( PS_SOLID, 1, dm_color_listview_grid );
+			HPEN hPen = _CreatePen( PS_SOLID, _SCALE_DM_( 1 ), dm_color_listview_grid );
 			HPEN old_color = ( HPEN )_SelectObject( hdcMem, hPen );
 			_DeleteObject( old_color );
 			HBRUSH old_brush = ( HBRUSH )_SelectObject( hdcMem, _GetStockObject( NULL_BRUSH ) );
@@ -3013,14 +3223,14 @@ LRESULT CALLBACK DMListViewCustomDrawSubProc( HWND hWnd, UINT msg, WPARAM wParam
 				_LineTo( hdcMem, rc_header.right - si.nPos, ps.rcPaint.bottom );
 			}
 
-			int row_offset = g_default_row_height + 3;
+			int row_offset = rc_header.bottom - 1;//_SCALE_DM_( g_default_row_height ) + _SCALE_DM_( 3 );
 
 			while ( row_offset <= client_rc.bottom )
 			{
 				_MoveToEx( hdcMem, 0, row_offset, NULL );
 				_LineTo( hdcMem, client_rc.right, row_offset );
 
-				row_offset += g_default_row_height;
+				row_offset += _SCALE_DM_( g_default_row_height );
 			}
 
 			_DeleteObject( hPen );
@@ -3042,6 +3252,74 @@ LRESULT CALLBACK DMListViewCustomDrawSubProc( HWND hWnd, UINT msg, WPARAM wParam
 			if ( dwRefData != NULL && --( ( SUBCLASS_INFO * )dwRefData )->ref == 0 )
 			{
 				_RemoveWindowSubclass( hWnd, &DMListViewCustomDrawSubProc, uIdSubclass );
+			}
+		}
+		break;
+	}
+
+	return _DefSubclassProc( hWnd, msg, wParam, lParam );
+}
+
+LRESULT CALLBACK DMTreeViewSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData )
+{
+	switch ( msg )
+	{
+		case WM_DPICHANGED_AFTERPARENT:
+		{
+			DWORD style = ( DWORD )_GetWindowLongPtrW( hWnd, GWL_STYLE );
+			if ( style & TVS_CHECKBOXES )
+			{
+				HWND hWnd_parent = _GetParent( hWnd );
+
+				UINT current_dpi_dark_mode = ( UINT )_SendMessageW( hWnd_parent, WM_GET_DPI, 0, 0 );
+				
+				UINT last_dpi_dark_mode = ( UINT )_GetPropW( hWnd, L"DPI" );
+
+				if ( current_dpi_dark_mode != 0 && last_dpi_dark_mode != 0 && current_dpi_dark_mode != last_dpi_dark_mode )
+				{
+					_SetPropW( hWnd, L"DPI", ( HANDLE )current_dpi_dark_mode );
+
+					HIMAGELIST hIL = ( HIMAGELIST )_SendMessageW( hWnd, TVM_GETIMAGELIST, TVSIL_STATE, 0 );
+					if ( hIL != NULL )
+					{
+						_ImageList_Destroy( hIL );
+					}
+
+					hIL = UpdateButtonGlyphs( hWnd, NULL );
+					if ( hIL != NULL )
+					{
+						// The first image is empty, the next two are unchecked and checked.
+						// The treeview's unchecked/checked state value (bits 12 through 15) switches between 0x1000 and 0x2000.
+						_ImageList_SetImageCount( hIL, 3 );
+
+						_SendMessageW( hWnd, TVM_SETIMAGELIST, TVSIL_STATE, ( LPARAM )hIL );
+					}
+				}
+
+				_InvalidateRect( hWnd, NULL, TRUE );
+			}
+		}
+		break;
+
+		case WM_DESTROY:
+		{
+			DWORD style = ( DWORD )_GetWindowLongPtrW( hWnd, GWL_STYLE );
+			if ( style & TVS_CHECKBOXES )
+			{
+				HIMAGELIST hIL = ( HIMAGELIST )_SendMessageW( hWnd, TVM_GETIMAGELIST, TVSIL_STATE, 0 );
+				if ( hIL != NULL )
+				{
+					_ImageList_Destroy( hIL );
+				}
+			}
+		}
+		break;
+
+		case WM_NCDESTROY:
+		{
+			if ( dwRefData != NULL && --( ( SUBCLASS_INFO * )dwRefData )->ref == 0 )
+			{
+				_RemoveWindowSubclass( hWnd, &DMTreeViewSubProc, uIdSubclass );
 			}
 		}
 		break;
@@ -3096,7 +3374,8 @@ LRESULT CALLBACK DMStatusBarSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 						rc.right -= 2;	// We move the text left by 2px when drawing it. So the bounding width is essentially 2px less.
 
 						HDC hDC = _GetDC( hWnd );
-						HFONT ohf = ( HFONT )_SelectObject( hDC, g_hFont );
+						HFONT hFont = ( HFONT )_SendMessageW( hWnd, WM_GETFONT, 0, 0 );
+						HFONT ohf = ( HFONT )_SelectObject( hDC, hFont );
 
 						RECT rc_text;
 						rc_text.left = rc.left;
@@ -3204,7 +3483,8 @@ LRESULT CALLBACK DMStatusBarSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 
 				rc.left += 2;
 
-				HFONT ohf = ( HFONT )_SelectObject( hdcMem, g_hFont );
+				HFONT hFont = ( HFONT )_SendMessageW( hWnd, WM_GETFONT, 0, 0 );
+				HFONT ohf = ( HFONT )_SelectObject( hdcMem, hFont );
 				_SetTextColor( hdcMem, dm_color_window_text );
 				// Transparent background for text.
 				_SetBkMode( hdcMem, TRANSPARENT );
@@ -3594,7 +3874,8 @@ LRESULT CALLBACK DMTabControlSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 			_Rectangle( hdcMem, rc_pane.left, rc_pane.top, rc_pane.right, rc_pane.bottom );
 			_DeleteObject( hPen );
 
-			HFONT ohf = ( HFONT )_SelectObject( hdcMem, g_hFont );
+			HFONT hFont = ( HFONT )_SendMessageW( hWnd, WM_GETFONT, 0, 0 );
+			HFONT ohf = ( HFONT )_SelectObject( hdcMem, hFont );
 			if ( _IsWindowEnabled( hWnd ) == TRUE )
 			{
 				_SetTextColor( hdcMem, dm_color_window_text );
@@ -3743,6 +4024,9 @@ LRESULT CALLBACK DMTabControlSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 
 void ToolbarPaint( HWND hWnd, HDC hDC, int index1, COLORREF button1_color, int index2, COLORREF button2_color )
 {
+	HWND hWnd_parent = _GetParent( hWnd );
+	UINT current_dpi_dark_mode = ( UINT )_SendMessageW( hWnd_parent, WM_GET_DPI, 0, 0 );
+
 	// Create a memory buffer to draw to.
 	HDC hdcMem = _CreateCompatibleDC( hDC );
 
@@ -3765,6 +4049,12 @@ void ToolbarPaint( HWND hWnd, HDC hDC, int index1, COLORREF button1_color, int i
 		HIMAGELIST hIL = ( HIMAGELIST )_SendMessageW( hWnd, TB_GETIMAGELIST, 0, 0 );
 		int il_offset = 0;
 
+		RECT last_rc_row;
+		last_rc_row.left = 0;
+		last_rc_row.top = 0;
+		last_rc_row.right = 0;
+		last_rc_row.bottom = 0;
+
 		for ( int i = 0; i <= last_index; ++i )
 		{
 			TBBUTTON tbb;
@@ -3780,6 +4070,15 @@ void ToolbarPaint( HWND hWnd, HDC hDC, int index1, COLORREF button1_color, int i
 				_DeleteObject( old_color );
 				HBRUSH old_brush = ( HBRUSH )_SelectObject( hdcMem, _GetStockObject( NULL_BRUSH ) );
 				_DeleteObject( old_brush );
+
+				// Keep the separator at the end of the previous row.
+				if ( rc_row.left == 0 )
+				{
+					rc_row.right = last_rc_row.right + ( rc_row.right - rc_row.left );
+					rc_row.left = last_rc_row.right;
+					rc_row.top = last_rc_row.top;
+					rc_row.bottom = last_rc_row.bottom;
+				}
 
 				int offset = rc_row.left + ( ( rc_row.right - rc_row.left ) / 2 );
 				_MoveToEx( hdcMem, offset, rc_row.top + 2, NULL );
@@ -3821,14 +4120,16 @@ void ToolbarPaint( HWND hWnd, HDC hDC, int index1, COLORREF button1_color, int i
 			}
 			else
 			{
+				int icon_height_wdith = _SCALE_DM_( 24 );
+
 				HDC hdcMem2 = _CreateCompatibleDC( hDC );
-				HBITMAP hbm2 = _CreateCompatibleBitmap( hDC, 24, 24 );
+				HBITMAP hbm2 = _CreateCompatibleBitmap( hDC, icon_height_wdith, icon_height_wdith );
 				HBITMAP ohbm2 = ( HBITMAP )_SelectObject( hdcMem2, hbm2 );
 				_DeleteObject( ohbm2 );
 				_DeleteObject( hbm2 );
 
 				HDC hdcMem3 = _CreateCompatibleDC( hDC );
-				HBITMAP hbm3 = _CreateCompatibleBitmap( hDC, 24, 24 );
+				HBITMAP hbm3 = _CreateCompatibleBitmap( hDC, icon_height_wdith, icon_height_wdith );
 				HBITMAP ohbm3 = ( HBITMAP )_SelectObject( hdcMem3, hbm3 );
 				_DeleteObject( ohbm3 );
 				_DeleteObject( hbm3 );
@@ -3837,9 +4138,9 @@ void ToolbarPaint( HWND hWnd, HDC hDC, int index1, COLORREF button1_color, int i
 
 				RECT rc;
 				rc.left = 0;
-				rc.right = 24;
+				rc.right = icon_height_wdith;
 				rc.top = 0;
-				rc.bottom = 24;
+				rc.bottom = icon_height_wdith;
 
 				// Set to white so we can invert it after the mask is drawn.
 				HBRUSH color = _CreateSolidBrush( ( COLORREF )RGB( 0xFF, 0xFF, 0xFF ) );
@@ -3854,10 +4155,10 @@ void ToolbarPaint( HWND hWnd, HDC hDC, int index1, COLORREF button1_color, int i
 				_DeleteObject( color );
 
 				// The white pixels in hdcMem2 turn to black and the black mask will turn to white.
-				_BitBlt( hdcMem2, 0, 0, 24, 24, hdcMem3, 0, 0, SRCERASE );
+				_BitBlt( hdcMem2, 0, 0, icon_height_wdith, icon_height_wdith, hdcMem3, 0, 0, SRCERASE );
 
 				// The black pixels in hdcMem2 will not show up in hdcMem.
-				_BitBlt( hdcMem, rc_row.left + 3, rc_row.top + 3, 24, 24, hdcMem2, 0, 0, SRCPAINT );
+				_BitBlt( hdcMem, rc_row.left + 3, rc_row.top + 3, icon_height_wdith, icon_height_wdith, hdcMem2, 0, 0, SRCPAINT );
 
 				// Transparent icon.
 
@@ -3869,13 +4170,18 @@ void ToolbarPaint( HWND hWnd, HDC hDC, int index1, COLORREF button1_color, int i
 				blend.SourceConstantAlpha = 70;
 				blend.AlphaFormat = AC_SRC_OVER;
 
-				_GdiAlphaBlend( hdcMem3, 0, 0, 24, 24, hdcMem2, 0, 0, 24, 24, blend );
+				_GdiAlphaBlend( hdcMem3, 0, 0, icon_height_wdith, icon_height_wdith, hdcMem2, 0, 0, icon_height_wdith, icon_height_wdith, blend );
 
-				_BitBlt( hdcMem, rc_row.left + 3, rc_row.top + 3, 24, 24, hdcMem3, 0, 0, SRCPAINT );*/
+				_BitBlt( hdcMem, rc_row.left + 3, rc_row.top + 3, icon_height_wdith, icon_height_wdith, hdcMem3, 0, 0, SRCPAINT );*/
 
 				_DeleteDC( hdcMem2 );
 				_DeleteDC( hdcMem3 );
 			}
+
+			last_rc_row.left = rc_row.left;
+			last_rc_row.top = rc_row.top;
+			last_rc_row.right = rc_row.right;
+			last_rc_row.bottom = rc_row.bottom;
 		}
 
 		_SendMessageW( hWnd, TB_GETITEMRECT, last_index, ( LPARAM )&rc_row );
@@ -4708,16 +5014,38 @@ BOOL CALLBACK EnumChildProc( HWND hWnd, LPARAM /*lParam*/ )
 				// Bit 9 0x100: only paint when we invalidate the region.
 				_SetPropW( hWnd, L"STATE", ( HANDLE )0x100 );
 
-				if ( hIL_buttons == NULL )
+				HWND hWnd_parent = _GetParent( hWnd );
+				HIMAGELIST hIL = ( HIMAGELIST )_GetPropW( hWnd_parent, L"GLYPHS" );
+				if ( hIL == NULL )
 				{
-					_wmemcpy_s( g_program_directory + g_program_directory_length, MAX_PATH - g_program_directory_length, L"\\buttons.bmp\0", 13 );
-					if ( GetFileAttributesW( g_program_directory ) != INVALID_FILE_ATTRIBUTES )
+					LONG height_width = 0;
+					hIL = UpdateButtonGlyphs( hWnd, &height_width );
+					if ( hIL != NULL )
 					{
-						hIL_buttons = _ImageList_LoadImageW( NULL, g_program_directory, 13, 0, ( COLORREF )RGB( 0xFF, 0x00, 0xFF ), IMAGE_BITMAP, LR_LOADFROMFILE | LR_CREATEDIBSECTION );
+						_SetPropW( hWnd_parent, L"GLYPH_HW", ( HANDLE )height_width );
+
+						_SetPropW( hWnd_parent, L"GLYPHS", ( HANDLE )hIL );
+
+						_SetPropW( hWnd_parent, L"GLYPH_TYPE", ( HANDLE )0 );	// Image List
+					}
+					else
+					{
+						HTHEME hTheme = _OpenThemeData( hWnd, L"Button" );
+
+						_SetPropW( hWnd_parent, L"GLYPHS", ( HANDLE )hTheme );
+
+						_SetPropW( hWnd_parent, L"GLYPH_TYPE", ( HANDLE )1 );	// Theme
 					}
 				}
 
+				UINT current_dpi_dark_mode = ( UINT )_SendMessageW( hWnd_parent, WM_GET_DPI, 0, 0 );
+				_SetPropW( hWnd, L"DPI", ( HANDLE )current_dpi_dark_mode );
+
+				_SetWindowTheme( hWnd, L"", L"" );	// Don't want animation effects.
+
 				SetSubclass( hWnd, &DMCBRBSubProc, &g_sci_cbrb );
+
+				return TRUE;
 			}
 			else if ( ( style & 0x0000000F ) == BS_GROUPBOX )
 			{
@@ -4758,7 +5086,8 @@ BOOL CALLBACK EnumChildProc( HWND hWnd, LPARAM /*lParam*/ )
 			ret = _GetClassNameW( hWnd_parent, buf, 64 );
 			if ( ret == 8 && _StrCmpNW( buf, L"ComboBox", 8 ) == 0 ||
 				 ret == 14 && _StrCmpNW( buf, L"SysIPAddress32", 14 ) == 0 ||
-				 ret == 12 && _StrCmpNW( buf, L"TreeListView", 12 ) == 0 )
+				 ret == 12 && _StrCmpNW( buf, L"TreeListView", 12 ) == 0 ||
+				 ret == 13 && _StrCmpNW( buf, L"SysTreeView32", 13 ) == 0 )
 			{
 				SetSubclass( hWnd, &DMChildEditSubProc, &g_sci_edit_child );
 
@@ -4794,6 +5123,10 @@ BOOL CALLBACK EnumChildProc( HWND hWnd, LPARAM /*lParam*/ )
 		_SetWindowLongPtrW( hWnd, GWL_EXSTYLE, _GetWindowLongPtrW( hWnd, GWL_EXSTYLE ) & ~WS_EX_CLIENTEDGE );
 		_SetWindowLongPtrW( hWnd, GWL_STYLE, _GetWindowLongPtrW( hWnd, GWL_STYLE ) | WS_BORDER );
 		_SetWindowPos( hWnd, NULL, 0, 0, 0, 0, SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOOWNERZORDER );
+
+		HWND hWnd_parent = _GetParent( hWnd );
+		UINT current_dpi_dark_mode = ( UINT )_SendMessageW( hWnd_parent, WM_GET_DPI, 0, 0 );
+		_SetPropW( hWnd, L"DPI", ( HANDLE )current_dpi_dark_mode );
 
 		SetSubclass( hWnd, &DMListBoxSubProc, &g_sci_list_box );
 	}
@@ -4858,15 +5191,22 @@ BOOL CALLBACK EnumChildProc( HWND hWnd, LPARAM /*lParam*/ )
 		// Bit 9 0x100: only paint when we invalidate the region.
 		_SetPropW( hWnd, L"STATE", ( HANDLE )0x100 );
 
+		HWND hWnd_parent = _GetParent( hWnd );
+		UINT current_dpi_dark_mode = ( UINT )_SendMessageW( hWnd_parent, WM_GET_DPI, 0, 0 );
+
 		COMBOBOXINFO cbi;
 		cbi.cbSize = sizeof( COMBOBOXINFO );
 		_SendMessageW( hWnd, CB_GETCOMBOBOXINFO, 0, ( LPARAM )&cbi );
 		if ( cbi.hwndList != NULL )
 		{
-			SetSubclass( hWnd, &DMListBoxSubProc, &g_sci_list_box );
+			_SetPropW( cbi.hwndList, L"DPI", ( HANDLE )current_dpi_dark_mode );
+
+			SetSubclass( cbi.hwndList, &DMListBoxSubProc, &g_sci_list_box );
 
 			_SetWindowTheme( cbi.hwndList, L"", L"" );	// Don't want animation effects.
 		}
+
+		_SetPropW( hWnd, L"DPI", ( HANDLE )current_dpi_dark_mode );
 
 		SetSubclass( hWnd, &DMComboBoxSubProc, &g_sci_combo_box );
 
@@ -4875,8 +5215,13 @@ BOOL CALLBACK EnumChildProc( HWND hWnd, LPARAM /*lParam*/ )
 		int height = ( int )_SendMessageW( hWnd, CB_GETITEMHEIGHT, ( WPARAM )-1, 0 );
 		if ( height != CB_ERR )
 		{
-			_SendMessageW( hWnd, CB_SETITEMHEIGHT, ( WPARAM )-1, height - 1 );	// This isn't documented? Adjusts the box's height.
-			_SendMessageW( hWnd, CB_SETITEMHEIGHT, 0, height - 3 );				// Adjust the list item's height.
+			_SendMessageW( hWnd, CB_SETITEMHEIGHT, ( WPARAM )-1, _SCALE_DM_( height ) - 1 );	// This isn't documented? Adjusts the box's height.
+		}
+
+		height = ( int )_SendMessageW( hWnd, CB_GETITEMHEIGHT, 0, 0 );
+		if ( height != CB_ERR )
+		{
+			_SendMessageW( hWnd, CB_SETITEMHEIGHT, 0, _SCALE_DM_( height ) );				// Adjust the list item's height.
 		}
 	}
 	else if ( ret == 13 && _StrCmpNW( buf, L"SysTreeView32", 13 ) == 0 )
@@ -4884,20 +5229,25 @@ BOOL CALLBACK EnumChildProc( HWND hWnd, LPARAM /*lParam*/ )
 		_SendMessageW( hWnd, TVM_SETBKCOLOR, 0, ( LPARAM )dm_color_edit_background );
 		_SendMessageW( hWnd, TVM_SETTEXTCOLOR, 0, ( LPARAM )dm_color_window_text );
 
-		if ( hIL_tv_buttons == NULL )
+		DWORD style = ( DWORD )_GetWindowLongPtrW( hWnd, GWL_STYLE );
+		if ( style & TVS_CHECKBOXES )
 		{
-			_wmemcpy_s( g_program_directory + g_program_directory_length, MAX_PATH - g_program_directory_length, L"\\buttons.bmp\0", 13 );
-			if ( GetFileAttributesW( g_program_directory ) != INVALID_FILE_ATTRIBUTES )
+			HIMAGELIST hIL = UpdateButtonGlyphs( hWnd, NULL );
+			if ( hIL != NULL )
 			{
-				hIL_tv_buttons = _ImageList_LoadImageW( NULL, g_program_directory, 13, 0, ( COLORREF )RGB( 0xFF, 0x00, 0xFF ), IMAGE_BITMAP, LR_LOADFROMFILE | LR_CREATEDIBSECTION );
-
 				// The first image is empty, the next two are unchecked and checked.
 				// The treeview's unchecked/checked state value (bits 12 through 15) switches between 0x1000 and 0x2000.
-				_ImageList_SetImageCount( hIL_tv_buttons, 3 );
-			}
-		}
+				_ImageList_SetImageCount( hIL, 3 );
 
-		_SendMessageW( hWnd, TVM_SETIMAGELIST, TVSIL_STATE, ( LPARAM )hIL_tv_buttons );
+				_SendMessageW( hWnd, TVM_SETIMAGELIST, TVSIL_STATE, ( LPARAM )hIL );
+			}
+
+			HWND hWnd_parent = _GetParent( hWnd );
+			UINT current_dpi_dark_mode = ( UINT )_SendMessageW( hWnd_parent, WM_GET_DPI, 0, 0 );
+			_SetPropW( hWnd, L"DPI", ( HANDLE )current_dpi_dark_mode );
+
+			SetSubclass( hWnd, &DMTreeViewSubProc, &g_sci_tree_view );
+		}
 	}
 	else if ( ret == 11 && _StrCmpNW( buf, L"SysHeader32", 11 ) == 0 )
 	{
@@ -4910,6 +5260,12 @@ BOOL CALLBACK EnumChildProc( HWND hWnd, LPARAM /*lParam*/ )
 	{
 		_SendMessageW( hWnd, LVM_SETBKCOLOR, 0, ( LPARAM )dm_color_edit_background );
 		_SendMessageW( hWnd, LVM_SETTEXTCOLOR, 0, ( LPARAM )dm_color_window_text );
+
+		// We'll draw our own gridlines.
+		// All of our listviews are using gridlines so we don't need to keep track of which ones are/aren't.
+		DWORD ext_style = ( DWORD )_SendMessageW( hWnd, LVM_GETEXTENDEDLISTVIEWSTYLE, 0, 0 );
+		ext_style &= ~LVS_EX_GRIDLINES;
+		_SendMessageW( hWnd, LVM_SETEXTENDEDLISTVIEWSTYLE, 0, ext_style );
 
 		SetSubclass( hWnd, &DMListViewCustomDrawSubProc, &g_sci_list_view );
 	}
@@ -5009,6 +5365,8 @@ BOOL CALLBACK EnumTLWProc( HWND hWnd, LPARAM /*lParam*/ )
 			  ( ret == 23 && _StrCmpNW( buf, L"class_check_for_updates", 23 ) == 0 ) ||
 			  ( ret == 18 && _StrCmpNW( buf, L"class_site_manager", 18 ) == 0 ) ||
 			  ( ret == 24 && _StrCmpNW( buf, L"class_fingerprint_prompt", 24 ) == 0 ) ||
+			  ( ret == 18 && _StrCmpNW( buf, L"class_add_category", 18 ) == 0 ) ||
+			  ( ret == 13 && _StrCmpNW( buf, L"SysTreeView32", 13 ) == 0 ) ||
 			  ( ret == 12 && _StrCmpNW( buf, L"TreeListView", 12 ) == 0 ) )
 	{
 		BOOL dark = TRUE;
@@ -5060,14 +5418,32 @@ BOOL CALLBACK EnumMsgBoxChildProc( HWND hWnd, LPARAM /*lParam*/ )
 			// Bit 9 0x100: only paint when we invalidate the region.
 			_SetPropW( hWnd, L"STATE", ( HANDLE )0x100 );
 
-			if ( hIL_buttons == NULL )
+			HWND hWnd_parent = _GetParent( hWnd );
+			HIMAGELIST hIL = ( HIMAGELIST )_GetPropW( hWnd_parent, L"GLYPHS" );
+			if ( hIL == NULL )
 			{
-				_wmemcpy_s( g_program_directory + g_program_directory_length, MAX_PATH - g_program_directory_length, L"\\buttons.bmp\0", 13 );
-				if ( GetFileAttributesW( g_program_directory ) != INVALID_FILE_ATTRIBUTES )
+				LONG height_width = 0;
+				hIL = UpdateButtonGlyphs( hWnd, &height_width );
+				if ( hIL != NULL )
 				{
-					hIL_buttons = _ImageList_LoadImageW( NULL, g_program_directory, 13, 0, ( COLORREF )RGB( 0xFF, 0x00, 0xFF ), IMAGE_BITMAP, LR_LOADFROMFILE | LR_CREATEDIBSECTION );
+					_SetPropW( hWnd_parent, L"GLYPH_HW", ( HANDLE )height_width );
+
+					_SetPropW( hWnd_parent, L"GLYPHS", ( HANDLE )hIL );
+
+					_SetPropW( hWnd_parent, L"GLYPH_TYPE", ( HANDLE )0 );	// Image List
+				}
+				else
+				{
+					HTHEME hTheme = _OpenThemeData( hWnd, L"Button" );
+
+					_SetPropW( hWnd_parent, L"GLYPHS", ( HANDLE )hTheme );
+
+					_SetPropW( hWnd_parent, L"GLYPH_TYPE", ( HANDLE )1 );	// Theme
 				}
 			}
+
+			UINT current_dpi_dark_mode = ( UINT )_SendMessageW( hWnd_parent, WM_GET_DPI, 0, 0 );
+			_SetPropW( hWnd, L"DPI", ( HANDLE )current_dpi_dark_mode );
 
 			SetSubclass( hWnd, &DMCBRBSubProc, &g_sci_cbrb );
 		}
@@ -5243,11 +5619,6 @@ bool UninitDarkMode()
 	if ( hTheme_status != NULL )
 	{
 		_CloseThemeData( hTheme_status );
-	}
-
-	if ( hTheme_button != NULL )
-	{
-		_CloseThemeData( hTheme_button );
 	}
 
 	if ( g_hBrush_window_background != NULL )

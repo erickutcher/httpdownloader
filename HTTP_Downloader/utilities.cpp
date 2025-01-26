@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
-	Copyright (C) 2015-2024 Eric Kutcher
+	Copyright (C) 2015-2025 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -33,23 +33,27 @@ int cfg_height = MIN_HEIGHT;
 
 char cfg_min_max = 0;	// 0 = normal, 1 = minimized, 2 = maximized.
 
-int cfg_column_width1 = 35;
-int cfg_column_width2 = 75;
-int cfg_column_width3 = 200;
-int cfg_column_width4 = 400;
-int cfg_column_width5 = 110;
-int cfg_column_width6 = 110;
-int cfg_column_width7 = 110;
-int cfg_column_width8 = 110;
-int cfg_column_width9 = 25;
-int cfg_column_width10 = 200;
-int cfg_column_width11 = 200;
-int cfg_column_width12 = 100;
-int cfg_column_width13 = 90;
-int cfg_column_width14 = 90;
-int cfg_column_width15 = 1000;
+int cfg_splitter_pos_x = 140;
 
-// Column (1-15) / Virtual position (0-14)
+int cfg_column_width1 = 35;			// COLUMN_NUM
+int cfg_column_width2 = 75;			// COLUMN_ACTIVE_PARTS
+int cfg_column_width3 = 100;		// COLUMN_CATEGORY
+int cfg_column_width4 = 400;		// COLUMN_COMMENTS
+int cfg_column_width5 = 200;		// COLUMN_DATE_AND_TIME_ADDED
+int cfg_column_width6 = 400;		// COLUMN_DOWNLOAD_DIRECTORY
+int cfg_column_width7 = 110;		// COLUMN_DOWNLOAD_SPEED
+int cfg_column_width8 = 110;		// COLUMN_DOWNLOAD_SPEED_LIMIT
+int cfg_column_width9 = 110;		// COLUMN_DOWNLOADED
+int cfg_column_width10 = 110;		// COLUMN_FILE_SIZE
+int cfg_column_width11 = 25;		// COLUMN_FILE_TYPE
+int cfg_column_width12 = 200;		// COLUMN_FILENAME
+int cfg_column_width13 = 200;		// COLUMN_PROGRESS
+int cfg_column_width14 = 100;		// COLUMN_SSL_TLS_VERSION
+int cfg_column_width15 = 90;		// COLUMN_TIME_ELAPSED
+int cfg_column_width16 = 90;		// COLUMN_TIME_REMAINING
+int cfg_column_width17 = 1000;		// COLUMN_URL
+
+// Column (1-17) / Virtual position (0-16)
 char cfg_column_order1 = COLUMN_NUM;
 char cfg_column_order2 = COLUMN_FILE_TYPE;
 char cfg_column_order3 = COLUMN_FILENAME;
@@ -61,12 +65,15 @@ char cfg_column_order8 = COLUMN_TIME_REMAINING;
 char cfg_column_order9 = COLUMN_ACTIVE_PARTS;
 char cfg_column_order10 = COLUMN_TIME_ELAPSED;
 char cfg_column_order11 = COLUMN_DATE_AND_TIME_ADDED;
-char cfg_column_order12 = COLUMN_DOWNLOAD_DIRECTORY;
-char cfg_column_order13 = COLUMN_DOWNLOAD_SPEED_LIMIT;
-char cfg_column_order14 = COLUMN_SSL_TLS_VERSION;
-char cfg_column_order15 = COLUMN_URL;
+char cfg_column_order12 = COLUMN_CATEGORY;
+char cfg_column_order13 = COLUMN_DOWNLOAD_DIRECTORY;
+char cfg_column_order14 = COLUMN_DOWNLOAD_SPEED_LIMIT;
+char cfg_column_order15 = COLUMN_SSL_TLS_VERSION;
+char cfg_column_order16 = COLUMN_COMMENTS;
+char cfg_column_order17 = COLUMN_URL;
 
 bool cfg_show_toolbar = true;
+bool cfg_show_categories = true;
 bool cfg_show_column_headers = true;
 bool cfg_show_status_bar = true;
 
@@ -90,6 +97,8 @@ bool cfg_close_to_tray = false;
 bool cfg_start_in_tray = false;
 bool cfg_show_notification = false;
 
+bool cfg_show_remote_connection_notification = false;
+
 bool cfg_always_on_top = false;
 bool cfg_check_for_updates = false;
 bool cfg_enable_download_history = true;
@@ -97,12 +106,14 @@ bool cfg_enable_quick_allocation = false;
 bool cfg_enable_sparse_file_allocation = false;
 bool cfg_set_filetime = true;
 bool cfg_update_redirected = false;
+bool cfg_apply_initial_proxy = false;
 bool cfg_download_non_200_206 = false;
 bool cfg_move_to_trash = false;
 bool cfg_override_list_prompts = false;
 bool cfg_use_one_instance = false;
 bool cfg_enable_drop_window = false;
 bool cfg_prevent_standby = true;
+bool cfg_category_move = true;
 
 unsigned char cfg_drag_and_drop_action = DRAG_AND_DROP_ACTION_NONE;
 
@@ -111,6 +122,9 @@ unsigned char g_shutdown_action = SHUTDOWN_ACTION_NONE;
 
 bool cfg_play_sound = false;
 wchar_t *cfg_sound_file_path = NULL;
+
+bool cfg_play_sound_fail = false;
+wchar_t *cfg_sound_fail_file_path = NULL;
 
 unsigned long cfg_thread_count = 1;	// Default is 1.
 unsigned long g_max_threads = 2;	// Default is 2.
@@ -124,6 +138,7 @@ unsigned char cfg_default_ssl_version = 4;	// Default is TLS 1.2.
 unsigned char cfg_default_download_parts = 1;
 
 bool cfg_reallocate_parts = false;
+unsigned long long cfg_reallocate_threshold_size = 1048576;
 
 unsigned char cfg_max_redirects = 10;
 
@@ -258,6 +273,7 @@ unsigned char cfg_sorted_direction = 0;	// Sort down.
 bool cfg_sort_added_and_updating_items = false;
 bool cfg_expand_added_group_items = false;
 bool cfg_scroll_to_last_item = false;
+bool cfg_show_embedded_icon = false;
 
 bool cfg_show_gridlines = true;
 bool cfg_draw_full_rows = false;
@@ -385,7 +401,9 @@ char *download_columns[ NUM_COLUMNS ] = { &cfg_column_order1,
 										  &cfg_column_order12,
 										  &cfg_column_order13,
 										  &cfg_column_order14,
-										  &cfg_column_order15 };
+										  &cfg_column_order15,
+										  &cfg_column_order16,
+										  &cfg_column_order17 };
 
 int *download_columns_width[ NUM_COLUMNS ] = { &cfg_column_width1,
 											   &cfg_column_width2,
@@ -401,7 +419,9 @@ int *download_columns_width[ NUM_COLUMNS ] = { &cfg_column_width1,
 											   &cfg_column_width12,
 											   &cfg_column_width13,
 											   &cfg_column_width14,
-											   &cfg_column_width15 };
+											   &cfg_column_width15,
+											   &cfg_column_width16,
+											   &cfg_column_width17 };
 
 HANDLE worker_semaphore = NULL;			// Blocks shutdown while a worker thread is active.
 bool in_worker_thread = false;
@@ -431,6 +451,11 @@ int dllrbt_compare_a( void *a, void *b )
 int dllrbt_compare_w( void *a, void *b )
 {
 	return lstrcmpW( ( wchar_t * )a, ( wchar_t * )b );
+}
+
+int dllrbt_compare_i_w( void *a, void *b )
+{
+	return lstrcmpiW( ( wchar_t * )a, ( wchar_t * )b );
 }
 
 #define ROTATE_LEFT( x, n ) ( ( ( x ) << ( n ) ) | ( ( x ) >> ( 8 - ( n ) ) ) )
@@ -570,10 +595,12 @@ void SetDefaultColumnOrder()
 	cfg_column_order9 = COLUMN_ACTIVE_PARTS;
 	cfg_column_order10 = COLUMN_TIME_ELAPSED;
 	cfg_column_order11 = COLUMN_DATE_AND_TIME_ADDED;
-	cfg_column_order12 = COLUMN_DOWNLOAD_DIRECTORY;
-	cfg_column_order13 = COLUMN_DOWNLOAD_SPEED_LIMIT;
-	cfg_column_order14 = COLUMN_SSL_TLS_VERSION;
-	cfg_column_order15 = COLUMN_URL;
+	cfg_column_order12 = COLUMN_CATEGORY;
+	cfg_column_order13 = COLUMN_DOWNLOAD_DIRECTORY;
+	cfg_column_order14 = COLUMN_DOWNLOAD_SPEED_LIMIT;
+	cfg_column_order15 = COLUMN_SSL_TLS_VERSION;
+	cfg_column_order16 = COLUMN_COMMENTS;
+	cfg_column_order17 = COLUMN_URL;
 }
 
 void UpdateColumnOrders()
@@ -637,21 +664,23 @@ void CheckColumnOrders( char *column_arr[], unsigned char num_columns )
 
 void CheckColumnWidths()
 {
-	if ( cfg_column_width1 < 0 || cfg_column_width1 > 2560 ) { cfg_column_width1 = 35; }
-	if ( cfg_column_width2 < 0 || cfg_column_width2 > 2560 ) { cfg_column_width2 = 75; }
-	if ( cfg_column_width3 < 0 || cfg_column_width3 > 2560 ) { cfg_column_width3 = 200; }
-	if ( cfg_column_width4 < 0 || cfg_column_width4 > 2560 ) { cfg_column_width4 = 400; }
-	if ( cfg_column_width5 < 0 || cfg_column_width5 > 2560 ) { cfg_column_width5 = 110; }
-	if ( cfg_column_width6 < 0 || cfg_column_width6 > 2560 ) { cfg_column_width6 = 110; }
-	if ( cfg_column_width7 < 0 || cfg_column_width7 > 2560 ) { cfg_column_width7 = 110; }
-	if ( cfg_column_width8 < 0 || cfg_column_width8 > 2560 ) { cfg_column_width8 = 110; }
-	if ( cfg_column_width9 < 0 || cfg_column_width9 > 2560 ) { cfg_column_width9 = 25; }
-	if ( cfg_column_width10 < 0 || cfg_column_width10 > 2560 ) { cfg_column_width10 = 200; }
-	if ( cfg_column_width11 < 0 || cfg_column_width11 > 2560 ) { cfg_column_width11 = 200; }
-	if ( cfg_column_width12 < 0 || cfg_column_width12 > 2560 ) { cfg_column_width12 = 100; }
-	if ( cfg_column_width13 < 0 || cfg_column_width13 > 2560 ) { cfg_column_width13 = 90; }
-	if ( cfg_column_width14 < 0 || cfg_column_width14 > 2560 ) { cfg_column_width14 = 90; }
-	if ( cfg_column_width15 < 0 || cfg_column_width15 > 2560 ) { cfg_column_width15 = 1000; }
+	if ( cfg_column_width1 < 0 || cfg_column_width1 > 2560 ) { cfg_column_width1 = 35; }		// COLUMN_NUM
+	if ( cfg_column_width2 < 0 || cfg_column_width2 > 2560 ) { cfg_column_width2 = 75; }		// COLUMN_ACTIVE_PARTS
+	if ( cfg_column_width3 < 0 || cfg_column_width3 > 2560 ) { cfg_column_width3 = 100; }		// COLUMN_CATEGORY
+	if ( cfg_column_width4 < 0 || cfg_column_width4 > 2560 ) { cfg_column_width4 = 400; }		// COLUMN_COMMENTS
+	if ( cfg_column_width5 < 0 || cfg_column_width5 > 2560 ) { cfg_column_width5 = 200; }		// COLUMN_DATE_AND_TIME_ADDED
+	if ( cfg_column_width6 < 0 || cfg_column_width6 > 2560 ) { cfg_column_width6 = 400; }		// COLUMN_DOWNLOAD_DIRECTORY
+	if ( cfg_column_width7 < 0 || cfg_column_width7 > 2560 ) { cfg_column_width7 = 110; }		// COLUMN_DOWNLOAD_SPEED
+	if ( cfg_column_width8 < 0 || cfg_column_width8 > 2560 ) { cfg_column_width8 = 110; }		// COLUMN_DOWNLOAD_SPEED_LIMIT
+	if ( cfg_column_width9 < 0 || cfg_column_width9 > 2560 ) { cfg_column_width9 = 110; }		// COLUMN_DOWNLOADED
+	if ( cfg_column_width10 < 0 || cfg_column_width10 > 2560 ) { cfg_column_width10 = 110; }	// COLUMN_FILE_SIZE
+	if ( cfg_column_width11 < 0 || cfg_column_width11 > 2560 ) { cfg_column_width11 = 25; }		// COLUMN_FILE_TYPE
+	if ( cfg_column_width12 < 0 || cfg_column_width12 > 2560 ) { cfg_column_width12 = 200; }	// COLUMN_FILENAME
+	if ( cfg_column_width13 < 0 || cfg_column_width13 > 2560 ) { cfg_column_width13 = 200; }	// COLUMN_PROGRESS
+	if ( cfg_column_width14 < 0 || cfg_column_width14 > 2560 ) { cfg_column_width14 = 100; }	// COLUMN_SSL_TLS_VERSION
+	if ( cfg_column_width15 < 0 || cfg_column_width15 > 2560 ) { cfg_column_width15 = 90; }		// COLUMN_TIME_ELAPSED
+	if ( cfg_column_width16 < 0 || cfg_column_width16 > 2560 ) { cfg_column_width16 = 90; }		// COLUMN_TIME_REMAINING
+	if ( cfg_column_width17 < 0 || cfg_column_width17 > 2560 ) { cfg_column_width17 = 1000; }	// COLUMN_URL
 }
 
 void SetDefaultAppearance()
@@ -695,28 +724,24 @@ void SetDefaultAppearance()
 	cfg_color_15b = cfg_odd_row_background_color;
 }
 
-void AdjustRowHeight()
+BOOL CALLBACK EnumChildFontProc( HWND hWnd, LPARAM lParam )
 {
-	int height1, height2;
-	TEXTMETRIC tm;
-	HDC hDC = _GetDC( NULL );
-	HFONT ohf = ( HFONT )_SelectObject( hDC, cfg_odd_row_font_settings.font );
-	_GetTextMetricsW( hDC, &tm );
-	height1 = tm.tmHeight + tm.tmExternalLeading + 5;
-	_SelectObject( hDC, ohf );	// Reset old font.
-	ohf = ( HFONT )_SelectObject( hDC, cfg_even_row_font_settings.font );
-	_GetTextMetricsW( hDC, &tm );
-	height2 = tm.tmHeight + tm.tmExternalLeading + 5;
-	_SelectObject( hDC, ohf );	// Reset old font.
-	_ReleaseDC( NULL, hDC );
+	HFONT hFont = ( HFONT )lParam;
 
-	g_row_height = ( height1 > height2 ? height1 : height2 );
+	_SendMessageW( hWnd, WM_SETFONT, ( WPARAM )hFont, 0 );
 
-	int icon_height = _GetSystemMetrics( SM_CYSMICON ) + 2;
-	if ( g_row_height < icon_height )
-	{
-		g_row_height = icon_height;
-	}
+	return TRUE;
+}
+
+HFONT UpdateFont( UINT dpi )
+{
+	// Get the default message system font.
+	NONCLIENTMETRICS ncm;
+	_memzero( &ncm, sizeof( NONCLIENTMETRICS ) );
+	ncm.cbSize = sizeof( NONCLIENTMETRICS );
+	__SystemParametersInfoForDpi( SPI_GETNONCLIENTMETRICS, sizeof( NONCLIENTMETRICS ), &ncm, 0, dpi );
+
+	return _CreateFontIndirectW( &ncm.lfMessageFont );
 }
 
 // Must use GlobalFree on this.
@@ -1648,10 +1673,12 @@ void FreeCommandLineArgs( CL_ARGS **cla )
 {
 	if ( *cla != NULL )
 	{
+		if ( ( *cla )->category ) { GlobalFree( ( *cla )->category ); }
 		if ( ( *cla )->download_directory ) { GlobalFree( ( *cla )->download_directory ); }
 		if ( ( *cla )->download_history_file ) { GlobalFree( ( *cla )->download_history_file ); }
 		if ( ( *cla )->url_list_file ) { GlobalFree( ( *cla )->url_list_file ); }
 		if ( ( *cla )->urls ) { GlobalFree( ( *cla )->urls ); }
+		if ( ( *cla )->comments ) { GlobalFree( ( *cla )->comments ); }
 		if ( ( *cla )->cookies ) { GlobalFree( ( *cla )->cookies ); }
 		if ( ( *cla )->headers ) { GlobalFree( ( *cla )->headers ); }
 		if ( ( *cla )->data ) { GlobalFree( ( *cla )->data ); }
@@ -2882,7 +2909,7 @@ bool g_can_log = false;
 unsigned int g_log_filter = 0x00000000;
 
 HMODULE hModule_ntdll_logging = NULL;
-HMODULE hModule_ws2_32_logging = NULL;
+//HMODULE hModule_ws2_32_logging = NULL;
 
 CRITICAL_SECTION logging_cs;
 
@@ -2897,8 +2924,8 @@ p_vsnprintf				__vsnprintf;
 pRtlGetNtVersionNumbers	_RtlGetNtVersionNumbers;
 
 // ws2_32
-pGetNameInfoW	_GetNameInfoW;
-pgetpeername	_getpeername;
+//pGetNameInfoW	_GetNameInfoW;
+//pgetpeername	_getpeername;
 
 //
 
@@ -3054,9 +3081,9 @@ void GenericLogEntry( DOWNLOAD_INFO *di, unsigned int type, char *msg )
 bool InitLogging()
 {
 	hModule_ntdll_logging = LoadLibraryDEMW( L"ntdll.dll" );
-	hModule_ws2_32_logging = LoadLibraryDEMW( L"ws2_32.dll" );
+	//hModule_ws2_32_logging = LoadLibraryDEMW( L"ws2_32.dll" );
 
-	if ( hModule_ntdll_logging == NULL || hModule_ws2_32_logging == NULL )
+	if ( hModule_ntdll_logging == NULL /*|| hModule_ws2_32_logging == NULL*/ )
 	{
 		return false;
 	}
@@ -3070,8 +3097,8 @@ bool InitLogging()
 
 	// ws2_32
 	//
-	VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_ws2_32_logging, ( void ** )&_GetNameInfoW, "GetNameInfoW" ) )
-	VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_ws2_32_logging, ( void ** )&_getpeername, "getpeername" ) )
+	//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_ws2_32_logging, ( void ** )&_GetNameInfoW, "GetNameInfoW" ) )
+	//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_ws2_32_logging, ( void ** )&_getpeername, "getpeername" ) )
 
 	//
 
@@ -3106,10 +3133,10 @@ bool UnInitLogging()
 		ret &= FreeLibrary( hModule_ntdll_logging );
 	}
 
-	if ( hModule_ws2_32_logging != NULL )
+	/*if ( hModule_ws2_32_logging != NULL )
 	{
 		ret &= FreeLibrary( hModule_ws2_32_logging );
-	}
+	}*/
 
 	return ( ret != FALSE ? true : false );
 }

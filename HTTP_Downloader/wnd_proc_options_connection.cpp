@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
-	Copyright (C) 2015-2024 Eric Kutcher
+	Copyright (C) 2015-2025 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -28,32 +28,51 @@
 #define EDIT_DEFAULT_SPEED_LIMIT		1006
 #define CB_DEFAULT_SSL_VERSION			1007
 #define BTN_REALLOCATE_PARTS			1008
+#define EDIT_THRESHOLD_SIZE				1009
 
 // Connection Tab
+HWND g_hWnd_static_max_downloads = NULL;
 HWND g_hWnd_max_downloads = NULL;
 HWND g_hWnd_ud_max_downloads = NULL;
 
+HWND g_hWnd_static_retry_downloads_count = NULL;
 HWND g_hWnd_retry_downloads_count = NULL;
 HWND g_hWnd_ud_retry_downloads_count = NULL;
+
+HWND g_hWnd_static_retry_parts_count = NULL;
 HWND g_hWnd_retry_parts_count = NULL;
 HWND g_hWnd_ud_retry_parts_count = NULL;
 
+HWND g_hWnd_static_timeout = NULL;
 HWND g_hWnd_timeout = NULL;
 HWND g_hWnd_ud_timeout = NULL;
 
+HWND g_hWnd_static_max_redirects = NULL;
 HWND g_hWnd_max_redirects = NULL;
 HWND g_hWnd_ud_max_redirects = NULL;
 
+HWND g_hWnd_static_default_speed_limit = NULL;
 HWND g_hWnd_default_speed_limit = NULL;
 
+HWND g_hWnd_static_default_ssl_version = NULL;
 HWND g_hWnd_default_ssl_version = NULL;
+
+HWND g_hWnd_static_default_download_parts = NULL;
 HWND g_hWnd_default_download_parts = NULL;
 HWND g_hWnd_default_ud_download_parts = NULL;
 
 HWND g_hWnd_chk_reallocate_parts = NULL;
+HWND g_hWnd_static_reallocate_threshold_size = NULL;
+HWND g_hWnd_reallocate_threshold_size = NULL;
 
 wchar_t default_limit_tooltip_text[ 32 ];
 HWND g_hWnd_default_limit_tooltip = NULL;
+
+wchar_t reallocate_threshold_size_tooltip_text[ 32 ];
+HWND g_hWnd_reallocate_threshold_size_tooltip = NULL;
+
+int connection_spinner_width = 0;
+int connection_spinner_height = 0;
 
 LRESULT CALLBACK ConnectionTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
 {
@@ -64,8 +83,9 @@ LRESULT CALLBACK ConnectionTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 			RECT rc;
 			_GetClientRect( hWnd, &rc );
 
-			HWND hWnd_static_max_downloads = _CreateWindowW( WC_STATIC, ST_V_Active_download_limit_, WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
-			g_hWnd_max_downloads = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 100, 0, 100, 23, hWnd, ( HMENU )EDIT_MAX_DOWNLOADS, NULL, NULL );
+			g_hWnd_static_max_downloads = _CreateWindowW( WC_STATIC, ST_V_Active_download_limit_, WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+			// Needs dimensions so that the spinner control can size itself.
+			g_hWnd_max_downloads = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 100, 23, hWnd, ( HMENU )EDIT_MAX_DOWNLOADS, NULL, NULL );
 
 			g_hWnd_ud_max_downloads = _CreateWindowW( UPDOWN_CLASS, NULL, UDS_ALIGNRIGHT | UDS_ARROWKEYS | UDS_NOTHOUSANDS | UDS_SETBUDDYINT | WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 
@@ -75,17 +95,16 @@ LRESULT CALLBACK ConnectionTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 			_SendMessageW( g_hWnd_ud_max_downloads, UDM_SETRANGE32, 0, 100 );
 			_SendMessageW( g_hWnd_ud_max_downloads, UDM_SETPOS, 0, cfg_max_downloads );
 
+
 			RECT rc_spinner;
 			_GetClientRect( g_hWnd_ud_max_downloads, &rc_spinner );
-			int spinner_width = rc_spinner.right - rc_spinner.left;
-
-			_SetWindowPos( hWnd_static_max_downloads, HWND_TOP, 0, 4, rc.right - ( 105 + spinner_width ), 15, SWP_NOZORDER );
-			_SetWindowPos( g_hWnd_max_downloads, HWND_TOP, rc.right - ( 100 + spinner_width ), 0, 100, 23, SWP_NOZORDER );
-			_SetWindowPos( g_hWnd_ud_max_downloads, HWND_TOP, rc.right - spinner_width, 0, 0, 0, SWP_NOZORDER | SWP_NOSIZE );
+			connection_spinner_width = rc_spinner.right - rc_spinner.left;
+			connection_spinner_height = rc_spinner.bottom - rc_spinner.top;
 
 
-			HWND hWnd_static_download_parts = _CreateWindowW( WC_STATIC, ST_V_Default_download_parts_, WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
-			g_hWnd_default_download_parts = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 100, 28, 100, 23, hWnd, ( HMENU )EDIT_DEFAULT_DOWNLOAD_PARTS, NULL, NULL );
+			g_hWnd_static_default_download_parts = _CreateWindowW( WC_STATIC, ST_V_Default_download_parts_, WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+			// Needs dimensions so that the spinner control can size itself.
+			g_hWnd_default_download_parts = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 100, 23, hWnd, ( HMENU )EDIT_DEFAULT_DOWNLOAD_PARTS, NULL, NULL );
 
 			g_hWnd_default_ud_download_parts = _CreateWindowW( UPDOWN_CLASS, NULL, UDS_ALIGNRIGHT | UDS_ARROWKEYS | UDS_NOTHOUSANDS | UDS_SETBUDDYINT | WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 
@@ -94,15 +113,14 @@ LRESULT CALLBACK ConnectionTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 			_SendMessageW( g_hWnd_default_ud_download_parts, UDM_SETBASE, 10, 0 );
 			_SendMessageW( g_hWnd_default_ud_download_parts, UDM_SETRANGE32, 1, 100 );
 			_SendMessageW( g_hWnd_default_ud_download_parts, UDM_SETPOS, 0, cfg_default_download_parts );
-			_SetWindowPos( hWnd_static_download_parts, HWND_TOP, 0, 32, rc.right - ( 105 + spinner_width ), 15, SWP_NOZORDER );
-			_SetWindowPos( g_hWnd_default_download_parts, HWND_TOP, rc.right - ( 100 + spinner_width ), 28, 100, 23, SWP_NOZORDER );
-			_SetWindowPos( g_hWnd_default_ud_download_parts, HWND_TOP, rc.right - spinner_width, 28, 0, 0, SWP_NOZORDER | SWP_NOSIZE );
+
 
 			//
 
 
-			HWND hWnd_static_retry_downloads_count = _CreateWindowW( WC_STATIC, ST_V_Retry_incomplete_downloads_, WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
-			g_hWnd_retry_downloads_count = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 100, 56, 100, 23, hWnd, ( HMENU )EDIT_RETRY_DOWNLOADS_COUNT, NULL, NULL );
+			g_hWnd_static_retry_downloads_count = _CreateWindowW( WC_STATIC, ST_V_Retry_incomplete_downloads_, WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+			// Needs dimensions so that the spinner control can size itself.
+			g_hWnd_retry_downloads_count = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 100, 23, hWnd, ( HMENU )EDIT_RETRY_DOWNLOADS_COUNT, NULL, NULL );
 
 			g_hWnd_ud_retry_downloads_count = _CreateWindowW( UPDOWN_CLASS, NULL, UDS_ALIGNRIGHT | UDS_ARROWKEYS | UDS_NOTHOUSANDS | UDS_SETBUDDYINT | WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 
@@ -111,13 +129,11 @@ LRESULT CALLBACK ConnectionTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 			_SendMessageW( g_hWnd_ud_retry_downloads_count, UDM_SETBASE, 10, 0 );
 			_SendMessageW( g_hWnd_ud_retry_downloads_count, UDM_SETRANGE32, 0, 100 );
 			_SendMessageW( g_hWnd_ud_retry_downloads_count, UDM_SETPOS, 0, cfg_retry_downloads_count );
-			_SetWindowPos( hWnd_static_retry_downloads_count, HWND_TOP, 0, 60, rc.right - ( 105 + spinner_width ), 15, SWP_NOZORDER );
-			_SetWindowPos( g_hWnd_retry_downloads_count, HWND_TOP, rc.right - ( 100 + spinner_width ), 56, 100, 23, SWP_NOZORDER );
-			_SetWindowPos( g_hWnd_ud_retry_downloads_count, HWND_TOP, rc.right - spinner_width, 56, 0, 0, SWP_NOZORDER | SWP_NOSIZE );
 
 
-			HWND hWnd_static_retry_parts_count = _CreateWindowW( WC_STATIC, ST_V_Retry_incomplete_parts_, WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
-			g_hWnd_retry_parts_count = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 100, 84, 100, 23, hWnd, ( HMENU )EDIT_RETRY_PARTS_COUNT, NULL, NULL );
+			g_hWnd_static_retry_parts_count = _CreateWindowW( WC_STATIC, ST_V_Retry_incomplete_parts_, WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+			// Needs dimensions so that the spinner control can size itself.
+			g_hWnd_retry_parts_count = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 100, 23, hWnd, ( HMENU )EDIT_RETRY_PARTS_COUNT, NULL, NULL );
 
 			g_hWnd_ud_retry_parts_count = _CreateWindowW( UPDOWN_CLASS, NULL, UDS_ALIGNRIGHT | UDS_ARROWKEYS | UDS_NOTHOUSANDS | UDS_SETBUDDYINT | WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 
@@ -126,14 +142,12 @@ LRESULT CALLBACK ConnectionTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 			_SendMessageW( g_hWnd_ud_retry_parts_count, UDM_SETBASE, 10, 0 );
 			_SendMessageW( g_hWnd_ud_retry_parts_count, UDM_SETRANGE32, 0, 100 );
 			_SendMessageW( g_hWnd_ud_retry_parts_count, UDM_SETPOS, 0, cfg_retry_parts_count );
-			_SetWindowPos( hWnd_static_retry_parts_count, HWND_TOP, 0, 88, rc.right - ( 105 + spinner_width ), 15, SWP_NOZORDER );
-			_SetWindowPos( g_hWnd_retry_parts_count, HWND_TOP, rc.right - ( 100 + spinner_width ), 84, 100, 23, SWP_NOZORDER );
-			_SetWindowPos( g_hWnd_ud_retry_parts_count, HWND_TOP, rc.right - spinner_width, 84, 0, 0, SWP_NOZORDER | SWP_NOSIZE );
 
 			//
 
-			HWND hWnd_static_timeout = _CreateWindowW( WC_STATIC, ST_V_Timeout__seconds__, WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
-			g_hWnd_timeout = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 100, 112, 100, 23, hWnd, ( HMENU )EDIT_TIMEOUT, NULL, NULL );
+			g_hWnd_static_timeout = _CreateWindowW( WC_STATIC, ST_V_Timeout__seconds__, WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+			// Needs dimensions so that the spinner control can size itself.
+			g_hWnd_timeout = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 100, 23, hWnd, ( HMENU )EDIT_TIMEOUT, NULL, NULL );
 
 			g_hWnd_ud_timeout = _CreateWindowW( UPDOWN_CLASS, NULL, UDS_ALIGNRIGHT | UDS_ARROWKEYS | UDS_NOTHOUSANDS | UDS_SETBUDDYINT | WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 
@@ -146,13 +160,11 @@ LRESULT CALLBACK ConnectionTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 			{
 				_SendMessageW( g_hWnd_timeout, WM_SETTEXT, 0, ( LPARAM )L"0" );
 			}
-			_SetWindowPos( hWnd_static_timeout, HWND_TOP, 0, 116, rc.right - ( 105 + spinner_width ), 15, SWP_NOZORDER );
-			_SetWindowPos( g_hWnd_timeout, HWND_TOP, rc.right - ( 100 + spinner_width ), 112, 100, 23, SWP_NOZORDER );
-			_SetWindowPos( g_hWnd_ud_timeout, HWND_TOP, rc.right - spinner_width, 112, 0, 0, SWP_NOZORDER | SWP_NOSIZE );
 
 
-			HWND hWnd_static_max_redirects = _CreateWindowW( WC_STATIC, ST_V_Maximum_redirects_, WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
-			g_hWnd_max_redirects = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 100, 140, 100, 23, hWnd, ( HMENU )EDIT_MAX_REDIRECTS, NULL, NULL );
+			g_hWnd_static_max_redirects = _CreateWindowW( WC_STATIC, ST_V_Maximum_redirects_, WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+			// Needs dimensions so that the spinner control can size itself.
+			g_hWnd_max_redirects = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 100, 23, hWnd, ( HMENU )EDIT_MAX_REDIRECTS, NULL, NULL );
 
 
 			g_hWnd_ud_max_redirects = _CreateWindowW( UPDOWN_CLASS, NULL, UDS_ALIGNRIGHT | UDS_ARROWKEYS | UDS_NOTHOUSANDS | UDS_SETBUDDYINT | WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
@@ -162,15 +174,12 @@ LRESULT CALLBACK ConnectionTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 			_SendMessageW( g_hWnd_ud_max_redirects, UDM_SETBASE, 10, 0 );
 			_SendMessageW( g_hWnd_ud_max_redirects, UDM_SETRANGE32, 0, 100 );
 			_SendMessageW( g_hWnd_ud_max_redirects, UDM_SETPOS, 0, cfg_max_redirects );
-			_SetWindowPos( hWnd_static_max_redirects, HWND_TOP, 0, 144, rc.right - ( 105 + spinner_width ), 15, SWP_NOZORDER );
-			_SetWindowPos( g_hWnd_max_redirects, HWND_TOP, rc.right - ( 100 + spinner_width ), 140, 100, 23, SWP_NOZORDER );
-			_SetWindowPos( g_hWnd_ud_max_redirects, HWND_TOP, rc.right - spinner_width, 140, 0, 0, SWP_NOZORDER | SWP_NOSIZE );
 
 			//
 
-			HWND hWnd_static_default_speed_limit = _CreateWindowW( WC_STATIC, ST_V_Default_download_speed_limit_, WS_CHILD | WS_VISIBLE, 0, 172, rc.right - 105, 15, hWnd, NULL, NULL, NULL );
+			g_hWnd_static_default_speed_limit = _CreateWindowW( WC_STATIC, ST_V_Default_download_speed_limit_, WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 
-			g_hWnd_default_speed_limit = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, rc.right - 100, 168, 100, 23, hWnd, ( HMENU )EDIT_DEFAULT_SPEED_LIMIT, NULL, NULL );
+			g_hWnd_default_speed_limit = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, ( HMENU )EDIT_DEFAULT_SPEED_LIMIT, NULL, NULL );
 
 			_SendMessageW( g_hWnd_default_speed_limit, EM_LIMITTEXT, 20, 0 );
 
@@ -188,7 +197,6 @@ LRESULT CALLBACK ConnectionTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 			_GetClientRect( hWnd, &ti.rect );
 			_SendMessageW( g_hWnd_default_limit_tooltip, TTM_ADDTOOL, 0, ( LPARAM )&ti );
 
-
 			char value[ 21 ];
 			_memzero( value, sizeof( char ) * 21 );
 			__snprintf( value, 21, "%I64u", cfg_default_speed_limit );
@@ -196,8 +204,8 @@ LRESULT CALLBACK ConnectionTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 
 			//
 
-			HWND hWnd_static_ssl_version = _CreateWindowW( WC_STATIC, ST_V_Default_SSL___TLS_version_, WS_CHILD | WS_VISIBLE, 0, 200, rc.right - 105, 15, hWnd, NULL, NULL, NULL );
-			g_hWnd_default_ssl_version = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_COMBOBOX, NULL, CBS_AUTOHSCROLL | CBS_DROPDOWNLIST | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE | CBS_DARK_MODE, rc.right - 100, 196, 100, 23, hWnd, ( HMENU )CB_DEFAULT_SSL_VERSION, NULL, NULL );
+			g_hWnd_static_default_ssl_version = _CreateWindowW( WC_STATIC, ST_V_Default_SSL___TLS_version_, WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+			g_hWnd_default_ssl_version = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_COMBOBOX, NULL, CBS_AUTOHSCROLL | CBS_DROPDOWNLIST | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE | CBS_DARK_MODE, 0, 0, 0, 0, hWnd, ( HMENU )CB_DEFAULT_SSL_VERSION, NULL, NULL );
 			_SendMessageW( g_hWnd_default_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_V_SSL_2_0 );
 			_SendMessageW( g_hWnd_default_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_V_SSL_3_0 );
 			_SendMessageW( g_hWnd_default_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_V_TLS_1_0 );
@@ -208,39 +216,131 @@ LRESULT CALLBACK ConnectionTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 
 			//
 
-			g_hWnd_chk_reallocate_parts = _CreateWindowW( WC_BUTTON, ST_V_Reallocate_parts_to_maximize_connections, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 228, rc.right, 20, hWnd, ( HMENU )BTN_REALLOCATE_PARTS, NULL, NULL );
+			g_hWnd_chk_reallocate_parts = _CreateWindowW( WC_BUTTON, ST_V_Reallocate_parts_to_maximize_connections_, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, ( HMENU )BTN_REALLOCATE_PARTS, NULL, NULL );
 
 			_SendMessageW( g_hWnd_chk_reallocate_parts, BM_SETCHECK, ( cfg_reallocate_parts ? BST_CHECKED : BST_UNCHECKED ), 0 );
-			
+
+			g_hWnd_static_reallocate_threshold_size = _CreateWindowW( WC_STATIC, ST_V_Reallocate_threshold_size__bytes__, WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+
+			g_hWnd_reallocate_threshold_size = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_CENTER | ES_NUMBER | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, ( HMENU )EDIT_THRESHOLD_SIZE, NULL, NULL );
+
+			_SendMessageW( g_hWnd_reallocate_threshold_size, EM_LIMITTEXT, 20, 0 );
+
+			g_hWnd_reallocate_threshold_size_tooltip = _CreateWindowExW( WS_EX_TOPMOST, TOOLTIPS_CLASS, 0, WS_POPUP | TTS_NOPREFIX | TTS_ALWAYSTIP, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+
+			reallocate_threshold_size_tooltip_text[ 0 ] = 0;
+
+			_memzero( &ti, sizeof( TOOLINFO ) );
+			ti.cbSize = sizeof( TOOLINFO );
+			ti.uFlags = TTF_SUBCLASS;
+			ti.hwnd = g_hWnd_reallocate_threshold_size;
+			ti.lpszText = reallocate_threshold_size_tooltip_text;
+
+			_GetClientRect( hWnd, &ti.rect );
+			_SendMessageW( g_hWnd_reallocate_threshold_size_tooltip, TTM_ADDTOOL, 0, ( LPARAM )&ti );
+
+			_memzero( value, sizeof( char ) * 21 );
+			__snprintf( value, 21, "%I64u", cfg_reallocate_threshold_size );
+			_SendMessageA( g_hWnd_reallocate_threshold_size, WM_SETTEXT, 0, ( LPARAM )value );
+
+			if ( cfg_reallocate_parts )
+			{
+				_EnableWindow( g_hWnd_static_reallocate_threshold_size, TRUE );
+				_EnableWindow( g_hWnd_reallocate_threshold_size, TRUE );
+			}
+			else
+			{
+				_EnableWindow( g_hWnd_static_reallocate_threshold_size, FALSE );
+				_EnableWindow( g_hWnd_reallocate_threshold_size, FALSE );
+			}
+
 			//
 
-			_SendMessageW( hWnd_static_max_downloads, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_max_downloads, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_static_max_downloads, WM_SETFONT, ( WPARAM )hFont_options, 0 );
+			_SendMessageW( g_hWnd_max_downloads, WM_SETFONT, ( WPARAM )hFont_options, 0 );
 
-			_SendMessageW( hWnd_static_retry_downloads_count, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_retry_downloads_count, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_static_retry_downloads_count, WM_SETFONT, ( WPARAM )hFont_options, 0 );
+			_SendMessageW( g_hWnd_retry_downloads_count, WM_SETFONT, ( WPARAM )hFont_options, 0 );
 
-			_SendMessageW( hWnd_static_retry_parts_count, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_retry_parts_count, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_static_retry_parts_count, WM_SETFONT, ( WPARAM )hFont_options, 0 );
+			_SendMessageW( g_hWnd_retry_parts_count, WM_SETFONT, ( WPARAM )hFont_options, 0 );
 
-			_SendMessageW( hWnd_static_ssl_version, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_default_ssl_version, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_static_default_ssl_version, WM_SETFONT, ( WPARAM )hFont_options, 0 );
+			_SendMessageW( g_hWnd_default_ssl_version, WM_SETFONT, ( WPARAM )hFont_options, 0 );
 
-			_SendMessageW( hWnd_static_download_parts, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_default_download_parts, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_static_default_download_parts, WM_SETFONT, ( WPARAM )hFont_options, 0 );
+			_SendMessageW( g_hWnd_default_download_parts, WM_SETFONT, ( WPARAM )hFont_options, 0 );
 
-			_SendMessageW( hWnd_static_timeout, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_timeout, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_static_timeout, WM_SETFONT, ( WPARAM )hFont_options, 0 );
+			_SendMessageW( g_hWnd_timeout, WM_SETFONT, ( WPARAM )hFont_options, 0 );
 
-			_SendMessageW( hWnd_static_max_redirects, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_max_redirects, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_static_max_redirects, WM_SETFONT, ( WPARAM )hFont_options, 0 );
+			_SendMessageW( g_hWnd_max_redirects, WM_SETFONT, ( WPARAM )hFont_options, 0 );
 
-			_SendMessageW( hWnd_static_default_speed_limit, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_default_speed_limit, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_static_default_speed_limit, WM_SETFONT, ( WPARAM )hFont_options, 0 );
+			_SendMessageW( g_hWnd_default_speed_limit, WM_SETFONT, ( WPARAM )hFont_options, 0 );
 
-			_SendMessageW( g_hWnd_chk_reallocate_parts, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_chk_reallocate_parts, WM_SETFONT, ( WPARAM )hFont_options, 0 );
+			_SendMessageW( g_hWnd_static_reallocate_threshold_size, WM_SETFONT, ( WPARAM )hFont_options, 0 );
+			_SendMessageW( g_hWnd_reallocate_threshold_size, WM_SETFONT, ( WPARAM )hFont_options, 0 );
 
 			return 0;
+		}
+		break;
+
+		case WM_SIZE:
+		{
+			RECT rc;
+			_GetClientRect( hWnd, &rc );
+
+			int spinner_width = _SCALE_O_( connection_spinner_width );
+			int spinner_height = _SCALE_O_( connection_spinner_height );
+
+			HDWP hdwp = _BeginDeferWindowPos( 25 );
+			_DeferWindowPos( hdwp, g_hWnd_static_max_downloads, HWND_TOP, 0, _SCALE_O_( 4 ), rc.right - ( _SCALE_O_( 105 ) + spinner_width ), _SCALE_O_( 17 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_max_downloads, HWND_TOP, rc.right - ( _SCALE_O_( 100 ) + spinner_width ), 0, _SCALE_O_( 100 ), _SCALE_O_( 23 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_ud_max_downloads, HWND_TOP, rc.right - spinner_width, 0, spinner_width, spinner_height, SWP_NOZORDER );
+
+			_DeferWindowPos( hdwp, g_hWnd_static_default_download_parts, HWND_TOP, 0, _SCALE_O_( 32 ), rc.right - ( _SCALE_O_( 105 ) + spinner_width ), _SCALE_O_( 17 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_default_download_parts, HWND_TOP, rc.right - ( _SCALE_O_( 100 ) + spinner_width ), _SCALE_O_( 28 ), _SCALE_O_( 100 ), _SCALE_O_( 23 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_default_ud_download_parts, HWND_TOP, rc.right - spinner_width, _SCALE_O_( 28 ), spinner_width, spinner_height, SWP_NOZORDER );
+
+			_DeferWindowPos( hdwp, g_hWnd_static_retry_downloads_count, HWND_TOP, 0, _SCALE_O_( 60 ), rc.right - ( _SCALE_O_( 105 ) + spinner_width ), _SCALE_O_( 17 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_retry_downloads_count, HWND_TOP, rc.right - ( _SCALE_O_( 100 ) + spinner_width ), _SCALE_O_( 56 ), _SCALE_O_( 100 ), _SCALE_O_( 23 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_ud_retry_downloads_count, HWND_TOP, rc.right - spinner_width, _SCALE_O_( 56 ), spinner_width, spinner_height, SWP_NOZORDER );
+
+			_DeferWindowPos( hdwp, g_hWnd_static_retry_parts_count, HWND_TOP, 0, _SCALE_O_( 88 ), rc.right - ( _SCALE_O_( 105 ) + spinner_width ), _SCALE_O_( 17 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_retry_parts_count, HWND_TOP, rc.right - ( _SCALE_O_( 100 ) + spinner_width ), _SCALE_O_( 84 ), _SCALE_O_( 100 ), _SCALE_O_( 23 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_ud_retry_parts_count, HWND_TOP, rc.right - spinner_width, _SCALE_O_( 84 ), spinner_width, spinner_height, SWP_NOZORDER );
+
+			_DeferWindowPos( hdwp, g_hWnd_static_timeout, HWND_TOP, 0, _SCALE_O_( 116 ), rc.right - ( _SCALE_O_( 105 ) + spinner_width ), _SCALE_O_( 17 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_timeout, HWND_TOP, rc.right - ( _SCALE_O_( 100 ) + spinner_width ), _SCALE_O_( 112 ), _SCALE_O_( 100 ), _SCALE_O_( 23 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_ud_timeout, HWND_TOP, rc.right - spinner_width, _SCALE_O_( 112 ), spinner_width, spinner_height, SWP_NOZORDER );
+
+			_DeferWindowPos( hdwp, g_hWnd_static_max_redirects, HWND_TOP, 0, _SCALE_O_( 144 ), rc.right - ( _SCALE_O_( 105 ) + spinner_width ), _SCALE_O_( 17 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_max_redirects, HWND_TOP, rc.right - ( _SCALE_O_( 100 ) + spinner_width ), _SCALE_O_( 140 ), _SCALE_O_( 100 ), _SCALE_O_( 23 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_ud_max_redirects, HWND_TOP, rc.right - spinner_width, _SCALE_O_( 140 ), spinner_width, spinner_height, SWP_NOZORDER );
+
+			_DeferWindowPos( hdwp, g_hWnd_static_default_speed_limit, HWND_TOP, 0, _SCALE_O_( 172 ), rc.right - _SCALE_O_( 105 ), _SCALE_O_( 17 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_default_speed_limit, HWND_TOP, rc.right - _SCALE_O_( 100 ), _SCALE_O_( 168 ), _SCALE_O_( 100 ), _SCALE_O_( 23 ), SWP_NOZORDER );
+
+			_DeferWindowPos( hdwp, g_hWnd_static_default_ssl_version, HWND_TOP, 0, _SCALE_O_( 200 ), rc.right - _SCALE_O_( 105 ), _SCALE_O_( 17 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_default_ssl_version, HWND_TOP, rc.right - _SCALE_O_( 100 ), _SCALE_O_( 196 ), _SCALE_O_( 100 ), _SCALE_O_( 23 ), SWP_NOZORDER );
+
+			_DeferWindowPos( hdwp, g_hWnd_chk_reallocate_parts, HWND_TOP, 0, _SCALE_O_( 229 ), rc.right, _SCALE_O_( 20 ), SWP_NOZORDER );
+
+			_DeferWindowPos( hdwp, g_hWnd_static_reallocate_threshold_size, HWND_TOP, _SCALE_O_( 15 ), _SCALE_O_( 253 ), rc.right - _SCALE_O_( 105 ), _SCALE_O_( 17 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_reallocate_threshold_size, HWND_TOP, rc.right - _SCALE_O_( 100 ), _SCALE_O_( 249 ), _SCALE_O_( 100 ), _SCALE_O_( 23 ), SWP_NOZORDER );
+
+			_EndDeferWindowPos( hdwp );
+
+			return 0;
+		}
+		break;
+
+		case WM_GET_DPI:
+		{
+			return current_dpi_options;
 		}
 		break;
 
@@ -279,8 +379,7 @@ LRESULT CALLBACK ConnectionTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 						if ( ( LOWORD( wParam ) == EDIT_MAX_DOWNLOADS && num != cfg_max_downloads ) ||
 							 ( LOWORD( wParam ) == EDIT_MAX_REDIRECTS && num != cfg_max_redirects ) )
 						{
-							options_state_changed = true;
-							_EnableWindow( g_hWnd_options_apply, TRUE );
+							_SendMessageW( g_hWnd_options, WM_OPTIONS_CHANGED, TRUE, 0 );
 						}
 					}
 				}
@@ -309,8 +408,7 @@ LRESULT CALLBACK ConnectionTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 						if ( ( LOWORD( wParam ) == EDIT_RETRY_DOWNLOADS_COUNT && num != cfg_retry_downloads_count ) ||
 							 ( LOWORD( wParam ) == EDIT_RETRY_PARTS_COUNT && num != cfg_retry_parts_count ) )
 						{
-							options_state_changed = true;
-							_EnableWindow( g_hWnd_options_apply, TRUE );
+							_SendMessageW( g_hWnd_options, WM_OPTIONS_CHANGED, TRUE, 0 );
 						}
 					}
 				}
@@ -337,8 +435,7 @@ LRESULT CALLBACK ConnectionTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 
 						if ( num != cfg_timeout )
 						{
-							options_state_changed = true;
-							_EnableWindow( g_hWnd_options_apply, TRUE );
+							_SendMessageW( g_hWnd_options, WM_OPTIONS_CHANGED, TRUE, 0 );
 						}
 					}
 					else if ( HIWORD( wParam ) == EN_KILLFOCUS )
@@ -360,8 +457,7 @@ LRESULT CALLBACK ConnectionTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 
 						if ( num != cfg_timeout )
 						{
-							options_state_changed = true;
-							_EnableWindow( g_hWnd_options_apply, TRUE );
+							_SendMessageW( g_hWnd_options, WM_OPTIONS_CHANGED, TRUE, 0 );
 						}
 					}
 				}
@@ -371,8 +467,7 @@ LRESULT CALLBACK ConnectionTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 				{
 					if ( HIWORD( wParam ) == CBN_SELCHANGE )
 					{
-						options_state_changed = true;
-						_EnableWindow( g_hWnd_options_apply, TRUE );
+						_SendMessageW( g_hWnd_options, WM_OPTIONS_CHANGED, TRUE, 0 );
 					}
 				}
 				break;
@@ -406,8 +501,7 @@ LRESULT CALLBACK ConnectionTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 
 						if ( num != cfg_default_download_parts )
 						{
-							options_state_changed = true;
-							_EnableWindow( g_hWnd_options_apply, TRUE );
+							_SendMessageW( g_hWnd_options, WM_OPTIONS_CHANGED, TRUE, 0 );
 						}
 					}
 				}
@@ -453,8 +547,7 @@ LRESULT CALLBACK ConnectionTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 
 						if ( num != cfg_default_speed_limit )
 						{
-							options_state_changed = true;
-							_EnableWindow( g_hWnd_options_apply, TRUE );
+							_SendMessageW( g_hWnd_options, WM_OPTIONS_CHANGED, TRUE, 0 );
 						}
 					}
 				}
@@ -462,11 +555,130 @@ LRESULT CALLBACK ConnectionTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 
 				case BTN_REALLOCATE_PARTS:
 				{
-					options_state_changed = true;
-					_EnableWindow( g_hWnd_options_apply, TRUE );
+					BOOL enable = ( _SendMessageW( g_hWnd_chk_reallocate_parts, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? TRUE : FALSE );
+
+					_EnableWindow( g_hWnd_static_reallocate_threshold_size, enable );
+					_EnableWindow( g_hWnd_reallocate_threshold_size, enable );
+
+					_SendMessageW( g_hWnd_options, WM_OPTIONS_CHANGED, TRUE, 0 );
+				}
+				break;
+
+				case EDIT_THRESHOLD_SIZE:
+				{
+					if ( HIWORD( wParam ) == EN_UPDATE )
+					{
+						DWORD sel_start;
+
+						char value[ 21 ];
+						_SendMessageA( ( HWND )lParam, WM_GETTEXT, 21, ( LPARAM )value );
+						unsigned long long num = strtoull( value );
+
+						if ( num == 0xFFFFFFFFFFFFFFFF )
+						{
+							_SendMessageA( ( HWND )lParam, EM_GETSEL, ( WPARAM )&sel_start, NULL );
+
+							_SendMessageA( ( HWND )lParam, WM_SETTEXT, 0, ( LPARAM )"18446744073709551615" );
+
+							_SendMessageA( ( HWND )lParam, EM_SETSEL, sel_start, sel_start );
+						}
+
+						if ( num < 1048576 )	// 1 MB
+						{
+							num = 1048576;
+
+							_SendMessageA( ( HWND )lParam, EM_GETSEL, ( WPARAM )&sel_start, NULL );
+
+							_SendMessageA( ( HWND )lParam, WM_SETTEXT, 0, ( LPARAM )"1048576" );
+
+							_SendMessageA( ( HWND )lParam, EM_SETSEL, sel_start, sel_start );
+						}
+
+						unsigned int length = FormatSizes( reallocate_threshold_size_tooltip_text, 32, SIZE_FORMAT_AUTO, num );
+						reallocate_threshold_size_tooltip_text[ length ] = 0;
+
+						TOOLINFO ti;
+						_memzero( &ti, sizeof( TOOLINFO ) );
+						ti.cbSize = sizeof( TOOLINFO );
+						ti.hwnd = g_hWnd_reallocate_threshold_size;
+						ti.lpszText = reallocate_threshold_size_tooltip_text;
+						_SendMessageW( g_hWnd_reallocate_threshold_size_tooltip, TTM_UPDATETIPTEXT, 0, ( LPARAM )&ti );
+
+						if ( num != cfg_reallocate_threshold_size )
+						{
+							_SendMessageW( g_hWnd_options, WM_OPTIONS_CHANGED, TRUE, 0 );
+						}
+					}
 				}
 				break;
 			}
+
+			return 0;
+		}
+		break;
+
+		case WM_SAVE_OPTIONS:
+		{
+			char value[ 21 ];
+
+			_SendMessageA( g_hWnd_max_downloads, WM_GETTEXT, 11, ( LPARAM )value );
+			cfg_max_downloads = ( unsigned char )_strtoul( value, NULL, 10 );
+
+			_SendMessageA( g_hWnd_retry_downloads_count, WM_GETTEXT, 11, ( LPARAM )value );
+			cfg_retry_downloads_count = ( unsigned char )_strtoul( value, NULL, 10 );
+
+			_SendMessageA( g_hWnd_retry_parts_count, WM_GETTEXT, 11, ( LPARAM )value );
+			cfg_retry_parts_count = ( unsigned char )_strtoul( value, NULL, 10 );
+
+			_SendMessageA( g_hWnd_timeout, WM_GETTEXT, 11, ( LPARAM )value );
+			unsigned short timeout = ( unsigned short )_strtoul( value, NULL, 10 );
+
+			_SendMessageA( g_hWnd_max_redirects, WM_GETTEXT, 11, ( LPARAM )value );
+			cfg_max_redirects = ( unsigned char )_strtoul( value, NULL, 10 );
+
+			if ( timeout != cfg_timeout )
+			{
+				if ( cfg_timeout == 0 )
+				{
+					cfg_timeout = timeout;	// New value will not be 0 and the timeout thread will poll every 1 second.
+
+					// Trigger the timeout thread to poll.
+					if ( g_timeout_semaphore != NULL )
+					{
+						ReleaseSemaphore( g_timeout_semaphore, 1, NULL );
+					}
+				}
+				else
+				{
+					cfg_timeout = timeout;
+				}
+			}
+
+			_SendMessageA( g_hWnd_default_download_parts, WM_GETTEXT, 11, ( LPARAM )value );
+			cfg_default_download_parts = ( unsigned char )_strtoul( value, NULL, 10 );
+
+			_SendMessageA( g_hWnd_default_speed_limit, WM_GETTEXT, 21, ( LPARAM )value );
+			cfg_default_speed_limit = strtoull( value );
+
+			cfg_default_ssl_version = ( unsigned char )_SendMessageW( g_hWnd_default_ssl_version, CB_GETCURSEL, 0, 0 );
+
+			cfg_reallocate_parts = ( _SendMessageW( g_hWnd_chk_reallocate_parts, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
+
+			_SendMessageA( g_hWnd_reallocate_threshold_size, WM_GETTEXT, 21, ( LPARAM )value );
+			cfg_reallocate_threshold_size = strtoull( value );
+
+			return 0;
+		}
+		break;
+
+		case WM_DESTROY:
+		{
+#ifdef ENABLE_DARK_MODE
+			if ( g_use_dark_mode )
+			{
+				CleanupButtonGlyphs( hWnd );
+			}
+#endif
 
 			return 0;
 		}

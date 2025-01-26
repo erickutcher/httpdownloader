@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
-	Copyright (C) 2015-2024 Eric Kutcher
+	Copyright (C) 2015-2025 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -37,6 +37,7 @@ bool IsWindowsVersionOrGreater( WORD wMajorVersion, WORD wMinorVersion, WORD wSe
 
 int dllrbt_compare_a( void *a, void *b );
 int dllrbt_compare_w( void *a, void *b );
+int dllrbt_compare_i_w( void *a, void *b );
 
 void encode_cipher( char *buffer, int buffer_length );
 void decode_cipher( char *buffer, int buffer_length );
@@ -55,7 +56,9 @@ void CheckColumnOrders( char *column_arr[], unsigned char num_columns );
 void CheckColumnWidths();
 
 void SetDefaultAppearance();
-void AdjustRowHeight();
+
+BOOL CALLBACK EnumChildFontProc( HWND hWnd, LPARAM lParam );
+HFONT UpdateFont( UINT dpi );
 
 char *GlobalStrDupA( const char *_Str );
 wchar_t *GlobalStrDupW( const wchar_t *_Str );
@@ -128,11 +131,11 @@ extern p_vsnprintf				__vsnprintf;
 extern pRtlGetNtVersionNumbers	_RtlGetNtVersionNumbers;
 
 // ws2_32
-typedef int ( WSAAPI *pGetNameInfoW )( const SOCKADDR *pSockaddr, socklen_t SockaddrLength, PWCHAR pNodeBuffer, DWORD NodeBufferSize, PWCHAR pServiceBuffer, DWORD ServiceBufferSize, INT Flags );
+/*typedef int ( WSAAPI *pGetNameInfoW )( const SOCKADDR *pSockaddr, socklen_t SockaddrLength, PWCHAR pNodeBuffer, DWORD NodeBufferSize, PWCHAR pServiceBuffer, DWORD ServiceBufferSize, INT Flags );
 typedef int ( WSAAPI *pgetpeername )( SOCKET s, struct sockaddr *name, int *namelen );
 
 extern pGetNameInfoW	_GetNameInfoW;
-extern pgetpeername		_getpeername;
+extern pgetpeername		_getpeername;*/
 
 //
 

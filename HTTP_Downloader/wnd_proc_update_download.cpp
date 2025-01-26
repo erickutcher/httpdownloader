@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
-	Copyright (C) 2015-2024 Eric Kutcher
+	Copyright (C) 2015-2025 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -22,42 +22,50 @@
 #include "lite_normaliz.h"
 #include "utilities.h"
 #include "connection.h"
+#include "categories.h"
 #include "list_operations.h"
 #include "string_tables.h"
+
+#include "folder_browser.h"
 
 #include "wnd_proc.h"
 
 #include "dark_mode.h"
 
-#define EDIT_UPDATE_DOWNLOAD_PARTS	1000
-#define EDIT_UPDATE_SPEED_LIMIT		1001
-#define CHK_UPDATE_SEND_DATA		1002
-#define BTN_UPDATE_DOWNLOAD			1003
-#define BTN_UPDATE_CANCEL			1004
+#define UPDATE_DOWNLOAD_WIDTH	600
+#define UPDATE_DOWNLOAD_HEIGHT	376
+
+#define CB_UPDATE_CATEGORY				1000
+#define BTN_UPDATE_DOWNLOAD_DIRECTORY	1001
+#define EDIT_UPDATE_DOWNLOAD_PARTS		1002
+#define EDIT_UPDATE_SPEED_LIMIT			1003
+#define CHK_UPDATE_SEND_DATA			1004
+#define BTN_UPDATE_DOWNLOAD				1005
+#define BTN_UPDATE_CANCEL				1006
 
 //
 
-#define CB_UPDATE_PROXY_TYPE					1005
+#define CB_UPDATE_PROXY_TYPE					1007
 
-#define BTN_UPDATE_TYPE_HOST_SOCKS				1006
-#define BTN_UPDATE_TYPE_IP_ADDRESS_SOCKS		1007
-#define EDIT_UPDATE_HOST_SOCKS					1008
-#define EDIT_UPDATE_IP_ADDRESS_SOCKS			1009
-#define EDIT_UPDATE_PORT_SOCKS					1010
+#define BTN_UPDATE_TYPE_HOST_SOCKS				1008
+#define BTN_UPDATE_TYPE_IP_ADDRESS_SOCKS		1009
+#define EDIT_UPDATE_HOST_SOCKS					1010
+#define EDIT_UPDATE_IP_ADDRESS_SOCKS			1011
+#define EDIT_UPDATE_PORT_SOCKS					1012
 
-#define EDIT_UPDATE_PROXY_AUTH_USERNAME			1011
-#define EDIT_UPDATE_PROXY_AUTH_PASSWORD			1012
+#define EDIT_UPDATE_PROXY_AUTH_USERNAME			1013
+#define EDIT_UPDATE_PROXY_AUTH_PASSWORD			1014
 
-#define EDIT_UPDATE_AUTH_IDENT_USERNAME_SOCKS	1013
+#define EDIT_UPDATE_AUTH_IDENT_USERNAME_SOCKS	1015
 
-#define BTN_UPDATE_RESOLVE_DOMAIN_NAMES_V4A		1014
+#define BTN_UPDATE_RESOLVE_DOMAIN_NAMES_V4A		1016
 
-#define BTN_UPDATE_AUTHENTICATION_SOCKS			1015
+#define BTN_UPDATE_AUTHENTICATION_SOCKS			1017
 
-#define EDIT_UPDATE_AUTH_USERNAME_SOCKS			1016
-#define EDIT_UPDATE_AUTH_PASSWORD_SOCKS			1017
+#define EDIT_UPDATE_AUTH_USERNAME_SOCKS			1018
+#define EDIT_UPDATE_AUTH_PASSWORD_SOCKS			1019
 
-#define BTN_UPDATE_RESOLVE_DOMAIN_NAMES			1018
+#define BTN_UPDATE_RESOLVE_DOMAIN_NAMES			1020
 
 DOWNLOAD_INFO *g_update_download_info = NULL;	// The current item that we want to update.
 
@@ -65,6 +73,13 @@ HWND g_hWnd_update_download = NULL;
 
 HWND g_hWnd_static_update_url = NULL;
 HWND g_hWnd_edit_update_url = NULL;
+
+HWND g_hWnd_static_update_category = NULL;
+HWND g_hWnd_update_category = NULL;
+
+HWND g_hWnd_static_update_download_directory = NULL;
+HWND g_hWnd_update_download_directory = NULL;
+HWND g_hWnd_btn_update_download_directory = NULL;
 
 HWND g_hWnd_static_update_download_parts = NULL;
 HWND g_hWnd_update_download_parts = NULL;
@@ -83,6 +98,9 @@ HWND g_hWnd_static_update_password = NULL;
 HWND g_hWnd_edit_update_password = NULL;
 
 HWND g_hWnd_update_tab = NULL;
+
+HWND g_hWnd_static_update_comments = NULL;
+HWND g_hWnd_edit_update_comments = NULL;
 
 HWND g_hWnd_static_update_cookies = NULL;
 HWND g_hWnd_edit_update_cookies = NULL;
@@ -136,6 +154,8 @@ HWND g_hWnd_chk_update_resolve_domain_names = NULL;
 
 //////
 
+wchar_t *t_ud_download_directory = NULL;
+
 WNDPROC UpdateProc = NULL;
 WNDPROC UpdateTabProc = NULL;
 
@@ -152,6 +172,15 @@ HWND g_hWnd_update_limit_tooltip = NULL;
 HFONT hFont_copy_update_proxy = NULL;
 
 bool g_update_download_draw_tab_pane = false;
+
+int update_download_spinner_width = 0;
+int update_download_spinner_height = 0;
+
+UINT current_dpi_update_download = USER_DEFAULT_SCREEN_DPI;
+UINT last_dpi_update_download = 0;
+HFONT hFont_update_download = NULL;
+
+#define _SCALE_UD_( x )						_SCALE_( ( x ), dpi_update_download )
 
 void EnableDisableUpdateWindows( BOOL enable )
 {
@@ -330,7 +359,7 @@ LRESULT CALLBACK UpdateSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 {
 	switch ( msg )
 	{
-		case WM_CHAR:
+		/*case WM_CHAR:
 		{
 			// Replace enter with "\r\n" instead of "\n".
 			if ( wParam == VK_RETURN )
@@ -351,7 +380,7 @@ LRESULT CALLBACK UpdateSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 				}
 			}
 		}
-		break;
+		break;*/
 
 		case WM_GETDLGCODE:
 		{
@@ -406,9 +435,15 @@ LRESULT CALLBACK UpdateTabSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lP
 			// Allow our controls to move in relation to the parent window.
 			HDWP hdwp = _BeginDeferWindowPos( 1 );
 
-			_DeferWindowPos( hdwp, g_hWnd_btn_update_authentication, HWND_TOP, 280, ( rc_tab.bottom - rc_tab.top ) + 10, 272, 72, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_btn_update_authentication, HWND_TOP, _SCALE_UD_( 280 ), ( rc_tab.bottom - rc_tab.top ) + _SCALE_UD_( 65 ), _SCALE_UD_( 272 ), _SCALE_UD_( 72 ), SWP_NOZORDER );
 
 			_EndDeferWindowPos( hdwp );
+		}
+		break;
+
+		case WM_GET_DPI:
+		{
+			return current_dpi_update_download;
 		}
 		break;
 	}
@@ -425,6 +460,13 @@ void ShowHideUpdateTabs( int sw_type )
 		{
 			case 0:
 			{
+				_ShowWindow( g_hWnd_static_update_category, sw_type );
+				_ShowWindow( g_hWnd_update_category, sw_type );
+
+				_ShowWindow( g_hWnd_static_update_download_directory, sw_type );
+				_ShowWindow( g_hWnd_update_download_directory, sw_type );
+				_ShowWindow( g_hWnd_btn_update_download_directory, sw_type );
+
 				_ShowWindow( g_hWnd_static_update_download_parts, sw_type );
 				_ShowWindow( g_hWnd_update_download_parts, sw_type );
 				_ShowWindow( g_hWnd_ud_update_download_parts, sw_type );
@@ -445,26 +487,33 @@ void ShowHideUpdateTabs( int sw_type )
 
 			case 1:
 			{
+				_ShowWindow( g_hWnd_static_update_comments, sw_type );
+				_ShowWindow( g_hWnd_edit_update_comments, sw_type );
+			}
+			break;
+
+			case 2:
+			{
 				_ShowWindow( g_hWnd_static_update_cookies, sw_type );
 				_ShowWindow( g_hWnd_edit_update_cookies, sw_type );
 			}
 			break;
 
-			case 2:
+			case 3:
 			{
 				_ShowWindow( g_hWnd_static_update_headers, sw_type );
 				_ShowWindow( g_hWnd_edit_update_headers, sw_type );
 			}
 			break;
 
-			case 3:
+			case 4:
 			{
 				_ShowWindow( g_hWnd_chk_update_send_data, sw_type );
 				_ShowWindow( g_hWnd_edit_update_data, sw_type );
 			}
 			break;
 
-			case 4:
+			case 5:
 			{
 				_ShowWindow( g_hWnd_static_update_proxy_type, sw_type );
 				_ShowWindow( g_hWnd_update_proxy_type, sw_type );
@@ -496,7 +545,11 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 	{
 		case WM_CREATE:
 		{
-			g_hWnd_static_update_url = _CreateWindowW( WC_STATIC, ST_V_URL_, WS_CHILD | WS_VISIBLE, 10, 10, 100, 15, hWnd, NULL, NULL, NULL );
+			current_dpi_update_download = __GetDpiForWindow( hWnd );
+			last_dpi_update_download = ( current_dpi_update_download == current_dpi_main ? current_dpi_update_download : 0 );
+			hFont_update_download = UpdateFont( current_dpi_update_download );
+
+			g_hWnd_static_update_url = _CreateWindowW( WC_STATIC, ST_V_URL_, WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 			g_hWnd_edit_update_url = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 
 			//
@@ -511,19 +564,33 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 			ti.pszText = ( LPWSTR )ST_V_General;
 			_SendMessageW( g_hWnd_update_tab, TCM_INSERTITEM, 0, ( LPARAM )&ti );	// Insert a new tab at the end.
 
-			ti.pszText = ( LPWSTR )ST_V_Cookies;
+			ti.pszText = ( LPWSTR )ST_V_Comments;
 			_SendMessageW( g_hWnd_update_tab, TCM_INSERTITEM, 1, ( LPARAM )&ti );	// Insert a new tab at the end.
 
-			ti.pszText = ( LPWSTR )ST_V_Headers;
+			ti.pszText = ( LPWSTR )ST_V_Cookies;
 			_SendMessageW( g_hWnd_update_tab, TCM_INSERTITEM, 2, ( LPARAM )&ti );	// Insert a new tab at the end.
 
-			ti.pszText = ( LPWSTR )ST_V_POST_Data;
+			ti.pszText = ( LPWSTR )ST_V_Headers;
 			_SendMessageW( g_hWnd_update_tab, TCM_INSERTITEM, 3, ( LPARAM )&ti );	// Insert a new tab at the end.
 
-			ti.pszText = ( LPWSTR )ST_V_Proxy;
+			ti.pszText = ( LPWSTR )ST_V_POST_Data;
 			_SendMessageW( g_hWnd_update_tab, TCM_INSERTITEM, 4, ( LPARAM )&ti );	// Insert a new tab at the end.
 
+			ti.pszText = ( LPWSTR )ST_V_Proxy;
+			_SendMessageW( g_hWnd_update_tab, TCM_INSERTITEM, 5, ( LPARAM )&ti );	// Insert a new tab at the end.
+
 			//
+
+			g_hWnd_static_update_category = _CreateWindowW( WC_STATIC, ST_V_Category_, WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+			// Needs dimensions so that list displays in XP.
+			g_hWnd_update_category = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_COMBOBOX, NULL, CBS_AUTOHSCROLL | CBS_DROPDOWNLIST | WS_CHILD | WS_TABSTOP | WS_VSCROLL | WS_VISIBLE | CBS_DARK_MODE, 0, 0, 100, 23, hWnd, ( HMENU )CB_UPDATE_CATEGORY, NULL, NULL );
+
+			_SendMessageW( g_hWnd_update_category, CB_SETCURSEL, 0, 0 );
+
+			g_hWnd_static_update_download_directory = _CreateWindowW( WC_STATIC, ST_V_Download_directory_, WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+			g_hWnd_update_download_directory = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, ES_AUTOHSCROLL | ES_READONLY | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+			g_hWnd_btn_update_download_directory = _CreateWindowW( WC_BUTTON, ST_V_BTN___, WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, ( HMENU )BTN_UPDATE_DOWNLOAD_DIRECTORY, NULL, NULL );
+
 
 			// Owner draw the static control. It causes the entire window to flicker when it's disabled.
 			g_hWnd_static_update_download_parts = _CreateWindowW( WC_STATIC, ST_V_Download_parts_, /*SS_OWNERDRAW |*/ WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
@@ -538,7 +605,10 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 			_SendMessageW( g_hWnd_ud_update_download_parts, UDM_SETRANGE32, 1, 100 );
 			_SendMessageW( g_hWnd_ud_update_download_parts, UDM_SETPOS, 0, 1 );
 
-
+			RECT rc_spinner;
+			_GetClientRect( g_hWnd_ud_update_download_parts, &rc_spinner );
+			update_download_spinner_width = rc_spinner.right - rc_spinner.left;
+			update_download_spinner_height = rc_spinner.bottom - rc_spinner.top;
 
 
 			g_hWnd_static_update_speed_limit = _CreateWindowW( WC_STATIC, ST_V_Download_speed_limit_bytes_, WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
@@ -586,14 +656,17 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 
 			//
 
+			g_hWnd_static_update_comments = _CreateWindowW( WC_STATIC, ST_V_Comments_, WS_CHILD, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+			g_hWnd_edit_update_comments = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, WS_CHILD | WS_TABSTOP | ES_AUTOHSCROLL | ES_MULTILINE | ES_WANTRETURN | WS_HSCROLL | WS_VSCROLL, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+
 			g_hWnd_static_update_cookies = _CreateWindowW( WC_STATIC, ST_V_Cookies_, WS_CHILD, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
-			g_hWnd_edit_update_cookies = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, WS_CHILD | WS_TABSTOP | ES_AUTOHSCROLL | ES_MULTILINE | WS_HSCROLL | WS_VSCROLL, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+			g_hWnd_edit_update_cookies = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, WS_CHILD | WS_TABSTOP | ES_AUTOHSCROLL | ES_MULTILINE | ES_WANTRETURN | WS_HSCROLL | WS_VSCROLL, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 
 			g_hWnd_static_update_headers = _CreateWindowW( WC_STATIC, ST_V_Headers_, WS_CHILD, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
-			g_hWnd_edit_update_headers = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, WS_CHILD | WS_TABSTOP | ES_AUTOHSCROLL | ES_MULTILINE | WS_HSCROLL | WS_VSCROLL, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+			g_hWnd_edit_update_headers = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, WS_CHILD | WS_TABSTOP | ES_AUTOHSCROLL | ES_MULTILINE | ES_WANTRETURN | WS_HSCROLL | WS_VSCROLL, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 
 			g_hWnd_chk_update_send_data = _CreateWindowW( WC_BUTTON, ST_V_Send_POST_Data_, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP, 0, 0, 0, 0, hWnd, ( HMENU )CHK_UPDATE_SEND_DATA, NULL, NULL );
-			g_hWnd_edit_update_data = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, WS_CHILD | WS_TABSTOP | ES_AUTOHSCROLL | ES_MULTILINE | WS_HSCROLL | WS_VSCROLL | WS_DISABLED, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
+			g_hWnd_edit_update_data = _CreateWindowExW( WS_EX_CLIENTEDGE, WC_EDIT, NULL, WS_CHILD | WS_TABSTOP | ES_AUTOHSCROLL | ES_MULTILINE | ES_WANTRETURN | WS_HSCROLL | WS_VSCROLL | WS_DISABLED, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 
 			//
 
@@ -669,79 +742,84 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 
 			_SetFocus( g_hWnd_edit_update_url );
 
-			_SendMessageW( g_hWnd_btn_update_download, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_update_cancel, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_static_paused_download, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_static_update_ssl_version, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_update_ssl_version, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_static_update_speed_limit, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_update_speed_limit, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_static_update_download_parts, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_update_download_parts, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_static_update_url, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_edit_update_url, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_btn_update_authentication, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_static_update_username, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_edit_update_username, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_static_update_password, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_edit_update_password, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_update_tab, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_static_update_cookies, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_edit_update_cookies, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_static_update_headers, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_edit_update_headers, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_chk_update_send_data, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_edit_update_data, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_btn_update_download, WM_SETFONT, ( WPARAM )hFont_update_download, 0 );
+			_SendMessageW( g_hWnd_update_cancel, WM_SETFONT, ( WPARAM )hFont_update_download, 0 );
+			_SendMessageW( g_hWnd_static_paused_download, WM_SETFONT, ( WPARAM )hFont_update_download, 0 );
+			_SendMessageW( g_hWnd_static_update_ssl_version, WM_SETFONT, ( WPARAM )hFont_update_download, 0 );
+			_SendMessageW( g_hWnd_update_ssl_version, WM_SETFONT, ( WPARAM )hFont_update_download, 0 );
+			_SendMessageW( g_hWnd_static_update_speed_limit, WM_SETFONT, ( WPARAM )hFont_update_download, 0 );
+			_SendMessageW( g_hWnd_update_speed_limit, WM_SETFONT, ( WPARAM )hFont_update_download, 0 );
+			_SendMessageW( g_hWnd_static_update_download_directory, WM_SETFONT, ( WPARAM )hFont_update_download, 0 );
+			_SendMessageW( g_hWnd_update_download_directory, WM_SETFONT, ( WPARAM )hFont_update_download, 0 );
+			_SendMessageW( g_hWnd_btn_update_download_directory, WM_SETFONT, ( WPARAM )hFont_update_download, 0 );
+			_SendMessageW( g_hWnd_static_update_download_parts, WM_SETFONT, ( WPARAM )hFont_update_download, 0 );
+			_SendMessageW( g_hWnd_update_download_parts, WM_SETFONT, ( WPARAM )hFont_update_download, 0 );
+			_SendMessageW( g_hWnd_static_update_category, WM_SETFONT, ( WPARAM )hFont_update_download, 0 );
+			_SendMessageW( g_hWnd_update_category, WM_SETFONT, ( WPARAM )hFont_update_download, 0 );
+			_SendMessageW( g_hWnd_static_update_url, WM_SETFONT, ( WPARAM )hFont_update_download, 0 );
+			_SendMessageW( g_hWnd_edit_update_url, WM_SETFONT, ( WPARAM )hFont_update_download, 0 );
+			_SendMessageW( g_hWnd_btn_update_authentication, WM_SETFONT, ( WPARAM )hFont_update_download, 0 );
+			_SendMessageW( g_hWnd_static_update_username, WM_SETFONT, ( WPARAM )hFont_update_download, 0 );
+			_SendMessageW( g_hWnd_edit_update_username, WM_SETFONT, ( WPARAM )hFont_update_download, 0 );
+			_SendMessageW( g_hWnd_static_update_password, WM_SETFONT, ( WPARAM )hFont_update_download, 0 );
+			_SendMessageW( g_hWnd_edit_update_password, WM_SETFONT, ( WPARAM )hFont_update_download, 0 );
+			_SendMessageW( g_hWnd_update_tab, WM_SETFONT, ( WPARAM )hFont_update_download, 0 );
+			_SendMessageW( g_hWnd_static_update_comments, WM_SETFONT, ( WPARAM )hFont_update_download, 0 );
+			_SendMessageW( g_hWnd_edit_update_comments, WM_SETFONT, ( WPARAM )hFont_update_download, 0 );
+			_SendMessageW( g_hWnd_static_update_cookies, WM_SETFONT, ( WPARAM )hFont_update_download, 0 );
+			_SendMessageW( g_hWnd_edit_update_cookies, WM_SETFONT, ( WPARAM )hFont_update_download, 0 );
+			_SendMessageW( g_hWnd_static_update_headers, WM_SETFONT, ( WPARAM )hFont_update_download, 0 );
+			_SendMessageW( g_hWnd_edit_update_headers, WM_SETFONT, ( WPARAM )hFont_update_download, 0 );
+			_SendMessageW( g_hWnd_chk_update_send_data, WM_SETFONT, ( WPARAM )hFont_update_download, 0 );
+			_SendMessageW( g_hWnd_edit_update_data, WM_SETFONT, ( WPARAM )hFont_update_download, 0 );
 
 			//
 
-			_SendMessageW( g_hWnd_static_update_proxy_type, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_update_proxy_type, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_static_update_proxy_type, WM_SETFONT, ( WPARAM )hFont_update_download, 0 );
+			_SendMessageW( g_hWnd_update_proxy_type, WM_SETFONT, ( WPARAM )hFont_update_download, 0 );
 
-			_SendMessageW( g_hWnd_chk_update_type_hostname_socks, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_chk_update_type_ip_address_socks, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_chk_update_type_hostname_socks, WM_SETFONT, ( WPARAM )hFont_update_download, 0 );
+			_SendMessageW( g_hWnd_chk_update_type_ip_address_socks, WM_SETFONT, ( WPARAM )hFont_update_download, 0 );
 
-			_SendMessageW( g_hWnd_update_hostname_socks, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_update_hostname_socks, WM_SETFONT, ( WPARAM )hFont_update_download, 0 );
 
-			_SendMessageW( g_hWnd_static_update_colon_socks, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_static_update_colon_socks, WM_SETFONT, ( WPARAM )hFont_update_download, 0 );
 
-			_SendMessageW( g_hWnd_static_update_port_socks, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_update_port_socks, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-
-
-
-			_SendMessageW( g_hWnd_static_update_proxy_auth_username, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_edit_update_proxy_auth_username, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_static_update_proxy_auth_password, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_edit_update_proxy_auth_password, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_static_update_port_socks, WM_SETFONT, ( WPARAM )hFont_update_download, 0 );
+			_SendMessageW( g_hWnd_update_port_socks, WM_SETFONT, ( WPARAM )hFont_update_download, 0 );
 
 
-			_SendMessageW( g_hWnd_static_update_auth_ident_username_socks, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_update_auth_ident_username_socks, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 
-			_SendMessageW( g_hWnd_chk_update_resolve_domain_names_v4a, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_static_update_proxy_auth_username, WM_SETFONT, ( WPARAM )hFont_update_download, 0 );
+			_SendMessageW( g_hWnd_edit_update_proxy_auth_username, WM_SETFONT, ( WPARAM )hFont_update_download, 0 );
+			_SendMessageW( g_hWnd_static_update_proxy_auth_password, WM_SETFONT, ( WPARAM )hFont_update_download, 0 );
+			_SendMessageW( g_hWnd_edit_update_proxy_auth_password, WM_SETFONT, ( WPARAM )hFont_update_download, 0 );
 
-			_SendMessageW( g_hWnd_chk_update_use_authentication_socks, WM_SETFONT, ( WPARAM )g_hFont, 0 );
 
-			_SendMessageW( g_hWnd_static_update_auth_username_socks, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_update_auth_username_socks, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_static_update_auth_ident_username_socks, WM_SETFONT, ( WPARAM )hFont_update_download, 0 );
+			_SendMessageW( g_hWnd_update_auth_ident_username_socks, WM_SETFONT, ( WPARAM )hFont_update_download, 0 );
 
-			_SendMessageW( g_hWnd_static_update_auth_password_socks, WM_SETFONT, ( WPARAM )g_hFont, 0 );
-			_SendMessageW( g_hWnd_update_auth_password_socks, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_chk_update_resolve_domain_names_v4a, WM_SETFONT, ( WPARAM )hFont_update_download, 0 );
 
-			_SendMessageW( g_hWnd_chk_update_resolve_domain_names, WM_SETFONT, ( WPARAM )g_hFont, 0 );
+			_SendMessageW( g_hWnd_chk_update_use_authentication_socks, WM_SETFONT, ( WPARAM )hFont_update_download, 0 );
+
+			_SendMessageW( g_hWnd_static_update_auth_username_socks, WM_SETFONT, ( WPARAM )hFont_update_download, 0 );
+			_SendMessageW( g_hWnd_update_auth_username_socks, WM_SETFONT, ( WPARAM )hFont_update_download, 0 );
+
+			_SendMessageW( g_hWnd_static_update_auth_password_socks, WM_SETFONT, ( WPARAM )hFont_update_download, 0 );
+			_SendMessageW( g_hWnd_update_auth_password_socks, WM_SETFONT, ( WPARAM )hFont_update_download, 0 );
+
+			_SendMessageW( g_hWnd_chk_update_resolve_domain_names, WM_SETFONT, ( WPARAM )hFont_update_download, 0 );
 
 			// Stupid control likes to delete the font object. :-/
 			// We'll make a copy.
-			//LOGFONT lf;
-			//_memzero( &lf, sizeof( LOGFONT ) );
-			//_GetObjectW( g_hFont, sizeof( LOGFONT ), &lf );
-			hFont_copy_update_proxy = _CreateFontIndirectW( &g_default_log_font );
+			hFont_copy_update_proxy = UpdateFont( current_dpi_update_download );
 			_SendMessageW( g_hWnd_update_ip_address_socks, WM_SETFONT, ( WPARAM )hFont_copy_update_proxy, 0 );
 
 			//
 
-			UpdateProc = ( WNDPROC )_GetWindowLongPtrW( g_hWnd_edit_update_cookies, GWLP_WNDPROC );
+			UpdateProc = ( WNDPROC )_GetWindowLongPtrW( g_hWnd_edit_update_comments, GWLP_WNDPROC );
+			_SetWindowLongPtrW( g_hWnd_edit_update_comments, GWLP_WNDPROC, ( LONG_PTR )UpdateSubProc );
 			_SetWindowLongPtrW( g_hWnd_edit_update_cookies, GWLP_WNDPROC, ( LONG_PTR )UpdateSubProc );
 			_SetWindowLongPtrW( g_hWnd_edit_update_headers, GWLP_WNDPROC, ( LONG_PTR )UpdateSubProc );
 			_SetWindowLongPtrW( g_hWnd_edit_update_data, GWLP_WNDPROC, ( LONG_PTR )UpdateSubProc );
@@ -757,11 +835,14 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 				}
 			#endif
 
+			int width = _SCALE_UD_( UPDATE_DOWNLOAD_WIDTH );
+			int height = _SCALE_UD_( UPDATE_DOWNLOAD_HEIGHT );
+
 			HMONITOR hMon = _MonitorFromWindow( g_hWnd_main, MONITOR_DEFAULTTONEAREST );
 			MONITORINFO mi;
 			mi.cbSize = sizeof( MONITORINFO );
 			_GetMonitorInfoW( hMon, &mi );
-			_SetWindowPos( hWnd, NULL, mi.rcMonitor.left + ( ( ( mi.rcMonitor.right - mi.rcMonitor.left ) - 600 ) / 2 ), mi.rcMonitor.top + ( ( ( mi.rcMonitor.bottom - mi.rcMonitor.top ) - 376 ) / 2 ), 600, 376, 0 );
+			_SetWindowPos( hWnd, NULL, mi.rcMonitor.left + ( ( ( mi.rcMonitor.right - mi.rcMonitor.left ) - width ) / 2 ), mi.rcMonitor.top + ( ( ( mi.rcMonitor.bottom - mi.rcMonitor.top ) - height ) / 2 ), width, height, 0 );
 
 #ifdef ENABLE_DARK_MODE
 			if ( g_use_dark_mode )
@@ -781,11 +862,13 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 		{
 			if ( g_update_use_theme && _IsThemeActive() == TRUE && ( HWND )lParam != g_hWnd_static_paused_download )
 			{
-				if ( ( HWND )lParam == g_hWnd_static_update_download_parts ||
+				if ( ( HWND )lParam == g_hWnd_static_update_category ||
+					 ( HWND )lParam == g_hWnd_static_update_download_parts ||
 					 ( HWND )lParam == g_hWnd_static_update_ssl_version ||
 					 ( HWND )lParam == g_hWnd_static_update_speed_limit ||
 					 ( HWND )lParam == g_hWnd_static_update_username ||
 					 ( HWND )lParam == g_hWnd_static_update_password ||
+					 ( HWND )lParam == g_hWnd_static_update_comments ||
 					 ( HWND )lParam == g_hWnd_static_update_cookies ||
 					 ( HWND )lParam == g_hWnd_static_update_headers ||
 					 ( HWND )lParam == g_hWnd_chk_update_send_data ||
@@ -831,14 +914,15 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 			RECT rc, rc_tab;
 			_GetClientRect( hWnd, &rc );
 
-			int tab_height = rc.bottom - 103;
+			int tab_width = rc.right - _SCALE_UD_( 20 );
+			int tab_height = rc.bottom - _SCALE_UD_( 103 );
 
 			// This brush is refreshed whenever the tab changes size.
 			// It's used to paint the background of static controls.
 			// Windows XP has a gradient colored tab pane and setting the background of a static control to TRANSPARENT in WM_CTLCOLORSTATIC doesn't work well.
-			if ( g_update_download_draw_tab_pane && ( wParam == SIZE_RESTORED || wParam == SIZE_MAXIMIZED ) && ( g_update_tab_width != ( rc.right - 20 ) || g_update_tab_height != ( tab_height ) ) )
+			if ( g_update_download_draw_tab_pane && ( wParam == SIZE_RESTORED || wParam == SIZE_MAXIMIZED ) && ( g_update_tab_width != tab_width || g_update_tab_height != tab_height ) )
 			{
-				g_update_tab_width = rc.right - 20;
+				g_update_tab_width = tab_width;
 				g_update_tab_height = tab_height;
 
 				HBRUSH old_brush = g_update_tab_brush;
@@ -869,95 +953,154 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 
 			_SendMessageW( g_hWnd_update_tab, TCM_GETITEMRECT, 0, ( LPARAM )&rc_tab );
 
-			int tab_child_y_offset = rc_tab.bottom - rc_tab.top + 61;
+			int tab_child_y_offset = rc_tab.bottom - rc_tab.top + _SCALE_UD_( 61 );
+
+			int spinner_width = _SCALE_UD_( update_download_spinner_width );
+			int spinner_height = _SCALE_UD_( update_download_spinner_height );
 
 			// Allow our controls to move in relation to the parent window.
-			HDWP hdwp = _BeginDeferWindowPos( 45 );
+			HDWP hdwp = _BeginDeferWindowPos( 53 );
 
-			_DeferWindowPos( hdwp, g_hWnd_edit_update_url, HWND_BOTTOM, 10, 28, rc.right - 20, 23, 0 );
+			_DeferWindowPos( hdwp, g_hWnd_static_update_url, HWND_TOP, _SCALE_UD_( 10 ), _SCALE_UD_( 10 ), _SCALE_UD_( 100 ), _SCALE_UD_( 17 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_edit_update_url, HWND_BOTTOM, _SCALE_UD_( 10 ), _SCALE_UD_( 28 ), rc.right - _SCALE_UD_( 20 ), _SCALE_UD_( 23 ), 0 );
 
-			_DeferWindowPos( hdwp, g_hWnd_update_tab, HWND_BOTTOM, 10, 61, rc.right - 20, tab_height, 0 );
-
-			//
-
-			_DeferWindowPos( hdwp, g_hWnd_static_update_download_parts, HWND_TOP, 20, tab_child_y_offset + 10, 120, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_update_download_parts, HWND_TOP, 20, tab_child_y_offset + 28, 100, 23, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_ud_update_download_parts, HWND_TOP, 120, tab_child_y_offset + 28, 0, 0, SWP_NOZORDER | SWP_NOSIZE );
-
-			_DeferWindowPos( hdwp, g_hWnd_static_update_ssl_version, HWND_TOP, 164, tab_child_y_offset + 10, 125, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_update_ssl_version, HWND_TOP, 164, tab_child_y_offset + 28, 0, 0, SWP_NOZORDER | SWP_NOSIZE );
-
-			_DeferWindowPos( hdwp, g_hWnd_static_update_speed_limit, HWND_TOP, 20, tab_child_y_offset + 63, 250, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_update_speed_limit, HWND_TOP, 20, tab_child_y_offset + 81, 200, 23, SWP_NOZORDER );
-
-			_DeferWindowPos( hdwp, g_hWnd_static_update_username, HWND_TOP, 301, tab_child_y_offset + 29, 120, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_edit_update_username, HWND_TOP, 301, tab_child_y_offset + 47, 120, 23, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_static_update_password, HWND_TOP, 431, tab_child_y_offset + 29, 120, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_edit_update_password, HWND_TOP, 431, tab_child_y_offset + 47, 120, 23, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_update_tab, HWND_BOTTOM, _SCALE_UD_( 10 ), _SCALE_UD_( 61 ), rc.right - _SCALE_UD_( 20 ), tab_height, 0 );
 
 			//
 
-			_DeferWindowPos( hdwp, g_hWnd_static_update_cookies, HWND_TOP, 20, tab_child_y_offset + 10, 400, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_edit_update_cookies, HWND_TOP, 20, tab_child_y_offset + 28, rc.right - 40, ( tab_height - rc_tab.bottom ) - 38, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_static_update_category, HWND_TOP, _SCALE_UD_( 20 ), tab_child_y_offset + _SCALE_UD_( 12 ), _SCALE_UD_( 120 ), _SCALE_UD_( 17 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_update_category, HWND_TOP, _SCALE_UD_( 20 ), tab_child_y_offset + _SCALE_UD_( 30 ), _SCALE_UD_( 120 ), _SCALE_UD_( 23 ), SWP_NOZORDER );
 
-			_DeferWindowPos( hdwp, g_hWnd_static_update_headers, HWND_TOP, 20, tab_child_y_offset + 10, 400, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_edit_update_headers, HWND_TOP, 20, tab_child_y_offset + 28, rc.right - 40, ( tab_height - rc_tab.bottom ) - 38, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_static_update_download_directory, HWND_TOP, _SCALE_UD_( 164 ), tab_child_y_offset + _SCALE_UD_( 12 ), _SCALE_UD_( 120 ), _SCALE_UD_( 17 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_update_download_directory, HWND_TOP, _SCALE_UD_( 164 ), tab_child_y_offset + _SCALE_UD_( 30 ), rc.right - _SCALE_UD_( 224 ), _SCALE_UD_( 23 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_btn_update_download_directory, HWND_TOP, rc.right - _SCALE_UD_( 55 ), tab_child_y_offset + _SCALE_UD_( 30 ), _SCALE_UD_( 35 ), _SCALE_UD_( 23 ), SWP_NOZORDER );
 
-			_DeferWindowPos( hdwp, g_hWnd_chk_update_send_data, HWND_TOP, 20, tab_child_y_offset + 10, 400, 20, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_edit_update_data, HWND_TOP, 20, tab_child_y_offset + 30, rc.right - 40, ( tab_height - rc_tab.bottom ) - 40, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_static_update_download_parts, HWND_TOP, _SCALE_UD_( 20 ), tab_child_y_offset + _SCALE_UD_( 65 ), _SCALE_UD_( 120 ), _SCALE_UD_( 17 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_update_download_parts, HWND_TOP, _SCALE_UD_( 20 ), tab_child_y_offset + _SCALE_UD_( 83 ), _SCALE_UD_( 100 ), _SCALE_UD_( 23 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_ud_update_download_parts, HWND_TOP, _SCALE_UD_( 120 ), tab_child_y_offset + _SCALE_UD_( 83 ), spinner_width, spinner_height, SWP_NOZORDER );
+
+			_DeferWindowPos( hdwp, g_hWnd_static_update_ssl_version, HWND_TOP, _SCALE_UD_( 164 ), tab_child_y_offset + _SCALE_UD_( 65 ), _SCALE_UD_( 125 ), _SCALE_UD_( 17 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_update_ssl_version, HWND_TOP, _SCALE_UD_( 164 ), tab_child_y_offset + _SCALE_UD_( 83 ), _SCALE_UD_( 100 ), _SCALE_UD_( 23 ), SWP_NOZORDER );
+
+			_DeferWindowPos( hdwp, g_hWnd_static_update_speed_limit, HWND_TOP, _SCALE_UD_( 20 ), tab_child_y_offset + _SCALE_UD_( 118 ), _SCALE_UD_( 250 ), _SCALE_UD_( 17 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_update_speed_limit, HWND_TOP, _SCALE_UD_( 20 ), tab_child_y_offset + _SCALE_UD_( 136 ), _SCALE_UD_( 200 ), _SCALE_UD_( 23 ), SWP_NOZORDER );
+
+			_DeferWindowPos( hdwp, g_hWnd_static_update_username, HWND_TOP, _SCALE_UD_( 301 ), tab_child_y_offset + _SCALE_UD_( 84 ), _SCALE_UD_( 120 ), _SCALE_UD_( 17 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_edit_update_username, HWND_TOP, _SCALE_UD_( 301 ), tab_child_y_offset + _SCALE_UD_( 102 ), _SCALE_UD_( 120 ), _SCALE_UD_( 23 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_static_update_password, HWND_TOP, _SCALE_UD_( 431 ), tab_child_y_offset + _SCALE_UD_( 84 ), _SCALE_UD_( 120 ), _SCALE_UD_( 17 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_edit_update_password, HWND_TOP, _SCALE_UD_( 431 ), tab_child_y_offset + _SCALE_UD_( 102 ), _SCALE_UD_( 120 ), _SCALE_UD_( 23 ), SWP_NOZORDER );
 
 			//
 
-			_DeferWindowPos( hdwp, g_hWnd_static_update_proxy_type, HWND_TOP, 20, tab_child_y_offset + 10, 150, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_update_proxy_type, HWND_TOP, 20, tab_child_y_offset + 28, 0, 0, SWP_NOZORDER | SWP_NOSIZE );
+			_DeferWindowPos( hdwp, g_hWnd_static_update_comments, HWND_TOP, _SCALE_UD_( 20 ), tab_child_y_offset + _SCALE_UD_( 10 ), _SCALE_UD_( 400 ), _SCALE_UD_( 17 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_edit_update_comments, HWND_TOP, _SCALE_UD_( 20 ), tab_child_y_offset + _SCALE_UD_( 28 ), rc.right - _SCALE_UD_( 40 ), ( tab_height - rc_tab.bottom ) - _SCALE_UD_( 38 ), SWP_NOZORDER );
 
-			_DeferWindowPos( hdwp, g_hWnd_static_update_hoz1, HWND_TOP, 20, tab_child_y_offset + 61, rc.right - 40, 1, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_static_update_cookies, HWND_TOP, _SCALE_UD_( 20 ), tab_child_y_offset + _SCALE_UD_( 10 ), _SCALE_UD_( 400 ), _SCALE_UD_( 17 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_edit_update_cookies, HWND_TOP, _SCALE_UD_( 20 ), tab_child_y_offset + _SCALE_UD_( 28 ), rc.right - _SCALE_UD_( 40 ), ( tab_height - rc_tab.bottom ) - _SCALE_UD_( 38 ), SWP_NOZORDER );
 
-			_DeferWindowPos( hdwp, g_hWnd_chk_update_type_hostname_socks, HWND_TOP, 20, tab_child_y_offset + 69, 200, 20, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_chk_update_type_ip_address_socks, HWND_TOP, 225, tab_child_y_offset + 69, 110, 20, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_static_update_headers, HWND_TOP, _SCALE_UD_( 20 ), tab_child_y_offset + _SCALE_UD_( 10 ), _SCALE_UD_( 400 ), _SCALE_UD_( 17 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_edit_update_headers, HWND_TOP, _SCALE_UD_( 20 ), tab_child_y_offset + _SCALE_UD_( 28 ), rc.right - _SCALE_UD_( 40 ), ( tab_height - rc_tab.bottom ) - _SCALE_UD_( 38 ), SWP_NOZORDER );
 
-			_DeferWindowPos( hdwp, g_hWnd_update_hostname_socks, HWND_TOP, 20, tab_child_y_offset + 89, 310, 23, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_update_ip_address_socks, HWND_TOP, 20, tab_child_y_offset + 89, 310, 23, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_chk_update_send_data, HWND_TOP, _SCALE_UD_( 20 ), tab_child_y_offset + _SCALE_UD_( 10 ), _SCALE_UD_( 400 ), _SCALE_UD_( 20 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_edit_update_data, HWND_TOP, _SCALE_UD_( 20 ), tab_child_y_offset + _SCALE_UD_( 30 ), rc.right - _SCALE_UD_( 40 ), ( tab_height - rc_tab.bottom ) - _SCALE_UD_( 40 ), SWP_NOZORDER );
 
-			_DeferWindowPos( hdwp, g_hWnd_static_update_colon_socks, HWND_TOP, 330, tab_child_y_offset + 92, 10, 15, SWP_NOZORDER );
+			//
 
-			_DeferWindowPos( hdwp, g_hWnd_static_update_port_socks, HWND_TOP, 340, tab_child_y_offset + 71, 75, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_update_port_socks, HWND_TOP, 340, tab_child_y_offset + 89, 75, 23, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_static_update_proxy_type, HWND_TOP, _SCALE_UD_( 20 ), tab_child_y_offset + _SCALE_UD_( 10 ), _SCALE_UD_( 150 ), _SCALE_UD_( 17 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_update_proxy_type, HWND_TOP, _SCALE_UD_( 20 ), tab_child_y_offset + _SCALE_UD_( 28 ), _SCALE_UD_( 100 ), _SCALE_UD_( 23 ), SWP_NOZORDER );
+
+			_DeferWindowPos( hdwp, g_hWnd_static_update_hoz1, HWND_TOP, _SCALE_UD_( 20 ), tab_child_y_offset + _SCALE_UD_( 61 ), rc.right - _SCALE_UD_( 40 ), _SCALE_UD_( 1 ), SWP_NOZORDER );
+
+			_DeferWindowPos( hdwp, g_hWnd_chk_update_type_hostname_socks, HWND_TOP, _SCALE_UD_( 20 ), tab_child_y_offset + _SCALE_UD_( 69 ), _SCALE_UD_( 200 ), _SCALE_UD_( 20 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_chk_update_type_ip_address_socks, HWND_TOP, _SCALE_UD_( 225 ), tab_child_y_offset + _SCALE_UD_( 69 ), _SCALE_UD_( 110 ), _SCALE_UD_( 20 ), SWP_NOZORDER );
+
+			_DeferWindowPos( hdwp, g_hWnd_update_hostname_socks, HWND_TOP, _SCALE_UD_( 20 ), tab_child_y_offset + _SCALE_UD_( 89 ), _SCALE_UD_( 310 ), _SCALE_UD_( 23 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_update_ip_address_socks, HWND_TOP, _SCALE_UD_( 20 ), tab_child_y_offset + _SCALE_UD_( 89 ), _SCALE_UD_( 310 ), _SCALE_UD_( 23 ), SWP_NOZORDER );
+
+			_DeferWindowPos( hdwp, g_hWnd_static_update_colon_socks, HWND_TOP, _SCALE_UD_( 331 ), tab_child_y_offset + _SCALE_UD_( 92 ), _SCALE_UD_( 8 ), _SCALE_UD_( 17 ), SWP_NOZORDER );
+
+			_DeferWindowPos( hdwp, g_hWnd_static_update_port_socks, HWND_TOP, _SCALE_UD_( 340 ), tab_child_y_offset + _SCALE_UD_( 71 ), _SCALE_UD_( 75 ), _SCALE_UD_( 17 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_update_port_socks, HWND_TOP, _SCALE_UD_( 340 ), tab_child_y_offset + _SCALE_UD_( 89 ), _SCALE_UD_( 75 ), _SCALE_UD_( 23 ), SWP_NOZORDER );
 
 
-			_DeferWindowPos( hdwp, g_hWnd_static_update_proxy_auth_username, HWND_TOP, 20, tab_child_y_offset + 118, 150, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_edit_update_proxy_auth_username, HWND_TOP, 20, tab_child_y_offset + 136, 150, 23, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_static_update_proxy_auth_password, HWND_TOP, 180, tab_child_y_offset + 118, 150, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_edit_update_proxy_auth_password, HWND_TOP, 180, tab_child_y_offset + 136, 150, 23, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_static_update_proxy_auth_username, HWND_TOP, _SCALE_UD_( 20 ), tab_child_y_offset + _SCALE_UD_( 118 ), _SCALE_UD_( 150 ), _SCALE_UD_( 17 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_edit_update_proxy_auth_username, HWND_TOP, _SCALE_UD_( 20 ), tab_child_y_offset + _SCALE_UD_( 136 ), _SCALE_UD_( 150 ), _SCALE_UD_( 23 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_static_update_proxy_auth_password, HWND_TOP, _SCALE_UD_( 180 ), tab_child_y_offset + _SCALE_UD_( 118 ), _SCALE_UD_( 150 ), _SCALE_UD_( 17 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_edit_update_proxy_auth_password, HWND_TOP, _SCALE_UD_( 180 ), tab_child_y_offset + _SCALE_UD_( 136 ), _SCALE_UD_( 150 ), _SCALE_UD_( 23 ), SWP_NOZORDER );
 
 			// v4
 
-			_DeferWindowPos( hdwp, g_hWnd_static_update_auth_ident_username_socks, HWND_TOP, 20, tab_child_y_offset + 118, 400, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_update_auth_ident_username_socks, HWND_TOP, 20, tab_child_y_offset + 136, 150, 23, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_static_update_auth_ident_username_socks, HWND_TOP, _SCALE_UD_( 20 ), tab_child_y_offset + _SCALE_UD_( 118 ), _SCALE_UD_( 400 ), _SCALE_UD_( 17 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_update_auth_ident_username_socks, HWND_TOP, _SCALE_UD_( 20 ), tab_child_y_offset + _SCALE_UD_( 136 ), _SCALE_UD_( 150 ), _SCALE_UD_( 23 ), SWP_NOZORDER );
 
-			_DeferWindowPos( hdwp, g_hWnd_chk_update_resolve_domain_names_v4a, HWND_TOP, 20, tab_child_y_offset + 164, rc.right - 40, 20, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_chk_update_resolve_domain_names_v4a, HWND_TOP, _SCALE_UD_( 20 ), tab_child_y_offset + _SCALE_UD_( 164 ), rc.right - _SCALE_UD_( 40 ), _SCALE_UD_( 20 ), SWP_NOZORDER );
 
 
 			// v5
 
-			_DeferWindowPos( hdwp, g_hWnd_chk_update_use_authentication_socks, HWND_TOP, 20, tab_child_y_offset + 118, 400, 20, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_chk_update_use_authentication_socks, HWND_TOP, _SCALE_UD_( 20 ), tab_child_y_offset + _SCALE_UD_( 118 ), _SCALE_UD_( 400 ), _SCALE_UD_( 20 ), SWP_NOZORDER );
 
-			_DeferWindowPos( hdwp, g_hWnd_static_update_auth_username_socks, HWND_TOP, 35, tab_child_y_offset + 138, 150, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_update_auth_username_socks, HWND_TOP, 35, tab_child_y_offset + 156, 150, 23, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_static_update_auth_username_socks, HWND_TOP, _SCALE_UD_( 35 ), tab_child_y_offset + _SCALE_UD_( 138 ), _SCALE_UD_( 150 ), _SCALE_UD_( 17 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_update_auth_username_socks, HWND_TOP, _SCALE_UD_( 35 ), tab_child_y_offset + _SCALE_UD_( 156 ), _SCALE_UD_( 150 ), _SCALE_UD_( 23 ), SWP_NOZORDER );
 
-			_DeferWindowPos( hdwp, g_hWnd_static_update_auth_password_socks, HWND_TOP, 195, tab_child_y_offset + 138, 150, 15, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_update_auth_password_socks, HWND_TOP, 195, tab_child_y_offset + 156, 150, 23, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_static_update_auth_password_socks, HWND_TOP, _SCALE_UD_( 195 ), tab_child_y_offset + _SCALE_UD_( 138 ), _SCALE_UD_( 150 ), _SCALE_UD_( 17 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_update_auth_password_socks, HWND_TOP, _SCALE_UD_( 195 ), tab_child_y_offset + _SCALE_UD_( 156 ), _SCALE_UD_( 150 ), _SCALE_UD_( 23 ), SWP_NOZORDER );
 
-			_DeferWindowPos( hdwp, g_hWnd_chk_update_resolve_domain_names, HWND_TOP, 20, tab_child_y_offset + 184, rc.right - 40, 20, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_chk_update_resolve_domain_names, HWND_TOP, _SCALE_UD_( 20 ), tab_child_y_offset + _SCALE_UD_( 184 ), rc.right - _SCALE_UD_( 40 ), _SCALE_UD_( 20 ), SWP_NOZORDER );
 
 			//
 
-			_DeferWindowPos( hdwp, g_hWnd_static_paused_download, HWND_TOP, 10, rc.bottom - 29, rc.right - 195, 23, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_static_paused_download, HWND_TOP, _SCALE_UD_( 10 ), rc.bottom - _SCALE_UD_( 29 ), rc.right - _SCALE_UD_( 195 ), _SCALE_UD_( 23 ), SWP_NOZORDER );
 
-			_DeferWindowPos( hdwp, g_hWnd_btn_update_download, HWND_TOP, rc.right - 175, rc.bottom - 33, 80, 23, SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_update_cancel, HWND_TOP, rc.right - 90, rc.bottom - 33, 80, 23, SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_btn_update_download, HWND_TOP, rc.right - _SCALE_UD_( 175 ), rc.bottom - _SCALE_UD_( 33 ), _SCALE_UD_( 80 ), _SCALE_UD_( 23 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_update_cancel, HWND_TOP, rc.right - _SCALE_UD_( 90 ), rc.bottom - _SCALE_UD_( 33 ), _SCALE_UD_( 80 ), _SCALE_UD_( 23 ), SWP_NOZORDER );
 
 			_EndDeferWindowPos( hdwp );
+
+			return 0;
+		}
+		break;
+
+		case WM_GET_DPI:
+		{
+			return current_dpi_update_download;
+		}
+		break;
+
+		case WM_DPICHANGED:
+		{
+			UINT last_dpi = current_dpi_update_download;
+			current_dpi_update_download = HIWORD( wParam );
+
+			HFONT hFont = UpdateFont( current_dpi_update_download );
+			EnumChildWindows( hWnd, EnumChildFontProc, ( LPARAM )hFont );
+			_DeleteObject( hFont_update_download );
+			hFont_update_download = hFont;
+
+			// This stupid control doesn't adapt to the change in font size. It needs to be resized first.
+			_SetWindowPos( g_hWnd_update_ip_address_socks, HWND_TOP, 0, 0, _SCALE_UD_( 310 ), _SCALE_UD_( 23 ), SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE );
+			_DeleteObject( hFont_copy_update_proxy );
+			hFont_copy_update_proxy = UpdateFont( current_dpi_update_download );
+			_SendMessageW( g_hWnd_update_ip_address_socks, WM_SETFONT, ( WPARAM )hFont_copy_update_proxy, 0 );
+
+			RECT *rc = ( RECT * )lParam;
+			int width = rc->right - rc->left;
+			int height = rc->bottom - rc->top;
+
+			if ( last_dpi_update_download == 0 )
+			{
+				HMONITOR hMon = _MonitorFromWindow( g_hWnd_main, MONITOR_DEFAULTTONEAREST );
+				MONITORINFO mi;
+				mi.cbSize = sizeof( MONITORINFO );
+				_GetMonitorInfoW( hMon, &mi );
+				_SetWindowPos( hWnd, NULL, mi.rcMonitor.left + ( ( ( mi.rcMonitor.right - mi.rcMonitor.left ) - width ) / 2 ), mi.rcMonitor.top + ( ( ( mi.rcMonitor.bottom - mi.rcMonitor.top ) - height ) / 2 ), width, height, 0 );
+			}
+			else
+			{
+				_SetWindowPos( hWnd, NULL, rc->left, rc->top, width, height, SWP_NOZORDER | SWP_NOACTIVATE );
+			}
+
+			last_dpi_update_download = last_dpi;
 
 			return 0;
 		}
@@ -966,8 +1109,8 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 		case WM_GETMINMAXINFO:
 		{
 			// Set the minimum dimensions that the window can be sized to.
-			( ( MINMAXINFO * )lParam )->ptMinTrackSize.x = 600;
-			( ( MINMAXINFO * )lParam )->ptMinTrackSize.y = 376;
+			( ( MINMAXINFO * )lParam )->ptMinTrackSize.x = _SCALE_UD_( UPDATE_DOWNLOAD_WIDTH );
+			( ( MINMAXINFO * )lParam )->ptMinTrackSize.y = _SCALE_UD_( UPDATE_DOWNLOAD_HEIGHT );
 
 			return 0;
 		}
@@ -977,6 +1120,54 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 		{
 			switch ( LOWORD( wParam ) )
 			{
+				case CB_UPDATE_CATEGORY:
+				{
+					if ( HIWORD( wParam ) == CBN_SELCHANGE )
+					{
+						if ( !( g_update_download_info->shared_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
+						{
+							int cur_sel = ( int )_SendMessageW( g_hWnd_update_category, CB_GETCURSEL, 0, 0 );
+							if ( cur_sel == 0 )
+							{
+								GlobalFree( t_ud_download_directory );
+								t_ud_download_directory = GlobalStrDupW( g_update_download_info->file_path );
+							}
+							else
+							{
+								LRESULT ret = _SendMessageW( g_hWnd_update_category, CB_GETITEMDATA, cur_sel, 0 );
+								if ( ret != CB_ERR )
+								{
+									CATEGORY_INFO_ *ci = ( CATEGORY_INFO_ * )ret;
+									if ( ci != NULL )
+									{
+										GlobalFree( t_ud_download_directory );
+										t_ud_download_directory = GlobalStrDupW( ci->download_directory );
+									}
+								}
+							}
+
+							_SendMessageW( g_hWnd_update_download_directory, WM_SETTEXT, 0, ( LPARAM )t_ud_download_directory );
+						}
+					}
+				}
+				break;
+
+				case BTN_UPDATE_DOWNLOAD_DIRECTORY:
+				{
+					wchar_t *directory = NULL;
+
+					_BrowseForFolder( hWnd, ST_V_Select_the_download_directory, &directory );
+
+					if ( directory != NULL )
+					{
+						GlobalFree( t_ud_download_directory );
+						t_ud_download_directory = directory;
+
+						_SendMessageW( g_hWnd_update_download_directory, WM_SETTEXT, 0, ( LPARAM )t_ud_download_directory );
+					}
+				}
+				break;
+
 				case EDIT_UPDATE_DOWNLOAD_PARTS:
 				{
 					if ( HIWORD( wParam ) == EN_UPDATE )
@@ -1166,6 +1357,24 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 							}
 						}
 
+						int cur_sel = ( int )_SendMessageW( g_hWnd_update_category, CB_GETCURSEL, 0, 0 );
+						LRESULT ret = _SendMessageW( g_hWnd_update_category, CB_GETITEMDATA, cur_sel, 0 );
+						if ( ret != CB_ERR )
+						{
+							CATEGORY_INFO_ *ci = ( CATEGORY_INFO_ * )ret;
+							if ( ci != NULL )
+							{
+								ai->category = GlobalStrDupW( ci->category );
+							}
+						}
+
+						if ( !( g_update_download_info->shared_info->download_operations & DOWNLOAD_OPERATION_SIMULATE ) )
+						{
+							ai->download_directory = t_ud_download_directory;
+
+							t_ud_download_directory = NULL;	// We're destroying the window after this so we don't need a copy.
+						}
+
 						char value[ 21 ];
 						_SendMessageA( g_hWnd_update_download_parts, WM_GETTEXT, 11, ( LPARAM )value );
 						unsigned char parts_limit = ( unsigned char )_strtoul( value, NULL, 10 );
@@ -1192,10 +1401,6 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 
 							GlobalFree( edit );
 						}
-						else
-						{
-							ai->auth_info.username = NULL;
-						}
 
 						// Password
 						edit_length = ( unsigned int )_SendMessageW( g_hWnd_edit_update_password, WM_GETTEXTLENGTH, 0, 0 );
@@ -1210,14 +1415,17 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 
 							GlobalFree( edit );
 						}
-						else
-						{
-							ai->auth_info.password = NULL;
-						}
 
 						//
 
-						// COOKIES, HEADERS, DATA
+						// COMMENTS, COOKIES, HEADERS, DATA
+
+						edit_length = ( unsigned int )_SendMessageW( g_hWnd_edit_update_comments, WM_GETTEXTLENGTH, 0, 0 );
+						if ( edit_length > 0 )
+						{
+							ai->comments = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( edit_length + 1 ) );
+							_SendMessageW( g_hWnd_edit_update_comments, WM_GETTEXT, edit_length + 1, ( LPARAM )ai->comments );
+						}
 
 						edit_length = ( unsigned int )_SendMessageW( g_hWnd_edit_update_cookies, WM_GETTEXTLENGTH, 0, 0 );
 						if ( edit_length > 0 )
@@ -1230,10 +1438,6 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 							WideCharToMultiByte( CP_UTF8, 0, edit, -1, ai->utf8_cookies, utf8_length, NULL, NULL );
 
 							GlobalFree( edit );
-						}
-						else
-						{
-							ai->utf8_cookies = NULL;
 						}
 
 						// Must be at least 2 characters long. "a:" is a valid header name and value.
@@ -1270,10 +1474,6 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 
 							GlobalFree( edit );
 						}
-						else
-						{
-							ai->utf8_headers = NULL;
-						}
 
 						ai->method = ( _SendMessageW( g_hWnd_chk_update_send_data, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? METHOD_POST : METHOD_GET );
 
@@ -1288,10 +1488,6 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 							WideCharToMultiByte( CP_UTF8, 0, edit, -1, ai->utf8_data, utf8_length, NULL, NULL );
 
 							GlobalFree( edit );
-						}
-						else
-						{
-							ai->utf8_data = NULL;
 						}
 
 						//
@@ -1469,6 +1665,33 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 		}
 		break;
 
+		case WM_UPDATE_CATEGORY:
+		{
+			int sel_index = 0;
+
+			if ( g_update_download_info != NULL )
+			{
+				if ( g_update_download_info->category != NULL )
+				{
+					sel_index = ( int )_SendMessageW( g_hWnd_update_category, CB_FINDSTRINGEXACT, 0, ( LPARAM )g_update_download_info->category );
+					if ( sel_index < 0 )
+					{
+						sel_index = 0;
+					}
+				}
+
+				if ( IS_GROUP( g_update_download_info ) )
+				{
+					sel_index = -1;
+				}
+			}
+
+			_SendMessageW( g_hWnd_update_category, CB_SETCURSEL, sel_index, 0 );
+
+			return TRUE;
+		}
+		break;
+
 		case WM_PROPAGATE:
 		{
 			if ( lParam != NULL )
@@ -1482,6 +1705,45 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 
 				EnableDisableUpdateWindows( !is_group );
 
+				_EnableWindow( g_hWnd_static_update_category, ( IS_GROUP( di ) ? FALSE : TRUE ) );
+				_EnableWindow( g_hWnd_update_category, ( IS_GROUP( di ) ? FALSE : TRUE ) );
+
+				if ( t_ud_download_directory != NULL )
+				{
+					GlobalFree( t_ud_download_directory );
+					t_ud_download_directory = NULL;
+				}
+
+				BOOL enable;
+
+				if ( !IS_GROUP( di ) )
+				{
+					if ( di->shared_info->download_operations & DOWNLOAD_OPERATION_SIMULATE )
+					{
+						enable = FALSE;
+
+						_SendMessageW( g_hWnd_update_download_directory, WM_SETTEXT, 0, ( LPARAM )ST_V__Simulated_ );
+					}
+					else
+					{
+						enable = TRUE;
+
+						t_ud_download_directory = GlobalStrDupW( di->file_path );
+
+						_SendMessageW( g_hWnd_update_download_directory, WM_SETTEXT, 0, ( LPARAM )di->file_path );
+					}
+				}
+				else
+				{
+					enable = FALSE;
+
+					_SendMessageW( g_hWnd_update_download_directory, WM_SETTEXT, 0, NULL );
+				}
+
+				_EnableWindow( g_hWnd_static_update_download_directory, enable );
+				_EnableWindow( g_hWnd_update_download_directory, enable );
+				_EnableWindow( g_hWnd_btn_update_download_directory, enable );
+
 				current_parts_num = ( unsigned char )di->parts;
 
 				_SendMessageW( g_hWnd_edit_update_url, WM_SETTEXT, 0, ( LPARAM )di->url );
@@ -1489,7 +1751,7 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 				_SendMessageW( g_hWnd_ud_update_download_parts, UDM_SETRANGE32, 1, di->parts );
 				_SendMessageW( g_hWnd_ud_update_download_parts, UDM_SETPOS, 0, ( di->parts_limit != 0 ? di->parts_limit : di->parts ) );
 
-				BOOL enable = ( is_group || di->parts == 1 ? FALSE : TRUE );
+				enable = ( is_group || di->parts == 1 ? FALSE : TRUE );
 				_EnableWindow( g_hWnd_static_update_download_parts, enable );
 				_EnableWindow( g_hWnd_update_download_parts, enable );
 				_EnableWindow( g_hWnd_ud_update_download_parts, enable ); // This actually disables itself if the range is 1.
@@ -1504,6 +1766,7 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 				_SendMessageA( g_hWnd_edit_update_username, WM_SETTEXT, 0, ( LPARAM )di->auth_info.username );
 				_SendMessageA( g_hWnd_edit_update_password, WM_SETTEXT, 0, ( LPARAM )di->auth_info.password );
 
+				_SendMessageW( g_hWnd_edit_update_comments, WM_SETTEXT, 0, ( LPARAM )di->comments );
 				_SendMessageA( g_hWnd_edit_update_cookies, WM_SETTEXT, 0, ( LPARAM )di->cookies );
 				_SendMessageA( g_hWnd_edit_update_headers, WM_SETTEXT, 0, ( LPARAM )di->headers );
 				_SendMessageA( g_hWnd_edit_update_data, WM_SETTEXT, 0, ( LPARAM )di->data );
@@ -1619,6 +1882,19 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 						ShowHideUpdateProxyWindows( 0 );
 					}
 				}
+
+				if ( _IsWindowVisible( hWnd ) == FALSE )
+				{
+					HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, load_window_category_list, ( void * )g_hWnd_update_category, 0, NULL );
+					if ( thread != NULL )
+					{
+						CloseHandle( thread );
+					}
+				}
+				else
+				{
+					_SendMessageW( hWnd, WM_UPDATE_CATEGORY, 0, NULL );
+				}
 			}
 
 			//_EnableWindow( g_hWnd_main, FALSE );
@@ -1661,6 +1937,9 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 
 		case WM_DESTROY:
 		{
+			// Delete our font.
+			_DeleteObject( hFont_update_download );
+
 			_DeleteObject( hFont_copy_update_proxy );
 			hFont_copy_update_proxy = NULL;
 
@@ -1670,6 +1949,12 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 				g_update_tab_brush = NULL;
 			}
 
+			if ( t_ud_download_directory != NULL )
+			{
+				GlobalFree( t_ud_download_directory );
+				t_ud_download_directory = NULL;
+			}
+
 			current_parts_num = 0;
 
 			g_update_tab_width = 0;
@@ -1677,6 +1962,13 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 			g_update_use_theme = true;
 
 			g_hWnd_update_download = NULL;
+
+#ifdef ENABLE_DARK_MODE
+			if ( g_use_dark_mode )
+			{
+				CleanupButtonGlyphs( hWnd );
+			}
+#endif
 
 			return 0;
 		}

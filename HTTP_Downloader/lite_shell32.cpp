@@ -1,6 +1,6 @@
 /*
 	HTTP Downloader can download files through HTTP(S), FTP(S), and SFTP connections.
-	Copyright (C) 2015-2024 Eric Kutcher
+	Copyright (C) 2015-2025 Eric Kutcher
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -56,6 +56,10 @@
 	pDragQueryFileW			_DragQueryFileW;
 	//pDragFinish				_DragFinish;
 
+	pSHCreateStdEnumFmtEtc	_SHCreateStdEnumFmtEtc;
+
+	pExtractIconExW			_ExtractIconExW;
+
 	HMODULE hModule_shell32 = NULL;
 
 	unsigned char shell32_state = SHELL32_STATE_SHUTDOWN;
@@ -108,6 +112,10 @@
 		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_shell32, ( void ** )&_DragAcceptFiles, "DragAcceptFiles" ) )
 		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_shell32, ( void ** )&_DragQueryFileW, "DragQueryFileW" ) )
 		//VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_shell32, ( void ** )&_DragFinish, "DragFinish" ) )
+
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_shell32, ( void ** )&_SHCreateStdEnumFmtEtc, "SHCreateStdEnumFmtEtc" ) )
+
+		VALIDATE_FUNCTION_POINTER( SetFunctionPointer( hModule_shell32, ( void ** )&_ExtractIconExW, "ExtractIconExW" ) )
 
 		shell32_state = SHELL32_STATE_RUNNING;
 

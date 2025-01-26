@@ -68,10 +68,15 @@ wchar_t *decode_w( wchar_t *str, unsigned int str_len, unsigned int *dec_len )
 				}
 				else if ( ( pstr[ 1 ] != NULL && pstr[ 1 ] == L'x' ) &&
 						  ( pstr[ 2 ] != NULL && is_hex_w( pstr[ 2 ] ) ) &&
-						  ( pstr[ 3 ] != NULL && is_hex_w( pstr[ 3 ] ) ) )
+						  ( pstr[ 3 ] != NULL && is_hex_w( pstr[ 3 ] ) ) &&
+						  ( pstr[ 4 ] != NULL && is_hex_w( pstr[ 4 ] ) ) &&
+						  ( pstr[ 5 ] != NULL && is_hex_w( pstr[ 5 ] ) ) )
 				{
-					*pbuf++ = from_hex_w( pstr[ 2 ] ) << 4 | from_hex_w( pstr[ 3 ] );
-					pstr += 3;
+					*pbuf++ = from_hex_w( pstr[ 2 ] ) << 12 |
+							  from_hex_w( pstr[ 3 ] ) << 8 |
+							  from_hex_w( pstr[ 4 ] ) << 4 |
+							  from_hex_w( pstr[ 5 ] );
+					pstr += 5;
 				}
 				else
 				{
