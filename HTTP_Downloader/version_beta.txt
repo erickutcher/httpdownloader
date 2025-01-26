@@ -1,6 +1,0 @@
-16778758
-1
-https://github.com/erickutcher/httpdownloader/releases/download/v1.0.6.6_b1/HTTP_Downloader_32.zip
-16778758
-1
-https://github.com/erickutcher/httpdownloader/releases/download/v1.0.6.6_b1/HTTP_Downloader_64.zip
