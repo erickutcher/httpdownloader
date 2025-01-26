@@ -199,10 +199,6 @@
 		"message": "OK"
 	},
 
-	"apply": {
-		"message": "Apply"
-	},
-
 	"menu_download_link_": {
 		"message": "Download Link..."
 	},

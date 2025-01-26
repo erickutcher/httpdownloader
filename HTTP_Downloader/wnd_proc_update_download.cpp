@@ -863,6 +863,7 @@ LRESULT CALLBACK UpdateDownloadWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPAR
 			if ( g_update_use_theme && _IsThemeActive() == TRUE && ( HWND )lParam != g_hWnd_static_paused_download )
 			{
 				if ( ( HWND )lParam == g_hWnd_static_update_category ||
+					 ( HWND )lParam == g_hWnd_static_update_download_directory ||
 					 ( HWND )lParam == g_hWnd_static_update_download_parts ||
 					 ( HWND )lParam == g_hWnd_static_update_ssl_version ||
 					 ( HWND )lParam == g_hWnd_static_update_speed_limit ||

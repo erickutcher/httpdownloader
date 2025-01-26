@@ -147,10 +147,6 @@
 		"message": "OK"
 	},
 
-	"apply": {
-		"message": "Anwenden"
-	},
-
 	"SEND_FAILED": {
 		"message": "Beim senden der Anfrage für den Download ist ein Fehler aufgetreten."
 	},
