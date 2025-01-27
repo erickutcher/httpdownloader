@@ -598,8 +598,8 @@ LRESULT CALLBACK CustomMessageBoxWndProc( HWND hWnd, UINT msg, WPARAM wParam, LP
 
 				if ( cmb_info->type & 0xF0 )
 				{
-					cmb_info->icon_width = _GetSystemMetricsForDpi( SM_CXICON, cmb_info->current_dpi_message_box );
-					cmb_info->icon_height = _GetSystemMetricsForDpi( SM_CYICON, cmb_info->current_dpi_message_box );
+					cmb_info->icon_width = __GetSystemMetricsForDpi( SM_CXICON, cmb_info->current_dpi_message_box );
+					cmb_info->icon_height = __GetSystemMetricsForDpi( SM_CYICON, cmb_info->current_dpi_message_box );
 
 					LPCWSTR name = NULL;
 

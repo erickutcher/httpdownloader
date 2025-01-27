@@ -92,7 +92,7 @@ LRESULT CALLBACK FingerprintPromptWndProc( HWND hWnd, UINT msg, WPARAM wParam, L
 					if ( ( cp_info->type & 0xF0 ) == CMB_ICONQUESTION )
 					{
 						// IDI_QUESTION
-						HICON hIcon = ( HICON )_LoadImageW( GetModuleHandleW( L"user32.dll" ), MAKEINTRESOURCE( 102 ), IMAGE_ICON, _GetSystemMetricsForDpi( SM_CXICON, cp_info->current_dpi_fingerprint_prompt ), _GetSystemMetricsForDpi( SM_CYICON, cp_info->current_dpi_fingerprint_prompt ), LR_SHARED );
+						HICON hIcon = ( HICON )_LoadImageW( GetModuleHandleW( L"user32.dll" ), MAKEINTRESOURCE( 102 ), IMAGE_ICON, __GetSystemMetricsForDpi( SM_CXICON, cp_info->current_dpi_fingerprint_prompt ), __GetSystemMetricsForDpi( SM_CYICON, cp_info->current_dpi_fingerprint_prompt ), LR_SHARED );
 						_SendMessageW( cp_info->hWnd_static_fp_icon, STM_SETICON, ( WPARAM )hIcon, 0 );
 
 						if ( play ) { _PlaySoundW( ( LPCTSTR )SND_ALIAS_SYSTEMQUESTION, NULL, SND_ASYNC | SND_ALIAS_ID | SND_NODEFAULT ); }
@@ -100,7 +100,7 @@ LRESULT CALLBACK FingerprintPromptWndProc( HWND hWnd, UINT msg, WPARAM wParam, L
 					else if ( ( cp_info->type & 0xF0 ) == CMB_ICONHAND )
 					{
 						// IDI_HAND
-						HICON hIcon = ( HICON )_LoadImageW( GetModuleHandleW( L"user32.dll" ), MAKEINTRESOURCE( 103 ), IMAGE_ICON, _GetSystemMetricsForDpi( SM_CXICON, cp_info->current_dpi_fingerprint_prompt ), _GetSystemMetricsForDpi( SM_CYICON, cp_info->current_dpi_fingerprint_prompt ), LR_SHARED );
+						HICON hIcon = ( HICON )_LoadImageW( GetModuleHandleW( L"user32.dll" ), MAKEINTRESOURCE( 103 ), IMAGE_ICON, __GetSystemMetricsForDpi( SM_CXICON, cp_info->current_dpi_fingerprint_prompt ), __GetSystemMetricsForDpi( SM_CYICON, cp_info->current_dpi_fingerprint_prompt ), LR_SHARED );
 						_SendMessageW( cp_info->hWnd_static_fp_icon, STM_SETICON, ( WPARAM )hIcon, 0 );
 
 						if ( play ) { _PlaySoundW( ( LPCTSTR )SND_ALIAS_SYSTEMHAND, NULL, SND_ASYNC | SND_ALIAS_ID | SND_NODEFAULT ); }
@@ -184,13 +184,13 @@ LRESULT CALLBACK FingerprintPromptWndProc( HWND hWnd, UINT msg, WPARAM wParam, L
 				if ( ( cp_info->type & 0xF0 ) == CMB_ICONQUESTION )
 				{
 					// IDI_QUESTION
-					HICON hIcon = ( HICON )_LoadImageW( GetModuleHandleW( L"user32.dll" ), MAKEINTRESOURCE( 102 ), IMAGE_ICON, _GetSystemMetricsForDpi( SM_CXICON, cp_info->current_dpi_fingerprint_prompt ), _GetSystemMetricsForDpi( SM_CYICON, cp_info->current_dpi_fingerprint_prompt ), LR_SHARED );
+					HICON hIcon = ( HICON )_LoadImageW( GetModuleHandleW( L"user32.dll" ), MAKEINTRESOURCE( 102 ), IMAGE_ICON, __GetSystemMetricsForDpi( SM_CXICON, cp_info->current_dpi_fingerprint_prompt ), __GetSystemMetricsForDpi( SM_CYICON, cp_info->current_dpi_fingerprint_prompt ), LR_SHARED );
 					_SendMessageW( cp_info->hWnd_static_fp_icon, STM_SETICON, ( WPARAM )hIcon, 0 );
 				}
 				else if ( ( cp_info->type & 0xF0 ) == CMB_ICONHAND )
 				{
 					// IDI_HAND
-					HICON hIcon = ( HICON )_LoadImageW( GetModuleHandleW( L"user32.dll" ), MAKEINTRESOURCE( 103 ), IMAGE_ICON, _GetSystemMetricsForDpi( SM_CXICON, cp_info->current_dpi_fingerprint_prompt ), _GetSystemMetricsForDpi( SM_CYICON, cp_info->current_dpi_fingerprint_prompt ), LR_SHARED );
+					HICON hIcon = ( HICON )_LoadImageW( GetModuleHandleW( L"user32.dll" ), MAKEINTRESOURCE( 103 ), IMAGE_ICON, __GetSystemMetricsForDpi( SM_CXICON, cp_info->current_dpi_fingerprint_prompt ), __GetSystemMetricsForDpi( SM_CYICON, cp_info->current_dpi_fingerprint_prompt ), LR_SHARED );
 					_SendMessageW( cp_info->hWnd_static_fp_icon, STM_SETICON, ( WPARAM )hIcon, 0 );
 				}
 
