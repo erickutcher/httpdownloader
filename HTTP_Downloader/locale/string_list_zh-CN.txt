@@ -19,8 +19,8 @@
 星期六
 #
 活动部件
-Category
-Comments
+分类
+备注
 添加日期和时间
 下载目录
 下载速度
@@ -35,17 +35,15 @@ SSL/TLS 版本
 剩余时间
 URL
 #
-关于(&A)
-活动部件
-Add Category...
+添加分类...
 添加 URL(&A)...\tCtrl+N
 添加 URL...
 始终在顶部
-C&ategories
-Category
+分类(&C)
+分类
 检查更新(&C)...
 列标题(&L)
-Comments
+备注
 复制 URL(&C)\tCtrl+C
 复制 URL
 添加日期和时间
@@ -110,7 +108,7 @@ SSL/TLS 版本
 剩余时间
 工具栏(&T)
 工具(&T)
-Update Category...
+更新分类...
 更新下载(&U)...\tCtrl+U
 更新下载...
 URL
@@ -128,7 +126,7 @@ FTP
 SFTP
 添加到停止状态
 只允许运行一个程序实例
-Apply initially set proxy to redirected URL(s)
+将最初设置的代理应用于重定向 URL
 继续下载
 默认下载目录：
 显示提示
@@ -144,7 +142,7 @@ Apply initially set proxy to redirected URL(s)
 锁定
 注销
 将已删除的下载移动到回收站
-Move files that match category file extension filters
+移动符合分类文件拓展名过滤器的文件
 无
 覆盖下载列表中的操作提示
 覆盖文件
@@ -188,7 +186,7 @@ Move files that match category file extension filters
 进度字体颜色
 添加 URL 时滚动到最后一项
 选框颜色
-Show executable's embedded icon
+显示可执行文件内嵌图标
 在下载列表中显示网格线
 显示每个部分的进度
 对添加和更新的项目进行排序
@@ -203,7 +201,7 @@ URL 下拉窗口错误
 默认 SSL/TLS 版本：
 最大重定向：
 重新分配零件以最大化连接：
-Reallocate threshold size (bytes):
+重新分配阈值大小（字节）:
 重试不完整的下载：
 重试不完整的部分：
 超时（秒）：
@@ -221,14 +219,14 @@ Reallocate threshold size (bytes):
 关闭到系统托盘
 启用系统托盘图标：
 启用 URL 下拉窗口：
-Failure:
+失败:
 加载下载完成声音文件
 最小化到系统托盘
 所有下载完成后播放声音
 当所有下载完成时显示通知
 显示进度条
 从系统托盘开始
-Success:
+成功:
 透明度：
 \x25B6
 允许代理解析域名
@@ -260,7 +258,7 @@ PKCS #12 密码：
 需要认证：
 服务器
 服务器 SSL/TLS 版本：
-Show System Tray notification for remote connections
+显示远程连接的托盘通知
 算法选择策略
 尝试 GSSAPI 身份验证
 尝试 GSSAPI 密钥交换
@@ -345,7 +343,7 @@ SSL/TLS 版本：
 网站
 网站：
 用户名
-Associate file extension(s) with category:
+为分类绑定文件拓展名:
 添加主机和密钥信息到缓存
 密钥大小：
 有新版本可用。
@@ -359,27 +357,27 @@ HTTP Downloader 是最新的。
 访问主页
 ...
 [Simulated]
-Add Category
+添加分类
 添加网址
 已添加
-All
+全部
 分配文件
 需要授权
 取消
-Categories
-Category:
+分类
+分类:
 检查更新
-Comments:
+备注:
 已完成
 正在连接
 默认
 默认下载速度限制（字节/秒）：
-Desktop
-Documents
+桌面
+文档
 下载速度：
 下载速度限制（字节/秒）：
 下载
-Downloads
+下载
 下载已完成
 错误
 导出下载历史
@@ -392,23 +390,23 @@ HTTP
 HTTPS
 导入下载历史
 磁盘空间不足
-IP address:
+IP地址:
 项目：
 移动文件
-Music
+音乐
 选项
-Other
+其他
 暂停
-Pictures
+图片
 需要代理身份验证
 排队
-Remote Connection
+远程连接
 重启
 保存下载历史
 设置
 站点管理器
 跳过
-Status
+状态
 停止
 SSL 2.0
 SSL 3.0
@@ -419,11 +417,11 @@ TLS 1.2
 下载总数：
 无限制
 更新
-Update Category
+更新分类
 更新下载
 URL：
-URL(s) added:
-Videos
+URL添加:
+视频
 必须提供密钥算法。
 需要私钥文件。
 必须提供协议（HTTP、 FTP 或 SFTP）。
@@ -438,12 +436,12 @@ Videos
 您确定要删除所选的条目吗？
 您确定要重新启动所选的条目吗？
 您要接受服务器的主机密钥吗？
-Item ID List was not freed.
-One or more file extensions already exist in another category.
+未释放项目ID列表。
+一个或多个文件扩展名已存在于另一个分类中。
 一个或多个文件正在使用中，无法删除。
 未找到一个或多个文件。
 未找到一条或多条路径。
-Select the category download directory.
+选择分类的下载目录。
 选择默认下载目录。
 选择下载目录。
 选择临时下载目录。
@@ -452,7 +450,7 @@ Select the category download directory.
 该文件当前正在使用中，无法重命名。
 无法导入文件，因为格式不正确。
 密钥指纹与缓存的条目不匹配。\r\n是否接受服务器的主机密钥？
-The specified category already exists.
+该分类已存在
 指定的文件未找到。
 未找到指定的文件。\r\n\r\n是否要重新下载该文件？
 指定的主机已经存在。
