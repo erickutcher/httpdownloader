@@ -295,12 +295,12 @@ HIMAGELIST UpdateButtonGlyphs( HWND hWnd, LONG *height_width )
 	_ReleaseDC( hWnd, hDC );
 
 	// bmBitsPixel should match the ILC_COLOR4, ILC_COLOR8, etc. masks.
-	if ( bmp.bmBitsPixel < 4 || bmp.bmBitsPixel > 32 )
+	/*if ( bmp.bmBitsPixel < 4 || bmp.bmBitsPixel > 32 )
 	{
 		bmp.bmBitsPixel = 8;	// ILC_COLOR8
-	}
+	}*/
 	// Height and width of each icon is the same.
-	HIMAGELIST hil = _ImageList_Create( res_height, res_height, ILC_MASK | bmp.bmBitsPixel, 17, 0 );
+	HIMAGELIST hil = _ImageList_Create( res_height, res_height, ILC_MASK | ILC_COLOR32, 17, 0 );
 	_ImageList_AddMasked( hil, hBmp_scaled, ( COLORREF )RGB( 0xFF, 0x00, 0xFF ) );
 
 	_DeleteObject( hBmp_scaled );

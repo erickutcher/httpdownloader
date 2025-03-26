@@ -3127,7 +3127,10 @@ RETRY_OPEN:
 										di->method = method;
 										di->last_modified.QuadPart = last_modified.QuadPart;
 										di->url = url;
-										di->comments = comments;
+										if ( comments != NULL )
+										{
+											di->comments = comments;
+										}
 										di->cookies = cookies;
 										di->headers = headers;
 										di->data = data;

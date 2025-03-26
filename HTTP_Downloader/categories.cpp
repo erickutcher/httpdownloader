@@ -629,6 +629,60 @@ LRESULT CALLBACK CategoriesSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 		}
 		break;
 
+		case WM_KEYDOWN:
+		{
+			switch ( wParam )
+			{
+				case VK_APPS:	// Context menu key.
+				{
+					POINT p;
+					p.x = 0;
+					p.y = 0;
+
+					HTREEITEM hti = ( HTREEITEM )_SendMessageW( hWnd, TVM_GETNEXTITEM, TVGN_CARET, NULL );
+					if ( hti != NULL )
+					{
+						RECT rc;
+						*( HTREEITEM * )&rc = hti;
+						_SendMessageW( hWnd, TVM_GETITEMRECT, FALSE, ( LPARAM )&rc );
+
+						p.x = rc.left + ( ( rc.bottom - rc.top ) / 2 );
+						p.y = p.x + rc.top + ( ( rc.bottom - rc.top ) / 2 );
+						_ClientToScreen( hWnd, &p );
+
+						TVITEM tvi;
+						_memzero( &tvi, sizeof( TVITEM ) );
+						tvi.mask = TVIF_PARAM;
+						tvi.hItem = hti;
+						_SendMessageW( hWnd, TVM_GETITEM, 0, ( LPARAM )&tvi );
+
+						DoublyLinkedList *dll_node = ( DoublyLinkedList * )tvi.lParam;
+						if ( dll_node != NULL )
+						{
+							CATEGORY_TREE_INFO *cti = ( CATEGORY_TREE_INFO * )dll_node->data;
+							if ( cti != NULL && cti->type == CATEGORY_TREE_INFO_TYPE_CATEGORY_INFO )
+							{
+								if ( cti->data != NULL )	// Update/Remove
+								{
+									_TrackPopupMenu( g_hMenuSub_categories_update_remove, 0, p.x, p.y, 0, _GetParent( hWnd ), NULL );
+								}
+								else	// Add
+								{
+									_TrackPopupMenu( g_hMenuSub_categories_add, 0, p.x, p.y, 0, _GetParent( hWnd ), NULL );
+								}
+							}
+						}
+					}
+					else
+					{
+						_TrackPopupMenu( g_hMenuSub_categories_add, 0, p.x, p.y, 0, _GetParent( hWnd ), NULL );
+					}
+				}
+				break;
+			}
+		}
+		break;
+
 		case WM_NCCALCSIZE:
 		{
 			// Draw our scrollbars if there's any.

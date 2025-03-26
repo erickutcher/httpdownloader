@@ -1871,11 +1871,13 @@ void HandleCommand( HWND hWnd, WORD command )
 			{
 				_CheckMenuItem( g_hMenuSub_view, MENU_SHOW_CATEGORIES, MF_CHECKED );
 				_ShowWindow( g_hWnd_categories, SW_SHOW );
+				_SetFocus( g_hWnd_categories );
 			}
 			else
 			{
 				_CheckMenuItem( g_hMenuSub_view, MENU_SHOW_CATEGORIES, MF_UNCHECKED );
 				_ShowWindow( g_hWnd_categories, SW_HIDE );
+				_SetFocus( g_hWnd_tlv_files );
 			}
 
 			HTREEITEM hti = ( HTREEITEM )_SendMessageW( g_hWnd_categories, TVM_GETNEXTITEM, TVGN_ROOT, NULL );

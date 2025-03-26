@@ -825,6 +825,69 @@ LRESULT CALLBACK SMListSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 			}
 		}
 		break;
+
+		case WM_KEYDOWN:
+		{
+			switch ( wParam )
+			{
+				case VK_APPS:	// Context menu key.
+				{
+					int item_count = ( int )_SendMessageW( hWnd, LVM_GETITEMCOUNT, 0, 0 );
+					int sel_count = ( int )_SendMessageW( hWnd, LVM_GETSELECTEDCOUNT, 0, 0 );
+
+					LVITEM lvi;
+					_memzero( &lvi, sizeof( LVITEM ) );
+					lvi.mask = LVIF_PARAM;
+					lvi.iItem = ( int )_SendMessageW( hWnd, LVM_GETNEXTITEM, ( WPARAM )-1, LVNI_FOCUSED | LVNI_SELECTED );
+					_SendMessageW( hWnd, LVM_GETITEM, 0, ( LPARAM )&lvi );
+
+					HWND hWnd_header = ( HWND )_SendMessageW( hWnd, LVM_GETHEADER, 0, 0 );
+
+					RECT rc;
+					_GetClientRect( hWnd, &rc );
+					WINDOWPOS wp;
+					_memzero( &wp, sizeof ( WINDOWPOS ) );
+					HDLAYOUT hdl;
+					hdl.prc = &rc;
+					hdl.pwpos = &wp;
+					_SendMessageW( hWnd_header, HDM_LAYOUT, 0, ( LPARAM )&hdl );
+
+					POINT p;
+					p.x = ( _SCALE_SM_( g_default_row_height ) / 2 );
+					p.y = p.x + ( wp.cy - wp.y );
+
+					if ( lvi.iItem != -1 )
+					{
+						rc.left = LVIR_BOUNDS;
+						_SendMessageW( hWnd, LVM_GETITEMRECT, lvi.iItem, ( LPARAM )&rc );
+
+						p.x = rc.left + ( ( rc.bottom - rc.top ) / 2 );
+						p.y = rc.top + ( ( rc.bottom - rc.top ) / 2 );
+					}
+
+					_ClientToScreen( hWnd, &p );
+
+					if ( lvi.iItem != -1 && lvi.lParam != NULL )
+					{
+						SITE_INFO *si = ( SITE_INFO * )lvi.lParam;
+
+						_EnableMenuItem( g_hMenuSub_site_manager, MENU_SM_ENABLE_SEL, ( si->enable ? MF_GRAYED : MF_ENABLED ) );
+						_EnableMenuItem( g_hMenuSub_site_manager, MENU_SM_DISABLE_SEL, ( si->enable ? MF_ENABLED : MF_GRAYED ) );
+					}
+					else
+					{
+						_EnableMenuItem( g_hMenuSub_site_manager, MENU_SM_ENABLE_SEL, MF_GRAYED );
+						_EnableMenuItem( g_hMenuSub_site_manager, MENU_SM_DISABLE_SEL, MF_GRAYED );
+					}
+
+					_EnableMenuItem( g_hMenuSub_site_manager, MENU_SM_REMOVE_SEL, ( sel_count > 0 ? MF_ENABLED : MF_GRAYED ) );
+					_EnableMenuItem( g_hMenuSub_site_manager, MENU_SM_SELECT_ALL, ( sel_count == item_count ? MF_GRAYED : MF_ENABLED ) );
+
+					_TrackPopupMenu( g_hMenuSub_site_manager, 0, p.x, p.y, 0, _GetParent( hWnd ), NULL );
+				}
+			}
+		}
+		break;
 	}
 
 	return _CallWindowProcW( SMListProc, hWnd, msg, wParam, lParam );

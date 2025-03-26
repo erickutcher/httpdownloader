@@ -192,12 +192,12 @@ HIMAGELIST UpdateToolbarIcons( HWND hWnd )
 	_ReleaseDC( hWnd, hDC );
 
 	// bmBitsPixel should match the ILC_COLOR4, ILC_COLOR8, etc. masks.
-	if ( bmp.bmBitsPixel < 4 || bmp.bmBitsPixel > 32 )
+	/*if ( bmp.bmBitsPixel < 4 || bmp.bmBitsPixel > 32 )
 	{
 		bmp.bmBitsPixel = 8;	// ILC_COLOR8
-	}
+	}*/
 	// Height and width of each icon is the same.
-	HIMAGELIST hil = _ImageList_Create( res_height, res_height, ILC_MASK | bmp.bmBitsPixel, 13, 0 );
+	HIMAGELIST hil = _ImageList_Create( res_height, res_height, ILC_MASK | ILC_COLOR32, 13, 0 );
 	_ImageList_AddMasked( hil, hBmp_scaled, ( COLORREF )RGB( 0xFF, 0x00, 0xFF ) );
 
 	_DeleteObject( hBmp_scaled );
@@ -1466,7 +1466,10 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 			g_hWnd_categories = _CreateWindowExW( TVS_EX_DOUBLEBUFFER, WC_TREEVIEW, NULL, TVS_HASBUTTONS | TVS_HASLINES | TVS_LINESATROOT | TVS_EDITLABELS | TVS_SHOWSELALWAYS | TVS_NOTOOLTIPS/*TVS_INFOTIP*/ | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 
 			CreateCategoryTreeView( g_hWnd_categories );
-			_SetFocus( g_hWnd_categories );
+			if ( cfg_show_categories )
+			{
+				_SetFocus( g_hWnd_categories );
+			}
 
 			//
 

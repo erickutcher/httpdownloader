@@ -6051,6 +6051,26 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 						_SendMessageW( hWnd, TLVM_EDIT_LABEL, 0, 0 );
 					}
 					break;
+
+					case VK_APPS:	// Context menu key.
+					{
+						if ( !in_worker_thread )
+						{
+							UpdateMenus( true );
+						}
+
+						POINT pt;
+						pt.x = g_row_height / 2;
+						pt.y = g_client_rc.top + ( g_row_height / 2 );
+						if ( g_focused_index >= g_first_visible_index && g_focused_index < ( g_first_visible_index + g_visible_item_count ) )
+						{
+							pt.y += ( ( g_focused_index - g_first_visible_index ) * g_row_height );
+						}
+						_ClientToScreen( hWnd, &pt );
+
+						_TrackPopupMenu( g_hMenuSub_download, 0, pt.x, pt.y, 0, hWnd, NULL );
+					}
+					break;
 				}
 			}
 		}
