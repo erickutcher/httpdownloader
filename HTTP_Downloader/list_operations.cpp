@@ -3665,7 +3665,16 @@ THREAD_RETURN search_list( void *pArguments )
 					{
 						bool found_match = false;
 
-						wchar_t *text = ( si->type == 1 ? di->url : ( di->shared_info->file_path + di->shared_info->filename_offset ) );
+						wchar_t *text;
+
+						if ( si->type == 2 )
+						{
+							text = di->comments;
+						}
+						else
+						{
+							text = ( si->type == 1 ? di->url : ( di->shared_info->file_path + di->shared_info->filename_offset ) );
+						}
 
 						if ( si->search_flag == 0x04 )	// Regular expression search.
 						{

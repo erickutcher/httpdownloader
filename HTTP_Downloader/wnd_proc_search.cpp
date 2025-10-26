@@ -27,7 +27,7 @@
 #include "dark_mode.h"
 
 #define SEARCH_WINDOW_WIDTH		400
-#define SEARCH_CLIENT_HEIGHT	163
+#define SEARCH_CLIENT_HEIGHT	183
 
 #define BTN_SEARCH_ALL			1000
 #define BTN_SEARCH				1001
@@ -37,10 +37,11 @@
 
 #define BTN_TYPE_FILENAME		1004
 #define BTN_TYPE_URL			1005
+#define BTN_TYPE_COMMENTS		1006
 
-#define BTN_MATCH_CASE			1006
-#define BTN_MATCH_WHOLE_WORD	1007
-#define BTN_REGULAR_EXPRESSION	1008
+#define BTN_MATCH_CASE			1007
+#define BTN_MATCH_WHOLE_WORD	1008
+#define BTN_REGULAR_EXPRESSION	1009
 
 HWND g_hWnd_search = NULL;
 
@@ -49,6 +50,7 @@ HWND g_hWnd_search_for = NULL;
 HWND g_hWnd_btn_search_type = NULL;
 HWND g_hWnd_chk_type_filename = NULL;
 HWND g_hWnd_chk_type_url = NULL;
+HWND g_hWnd_chk_type_comments = NULL;
 HWND g_hWnd_chk_match_case = NULL;
 HWND g_hWnd_chk_match_whole_word = NULL;
 HWND g_hWnd_chk_regular_expression = NULL;
@@ -81,6 +83,7 @@ LRESULT CALLBACK SearchWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 			g_hWnd_btn_search_type = _CreateWindowW( WC_BUTTON, ST_V_Search_Type, BS_GROUPBOX | WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, NULL, NULL );
 			g_hWnd_chk_type_filename = _CreateWindowW( WC_BUTTON, ST_V_Filename, BS_AUTORADIOBUTTON | WS_CHILD | WS_GROUP | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, ( HMENU )BTN_TYPE_FILENAME, NULL, NULL );
 			g_hWnd_chk_type_url = _CreateWindowW( WC_BUTTON, ST_V_URL, BS_AUTORADIOBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, ( HMENU )BTN_TYPE_URL, NULL, NULL );
+			g_hWnd_chk_type_comments = _CreateWindowW( WC_BUTTON, ST_V_Comments, BS_AUTORADIOBUTTON | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, ( HMENU )BTN_TYPE_COMMENTS, NULL, NULL );
 
 			g_hWnd_chk_match_case = _CreateWindowW( WC_BUTTON, ST_V_Match_case, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, ( HMENU )BTN_MATCH_CASE, NULL, NULL );
 			g_hWnd_chk_match_whole_word = _CreateWindowW( WC_BUTTON, ST_V_Match_whole_word, BS_AUTOCHECKBOX | WS_CHILD | WS_TABSTOP | WS_VISIBLE, 0, 0, 0, 0, hWnd, ( HMENU )BTN_MATCH_WHOLE_WORD, NULL, NULL );
@@ -95,6 +98,7 @@ LRESULT CALLBACK SearchWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 			_SendMessageW( g_hWnd_btn_search_type, WM_SETFONT, ( WPARAM )hFont_search, 0 );
 			_SendMessageW( g_hWnd_chk_type_filename, WM_SETFONT, ( WPARAM )hFont_search, 0 );
 			_SendMessageW( g_hWnd_chk_type_url, WM_SETFONT, ( WPARAM )hFont_search, 0 );
+			_SendMessageW( g_hWnd_chk_type_comments, WM_SETFONT, ( WPARAM )hFont_search, 0 );
 			_SendMessageW( g_hWnd_chk_match_case, WM_SETFONT, ( WPARAM )hFont_search, 0 );
 			_SendMessageW( g_hWnd_chk_match_whole_word, WM_SETFONT, ( WPARAM )hFont_search, 0 );
 			_SendMessageW( g_hWnd_chk_regular_expression, WM_SETFONT, ( WPARAM )hFont_search, 0 );
@@ -159,7 +163,14 @@ LRESULT CALLBACK SearchWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 							si->search_flag |= ( _SendMessageW( g_hWnd_chk_match_whole_word, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? 0x02 : 0x00 );
 						}
 
-						si->type = ( _SendMessageW( g_hWnd_chk_type_url, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? 1 : 0 );
+						if ( _SendMessageW( g_hWnd_chk_type_comments, BM_GETCHECK, 0, 0 ) == BST_CHECKED )
+						{
+							si->type = 2;
+						}
+						else
+						{
+							si->type = ( _SendMessageW( g_hWnd_chk_type_url, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? 1 : 0 );
+						}
 
 						unsigned int text_length = ( unsigned int )_SendMessageW( g_hWnd_search_for, WM_GETTEXTLENGTH, 0, 0 ) + 1;	// Include the NULL terminator.
 						si->text = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * text_length );
@@ -241,21 +252,22 @@ LRESULT CALLBACK SearchWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 			RECT rc;
 			_GetClientRect( hWnd, &rc );
 
-			HDWP hdwp = _BeginDeferWindowPos( 11 );
+			HDWP hdwp = _BeginDeferWindowPos( 12 );
 			_DeferWindowPos( hdwp, g_hWnd_static_search_for, HWND_TOP, _SCALE_S_( 10 ), _SCALE_S_( 10 ), rc.right - _SCALE_S_( 20 ), _SCALE_S_( 17 ), SWP_NOZORDER );
 			_DeferWindowPos( hdwp, g_hWnd_search_for, HWND_TOP, _SCALE_S_( 10 ), _SCALE_S_( 28 ), rc.right - _SCALE_S_( 20 ), _SCALE_S_( 23 ), SWP_NOZORDER );
 
-			_DeferWindowPos( hdwp, g_hWnd_btn_search_type, HWND_TOP, _SCALE_S_( 10 ), _SCALE_S_( 58 ), _SCALE_S_( 112 ), _SCALE_S_( 63 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_btn_search_type, HWND_TOP, _SCALE_S_( 10 ), _SCALE_S_( 58 ), _SCALE_S_( 112 ), _SCALE_S_( 83 ), SWP_NOZORDER );
 			_DeferWindowPos( hdwp, g_hWnd_chk_type_filename, HWND_TOP, _SCALE_S_( 21 ), _SCALE_S_( 75 ), _SCALE_S_( 90 ), _SCALE_S_( 20 ), SWP_NOZORDER );
 			_DeferWindowPos( hdwp, g_hWnd_chk_type_url, HWND_TOP, _SCALE_S_( 21 ), _SCALE_S_( 95 ), _SCALE_S_( 90 ), _SCALE_S_( 20 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_chk_type_comments, HWND_TOP, _SCALE_S_( 21 ), _SCALE_S_( 115 ), _SCALE_S_( 90 ), _SCALE_S_( 20 ), SWP_NOZORDER );
 
 			_DeferWindowPos( hdwp, g_hWnd_chk_match_case, HWND_TOP, _SCALE_S_( 135 ), _SCALE_S_( 62 ), rc.right - _SCALE_S_( 145 ), _SCALE_S_( 20 ), SWP_NOZORDER );
 			_DeferWindowPos( hdwp, g_hWnd_chk_match_whole_word, HWND_TOP, _SCALE_S_( 135 ), _SCALE_S_( 82 ), rc.right - _SCALE_S_( 145 ), _SCALE_S_( 20 ), SWP_NOZORDER );
 			_DeferWindowPos( hdwp, g_hWnd_chk_regular_expression, HWND_TOP, _SCALE_S_( 135 ), _SCALE_S_( 102 ), rc.right - _SCALE_S_( 145 ), _SCALE_S_( 20 ), SWP_NOZORDER );
 
-			_DeferWindowPos( hdwp, g_hWnd_btn_search_all, HWND_TOP, rc.right - _SCALE_S_( 285 ), _SCALE_S_( 130 ), _SCALE_S_( 85 ), _SCALE_S_( 23 ), SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_btn_search, HWND_TOP, rc.right - _SCALE_S_( 195 ), _SCALE_S_( 130 ), _SCALE_S_( 100 ), _SCALE_S_( 23 ), SWP_NOZORDER );
-			_DeferWindowPos( hdwp, g_hWnd_search_cancel, HWND_TOP, rc.right - _SCALE_S_( 90 ), _SCALE_S_( 130 ), _SCALE_S_( 80 ), _SCALE_S_( 23 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_btn_search_all, HWND_TOP, rc.right - _SCALE_S_( 285 ), _SCALE_S_( 150 ), _SCALE_S_( 85 ), _SCALE_S_( 23 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_btn_search, HWND_TOP, rc.right - _SCALE_S_( 195 ), _SCALE_S_( 150 ), _SCALE_S_( 100 ), _SCALE_S_( 23 ), SWP_NOZORDER );
+			_DeferWindowPos( hdwp, g_hWnd_search_cancel, HWND_TOP, rc.right - _SCALE_S_( 90 ), _SCALE_S_( 150 ), _SCALE_S_( 80 ), _SCALE_S_( 23 ), SWP_NOZORDER );
 			_EndDeferWindowPos( hdwp );
 
 			return 0;

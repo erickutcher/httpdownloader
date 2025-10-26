@@ -290,7 +290,7 @@ LRESULT CALLBACK AppearanceTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARA
 			si.cbSize = sizeof( SCROLLINFO );
 			si.fMask = SIF_RANGE | SIF_PAGE;
 			si.nMin = 0;
-			si.nMax = 705;	// Bottom of the last item in the window.
+			si.nMax = _SCALE_O_( 705 );	// Bottom of the last item in the window.
 			si.nPage = rc.bottom - rc.top;
 			_SetScrollInfo( hWnd, SB_VERT, &si, TRUE );
 

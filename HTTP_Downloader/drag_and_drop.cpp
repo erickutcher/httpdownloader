@@ -109,7 +109,18 @@ void HandleAddInfo( UINT cfFormat, PVOID data )
 	{
 		ai->method = METHOD_GET;
 
-		ai->download_operations = ( cfg_drag_and_drop_action == DRAG_AND_DROP_ACTION_ADD_IN_STOPPED_STATE ? DOWNLOAD_OPERATION_ADD_STOPPED : DOWNLOAD_OPERATION_NONE );
+		if ( cfg_drag_and_drop_action == DRAG_AND_DROP_ACTION_ADD_IN_STOPPED_STATE )
+		{
+			ai->download_operations = DOWNLOAD_OPERATION_ADD_STOPPED;
+		}
+		else if ( cfg_drag_and_drop_action == DRAG_AND_DROP_ACTION_VERIFY )
+		{
+			ai->download_operations = DOWNLOAD_OPERATION_VERIFY;
+		}
+		else
+		{
+			ai->download_operations = DOWNLOAD_OPERATION_NONE;
+		}
 
 		//ai->download_operations = DOWNLOAD_OPERATION_SIMULATE;	// For testing.
 

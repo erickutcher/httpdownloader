@@ -137,6 +137,7 @@ LRESULT CALLBACK AdvancedTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 			_SendMessageW( g_hWnd_drag_and_drop_action, CB_ADDSTRING, 0, ( LPARAM )ST_V_None );
 			_SendMessageW( g_hWnd_drag_and_drop_action, CB_ADDSTRING, 0, ( LPARAM )ST_V_Download_immediately );
 			_SendMessageW( g_hWnd_drag_and_drop_action, CB_ADDSTRING, 0, ( LPARAM )ST_V_Add_in_Stopped_state );
+			_SendMessageW( g_hWnd_drag_and_drop_action, CB_ADDSTRING, 0, ( LPARAM )ST_V_Verify );
 
 			_SendMessageW( g_hWnd_drag_and_drop_action, CB_SETCURSEL, cfg_drag_and_drop_action, 0 );
 
@@ -254,7 +255,7 @@ LRESULT CALLBACK AdvancedTabWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 			si.cbSize = sizeof( SCROLLINFO );
 			si.fMask = SIF_RANGE | SIF_PAGE;
 			si.nMin = 0;
-			si.nMax = 565;	// Bottom of the last item in the window.
+			si.nMax = _SCALE_O_( 565 );	// Bottom of the last item in the window.
 			si.nPage = rc.bottom - rc.top;
 			_SetScrollInfo( hWnd, SB_VERT, &si, TRUE );
 

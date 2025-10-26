@@ -134,10 +134,10 @@
 							  ( CURRENT_VERSION_C << 8 )  | \
 							  ( CURRENT_VERSION_D ) )
 
-#define IS_BETA
+//#define IS_BETA
 
 #ifdef IS_BETA
-#define BETA_VERSION		2
+#define BETA_VERSION		0
 #define UPDATE_CHECK_URL_BETA	"https://raw.githubusercontent.com/erickutcher/httpdownloader/master/HTTP_Downloader/version_beta.txt"
 #endif
 
@@ -163,6 +163,7 @@
 #define DRAG_AND_DROP_ACTION_NONE					0
 #define DRAG_AND_DROP_ACTION_DOWNLOAD_IMMEDIATELY	1
 #define DRAG_AND_DROP_ACTION_ADD_IN_STOPPED_STATE	2
+#define DRAG_AND_DROP_ACTION_VERIFY					3
 
 struct SORT_INFO
 {

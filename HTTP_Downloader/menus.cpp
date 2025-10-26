@@ -1927,7 +1927,7 @@ void HandleCommand( HWND hWnd, WORD command )
 		{
 			if ( g_hWnd_search == NULL )
 			{
-				g_hWnd_search = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"class_search", ST_V_Search, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU, CW_USEDEFAULT, 0, 400, 192, NULL, NULL, NULL, NULL );
+				g_hWnd_search = _CreateWindowExW( ( cfg_always_on_top ? WS_EX_TOPMOST : 0 ), L"class_search", ST_V_Search, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU, CW_USEDEFAULT, 0, 400, 212, NULL, NULL, NULL, NULL );
 			}
 
 			_SendMessageW( g_hWnd_search, WM_PROPAGATE, 0, 0 );
@@ -2015,7 +2015,7 @@ void HandleCommand( HWND hWnd, WORD command )
 		{
 			wchar_t msg[ 512 ];
 			int msg_length = __snwprintf( msg, 512, L"%s\r\n\r\n" \
-												    L"%s %lu.%lu.%lu.%lu%c%s%c%.0lu (%u-bit)\r\n\r\n" \
+												    L"%s %lu.%lu.%lu.%lu%s%s%s%.0lu (%u-bit)\r\n\r\n" \
 												    L"%s %s, %s %d, %04d %d:%02d:%02d %s (UTC)\r\n\r\n" \
 												    L"%s \xA9 2015-2025 Eric Kutcher\r\n\r\n" \
 												    L"%s ",
@@ -2023,9 +2023,9 @@ void HandleCommand( HWND hWnd, WORD command )
 												    ST_V_VERSION,
 													CURRENT_VERSION_A, CURRENT_VERSION_B, CURRENT_VERSION_C, CURRENT_VERSION_D,
 #ifdef IS_BETA
-													L' ', ST_V_BETA, L' ', BETA_VERSION,
+													L" ", ST_V_BETA, L" ", BETA_VERSION,
 #else
-													L'', L"", L'', 0,
+													L"", L"", L"", 0,
 #endif
 #ifdef _WIN64
 												    64,

@@ -1,3 +1,20 @@
+Version:	1.0.6.6
+Released:	2025-10-26
+
+Added per-monitor DPI support.
+Added category list to filter downloads.
+Embedded executable icons can now be displayed in the download list.
+Fixed some painting issues in the dark mode version.
+Prevented sharing violation if files with the same name are downloaded in parallel.
+Added command-line argument to add clipboard content.
+System Tray notifications can now be displayed for remote connections (from browser extensions).
+Download directory can now be updated in the Update Download window.
+Downloads can now have comments added to them.
+Finished downloads can now play a Success or Failure sound.
+Added custom threshold for reallocating parts.
+Added context menu key support.
+Search window can now search comments.
+
 Version:	1.0.6.5
 Released:	2024-10-04
 

@@ -109,7 +109,7 @@ RETRY_OPEN:
 						{
 							cfg_buf[ fz ] = 0;	// Guarantee a NULL terminated buffer.
 
-							reserved = 1024 - 749;
+							reserved = 1024 - ( version < 0x09 ? 721 : 749 );
 
 							char *next = cfg_buf;
 
@@ -143,7 +143,7 @@ RETRY_OPEN:
 							}
 							else	// Reset for older versions.
 							{
-								next += ( ( sizeof( int ) + sizeof( char ) ) * ( NUM_COLUMNS - 1 ) );
+								next += ( ( sizeof( int ) + sizeof( char ) ) * ( NUM_COLUMNS - 2 ) );
 							}
 
 							_memcpy_s( &cfg_show_column_headers, sizeof( bool ), next, sizeof( bool ) );
@@ -564,11 +564,14 @@ RETRY_OPEN:
 							_memcpy_s( &cfg_override_list_prompts, sizeof( bool ), next, sizeof( bool ) );
 							next += sizeof( bool );
 
-							_memcpy_s( &cfg_apply_initial_proxy, sizeof( bool ), next, sizeof( bool ) );
-							next += sizeof( bool );
+							if ( version >= 0x09 )
+							{
+								_memcpy_s( &cfg_apply_initial_proxy, sizeof( bool ), next, sizeof( bool ) );
+								next += sizeof( bool );
 
-							_memcpy_s( &cfg_category_move, sizeof( bool ), next, sizeof( bool ) );
-							next += sizeof( bool );
+								_memcpy_s( &cfg_category_move, sizeof( bool ), next, sizeof( bool ) );
+								next += sizeof( bool );
+							}
 
 
 							//

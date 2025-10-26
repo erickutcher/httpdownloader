@@ -5518,6 +5518,7 @@ wchar_t *ParseURLSettings( wchar_t *url_list, ADD_INFO *ai )
 		wchar_t *download_directory = NULL;
 		wchar_t *username = NULL;
 		wchar_t *password = NULL;
+		wchar_t *comments = NULL;
 		wchar_t *cookies = NULL;
 		wchar_t *data = NULL;
 		wchar_t *headers = NULL;
@@ -5631,7 +5632,8 @@ wchar_t *ParseURLSettings( wchar_t *url_list, ADD_INFO *ai )
 					ai->download_operations &= ~DOWNLOAD_OPERATION_ADD_STOPPED;
 					ai->download_operations |= DOWNLOAD_OPERATION_VERIFY;
 				}
-				else if ( ( param_name_length == 13 && _StrCmpNIW( param_name_start, L"cookie-string", 13 ) == 0 ) ||
+				else if ( ( param_name_length == 8 && _StrCmpNIW( param_name_start, L"comments", 8 ) == 0 ) ||
+						  ( param_name_length == 13 && _StrCmpNIW( param_name_start, L"cookie-string", 13 ) == 0 ) ||
 						  ( param_name_length == 9 && _StrCmpNIW( param_name_start, L"post-data", 9 ) == 0 ) ||
 						  ( param_name_length == 8 && _StrCmpNIW( param_name_start, L"category", 8 ) == 0 ) ||
 						  ( param_name_length == 18 && _StrCmpNIW( param_name_start, L"download-directory", 18 ) == 0 ) ||
@@ -5649,7 +5651,11 @@ wchar_t *ParseURLSettings( wchar_t *url_list, ADD_INFO *ai )
 						{
 							if ( *param_name_start == L'c' )
 							{
-								if ( param_name_start[ 1 ] == L'o' )	// Cookies
+								if ( param_name_start[ 1 ] == L'o' && param_name_start[ 2 ] == L'm' )	// Comments
+								{
+									param_value = &comments;
+								}
+								else if ( param_name_start[ 1 ] == L'o' && param_name_start[ 2 ] == L'o' )	// Cookies
 								{
 									param_value = &cookies;
 								}
@@ -5860,6 +5866,11 @@ wchar_t *ParseURLSettings( wchar_t *url_list, ADD_INFO *ai )
 			WideCharToMultiByte( CP_UTF8, 0, password, -1, ai->auth_info.password, utf8_length, NULL, NULL );
 
 			GlobalFree( password );
+		}
+
+		if ( comments != NULL )
+		{
+			ai->comments = comments;
 		}
 
 		if ( headers != NULL )
@@ -9582,7 +9593,7 @@ THREAD_RETURN CheckForUpdates( void * /*pArguments*/ )
 					{
 						_SendNotifyMessageW( g_hWnd_check_for_updates, WM_PROPAGATE, 1, 0 );		// New version
 					}
-					else
+					else if ( g_new_beta == BETA_VERSION )
 					{
 #endif
 						if ( g_update_check_state == 2 )	// Automatic update check.
@@ -9594,6 +9605,10 @@ THREAD_RETURN CheckForUpdates( void * /*pArguments*/ )
 							_SendNotifyMessageW( g_hWnd_check_for_updates, WM_PROPAGATE, 2, 0 );	// Up to date
 						}
 #ifdef IS_BETA
+					}
+					else
+					{
+						_SendNotifyMessageW( g_hWnd_check_for_updates, WM_PROPAGATE, 3, 0 );		// Error
 					}
 #endif
 				}
