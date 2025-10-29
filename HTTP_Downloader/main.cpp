@@ -1577,7 +1577,7 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 	if ( cla != NULL )
 	{
 		// Only load if there's URLs that have been supplied.
-		if ( cla->url_list_file != NULL || cla->urls != NULL || cla->download_history_file != NULL )
+		if ( cla->url_list_file != NULL || cla->urls != NULL || cla->download_history_file != NULL || cla->use_clipboard )
 		{
 			// cla values will be freed here.
 			_SendMessageW( g_hWnd_main, WM_PROPAGATE, ( WPARAM )-2, ( LPARAM )cla );

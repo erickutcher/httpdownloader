@@ -81,12 +81,12 @@ BEGIN
         BEGIN
             VALUE "Comments", "HTTP Downloader is made free under the GPLv3 license."
             VALUE "FileDescription", "HTTP Downloader"
-            VALUE "FileVersion", "1, 0, 6, 6"
+            VALUE "FileVersion", "1, 0, 6, 7"
             VALUE "InternalName", "HTTP Downloader"
             VALUE "LegalCopyright", "Copyright © 2015-2025 Eric Kutcher"
             VALUE "OriginalFilename", "HTTP_Downloader.exe"
             VALUE "ProductName", "HTTP Downloader"
-            VALUE "ProductVersion", "1, 0, 6, 6"
+            VALUE "ProductVersion", "1, 0, 6, 7"
         END
     END
     BLOCK "VarFileInfo"
