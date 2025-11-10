@@ -27,13 +27,18 @@
 
 #define MD5_LENGTH	16
 
-#define _WIN32_WINNT_VISTA		0x0600
-//#define _WIN32_WINNT_WIN7		0x0601
-#define _WIN32_WINNT_WIN8		0x0602
-//#define _WIN32_WINNT_WINBLUE	0x0603
-#define _WIN32_WINNT_WIN10		0x0A00
+#define _WIN32_WINNT_VISTA				0x0600
+//#define _WIN32_WINNT_WIN7				0x0601
+#define _WIN32_WINNT_WIN8				0x0602
+//#define _WIN32_WINNT_WINBLUE			0x0603
+#define _WIN32_WINNT_WIN10				0x0A00
+#define _WIN32_WINNT_WIN_SERVER_2022	0x0A00	// Same as 10
+//#define _WIN32_WINNT_WIN11			0x0A00	// Same as 10
 
-bool IsWindowsVersionOrGreater( WORD wMajorVersion, WORD wMinorVersion, WORD wServicePackMajor );
+#define _WIN32_WINNT_WIN_SERVER_2022_BUILD	20384	// First instance of full TLS 1.3 support.
+//#define _WIN32_WINNT_WIN11_BUILD			22000	// First build of Windows 11.
+
+bool IsWindowsVersionOrGreater( WORD wMajorVersion, WORD wMinorVersion, WORD dwBuildNumber );
 
 int dllrbt_compare_a( void *a, void *b );
 int dllrbt_compare_w( void *a, void *b );

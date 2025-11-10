@@ -527,6 +527,7 @@ STRING_TABLE_DATA common_string_table[] =
 	{ L"TLS 1.0", 7 },
 	{ L"TLS 1.1", 7 },
 	{ L"TLS 1.2", 7 },
+	{ L"TLS 1.3", 7 },
 	{ L"Total downloaded:", 17 },
 	{ L"Unlimited", 9 },
 	{ L"Update", 6 },

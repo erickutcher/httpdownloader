@@ -127,7 +127,7 @@
 #define CURRENT_VERSION_A	1
 #define CURRENT_VERSION_B	0
 #define CURRENT_VERSION_C	6
-#define CURRENT_VERSION_D	7
+#define CURRENT_VERSION_D	8
 
 #define CURRENT_VERSION		( ( CURRENT_VERSION_A << 24 ) | \
 							  ( CURRENT_VERSION_B << 16 ) | \
@@ -681,6 +681,7 @@ extern bool g_timers_running;
 extern SYSTEMTIME g_compile_time;
 
 extern bool g_is_windows_8_or_higher;
+extern bool g_can_use_tls_1_3;
 
 extern bool g_can_perform_shutdown_action;
 extern bool g_perform_shutdown_action;

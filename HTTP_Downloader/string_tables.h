@@ -48,7 +48,7 @@
 #define ADD_CATEGORY_STRING_TABLE_SIZE			1
 #define FINGERPRINT_PROMPT_STRING_TABLE_SIZE	2
 #define UPDATE_CHECK_STRING_TABLE_SIZE			9
-#define COMMON_STRING_TABLE_SIZE				67
+#define COMMON_STRING_TABLE_SIZE				68
 #define COMMON_MESSAGE_STRING_TABLE_SIZE		39
 
 #define ABOUT_STRING_TABLE_SIZE					5
@@ -623,107 +623,108 @@ void UninitializeLocaleValues();
 #define ST_V_TLS_1_0									g_locale_table[ 415 ].value
 #define ST_V_TLS_1_1									g_locale_table[ 416 ].value
 #define ST_V_TLS_1_2									g_locale_table[ 417 ].value
-#define ST_V_Total_downloaded_							g_locale_table[ 418 ].value
-#define ST_V_Unlimited									g_locale_table[ 419 ].value
-#define ST_V_Update										g_locale_table[ 420 ].value
-#define ST_V_Update_Category							g_locale_table[ 421 ].value
-#define ST_V_Update_Download							g_locale_table[ 422 ].value
-#define ST_V_URL_										g_locale_table[ 423 ].value
-#define ST_V_URL_s__added_								g_locale_table[ 424 ].value
-#define ST_V_Videos										g_locale_table[ 425 ].value
+#define ST_V_TLS_1_3									g_locale_table[ 418 ].value
+#define ST_V_Total_downloaded_							g_locale_table[ 419 ].value
+#define ST_V_Unlimited									g_locale_table[ 420 ].value
+#define ST_V_Update										g_locale_table[ 421 ].value
+#define ST_V_Update_Category							g_locale_table[ 422 ].value
+#define ST_V_Update_Download							g_locale_table[ 423 ].value
+#define ST_V_URL_										g_locale_table[ 424 ].value
+#define ST_V_URL_s__added_								g_locale_table[ 425 ].value
+#define ST_V_Videos										g_locale_table[ 426 ].value
 
 // Common Messages
-#define ST_V_A_key_algorithm_must_be_supplied			g_locale_table[ 426 ].value
-#define ST_V_A_private_key_file_is_required				g_locale_table[ 427 ].value
-#define ST_V_A_protocol_must_be_supplied				g_locale_table[ 428 ].value
-#define ST_V_A_restart_is_required						g_locale_table[ 429 ].value
-#define ST_V_A_restart_is_required_disable_allocation	g_locale_table[ 430 ].value
-#define ST_V_A_restart_is_required_enable_allocation	g_locale_table[ 431 ].value
-#define ST_V_A_restart_is_required_shutdown				g_locale_table[ 432 ].value
-#define ST_V_A_restart_is_required_threads				g_locale_table[ 433 ].value
-#define ST_V_PROMPT_delete_selected_files				g_locale_table[ 434 ].value
-#define ST_V_PROMPT_remove_completed_entries			g_locale_table[ 435 ].value
-#define ST_V_PROMPT_remove_and_delete_selected_entries	g_locale_table[ 436 ].value
-#define ST_V_PROMPT_remove_selected_entries				g_locale_table[ 437 ].value
-#define ST_V_PROMPT_restart_selected_entries			g_locale_table[ 438 ].value
-#define ST_V_PROMPT_accept_the_server_host_key			g_locale_table[ 439 ].value
-#define ST_V_Item_ID_List_was_not_freed					g_locale_table[ 440 ].value
-#define ST_V_One_or_more_file_extensions_exist			g_locale_table[ 441 ].value
-#define ST_V_One_or_more_files_are_in_use				g_locale_table[ 442 ].value
-#define ST_V_One_or_more_files_were_not_found			g_locale_table[ 443 ].value
-#define ST_V_One_or_more_paths_were_not_found			g_locale_table[ 444 ].value
-#define ST_V_Select_the_category_download_directory		g_locale_table[ 445 ].value
-#define ST_V_Select_the_default_download_directory		g_locale_table[ 446 ].value
-#define ST_V_Select_the_download_directory				g_locale_table[ 447 ].value
-#define ST_V_Select_the_temporary_download_directory	g_locale_table[ 448 ].value
-#define ST_V_The_download_will_be_resumed				g_locale_table[ 449 ].value
-#define ST_V_File_is_in_use_cannot_delete				g_locale_table[ 450 ].value
-#define ST_V_File_is_in_use_cannot_rename				g_locale_table[ 451 ].value
-#define ST_V_File_format_is_incorrect					g_locale_table[ 452 ].value
-#define ST_V_PROMPT_mismatch_accept_the_server_host_key	g_locale_table[ 453 ].value
-#define ST_V_The_specified_category_already_exists		g_locale_table[ 454 ].value
-#define ST_V_The_specified_file_was_not_found			g_locale_table[ 455 ].value
-#define ST_V_PROMPT_The_specified_file_was_not_found	g_locale_table[ 456 ].value
-#define ST_V_The_specified_host_already_exists			g_locale_table[ 457 ].value
-#define ST_V_The_specified_host_is_invalid				g_locale_table[ 458 ].value
-#define ST_V_The_specified_path_was_not_found			g_locale_table[ 459 ].value
-#define ST_V_The_specified_site_already_exists			g_locale_table[ 460 ].value
-#define ST_V_The_specified_site_is_invalid				g_locale_table[ 461 ].value
-#define ST_V_The_specified_un_and_host_already_exists	g_locale_table[ 462 ].value
-#define ST_V_There_is_already_a_file					g_locale_table[ 463 ].value
-#define ST_V_You_must_supply_download_directory			g_locale_table[ 464 ].value
+#define ST_V_A_key_algorithm_must_be_supplied			g_locale_table[ 427 ].value
+#define ST_V_A_private_key_file_is_required				g_locale_table[ 428 ].value
+#define ST_V_A_protocol_must_be_supplied				g_locale_table[ 429 ].value
+#define ST_V_A_restart_is_required						g_locale_table[ 430 ].value
+#define ST_V_A_restart_is_required_disable_allocation	g_locale_table[ 431 ].value
+#define ST_V_A_restart_is_required_enable_allocation	g_locale_table[ 432 ].value
+#define ST_V_A_restart_is_required_shutdown				g_locale_table[ 433 ].value
+#define ST_V_A_restart_is_required_threads				g_locale_table[ 434 ].value
+#define ST_V_PROMPT_delete_selected_files				g_locale_table[ 435 ].value
+#define ST_V_PROMPT_remove_completed_entries			g_locale_table[ 436 ].value
+#define ST_V_PROMPT_remove_and_delete_selected_entries	g_locale_table[ 437 ].value
+#define ST_V_PROMPT_remove_selected_entries				g_locale_table[ 438 ].value
+#define ST_V_PROMPT_restart_selected_entries			g_locale_table[ 439 ].value
+#define ST_V_PROMPT_accept_the_server_host_key			g_locale_table[ 440 ].value
+#define ST_V_Item_ID_List_was_not_freed					g_locale_table[ 441 ].value
+#define ST_V_One_or_more_file_extensions_exist			g_locale_table[ 442 ].value
+#define ST_V_One_or_more_files_are_in_use				g_locale_table[ 443 ].value
+#define ST_V_One_or_more_files_were_not_found			g_locale_table[ 444 ].value
+#define ST_V_One_or_more_paths_were_not_found			g_locale_table[ 445 ].value
+#define ST_V_Select_the_category_download_directory		g_locale_table[ 446 ].value
+#define ST_V_Select_the_default_download_directory		g_locale_table[ 447 ].value
+#define ST_V_Select_the_download_directory				g_locale_table[ 448 ].value
+#define ST_V_Select_the_temporary_download_directory	g_locale_table[ 449 ].value
+#define ST_V_The_download_will_be_resumed				g_locale_table[ 450 ].value
+#define ST_V_File_is_in_use_cannot_delete				g_locale_table[ 451 ].value
+#define ST_V_File_is_in_use_cannot_rename				g_locale_table[ 452 ].value
+#define ST_V_File_format_is_incorrect					g_locale_table[ 453 ].value
+#define ST_V_PROMPT_mismatch_accept_the_server_host_key	g_locale_table[ 454 ].value
+#define ST_V_The_specified_category_already_exists		g_locale_table[ 455 ].value
+#define ST_V_The_specified_file_was_not_found			g_locale_table[ 456 ].value
+#define ST_V_PROMPT_The_specified_file_was_not_found	g_locale_table[ 457 ].value
+#define ST_V_The_specified_host_already_exists			g_locale_table[ 458 ].value
+#define ST_V_The_specified_host_is_invalid				g_locale_table[ 459 ].value
+#define ST_V_The_specified_path_was_not_found			g_locale_table[ 460 ].value
+#define ST_V_The_specified_site_already_exists			g_locale_table[ 461 ].value
+#define ST_V_The_specified_site_is_invalid				g_locale_table[ 462 ].value
+#define ST_V_The_specified_un_and_host_already_exists	g_locale_table[ 463 ].value
+#define ST_V_There_is_already_a_file					g_locale_table[ 464 ].value
+#define ST_V_You_must_supply_download_directory			g_locale_table[ 465 ].value
 
 // About
-#define ST_V_BETA										g_locale_table[ 465 ].value
-#define ST_V_BUILT										g_locale_table[ 466 ].value
-#define ST_V_COPYRIGHT									g_locale_table[ 467 ].value
-#define ST_V_LICENSE									g_locale_table[ 468 ].value
-#define ST_V_VERSION									g_locale_table[ 469 ].value
+#define ST_V_BETA										g_locale_table[ 466 ].value
+#define ST_V_BUILT										g_locale_table[ 467 ].value
+#define ST_V_COPYRIGHT									g_locale_table[ 468 ].value
+#define ST_V_LICENSE									g_locale_table[ 469 ].value
+#define ST_V_VERSION									g_locale_table[ 470 ].value
 
 // Dynamic Messages
-#define ST_V_PROMPT___already_exists					g_locale_table[ 470 ].value
-#define ST_V_PROMPT___could_not_be_renamed				g_locale_table[ 471 ].value
-#define ST_V_PROMPT___has_been_modified					g_locale_table[ 472 ].value
-#define ST_V_PROMPT___will_be___size					g_locale_table[ 473 ].value
+#define ST_V_PROMPT___already_exists					g_locale_table[ 471 ].value
+#define ST_V_PROMPT___could_not_be_renamed				g_locale_table[ 472 ].value
+#define ST_V_PROMPT___has_been_modified					g_locale_table[ 473 ].value
+#define ST_V_PROMPT___will_be___size					g_locale_table[ 474 ].value
 
 // SFTP KEX Algorithms
-#define ST_V_DH_Group1_SHA1								g_locale_table[ 474 ].value
-#define ST_V_DH_Group14_SHA1							g_locale_table[ 475 ].value
-#define ST_V_DH_GEX_SHA1								g_locale_table[ 476 ].value
-#define ST_V_RSA_KEX									g_locale_table[ 477 ].value
-#define ST_V_ECDH										g_locale_table[ 478 ].value
+#define ST_V_DH_Group1_SHA1								g_locale_table[ 475 ].value
+#define ST_V_DH_Group14_SHA1							g_locale_table[ 476 ].value
+#define ST_V_DH_GEX_SHA1								g_locale_table[ 477 ].value
+#define ST_V_RSA_KEX									g_locale_table[ 478 ].value
+#define ST_V_ECDH										g_locale_table[ 479 ].value
 
 // SFTP Host Key Algorithms
-#define ST_V_RSA										g_locale_table[ 479 ].value
-#define ST_V_DSA										g_locale_table[ 480 ].value
-#define ST_V_ECDSA										g_locale_table[ 481 ].value
-#define ST_V_Ed25519									g_locale_table[ 482 ].value
+#define ST_V_RSA										g_locale_table[ 480 ].value
+#define ST_V_DSA										g_locale_table[ 481 ].value
+#define ST_V_ECDSA										g_locale_table[ 482 ].value
+#define ST_V_Ed25519									g_locale_table[ 483 ].value
 
 // SFTP Encryption Ciphers
-#define ST_V_3DES										g_locale_table[ 483 ].value
-#define ST_V_Blowfish									g_locale_table[ 484 ].value
-#define ST_V_AES										g_locale_table[ 485 ].value
-#define ST_V_DES										g_locale_table[ 486 ].value
-#define ST_V_Arcfour									g_locale_table[ 487 ].value
-#define ST_V_ChaCha20									g_locale_table[ 488 ].value
+#define ST_V_3DES										g_locale_table[ 484 ].value
+#define ST_V_Blowfish									g_locale_table[ 485 ].value
+#define ST_V_AES										g_locale_table[ 486 ].value
+#define ST_V_DES										g_locale_table[ 487 ].value
+#define ST_V_Arcfour									g_locale_table[ 488 ].value
+#define ST_V_ChaCha20									g_locale_table[ 489 ].value
 
 // SFTP Host Key Algorithms (cached)
-#define ST_V_ecdsa_sha2_nistp256						g_locale_table[ 489 ].value
-#define ST_V_ecdsa_sha2_nistp384						g_locale_table[ 490 ].value
-#define ST_V_ecdsa_sha2_nistp521						g_locale_table[ 491 ].value
-#define ST_V_ssh_dss									g_locale_table[ 492 ].value
-#define ST_V_ssh_ed25519								g_locale_table[ 493 ].value
-#define ST_V_ssh_rsa									g_locale_table[ 494 ].value
+#define ST_V_ecdsa_sha2_nistp256						g_locale_table[ 490 ].value
+#define ST_V_ecdsa_sha2_nistp384						g_locale_table[ 491 ].value
+#define ST_V_ecdsa_sha2_nistp521						g_locale_table[ 492 ].value
+#define ST_V_ssh_dss									g_locale_table[ 493 ].value
+#define ST_V_ssh_ed25519								g_locale_table[ 494 ].value
+#define ST_V_ssh_rsa									g_locale_table[ 495 ].value
 
 // File Filters
-#define ST_V_All_Files									g_locale_table[ 495 ].value
-#define ST_V_CSV__Comma_delimited_						g_locale_table[ 496 ].value
-#define ST_V_Download_History							g_locale_table[ 497 ].value
-#define ST_V_Personal_Information_Exchange				g_locale_table[ 498 ].value
-//#define ST_V_Private_Keys								g_locale_table[ 499 ].value
-#define ST_V_PuTTY_Private_Key_Files					g_locale_table[ 500 ].value
-#define ST_V_WAV										g_locale_table[ 501 ].value
-#define ST_V_X_509_Certificates							g_locale_table[ 502 ].value
+#define ST_V_All_Files									g_locale_table[ 496 ].value
+#define ST_V_CSV__Comma_delimited_						g_locale_table[ 497 ].value
+#define ST_V_Download_History							g_locale_table[ 498 ].value
+#define ST_V_Personal_Information_Exchange				g_locale_table[ 499 ].value
+//#define ST_V_Private_Keys								g_locale_table[ 500 ].value
+#define ST_V_PuTTY_Private_Key_Files					g_locale_table[ 501 ].value
+#define ST_V_WAV										g_locale_table[ 502 ].value
+#define ST_V_X_509_Certificates							g_locale_table[ 503 ].value
 
 //
 
@@ -1186,106 +1187,107 @@ void UninitializeLocaleValues();
 #define ST_L_TLS_1_0									g_locale_table[ 415 ].length
 #define ST_L_TLS_1_1									g_locale_table[ 416 ].length
 #define ST_L_TLS_1_2									g_locale_table[ 417 ].length
-#define ST_L_Total_downloaded_							g_locale_table[ 418 ].length
-#define ST_L_Unlimited									g_locale_table[ 419 ].length
-#define ST_L_Update										g_locale_table[ 420 ].length
-#define ST_L_Update_Category							g_locale_table[ 421 ].length
-#define ST_L_Update_Download							g_locale_table[ 422 ].length
-#define ST_L_URL_										g_locale_table[ 423 ].length
-#define ST_L_URL_s__added_								g_locale_table[ 424 ].length
-#define ST_L_Videos										g_locale_table[ 425 ].length
+#define ST_L_TLS_1_3									g_locale_table[ 418 ].length
+#define ST_L_Total_downloaded_							g_locale_table[ 419 ].length
+#define ST_L_Unlimited									g_locale_table[ 420 ].length
+#define ST_L_Update										g_locale_table[ 421 ].length
+#define ST_L_Update_Category							g_locale_table[ 422 ].length
+#define ST_L_Update_Download							g_locale_table[ 423 ].length
+#define ST_L_URL_										g_locale_table[ 424 ].length
+#define ST_L_URL_s__added_								g_locale_table[ 425 ].length
+#define ST_L_Videos										g_locale_table[ 426 ].length
 
 // Common Messages
-#define ST_L_A_key_algorithm_must_be_supplied			g_locale_table[ 426 ].length
-#define ST_L_A_private_key_file_is_required				g_locale_table[ 427 ].length
-#define ST_L_A_protocol_must_be_supplied				g_locale_table[ 428 ].length
-#define ST_L_A_restart_is_required						g_locale_table[ 429 ].length
-#define ST_L_A_restart_is_required_disable_allocation	g_locale_table[ 430 ].length
-#define ST_L_A_restart_is_required_enable_allocation	g_locale_table[ 431 ].length
-#define ST_L_A_restart_is_required_shutdown				g_locale_table[ 432 ].length
-#define ST_L_A_restart_is_required_threads				g_locale_table[ 433 ].length
-#define ST_L_PROMPT_delete_selected_files				g_locale_table[ 434 ].length
-#define ST_L_PROMPT_remove_completed_entries			g_locale_table[ 435 ].length
-#define ST_L_PROMPT_remove_and_delete_selected_entries	g_locale_table[ 436 ].length
-#define ST_L_PROMPT_remove_selected_entries				g_locale_table[ 437 ].length
-#define ST_L_PROMPT_restart_selected_entries			g_locale_table[ 438 ].length
-#define ST_L_PROMPT_accept_the_server_host_key			g_locale_table[ 439 ].length
-#define ST_L_Item_ID_List_was_not_freed					g_locale_table[ 440 ].length
-#define ST_L_One_or_more_file_extensions_exist			g_locale_table[ 441 ].length
-#define ST_L_One_or_more_files_are_in_use				g_locale_table[ 442 ].length
-#define ST_L_One_or_more_files_were_not_found			g_locale_table[ 443 ].length
-#define ST_L_One_or_more_paths_were_not_found			g_locale_table[ 444 ].length
-#define ST_L_Select_the_category_download_directory		g_locale_table[ 445 ].length
-#define ST_L_Select_the_default_download_directory		g_locale_table[ 446 ].length
-#define ST_L_Select_the_download_directory				g_locale_table[ 447 ].length
-#define ST_L_Select_the_temporary_download_directory	g_locale_table[ 448 ].length
-#define ST_L_The_download_will_be_resumed				g_locale_table[ 449 ].length
-#define ST_L_File_is_in_use_cannot_delete				g_locale_table[ 450 ].length
-#define ST_L_File_is_in_use_cannot_rename				g_locale_table[ 451 ].length
-#define ST_L_File_format_is_incorrect					g_locale_table[ 452 ].length
-#define ST_L_PROMPT_mismatch_accept_the_server_host_key	g_locale_table[ 453 ].length
-#define ST_L_The_specified_category_already_exists		g_locale_table[ 454 ].length
-#define ST_L_The_specified_file_was_not_found			g_locale_table[ 455 ].length
-#define ST_L_PROMPT_The_specified_file_was_not_found	g_locale_table[ 456 ].length
-#define ST_L_The_specified_host_already_exists			g_locale_table[ 457 ].length
-#define ST_L_The_specified_host_is_invalid				g_locale_table[ 458 ].length
-#define ST_L_The_specified_path_was_not_found			g_locale_table[ 459 ].length
-#define ST_L_The_specified_site_already_exists			g_locale_table[ 460 ].length
-#define ST_L_The_specified_site_is_invalid				g_locale_table[ 461 ].length
-#define ST_L_The_specified_un_and_host_already_exists	g_locale_table[ 462 ].length
-#define ST_L_There_is_already_a_file					g_locale_table[ 463 ].length
-#define ST_L_You_must_supply_download_directory			g_locale_table[ 464 ].length
+#define ST_L_A_key_algorithm_must_be_supplied			g_locale_table[ 427 ].length
+#define ST_L_A_private_key_file_is_required				g_locale_table[ 428 ].length
+#define ST_L_A_protocol_must_be_supplied				g_locale_table[ 429 ].length
+#define ST_L_A_restart_is_required						g_locale_table[ 430 ].length
+#define ST_L_A_restart_is_required_disable_allocation	g_locale_table[ 431 ].length
+#define ST_L_A_restart_is_required_enable_allocation	g_locale_table[ 432 ].length
+#define ST_L_A_restart_is_required_shutdown				g_locale_table[ 433 ].length
+#define ST_L_A_restart_is_required_threads				g_locale_table[ 434 ].length
+#define ST_L_PROMPT_delete_selected_files				g_locale_table[ 435 ].length
+#define ST_L_PROMPT_remove_completed_entries			g_locale_table[ 436 ].length
+#define ST_L_PROMPT_remove_and_delete_selected_entries	g_locale_table[ 437 ].length
+#define ST_L_PROMPT_remove_selected_entries				g_locale_table[ 438 ].length
+#define ST_L_PROMPT_restart_selected_entries			g_locale_table[ 439 ].length
+#define ST_L_PROMPT_accept_the_server_host_key			g_locale_table[ 440 ].length
+#define ST_L_Item_ID_List_was_not_freed					g_locale_table[ 441 ].length
+#define ST_L_One_or_more_file_extensions_exist			g_locale_table[ 442 ].length
+#define ST_L_One_or_more_files_are_in_use				g_locale_table[ 443 ].length
+#define ST_L_One_or_more_files_were_not_found			g_locale_table[ 444 ].length
+#define ST_L_One_or_more_paths_were_not_found			g_locale_table[ 445 ].length
+#define ST_L_Select_the_category_download_directory		g_locale_table[ 446 ].length
+#define ST_L_Select_the_default_download_directory		g_locale_table[ 447 ].length
+#define ST_L_Select_the_download_directory				g_locale_table[ 448 ].length
+#define ST_L_Select_the_temporary_download_directory	g_locale_table[ 449 ].length
+#define ST_L_The_download_will_be_resumed				g_locale_table[ 450 ].length
+#define ST_L_File_is_in_use_cannot_delete				g_locale_table[ 451 ].length
+#define ST_L_File_is_in_use_cannot_rename				g_locale_table[ 452 ].length
+#define ST_L_File_format_is_incorrect					g_locale_table[ 453 ].length
+#define ST_L_PROMPT_mismatch_accept_the_server_host_key	g_locale_table[ 454 ].length
+#define ST_L_The_specified_category_already_exists		g_locale_table[ 455 ].length
+#define ST_L_The_specified_file_was_not_found			g_locale_table[ 456 ].length
+#define ST_L_PROMPT_The_specified_file_was_not_found	g_locale_table[ 457 ].length
+#define ST_L_The_specified_host_already_exists			g_locale_table[ 458 ].length
+#define ST_L_The_specified_host_is_invalid				g_locale_table[ 459 ].length
+#define ST_L_The_specified_path_was_not_found			g_locale_table[ 460 ].length
+#define ST_L_The_specified_site_already_exists			g_locale_table[ 461 ].length
+#define ST_L_The_specified_site_is_invalid				g_locale_table[ 462 ].length
+#define ST_L_The_specified_un_and_host_already_exists	g_locale_table[ 463 ].length
+#define ST_L_There_is_already_a_file					g_locale_table[ 464 ].length
+#define ST_L_You_must_supply_download_directory			g_locale_table[ 465 ].length
 
 // About
-#define ST_L_BETA										g_locale_table[ 465 ].length
-#define ST_L_BUILT										g_locale_table[ 466 ].length
-#define ST_L_COPYRIGHT									g_locale_table[ 467 ].length
-#define ST_L_LICENSE									g_locale_table[ 468 ].length
-#define ST_L_VERSION									g_locale_table[ 469 ].length
+#define ST_L_BETA										g_locale_table[ 466 ].length
+#define ST_L_BUILT										g_locale_table[ 467 ].length
+#define ST_L_COPYRIGHT									g_locale_table[ 468 ].length
+#define ST_L_LICENSE									g_locale_table[ 469 ].length
+#define ST_L_VERSION									g_locale_table[ 470 ].length
 
 // Dynamic Messages
-#define ST_L_PROMPT___already_exists					g_locale_table[ 470 ].length
-#define ST_L_PROMPT___could_not_be_renamed				g_locale_table[ 471 ].length
-#define ST_L_PROMPT___has_been_modified					g_locale_table[ 472 ].length
-#define ST_L_PROMPT___will_be___size					g_locale_table[ 473 ].length
+#define ST_L_PROMPT___already_exists					g_locale_table[ 471 ].length
+#define ST_L_PROMPT___could_not_be_renamed				g_locale_table[ 472 ].length
+#define ST_L_PROMPT___has_been_modified					g_locale_table[ 473 ].length
+#define ST_L_PROMPT___will_be___size					g_locale_table[ 474 ].length
 
 // SFTP KEX Algorithms
-#define ST_L_DH_Group1_SHA1								g_locale_table[ 474 ].length
-#define ST_L_DH_Group14_SHA1							g_locale_table[ 475 ].length
-#define ST_L_DH_GEX_SHA1								g_locale_table[ 476 ].length
-#define ST_L_RSA_KEX									g_locale_table[ 477 ].length
-#define ST_L_ECDH										g_locale_table[ 478 ].length
+#define ST_L_DH_Group1_SHA1								g_locale_table[ 475 ].length
+#define ST_L_DH_Group14_SHA1							g_locale_table[ 476 ].length
+#define ST_L_DH_GEX_SHA1								g_locale_table[ 477 ].length
+#define ST_L_RSA_KEX									g_locale_table[ 478 ].length
+#define ST_L_ECDH										g_locale_table[ 479 ].length
 
 // SFTP Host Key Algorithms
-#define ST_L_RSA										g_locale_table[ 479 ].length
-#define ST_L_DSA										g_locale_table[ 480 ].length
-#define ST_L_ECDSA										g_locale_table[ 481 ].length
-#define ST_L_Ed25519									g_locale_table[ 482 ].length
+#define ST_L_RSA										g_locale_table[ 480 ].length
+#define ST_L_DSA										g_locale_table[ 481 ].length
+#define ST_L_ECDSA										g_locale_table[ 482 ].length
+#define ST_L_Ed25519									g_locale_table[ 483 ].length
 
 // SFTP Encryption Ciphers
-#define ST_L_3DES										g_locale_table[ 483 ].length
-#define ST_L_Blowfish									g_locale_table[ 484 ].length
-#define ST_L_AES										g_locale_table[ 485 ].length
-#define ST_L_DES										g_locale_table[ 486 ].length
-#define ST_L_Arcfour									g_locale_table[ 487 ].length
-#define ST_L_ChaCha20									g_locale_table[ 488 ].length
+#define ST_L_3DES										g_locale_table[ 484 ].length
+#define ST_L_Blowfish									g_locale_table[ 485 ].length
+#define ST_L_AES										g_locale_table[ 486 ].length
+#define ST_L_DES										g_locale_table[ 487 ].length
+#define ST_L_Arcfour									g_locale_table[ 488 ].length
+#define ST_L_ChaCha20									g_locale_table[ 489 ].length
 
 // SFTP Host Key Algorithms (cached)
-#define ST_L_ecdsa_sha2_nistp256						g_locale_table[ 489 ].length
-#define ST_L_ecdsa_sha2_nistp384						g_locale_table[ 490 ].length
-#define ST_L_ecdsa_sha2_nistp521						g_locale_table[ 491 ].length
-#define ST_L_ssh_dss									g_locale_table[ 492 ].length
-#define ST_L_ssh_ed25519								g_locale_table[ 493 ].length
-#define ST_L_ssh_rsa									g_locale_table[ 494 ].length
+#define ST_L_ecdsa_sha2_nistp256						g_locale_table[ 490 ].length
+#define ST_L_ecdsa_sha2_nistp384						g_locale_table[ 491 ].length
+#define ST_L_ecdsa_sha2_nistp521						g_locale_table[ 492 ].length
+#define ST_L_ssh_dss									g_locale_table[ 493 ].length
+#define ST_L_ssh_ed25519								g_locale_table[ 494 ].length
+#define ST_L_ssh_rsa									g_locale_table[ 495 ].length
 
 // File Filters
-#define ST_L_All_Files									g_locale_table[ 495 ].length
-#define ST_L_CSV__Comma_delimited_						g_locale_table[ 496 ].length
-#define ST_L_Download_History							g_locale_table[ 497 ].length
-#define ST_L_Personal_Information_Exchange				g_locale_table[ 498 ].length
-//#define ST_L_Private_Keys								g_locale_table[ 499 ].length
-#define ST_L_PuTTY_Private_Key_Files					g_locale_table[ 500 ].length
-#define ST_L_WAV										g_locale_table[ 501 ].length
-#define ST_L_X_509_Certificates							g_locale_table[ 502 ].length
+#define ST_L_All_Files									g_locale_table[ 496 ].length
+#define ST_L_CSV__Comma_delimited_						g_locale_table[ 497 ].length
+#define ST_L_Download_History							g_locale_table[ 498 ].length
+#define ST_L_Personal_Information_Exchange				g_locale_table[ 499 ].length
+//#define ST_L_Private_Keys								g_locale_table[ 500 ].length
+#define ST_L_PuTTY_Private_Key_Files					g_locale_table[ 501 ].length
+#define ST_L_WAV										g_locale_table[ 502 ].length
+#define ST_L_X_509_Certificates							g_locale_table[ 503 ].length
 
 #endif

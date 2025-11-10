@@ -416,6 +416,7 @@ Timed Out
 TLS 1.0
 TLS 1.1
 TLS 1.2
+TLS 1.3
 Total downloaded:
 Unlimited
 Update

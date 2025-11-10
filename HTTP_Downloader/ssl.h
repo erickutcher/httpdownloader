@@ -25,7 +25,65 @@
 
 #define SECURITY_WIN32
 #include <security.h>
+
+#define SCHANNEL_USE_BLACKLISTS
+
+typedef struct _UNICODE_STRING
+{
+	USHORT Length;
+	USHORT MaximumLength;
+	PWSTR Buffer;
+} UNICODE_STRING, *PUNICODE_STRING;
+
 #include <schannel.h>
+
+#define SCH_CREDENTIALS_VERSION  0x00000005
+
+typedef enum _eTlsAlgorithmUsage
+{
+	TlsParametersCngAlgUsageKeyExchange,
+	TlsParametersCngAlgUsageSignature,
+	TlsParametersCngAlgUsageCipher,
+	TlsParametersCngAlgUsageDigest,
+	TlsParametersCngAlgUsageCertSig
+} eTlsAlgorithmUsage;
+
+typedef struct _CRYPTO_SETTINGS
+{
+	eTlsAlgorithmUsage	eAlgorithmUsage;
+	UNICODE_STRING		strCngAlgId;
+	DWORD				cChainingModes;
+	PUNICODE_STRING		rgstrChainingModes;
+	DWORD				dwMinBitLength;
+	DWORD				dwMaxBitLength;
+} CRYPTO_SETTINGS, *PCRYPTO_SETTINGS;
+
+typedef struct _TLS_PARAMETERS
+{
+	DWORD				cAlpnIds;
+	PUNICODE_STRING		rgstrAlpnIds;
+	DWORD				grbitDisabledProtocols;
+	DWORD				cDisabledCrypto;
+	PCRYPTO_SETTINGS	pDisabledCrypto;
+	DWORD				dwFlags;
+} TLS_PARAMETERS, *PTLS_PARAMETERS;
+
+typedef struct _SCH_CREDENTIALS
+{
+	DWORD				dwVersion;
+	DWORD				dwCredFormat;
+	DWORD				cCreds;
+	PCCERT_CONTEXT		*paCred;
+	HCERTSTORE			hRootStore;
+
+	DWORD				cMappers;
+	struct _HMAPPER		**aphMappers;
+
+	DWORD				dwSessionLifespan;
+	DWORD				dwFlags;
+	DWORD				cTlsParameters;
+	PTLS_PARAMETERS		pTlsParameters;
+} SCH_CREDENTIALS, *PSCH_CREDENTIALS;
 
 #include "lite_ws2_32.h"
 
@@ -38,6 +96,11 @@
 #define SP_PROT_TLS1_2_SERVER		0x00000400
 #define SP_PROT_TLS1_2_CLIENT		0x00000800
 #define SP_PROT_TLS1_2				( SP_PROT_TLS1_2_SERVER | SP_PROT_TLS1_2_CLIENT )
+#define SP_PROT_TLS1_3_SERVER		0x00001000
+#define SP_PROT_TLS1_3_CLIENT		0x00002000
+#define SP_PROT_TLS1_3				( SP_PROT_TLS1_3_SERVER | SP_PROT_TLS1_3_CLIENT )
+
+#define PROTOCOL_COUNT				6
 
 /*struct ACCEPT_DATA
 {
@@ -69,6 +132,7 @@ struct ACCEPT_CONNECT_DATA
 
 	bool			fInitContext;
 	bool			fDoRead;
+	bool			fRenegotiate;
 };
 
 struct RECV_DATA
@@ -112,6 +176,8 @@ struct SSL
 	DWORD cbIoBuffer;
 	DWORD sbIoBuffer;
 
+	unsigned char protocol_index;
+
 	bool is_server;
 	bool continue_decrypt;
 };
@@ -123,7 +189,7 @@ SSL *SSL_new( DWORD protocol, bool is_server );
 void SSL_free( SSL *ssl );
 
 void ResetServerCredentials();
-void ResetClientCredentials();
+void ResetClientCredentials( unsigned char index );
 
 PCCERT_CONTEXT LoadPublicPrivateKeyPair( wchar_t *cer, wchar_t *key );
 PCCERT_CONTEXT LoadPKCS12( wchar_t *p12_file, wchar_t *password );

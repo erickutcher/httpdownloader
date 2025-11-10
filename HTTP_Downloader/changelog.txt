@@ -1,4 +1,10 @@
-Version		1.0.6.7
+Version:	1.0.6.8
+Released:	2025-11-10
+
+Added TLS 1.3 support for Windows 11 systems.
+Fixed SSL/TLS support for web server.
+
+Version:	1.0.6.7
 Released:	2025-10-29
 
 Fixed clipboard command-line argument not working.

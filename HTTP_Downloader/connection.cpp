@@ -1008,6 +1008,7 @@ SOCKET_CONTEXT *UpdateCompletionPort( SOCKET socket, bool use_ssl, unsigned char
 			DWORD protocol = 0;
 			switch ( ssl_version )
 			{
+				case 5:	protocol |= SP_PROT_TLS1_3;
 				case 4:	protocol |= SP_PROT_TLS1_2;
 				case 3:	protocol |= SP_PROT_TLS1_1;
 				case 2:	protocol |= SP_PROT_TLS1;
@@ -1320,9 +1321,45 @@ SECURITY_STATUS DecryptRecv( SOCKET_CONTEXT *context, DWORD &io_size )
 			break;
 
 			case SEC_E_INCOMPLETE_MESSAGE:	// The message was incomplete. Request more data from the server.
-			case SEC_I_RENEGOTIATE:			// Client wants us to perform another handshake.
 			{
 				return scRet;
+			}
+			break;
+
+			case SEC_I_RENEGOTIATE:			// Client wants us to perform another handshake.
+			{
+				bool sent = false;
+
+				context->ssl->acd.scRet = SEC_I_RENEGOTIATE; // InitializeSecurityContext will reset this value inside SSL_WSAConnect_Reply().
+				
+				// If we end up handling IO_ClientHandshakeResponse and get an SEC_E_OK, then this will allow us to continue our IO_GetContent routine.
+				context->ssl->acd.fRenegotiate = true;
+
+				InterlockedIncrement( &context->pending_operations );
+
+				IO_OPERATION last_current_operation = context->overlapped.current_operation;
+				IO_OPERATION last_next_operation = context->overlapped.next_operation;
+
+				context->overlapped.current_operation = IO_ClientHandshakeResponse;
+				context->overlapped.next_operation = IO_ClientHandshakeResponse;
+
+				scRet = SSL_WSAConnect_Reply( context, &context->overlapped, sent );
+
+				if ( !sent )
+				{
+					context->ssl->acd.fRenegotiate = false;	// Reset.
+
+					InterlockedDecrement( &context->pending_operations );
+
+					context->overlapped.current_operation = last_current_operation;
+					context->overlapped.next_operation = last_next_operation;
+
+					scRet = SEC_E_INTERNAL_ERROR;	// Reset.
+				}
+				else	// This shouldn't happen, but we'll handle it if it does. SSL_WSAConnect_Reply() will have performed a _WSASend().
+				{
+					return SEC_I_RENEGOTIATE;
+				}
 			}
 			break;
 
@@ -2224,7 +2261,7 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 							}
 #endif
 							// Create a new socket context with the inherited socket.
-							new_context = UpdateCompletionPort( context->socket, false, 0, true, true );
+							new_context = UpdateCompletionPort( context->socket, cfg_server_enable_ssl, cfg_server_ssl_version, true, true );
 
 							// The Data context's socket has inherited the properties (and handle) of the Listen context's socket.
 							// Invalidate the Listen context's socket so it doesn't shutdown/close the Data context's socket.
@@ -2360,10 +2397,11 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 						if ( context->request_info.protocol == PROTOCOL_HTTPS ||
 							 context->request_info.protocol == PROTOCOL_FTPS )	// FTPES starts out unencrypted and is upgraded later.
 						{
-							char shared_protocol = ( context->download_info != NULL ? context->download_info->ssl_version : 4 );
+							char shared_protocol = ( context->download_info != NULL ? context->download_info->ssl_version : ( g_can_use_tls_1_3 ? 5 : 4 ) );
 							DWORD protocol = 0;
 							switch ( shared_protocol )
 							{
+								case 5:	protocol |= SP_PROT_TLS1_3_CLIENT;
 								case 4:	protocol |= SP_PROT_TLS1_2_CLIENT;
 								case 3:	protocol |= SP_PROT_TLS1_1_CLIENT;
 								case 2:	protocol |= SP_PROT_TLS1_CLIENT;
@@ -2638,7 +2676,7 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 						if ( context->ssl->cbIoBuffer > 0 )
 						{
 							*current_operation = IO_ClientHandshakeResponse;
-							*next_operation = IO_ClientHandshakeResponse;
+							*next_operation = IO_ClientHandshakeResponse;	// SSL_WSAConnect_Reply() might do a _WSASend() so we'll need to handle IO_ClientHandshakeResponse after it completes.
 
 							scRet = SSL_WSAConnect_Reply( context, overlapped, sent );
 						}
@@ -2651,6 +2689,7 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 					else
 					{
 						*current_operation = IO_ClientHandshakeReply;
+						*next_operation = IO_ClientHandshakeResponse;	// SSL_WSAConnect_Response() could call SSL_WSAConnect_Reply() which might do a _WSASend() so we'll need to handle IO_ClientHandshakeResponse after it completes.
 
 						scRet = SSL_WSAConnect_Response( context, overlapped, sent );
 					}
@@ -2669,8 +2708,23 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 
 						*next_operation = IO_GetContent;
 
-						if ( context->request_info.protocol == PROTOCOL_FTPS ||
-							 context->request_info.protocol == PROTOCOL_FTPES )
+						if ( context->ssl != NULL && context->ssl->acd.fRenegotiate )	// This shouldn't happen, but we'll handle it just in case.
+						{
+							context->ssl->acd.fRenegotiate = false;	// Reset.
+
+							*next_operation = IO_GetContent;	// Continue where we left off before we had to renegotiate.
+
+							InterlockedIncrement( &context->pending_operations );
+
+							SSL_WSARecv( context, overlapped, sent );
+							if ( !sent )
+							{
+								*current_operation = IO_Shutdown;
+								PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
+							}
+						}
+						else if ( context->request_info.protocol == PROTOCOL_FTPS ||
+								  context->request_info.protocol == PROTOCOL_FTPES )
 						{
 							*current_operation = IO_GetContent;
 
@@ -3292,7 +3346,7 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 							}
 						}
 					}
-					else if ( use_ssl )
+					else if ( use_ssl )	// Handle responses from DecryptRecv().
 					{
 						if ( scRet == SEC_E_INCOMPLETE_MESSAGE )
 						{
@@ -3310,6 +3364,10 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 							{
 								content_status = CONTENT_STATUS_NONE;
 							}
+						}
+						else if ( scRet == SEC_I_RENEGOTIATE )	// _WSASend() was called in SSL_WSAConnect_Reply() which in turn was called in DecryptRecv(). IO_ClientHandshakeResponse will handle the request. All of this is unlikely to happen.
+						{
+							content_status = CONTENT_STATUS_NONE;
 						}
 
 						// SEC_I_CONTEXT_EXPIRED may occur here.
@@ -5612,7 +5670,11 @@ wchar_t *ParseURLSettings( wchar_t *url_list, ADD_INFO *ai )
 					if ( param_value_start != NULL )
 					{
 						ai->ssl_version = ( unsigned char )_wcstoul( param_value_start, NULL, 10 );
-						if ( ai->ssl_version > 5 )
+						if ( g_can_use_tls_1_3 && ai->ssl_version >= 6 )
+						{
+							ai->ssl_version = 6;	// TLS 1.3
+						}
+						else if ( ai->ssl_version > 5 )
 						{
 							ai->ssl_version = 5;	// TLS 1.2
 						}

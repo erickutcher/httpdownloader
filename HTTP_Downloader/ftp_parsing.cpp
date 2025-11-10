@@ -1321,10 +1321,11 @@ char GetFTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, unsi
 				{
 					context->content_status = FTP_CONTENT_STATUS_SET_PBSZ;			// 200 if successful.
 
-					char shared_protocol = ( context->download_info != NULL ? context->download_info->ssl_version : 4 );
+					char shared_protocol = ( context->download_info != NULL ? context->download_info->ssl_version : ( g_can_use_tls_1_3 ? 5 : 4 ) );
 					DWORD protocol = 0;
 					switch ( shared_protocol )
 					{
+						case 5:	protocol |= SP_PROT_TLS1_3_CLIENT;
 						case 4:	protocol |= SP_PROT_TLS1_2_CLIENT;
 						case 3:	protocol |= SP_PROT_TLS1_1_CLIENT;
 						case 2:	protocol |= SP_PROT_TLS1_CLIENT;

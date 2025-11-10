@@ -1128,10 +1128,12 @@ RETRY_OPEN:
 								cfg_thread_count = 1;
 							}
 
-							if ( cfg_default_ssl_version > 4 ) { cfg_default_ssl_version = 4; }	// TLS 1.2.
+							if ( g_can_use_tls_1_3 && cfg_default_ssl_version >= 5 ) { cfg_default_ssl_version = 5; }	// TLS 1.3.
+							else if ( cfg_default_ssl_version > 4 ) { cfg_default_ssl_version = 4; }	// TLS 1.2.
 
 							if ( cfg_server_port == 0 ) { cfg_server_port = 1; }
-							if ( cfg_server_ssl_version > 4 ) { cfg_server_ssl_version = 4; } // TLS 1.2.
+							if ( g_can_use_tls_1_3 && cfg_server_ssl_version >= 5 ) { cfg_server_ssl_version = 5; } // TLS 1.3.
+							else if ( cfg_server_ssl_version > 4 ) { cfg_server_ssl_version = 4; } // TLS 1.2.
 							if ( cfg_authentication_type != AUTH_TYPE_BASIC && cfg_authentication_type != AUTH_TYPE_DIGEST ) { cfg_authentication_type = AUTH_TYPE_BASIC; }
 
 							if ( cfg_port == 0 ) { cfg_port = 1; }

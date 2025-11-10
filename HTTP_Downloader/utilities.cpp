@@ -429,18 +429,20 @@ bool kill_worker_thread_flag = false;	// Allow for a clean shutdown.
 
 bool g_download_history_changed = false;
 
-bool IsWindowsVersionOrGreater( WORD wMajorVersion, WORD wMinorVersion, WORD wServicePackMajor )
+bool IsWindowsVersionOrGreater( WORD wMajorVersion, WORD wMinorVersion, WORD wBuildNumber )
 {
 	OSVERSIONINFOEXW osvi;
 	_memzero( &osvi, sizeof( OSVERSIONINFOEXW ) );
 	osvi.dwOSVersionInfoSize = sizeof( OSVERSIONINFOEXW );
 	osvi.dwMajorVersion = wMajorVersion;
 	osvi.dwMinorVersion = wMinorVersion;
-	osvi.wServicePackMajor = wServicePackMajor;
+	osvi.dwBuildNumber = wBuildNumber;
 
-	DWORDLONG const dwlConditionMask = VerSetConditionMask( VerSetConditionMask( VerSetConditionMask( 0, VER_MAJORVERSION, VER_GREATER_EQUAL ), VER_MINORVERSION, VER_GREATER_EQUAL ), VER_SERVICEPACKMAJOR, VER_GREATER_EQUAL );
+	DWORDLONG dwlConditionMask = VerSetConditionMask( 0, VER_MAJORVERSION, VER_GREATER_EQUAL );
+			  dwlConditionMask = VerSetConditionMask( dwlConditionMask, VER_MINORVERSION, VER_GREATER_EQUAL );
+			  dwlConditionMask = VerSetConditionMask( dwlConditionMask, VER_BUILDNUMBER, VER_GREATER_EQUAL );
 
-	return VerifyVersionInfoW( &osvi, VER_MAJORVERSION | VER_MINORVERSION | VER_SERVICEPACKMAJOR, dwlConditionMask ) != FALSE;
+	return VerifyVersionInfoW( &osvi, VER_MAJORVERSION | VER_MINORVERSION | VER_BUILDNUMBER, dwlConditionMask ) != FALSE;
 }
 
 int dllrbt_compare_a( void *a, void *b )

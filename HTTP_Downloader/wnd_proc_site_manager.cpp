@@ -329,6 +329,7 @@ wchar_t *GetSiteInfoString( SITE_INFO *si, int column, int item_index, wchar_t *
 				case 3: { buf = ST_V_TLS_1_0; } break;
 				case 4: { buf = ST_V_TLS_1_1; } break;
 				case 5: { buf = ST_V_TLS_1_2; } break;
+				case 6: { buf = ST_V_TLS_1_3; } break;
 				default: { buf = L""; } break;
 			}
 		}
@@ -1563,6 +1564,10 @@ LRESULT CALLBACK SiteManagerWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 			_SendMessageW( g_hWnd_sm_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_V_TLS_1_0 );
 			_SendMessageW( g_hWnd_sm_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_V_TLS_1_1 );
 			_SendMessageW( g_hWnd_sm_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_V_TLS_1_2 );
+			if ( g_can_use_tls_1_3 )
+			{
+				_SendMessageW( g_hWnd_sm_ssl_version, CB_ADDSTRING, 0, ( LPARAM )ST_V_TLS_1_3 );
+			}
 
 			_SendMessageW( g_hWnd_sm_ssl_version, CB_SETCURSEL, 0, 0 );
 

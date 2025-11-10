@@ -35,7 +35,7 @@ pSslEmptyCacheW	_SslEmptyCacheW;
 unsigned char ssl_state = SSL_STATE_SHUTDOWN;
 
 CredHandle g_hCreds_server;
-CredHandle g_hCreds_client;
+CredHandle g_hCreds_client[ PROTOCOL_COUNT ];
 
 void ResetServerCredentials()
 {
@@ -49,15 +49,15 @@ void ResetServerCredentials()
 	}
 }
 
-void ResetClientCredentials()
+void ResetClientCredentials( unsigned char index )
 {
-	if ( SecIsValidHandle( &g_hCreds_client ) )
+	if ( SecIsValidHandle( &g_hCreds_client[ index ] ) )
 	{
 		if ( g_pSSPI != NULL )
 		{
-			g_pSSPI->FreeCredentialsHandle( &g_hCreds_client );
+			g_pSSPI->FreeCredentialsHandle( &g_hCreds_client[ index ] );
 		}
-		SecInvalidateHandle( &g_hCreds_client );
+		SecInvalidateHandle( &g_hCreds_client[ index ] );
 	}
 }
 
@@ -98,7 +98,10 @@ int SSL_library_init( void )
 	ssl_state = SSL_STATE_RUNNING;
 
 	SecInvalidateHandle( &g_hCreds_server );
-	SecInvalidateHandle( &g_hCreds_client );
+	for ( unsigned char index = 0; index < PROTOCOL_COUNT; ++index )
+	{
+		SecInvalidateHandle( &g_hCreds_client[ index ] );
+	}
 
 	return 1;
 }
@@ -110,7 +113,10 @@ int SSL_library_uninit( void )
 	if ( ssl_state != SSL_STATE_SHUTDOWN )
 	{
 		ResetServerCredentials();
-		ResetClientCredentials();
+		for ( unsigned char index = 0; index < PROTOCOL_COUNT; ++index )
+		{
+			ResetClientCredentials( index );
+		}
 
 		_SslEmptyCacheW( NULL, 0 );
 
@@ -124,7 +130,10 @@ int SSL_library_uninit( void )
 
 SSL *SSL_new( DWORD protocol, bool is_server )
 {
-	SCHANNEL_CRED SchannelCred;
+	SCH_CREDENTIALS sch_cred_new;
+	SCHANNEL_CRED sch_cred_old;
+	PVOID *SchannelCred = NULL;
+
 	TimeStamp tsExpiry;
 	SECURITY_STATUS scRet;
 
@@ -147,21 +156,44 @@ SSL *SSL_new( DWORD protocol, bool is_server )
 		{
 			if ( g_pCertContext != NULL )
 			{
-				_memzero( &SchannelCred, sizeof( SchannelCred ) );
+				if ( g_can_use_tls_1_3 )
+				{
+					_memzero( &sch_cred_new, sizeof( SCH_CREDENTIALS ) );
 
-				SchannelCred.dwVersion = SCHANNEL_CRED_VERSION;
-				SchannelCred.cCreds = 1;
-				SchannelCred.paCred = &g_pCertContext;
-				SchannelCred.dwMinimumCipherStrength = ( DWORD )-1;
-				SchannelCred.grbitEnabledProtocols = protocol;
-				SchannelCred.dwFlags = ( SCH_CRED_NO_SYSTEM_MAPPER | SCH_CRED_NO_DEFAULT_CREDS | SCH_CRED_REVOCATION_CHECK_CHAIN );
+					sch_cred_new.dwVersion = SCH_CREDENTIALS_VERSION;
+					sch_cred_new.cCreds = 1;
+					sch_cred_new.paCred = &g_pCertContext;
+					sch_cred_new.dwFlags = ( SCH_CRED_NO_SYSTEM_MAPPER | SCH_CRED_NO_DEFAULT_CREDS | SCH_CRED_REVOCATION_CHECK_CHAIN );
+					sch_cred_new.cTlsParameters = 1;
+
+					TLS_PARAMETERS tlsp;
+					_memzero( &tlsp, sizeof( TLS_PARAMETERS ) );
+					tlsp.grbitDisabledProtocols = ~protocol;
+
+					sch_cred_new.pTlsParameters = ( TLS_PARAMETERS * )&tlsp;
+
+					SchannelCred = ( PVOID * )&sch_cred_new;
+				}
+				else
+				{
+					_memzero( &sch_cred_old, sizeof( SCHANNEL_CRED ) );
+
+					sch_cred_old.dwVersion = SCHANNEL_CRED_VERSION;
+					sch_cred_old.cCreds = 1;
+					sch_cred_old.paCred = &g_pCertContext;
+					sch_cred_old.dwMinimumCipherStrength = ( DWORD )-1;
+					sch_cred_old.grbitEnabledProtocols = protocol;
+					sch_cred_old.dwFlags = ( SCH_CRED_NO_SYSTEM_MAPPER | SCH_CRED_NO_DEFAULT_CREDS | SCH_CRED_REVOCATION_CHECK_CHAIN );
+
+					SchannelCred = ( PVOID * )&sch_cred_old;
+				}
 
 				scRet = g_pSSPI->AcquireCredentialsHandleA(
 								NULL,
 								UNISP_NAME_A,
 								SECPKG_CRED_INBOUND,
 								NULL,
-								&SchannelCred,
+								SchannelCred,
 								NULL,
 								NULL,
 								&g_hCreds_server,
@@ -183,13 +215,41 @@ SSL *SSL_new( DWORD protocol, bool is_server )
 	}
 	else
 	{
-		if ( !SecIsValidHandle( &g_hCreds_client ) )
+		if		( protocol & SP_PROT_TLS1_3_CLIENT ) { ssl->protocol_index = 5; }
+		else if ( protocol & SP_PROT_TLS1_2_CLIENT ) { ssl->protocol_index = 4; }
+		else if ( protocol & SP_PROT_TLS1_1_CLIENT ) { ssl->protocol_index = 3; }
+		else if ( protocol & SP_PROT_TLS1_CLIENT ) { ssl->protocol_index = 2; }
+		else if ( protocol & SP_PROT_SSL3_CLIENT ) { ssl->protocol_index = 1; }
+		//else if ( protocol & SP_PROT_SSL2_CLIENT ) { ssl->protocol_index = 0; }
+		
+		if ( !SecIsValidHandle( &g_hCreds_client[ ssl->protocol_index ] ) )
 		{
-			_memzero( &SchannelCred, sizeof( SchannelCred ) );
+			if ( g_can_use_tls_1_3 )
+			{
+				_memzero( &sch_cred_new, sizeof( SCH_CREDENTIALS ) );
 
-			SchannelCred.dwVersion = SCHANNEL_CRED_VERSION;
-			SchannelCred.grbitEnabledProtocols = protocol;
-			SchannelCred.dwFlags = ( SCH_CRED_NO_DEFAULT_CREDS | SCH_CRED_MANUAL_CRED_VALIDATION );
+				sch_cred_new.dwVersion = SCH_CREDENTIALS_VERSION;
+				sch_cred_new.dwFlags = ( SCH_CRED_NO_DEFAULT_CREDS | SCH_CRED_MANUAL_CRED_VALIDATION );
+				sch_cred_new.cTlsParameters = 1;
+
+				TLS_PARAMETERS tlsp;
+				_memzero( &tlsp, sizeof( TLS_PARAMETERS ) );
+				tlsp.grbitDisabledProtocols = ~protocol;
+
+				sch_cred_new.pTlsParameters = ( TLS_PARAMETERS * )&tlsp;
+
+				SchannelCred = ( PVOID * )&sch_cred_new;
+			}
+			else
+			{
+				_memzero( &sch_cred_old, sizeof( SCHANNEL_CRED ) );
+
+				sch_cred_old.dwVersion = SCHANNEL_CRED_VERSION;
+				sch_cred_old.grbitEnabledProtocols = protocol;
+				sch_cred_old.dwFlags = ( SCH_CRED_NO_DEFAULT_CREDS | SCH_CRED_MANUAL_CRED_VALIDATION );
+
+				SchannelCred = ( PVOID * )&sch_cred_old;
+			}
 
 			// Create an SSPI credential.
 			scRet = g_pSSPI->AcquireCredentialsHandleA(
@@ -197,15 +257,15 @@ SSL *SSL_new( DWORD protocol, bool is_server )
 							UNISP_NAME_A,
 							SECPKG_CRED_OUTBOUND,
 							NULL,
-							&SchannelCred,
+							SchannelCred,
 							NULL,
 							NULL,
-							&g_hCreds_client,
+							&g_hCreds_client[ ssl->protocol_index ],
 							&tsExpiry );
 
 			if ( scRet != SEC_E_OK )
 			{
-				ResetClientCredentials();
+				ResetClientCredentials( ssl->protocol_index );
 
 				GlobalFree( ssl ); 
 				ssl = NULL;
@@ -648,7 +708,7 @@ SECURITY_STATUS SSL_WSAConnect( SOCKET_CONTEXT *context, OVERLAPPEDEX *overlappe
 		_getpeername( ssl->s, ( struct sockaddr * ) &sock, &slen );*/
 
 		scRet = g_pSSPI->InitializeSecurityContextA(
-						&g_hCreds_client,
+						&g_hCreds_client[ ssl->protocol_index ],
 						NULL,
 						host/*_inet_ntoa( sock.sin_addr )*/,
 						dwSSPIFlags,
@@ -809,6 +869,10 @@ SECURITY_STATUS SSL_WSAConnect_Response( SOCKET_CONTEXT *context, OVERLAPPEDEX *
 			{
 				_memmove( ssl->pbIoBuffer, ssl->pbIoBuffer + ( ssl->cbIoBuffer - ssl->acd.InBuffers[ 1 ].cbBuffer ), ssl->acd.InBuffers[ 1 ].cbBuffer );
 				ssl->cbIoBuffer = ssl->acd.InBuffers[ 1 ].cbBuffer;
+
+				ssl->acd.scRet = SEC_I_RENEGOTIATE;	// InitializeSecurityContext will reset this value inside SSL_WSAConnect_Reply().
+
+				scRet = SSL_WSAConnect_Reply( context, overlapped, sent );
 			}
 			else
 			{
@@ -860,8 +924,13 @@ SECURITY_STATUS SSL_WSAConnect_Reply( SOCKET_CONTEXT *context, OVERLAPPEDEX *ove
 					  ISC_REQ_ALLOCATE_MEMORY   |
 					  ISC_REQ_STREAM;
 
-
-		if ( scRet == SEC_I_CONTINUE_NEEDED || scRet == SEC_E_INCOMPLETE_MESSAGE || scRet == SEC_I_INCOMPLETE_CREDENTIALS )
+		// SEC_I_RENEGOTIATE is not a return value of InitializeSecurityContext(),
+		// but DecryptMessage() might return it and we'll need to perform the handshake again.
+		// DecryptMessage() will return a SEC_I_RENEGOTIATE for TLS 1.3 connections.
+		if ( scRet == SEC_I_CONTINUE_NEEDED ||
+			 scRet == SEC_E_INCOMPLETE_MESSAGE ||
+			 scRet == SEC_I_INCOMPLETE_CREDENTIALS ||
+			 scRet == SEC_I_RENEGOTIATE )
 		{
 			// Set up the input buffers. Buffer 0 is used to pass in data
 			// received from the server. Schannel will consume some or all
@@ -893,7 +962,7 @@ SECURITY_STATUS SSL_WSAConnect_Reply( SOCKET_CONTEXT *context, OVERLAPPEDEX *ove
 			OutBuffer.ulVersion = SECBUFFER_VERSION;
 
 			ssl->acd.scRet = g_pSSPI->InitializeSecurityContextA(
-							&g_hCreds_client,
+							&g_hCreds_client[ ssl->protocol_index ],
 							&ssl->hContext,
 							NULL,
 							dwSSPIFlags,
@@ -1050,7 +1119,7 @@ SECURITY_STATUS SSL_WSAShutdown( SOCKET_CONTEXT *context, OVERLAPPEDEX *overlapp
 					  ASC_REQ_STREAM;
 
 		scRet = g_pSSPI->AcceptSecurityContext(
-						( ssl->is_server ? &g_hCreds_server : &g_hCreds_client ),
+						( ssl->is_server ? &g_hCreds_server : &g_hCreds_client[ ssl->protocol_index ] ),
 						&ssl->hContext,
 						NULL,
 						dwSSPIFlags,

@@ -105,6 +105,7 @@ dllrbt_tree *g_category_info = NULL;
 bool g_can_fast_allocate = false;
 
 bool g_is_windows_8_or_higher = false;
+bool g_can_use_tls_1_3 = false;
 
 bool g_can_perform_shutdown_action = false;
 bool g_perform_shutdown_action = false;
@@ -231,6 +232,8 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 
 	g_is_windows_8_or_higher = IsWindowsVersionOrGreater( HIBYTE( _WIN32_WINNT_WIN8 ), LOBYTE( _WIN32_WINNT_WIN8 ), 0 );
 
+	g_can_use_tls_1_3 = IsWindowsVersionOrGreater( HIBYTE( _WIN32_WINNT_WIN_SERVER_2022 ), LOBYTE( _WIN32_WINNT_WIN_SERVER_2022 ), _WIN32_WINNT_WIN_SERVER_2022_BUILD );
+
 	unsigned char fail_type = 0;
 
 	CL_ARGS *cla = NULL;
@@ -331,7 +334,11 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 					++arg;
 
 					unsigned char version = ( unsigned char )_wcstoul( szArgList[ arg ], NULL, 10 );
-					if ( version > 5 )
+					if ( g_can_use_tls_1_3 && version >= 6 )
+					{
+						version = 6;	// TLS 1.3
+					}
+					else if ( version > 5 )
 					{
 						version = 5;	// TLS 1.2
 					}

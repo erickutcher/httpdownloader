@@ -1348,6 +1348,7 @@ wchar_t *GetDownloadInfoString( DOWNLOAD_INFO *di, int column, int root_index, i
 					case 2: { buf = ST_V_TLS_1_0; } break;
 					case 3: { buf = ST_V_TLS_1_1; } break;
 					case 4: { buf = ST_V_TLS_1_2; } break;
+					case 5: { buf = ST_V_TLS_1_3; } break;
 					default: { buf = L""; } break;
 				}
 			}
