@@ -323,7 +323,46 @@ bool DisplayClipboardData()
 
 				if ( offset != 0 )
 				{
-					_SendMessageW( g_hWnd_edit_add, EM_REPLACESEL, 0, ( LPARAM )data );
+					wchar_t *buf = NULL;
+					SIZE_T data_size = GlobalSize( cbh );	// Includes NULL terminator.
+					if ( data_size > 0 )
+					{
+						data_size = ( data_size - sizeof( wchar_t ) ) / sizeof( wchar_t );
+
+						wchar_t *pstr = data;
+						buf = ( wchar_t * )GlobalAlloc( GMEM_FIXED, ( sizeof( wchar_t ) * ( data_size * 2 ) ) + sizeof( wchar_t ) );
+						wchar_t *pbuf = buf;
+
+						if ( pbuf != NULL )
+						{
+							while ( pstr < ( data + data_size ) )
+							{
+								if ( *pstr == L'\r' && *( pstr + 1 ) == L'\n' )
+								{
+									*pbuf++ = *pstr++;
+								}
+								else if ( *pstr == L'\n' )
+								{
+									*pbuf++ = L'\r';
+								}
+
+								*pbuf++ = *pstr++;
+							}
+
+							*pbuf = L'\0';
+						}
+					}
+
+					if ( buf != NULL )
+					{
+						_SendMessageW( g_hWnd_edit_add, EM_REPLACESEL, 0, ( LPARAM )buf );
+
+						GlobalFree( buf );
+					}
+					else
+					{
+						_SendMessageW( g_hWnd_edit_add, EM_REPLACESEL, 0, ( LPARAM )data );
+					}
 
 					// Append a newline after our pasted text.
 					_SendMessageW( g_hWnd_edit_add, EM_REPLACESEL, 0, ( LPARAM )L"\r\n" );
@@ -524,6 +563,15 @@ LRESULT CALLBACK URLSubProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
 						return 0;
 					}
 				}
+			}
+		}
+		break;
+
+		case WM_PASTE:
+		{
+			if ( DisplayClipboardData() )
+			{
+				return 0;
 			}
 		}
 		break;

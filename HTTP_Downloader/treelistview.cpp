@@ -6922,7 +6922,7 @@ LRESULT CALLBACK TreeListViewWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 
 					if ( index != -1 )
 					{
-						*download_columns_width[ index ] = nmh->pitem->cxy;
+						*download_columns_width[ index ] = _UNSCALE_( nmh->pitem->cxy, dpi_tlv );
 					}
 				}
 				break;

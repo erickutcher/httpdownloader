@@ -34,24 +34,6 @@
 #include "categories.h"
 #include "treelistview.h"
 
-wchar_t *UTF8StringToWideString( char *utf8_string, int string_length )
-{
-	int wide_val_length = MultiByteToWideChar( CP_UTF8, 0, utf8_string, string_length, NULL, 0 );	// Include the NULL terminator.
-	wchar_t *wide_val = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * wide_val_length );
-	MultiByteToWideChar( CP_UTF8, 0, utf8_string, string_length, wide_val, wide_val_length );
-
-	return wide_val;
-}
-
-char *WideStringToUTF8String( wchar_t *wide_string, int *utf8_string_length, int buffer_offset )
-{
-	*utf8_string_length = WideCharToMultiByte( CP_UTF8, 0, wide_string, -1, NULL, 0, NULL, NULL ) + buffer_offset;
-	char *utf8_val = ( char * )GlobalAlloc( GPTR, sizeof( char ) * *utf8_string_length ); // Size includes the NULL character.
-	*utf8_string_length = WideCharToMultiByte( CP_UTF8, 0, wide_string, -1, utf8_val + buffer_offset, *utf8_string_length - buffer_offset, NULL, NULL );
-
-	return utf8_val;
-}
-
 char read_config()
 {
 	char ret_status = 0;
@@ -678,7 +660,7 @@ RETRY_OPEN:
 										// string_length does not contain the NULL character of the string.
 										char *proxy_auth_username = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( string_length + 1 ) );
 										_memcpy_s( proxy_auth_username, string_length, next, string_length );
-										proxy_auth_username[ string_length ] = 0; // Sanity;
+										proxy_auth_username[ string_length ] = 0; // Sanity.
 
 										decode_cipher( proxy_auth_username, string_length );
 
@@ -709,7 +691,7 @@ RETRY_OPEN:
 										// string_length does not contain the NULL character of the string.
 										char *proxy_auth_password = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( string_length + 1 ) );
 										_memcpy_s( proxy_auth_password, string_length, next, string_length );
-										proxy_auth_password[ string_length ] = 0; // Sanity;
+										proxy_auth_password[ string_length ] = 0; // Sanity.
 
 										decode_cipher( proxy_auth_password, string_length );
 
@@ -751,7 +733,7 @@ RETRY_OPEN:
 										// string_length does not contain the NULL character of the string.
 										char *proxy_auth_username_s = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( string_length + 1 ) );
 										_memcpy_s( proxy_auth_username_s, string_length, next, string_length );
-										proxy_auth_username_s[ string_length ] = 0; // Sanity;
+										proxy_auth_username_s[ string_length ] = 0; // Sanity.
 
 										decode_cipher( proxy_auth_username_s, string_length );
 
@@ -782,7 +764,7 @@ RETRY_OPEN:
 										// string_length does not contain the NULL character of the string.
 										char *proxy_auth_password_s = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( string_length + 1 ) );
 										_memcpy_s( proxy_auth_password_s, string_length, next, string_length );
-										proxy_auth_password_s[ string_length ] = 0; // Sanity;
+										proxy_auth_password_s[ string_length ] = 0; // Sanity.
 
 										decode_cipher( proxy_auth_password_s, string_length );
 
@@ -824,7 +806,7 @@ RETRY_OPEN:
 										// string_length does not contain the NULL character of the string.
 										char *proxy_auth_ident_username_socks = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( string_length + 1 ) );
 										_memcpy_s( proxy_auth_ident_username_socks, string_length, next, string_length );
-										proxy_auth_ident_username_socks[ string_length ] = 0; // Sanity;
+										proxy_auth_ident_username_socks[ string_length ] = 0; // Sanity.
 
 										decode_cipher( proxy_auth_ident_username_socks, string_length );
 
@@ -855,7 +837,7 @@ RETRY_OPEN:
 										// string_length does not contain the NULL character of the string.
 										char *proxy_auth_username_socks = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( string_length + 1 ) );
 										_memcpy_s( proxy_auth_username_socks, string_length, next, string_length );
-										proxy_auth_username_socks[ string_length ] = 0; // Sanity;
+										proxy_auth_username_socks[ string_length ] = 0; // Sanity.
 
 										decode_cipher( proxy_auth_username_socks, string_length );
 
@@ -886,7 +868,7 @@ RETRY_OPEN:
 										// string_length does not contain the NULL character of the string.
 										char *proxy_auth_password_socks = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( string_length + 1 ) );
 										_memcpy_s( proxy_auth_password_socks, string_length, next, string_length );
-										proxy_auth_password_socks[ string_length ] = 0; // Sanity;
+										proxy_auth_password_socks[ string_length ] = 0; // Sanity.
 
 										decode_cipher( proxy_auth_password_socks, string_length );
 
@@ -928,7 +910,7 @@ RETRY_OPEN:
 										// string_length does not contain the NULL character of the string.
 										char *authentication_username = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( string_length + 1 ) );
 										_memcpy_s( authentication_username, string_length, next, string_length );
-										authentication_username[ string_length ] = 0; // Sanity;
+										authentication_username[ string_length ] = 0; // Sanity.
 
 										decode_cipher( authentication_username, string_length );
 
@@ -959,7 +941,7 @@ RETRY_OPEN:
 										// string_length does not contain the NULL character of the string.
 										char *authentication_password = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( string_length + 1 ) );
 										_memcpy_s( authentication_password, string_length, next, string_length );
-										authentication_password[ string_length ] = 0; // Sanity;
+										authentication_password[ string_length ] = 0; // Sanity.
 
 										decode_cipher( authentication_password, string_length );
 
@@ -988,16 +970,14 @@ RETRY_OPEN:
 									if ( ( ( DWORD )( next - cfg_buf ) + string_length < read ) )
 									{
 										// string_length does not contain the NULL character of the string.
-										char *certificate_password = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( string_length + 1 ) );
-										_memcpy_s( certificate_password, string_length, next, string_length );
-										certificate_password[ string_length ] = 0; // Sanity;
+										g_certificate_pkcs_password = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( string_length + 1 ) );
+										_memcpy_s( g_certificate_pkcs_password, string_length, next, string_length );
+										g_certificate_pkcs_password[ string_length ] = 0; // Sanity.
 
-										decode_cipher( certificate_password, string_length );
+										decode_cipher( g_certificate_pkcs_password, string_length );
 
 										// Read password.
-										cfg_certificate_pkcs_password = UTF8StringToWideString( certificate_password, string_length + 1 );
-
-										GlobalFree( certificate_password );
+										cfg_certificate_pkcs_password = UTF8StringToWideString( g_certificate_pkcs_password, string_length + 1 );
 
 										next += string_length;
 									}
@@ -1014,6 +994,10 @@ RETRY_OPEN:
 
 								cfg_certificate_pkcs_file_name = UTF8StringToWideString( next, string_length );
 
+								g_certificate_pkcs_file_name = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * string_length );
+								_memcpy_s( g_certificate_pkcs_file_name, string_length, next, string_length );
+								g_certificate_pkcs_file_name[ string_length - 1 ] = 0; // Sanity.
+
 								next += string_length;
 							}
 
@@ -1023,6 +1007,10 @@ RETRY_OPEN:
 
 								cfg_certificate_cer_file_name = UTF8StringToWideString( next, string_length );
 
+								g_certificate_cer_file_name = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * string_length );
+								_memcpy_s( g_certificate_cer_file_name, string_length, next, string_length );
+								g_certificate_cer_file_name[ string_length - 1 ] = 0; // Sanity.
+
 								next += string_length;
 							}
 
@@ -1031,6 +1019,10 @@ RETRY_OPEN:
 								string_length = lstrlenA( next ) + 1;
 
 								cfg_certificate_key_file_name = UTF8StringToWideString( next, string_length );
+
+								g_certificate_key_file_name = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * string_length );
+								_memcpy_s( g_certificate_key_file_name, string_length, next, string_length );
+								g_certificate_key_file_name[ string_length - 1 ] = 0; // Sanity.
 
 								next += string_length;
 							}
@@ -3127,6 +3119,8 @@ RETRY_OPEN:
 										di->parts_limit = parts_limit;
 										SetStatus( di, status );
 										di->code = code;
+										if ( g_can_use_tls_1_3 && ssl_version >= 5 ) { ssl_version = 5; }	// TLS 1.3.
+										else if ( ssl_version > 4 ) { ssl_version = 4; }	// TLS 1.2.
 										di->ssl_version = ssl_version;
 										di->processed_header = processed_header;
 										di->method = method;

@@ -975,6 +975,14 @@
 				>
 			</File>
 			<File
+				RelativePath=".\lite_libcrypto.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\lite_libssl.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\lite_normaliz.cpp"
 				>
 			</File>
@@ -1043,7 +1051,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\ssl.cpp"
+				RelativePath=".\ssl_openssl.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\ssl_schannel.cpp"
 				>
 			</File>
 			<File
@@ -1461,6 +1473,14 @@
 				>
 			</File>
 			<File
+				RelativePath=".\lite_libcrypto.h"
+				>
+			</File>
+			<File
+				RelativePath=".\lite_libssl.h"
+				>
+			</File>
+			<File
 				RelativePath=".\lite_normaliz.h"
 				>
 			</File>
@@ -1537,7 +1557,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\ssl.h"
+				RelativePath=".\ssl_openssl.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ssl_schannel.h"
 				>
 			</File>
 			<File

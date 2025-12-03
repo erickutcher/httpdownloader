@@ -593,7 +593,7 @@ DWORD WINAPI Timeout( LPVOID /*WorkThreadContext*/ )
 										context->cleanup = 2;	// Force the cleanup.
 
 										InterlockedIncrement( &context->pending_operations );
-										context->overlapped_close.current_operation = ( context->ssl != NULL ? IO_Shutdown : IO_Close );
+										context->overlapped_close.current_operation = ( context->_ssl_s != NULL || context->_ssl_o != NULL ? IO_Shutdown : IO_Close );
 										PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped_close );
 									}
 								}
@@ -622,13 +622,20 @@ void InitializeServerInfo()
 {
 	if ( cfg_server_enable_ssl )
 	{
-		if ( cfg_certificate_type == 1 )	// Public/Private Key Pair.
+		if ( g_use_openssl )
 		{
-			g_pCertContext = LoadPublicPrivateKeyPair( cfg_certificate_cer_file_name, cfg_certificate_key_file_name );
+			InitializeServerSSL_CTX( cfg_server_ssl_version, cfg_certificate_type );
 		}
-		else	// PKCS #12 File.
+		else
 		{
-			g_pCertContext = LoadPKCS12( cfg_certificate_pkcs_file_name, cfg_certificate_pkcs_password );
+			if ( cfg_certificate_type == 1 )	// Public/Private Key Pair.
+			{
+				g_pCertContext = LoadPublicPrivateKeyPair( cfg_certificate_cer_file_name, cfg_certificate_key_file_name );
+			}
+			else	// PKCS #12 File.
+			{
+				g_pCertContext = LoadPKCS12( cfg_certificate_pkcs_file_name, cfg_certificate_pkcs_password );
+			}
 		}
 	}
 
@@ -728,10 +735,21 @@ void CleanupServerInfo()
 
 	if ( cfg_server_enable_ssl )
 	{
-		if ( g_pCertContext != NULL )
+		if ( g_use_openssl )
 		{
-			_CertFreeCertificateContext( g_pCertContext );
-			g_pCertContext = NULL;
+			if ( g_server_ssl_ctx != NULL )
+			{
+				_SSL_CTX_free( g_server_ssl_ctx );
+				g_server_ssl_ctx = NULL;
+			}
+		}
+		else
+		{
+			if ( g_pCertContext != NULL )
+			{
+				_CertFreeCertificateContext( g_pCertContext );
+				g_pCertContext = NULL;
+			}
 		}
 	}
 }
@@ -802,10 +820,15 @@ THREAD_RETURN IOCPDownloader( void * /*pArguments*/ )
 	// Load our SSL functions.
 	if ( ssl_state == SSL_STATE_SHUTDOWN )
 	{
-		if ( SSL_library_init() == 0 )
+		if ( __SSL_library_init() == 0 )
 		{
 			goto HARD_CLEANUP;
 		}
+	}
+
+	if ( g_use_openssl )
+	{
+		InitializeSSL_CTXs();
 	}
 
 	if ( cfg_enable_server )
@@ -863,9 +886,9 @@ THREAD_RETURN IOCPDownloader( void * /*pArguments*/ )
 		StartServer();
 	}
 
-	if ( downloader_ready_semaphore != NULL )
+	if ( g_downloader_ready_semaphore != NULL )
 	{
-		ReleaseSemaphore( downloader_ready_semaphore, 1, NULL );
+		ReleaseSemaphore( g_downloader_ready_semaphore, 1, NULL );
 	}
 
 	g_timeout_semaphore = CreateSemaphore( NULL, 0, 1, NULL );
@@ -929,6 +952,11 @@ THREAD_RETURN IOCPDownloader( void * /*pArguments*/ )
 	// Clean up our context list.
 	FreeContexts();
 
+	if ( g_use_openssl )
+	{
+		FreeSSL_CTXs();
+	}
+
 	download_queue = NULL;
 	g_total_downloading = 0;
 
@@ -954,9 +982,9 @@ CLEANUP:
 
 HARD_CLEANUP:
 
-	if ( downloader_ready_semaphore != NULL )
+	if ( g_downloader_ready_semaphore != NULL )
 	{
-		ReleaseSemaphore( downloader_ready_semaphore, 1, NULL );
+		ReleaseSemaphore( g_downloader_ready_semaphore, 1, NULL );
 	}
 
 #ifdef ENABLE_LOGGING
@@ -965,6 +993,24 @@ HARD_CLEANUP:
 
 	_ExitThread( 0 );
 	//return 0;
+}
+
+void StopIOCPDownloader()
+{
+	if ( ws2_32_state == WS2_32_STATE_RUNNING )
+	{
+		if ( g_downloader_ready_semaphore == NULL )
+		{
+			g_downloader_ready_semaphore = CreateSemaphore( NULL, 0, 1, NULL );
+		}
+
+		_WSASetEvent( g_cleanup_event[ 0 ] );
+
+		// Wait for IOCPDownloader to clean up. 10 second timeout in case we miss the release.
+		WaitForSingleObject( g_downloader_ready_semaphore, 10000 );
+		CloseHandle( g_downloader_ready_semaphore );
+		g_downloader_ready_semaphore = NULL;
+	}
 }
 
 bool LoadConnectEx()
@@ -1006,32 +1052,73 @@ SOCKET_CONTEXT *UpdateCompletionPort( SOCKET socket, bool use_ssl, unsigned char
 		if ( use_ssl )
 		{
 			DWORD protocol = 0;
-			switch ( ssl_version )
+
+			if ( g_use_openssl )
 			{
-				case 5:	protocol |= SP_PROT_TLS1_3;
-				case 4:	protocol |= SP_PROT_TLS1_2;
-				case 3:	protocol |= SP_PROT_TLS1_1;
-				case 2:	protocol |= SP_PROT_TLS1;
-				case 1:	protocol |= SP_PROT_SSL3;
-				case 0:	{ if ( ssl_version < 4 ) { protocol |= SP_PROT_SSL2; } }
-			}
+				bool success = false;
 
-			SSL *ssl = SSL_new( protocol, is_server );
-			if ( ssl == NULL )
+				_SSL_O *_ssl_o = ( _SSL_O * )GlobalAlloc( GPTR, sizeof( _SSL_O ) );
+				if ( _ssl_o != NULL )
+				{
+					context->_ssl_o = _ssl_o;
+
+					context->_ssl_o->ssl = _SSL_new( ( is_server ? g_server_ssl_ctx : g_client_ssl_ctx[ ssl_version ] ) );
+					if ( context->_ssl_o->ssl != NULL )
+					{
+						context->_ssl_o->rbio = _BIO_new( _BIO_s_mem() );
+						context->_ssl_o->wbio = _BIO_new( _BIO_s_mem() );
+
+						if ( context->_ssl_o->rbio != NULL && context->_ssl_o->wbio != NULL )
+						{
+							_SSL_set_bio( context->_ssl_o->ssl, context->_ssl_o->rbio, context->_ssl_o->wbio );
+
+							success = true;
+						}
+						else
+						{
+							_BIO_free( context->_ssl_o->rbio );
+							_BIO_free( context->_ssl_o->wbio );
+
+							context->_ssl_o->rbio = NULL;
+							context->_ssl_o->wbio = NULL;
+						}
+					}
+				}
+
+				if ( !success )
+				{
+					OpenSSL_FreeInfo( &context->_ssl_o );
+				}
+			}
+			else
 			{
-				DeleteCriticalSection( &context->context_cs );
+				switch ( ssl_version )
+				{
+					case 5:	protocol |= SP_PROT_TLS1_3;
+					case 4:	protocol |= SP_PROT_TLS1_2;
+					case 3:	protocol |= SP_PROT_TLS1_1;
+					case 2:	protocol |= SP_PROT_TLS1;
+					case 1:	protocol |= SP_PROT_SSL3;
+					case 0:	{ if ( ssl_version < 4 ) { protocol |= SP_PROT_SSL2; } }
+				}
 
-				if ( context->buffer != NULL ) { GlobalFree( context->buffer ); }
+				_SSL_S *_ssl_s = __SSL_new( protocol, is_server );
+				if ( _ssl_s == NULL )
+				{
+					DeleteCriticalSection( &context->context_cs );
 
-				GlobalFree( context );
-				context = NULL;
+					if ( context->buffer != NULL ) { GlobalFree( context->buffer ); }
 
-				return NULL;
+					GlobalFree( context );
+					context = NULL;
+
+					return NULL;
+				}
+
+				_ssl_s->s = socket;
+
+				context->_ssl_s = _ssl_s;
 			}
-
-			ssl->s = socket;
-
-			context->ssl = ssl;
 		}
 
 		g_hIOCP = CreateIoCompletionPort( ( HANDLE )socket, g_hIOCP, ( DWORD_PTR )context, 0 );
@@ -1054,7 +1141,9 @@ SOCKET_CONTEXT *UpdateCompletionPort( SOCKET socket, bool use_ssl, unsigned char
 		}
 		else
 		{
-			if ( context->ssl != NULL ) { SSL_free( context->ssl ); }
+			if ( context->_ssl_s != NULL ) { __SSL_free( context->_ssl_s ); }
+
+			OpenSSL_FreeInfo( &context->_ssl_o );
 
 			DeleteCriticalSection( &context->context_cs );
 
@@ -1267,118 +1356,6 @@ SOCKET CreateSocket( bool IPv6 )
 	return socket;
 }
 
-SECURITY_STATUS DecryptRecv( SOCKET_CONTEXT *context, DWORD &io_size )
-{
-	SECURITY_STATUS scRet = SEC_E_INTERNAL_ERROR;
-
-	WSABUF wsa_decrypt;
-
-	DWORD bytes_decrypted = 0;
-
-	if ( context->ssl->rd.scRet == SEC_E_INCOMPLETE_MESSAGE )
-	{
-		context->ssl->cbIoBuffer += io_size;
-	}
-	else
-	{
-		context->ssl->cbIoBuffer = io_size;
-	}
-
-	io_size = 0;
-	
-	context->ssl->continue_decrypt = false;
-
-	wsa_decrypt = context->wsabuf;
-
-	// Decrypt our buffer.
-	while ( context->ssl->pbIoBuffer != NULL /*&& context->ssl->cbIoBuffer > 0*/ )
-	{
-		scRet = SSL_WSARecv_Decrypt( context->ssl, &wsa_decrypt, bytes_decrypted );
-
-		io_size += bytes_decrypted;
-
-		wsa_decrypt.buf += bytes_decrypted;
-		wsa_decrypt.len -= bytes_decrypted;
-
-		switch ( scRet )
-		{
-			// We've successfully decrypted a portion of the buffer.
-			case SEC_E_OK:
-			{
-				// Decrypt more records if there are any.
-				continue;
-			}
-			break;
-
-			// The message was decrypted, but not all of it was copied to our wsabuf.
-			// There may be incomplete records left to decrypt. DecryptRecv must be called again after processing wsabuf.
-			case SEC_I_CONTINUE_NEEDED:
-			{
-				context->ssl->continue_decrypt = true;
-
-				return scRet;
-			}
-			break;
-
-			case SEC_E_INCOMPLETE_MESSAGE:	// The message was incomplete. Request more data from the server.
-			{
-				return scRet;
-			}
-			break;
-
-			case SEC_I_RENEGOTIATE:			// Client wants us to perform another handshake.
-			{
-				bool sent = false;
-
-				context->ssl->acd.scRet = SEC_I_RENEGOTIATE; // InitializeSecurityContext will reset this value inside SSL_WSAConnect_Reply().
-				
-				// If we end up handling IO_ClientHandshakeResponse and get an SEC_E_OK, then this will allow us to continue our IO_GetContent routine.
-				context->ssl->acd.fRenegotiate = true;
-
-				InterlockedIncrement( &context->pending_operations );
-
-				IO_OPERATION last_current_operation = context->overlapped.current_operation;
-				IO_OPERATION last_next_operation = context->overlapped.next_operation;
-
-				context->overlapped.current_operation = IO_ClientHandshakeResponse;
-				context->overlapped.next_operation = IO_ClientHandshakeResponse;
-
-				scRet = SSL_WSAConnect_Reply( context, &context->overlapped, sent );
-
-				if ( !sent )
-				{
-					context->ssl->acd.fRenegotiate = false;	// Reset.
-
-					InterlockedDecrement( &context->pending_operations );
-
-					context->overlapped.current_operation = last_current_operation;
-					context->overlapped.next_operation = last_next_operation;
-
-					scRet = SEC_E_INTERNAL_ERROR;	// Reset.
-				}
-				else	// This shouldn't happen, but we'll handle it if it does. SSL_WSAConnect_Reply() will have performed a _WSASend().
-				{
-					return SEC_I_RENEGOTIATE;
-				}
-			}
-			break;
-
-			//case SEC_I_CONTEXT_EXPIRED:
-			default:
-			{
-				context->ssl->cbIoBuffer = 0;
-
-				return scRet;
-			}
-			break;
-		}
-	}
-
-	context->ssl->cbIoBuffer = 0;
-
-	return scRet;
-}
-
 THREAD_RETURN PromptRenameFile( void *pArguments )
 {
 	unsigned char rename_only = ( unsigned char )pArguments;
@@ -1478,7 +1455,7 @@ THREAD_RETURN PromptRenameFile( void *pArguments )
 							context->cleanup = 1;	// Auto cleanup.
 
 							InterlockedIncrement( &context->pending_operations );
-							context->overlapped_close.current_operation = ( context->ssl != NULL ? IO_Shutdown : IO_Close );
+							context->overlapped_close.current_operation = ( context->_ssl_s != NULL || context->_ssl_o != NULL ? IO_Shutdown : IO_Close );
 							PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped_close );
 						}
 					}
@@ -1514,7 +1491,7 @@ THREAD_RETURN PromptRenameFile( void *pArguments )
 						context->cleanup = 1;	// Auto cleanup.
 
 						InterlockedIncrement( &context->pending_operations );
-						context->overlapped_close.current_operation = ( context->ssl != NULL ? IO_Shutdown : IO_Close );
+						context->overlapped_close.current_operation = ( context->_ssl_s != NULL || context->_ssl_o != NULL ? IO_Shutdown : IO_Close );
 						PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped_close );
 					}
 				}
@@ -1544,7 +1521,7 @@ THREAD_RETURN PromptRenameFile( void *pArguments )
 					context->cleanup = 1;	// Auto cleanup.
 
 					InterlockedIncrement( &context->pending_operations );
-					context->overlapped_close.current_operation = ( context->ssl != NULL ? IO_Shutdown : IO_Close );
+					context->overlapped_close.current_operation = ( context->_ssl_s != NULL || context->_ssl_o != NULL ? IO_Shutdown : IO_Close );
 					PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped_close );
 				}
 			}
@@ -1645,7 +1622,7 @@ THREAD_RETURN PromptFileSize( void * /*pArguments*/ )
 						else
 						{
 							context->cleanup = 1;	// Auto cleanup.
-							context->overlapped_close.current_operation = ( context->ssl != NULL ? IO_Shutdown : IO_Close );
+							context->overlapped_close.current_operation = ( context->_ssl_s != NULL || context->_ssl_o != NULL ? IO_Shutdown : IO_Close );
 							PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped_close );
 						}
 					}
@@ -1686,7 +1663,7 @@ THREAD_RETURN PromptFileSize( void * /*pArguments*/ )
 					else
 					{
 						context->cleanup = 1;	// Auto cleanup.
-						context->overlapped_close.current_operation = ( context->ssl != NULL ? IO_Shutdown : IO_Close );
+						context->overlapped_close.current_operation = ( context->_ssl_s != NULL || context->_ssl_o != NULL ? IO_Shutdown : IO_Close );
 						PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped_close );
 					}
 				}
@@ -1820,7 +1797,7 @@ MOD_RESTART:
 							else
 							{
 								context->cleanup = 1;	// Auto cleanup.
-								context->overlapped_close.current_operation = ( context->ssl != NULL ? IO_Shutdown : IO_Close );
+								context->overlapped_close.current_operation = ( context->_ssl_s != NULL || context->_ssl_o != NULL ? IO_Shutdown : IO_Close );
 								PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped_close );
 							}
 						}
@@ -1857,7 +1834,7 @@ MOD_SKIP:
 							else
 							{
 								context->cleanup = 1;	// Auto cleanup.
-								context->overlapped_close.current_operation = ( context->ssl != NULL ? IO_Shutdown : IO_Close );
+								context->overlapped_close.current_operation = ( context->_ssl_s != NULL || context->_ssl_o != NULL ? IO_Shutdown : IO_Close );
 								PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped_close );
 							}
 						}
@@ -1912,7 +1889,7 @@ MOD_CONTINUE:
 					else
 					{
 						context->cleanup = 1;	// Auto cleanup.
-						context->overlapped_close.current_operation = ( context->ssl != NULL ? IO_Shutdown : IO_Close );
+						context->overlapped_close.current_operation = ( context->_ssl_s != NULL || context->_ssl_o != NULL ? IO_Shutdown : IO_Close );
 						PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped_close );
 					}
 				}
@@ -1979,7 +1956,7 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 
 		InterlockedExchange( &context->timeout, 0 );	// Reset timeout counter.
 
-		use_ssl = ( context->ssl != NULL ? true : false );
+		use_ssl = ( context->_ssl_s != NULL || context->_ssl_o != NULL ? true : false );
 
 		if ( completion_status == FALSE )
 		{
@@ -2097,7 +2074,23 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 						}
 						else
 						{
-							*current_operation = ( use_ssl ? IO_Shutdown : IO_Close );
+							if ( context->_ssl_o != NULL )
+							{
+								// If there's more data that needs to be read from the BIO, then continue the last operation.
+								int pending = _BIO_pending( context->_ssl_o->rbio );
+								if ( pending > 0 )
+								{
+									io_size = pending;	// The amount of data that'll be read from the BIO.
+								}
+								else
+								{
+									*current_operation = IO_Shutdown;
+								}
+							}
+							else
+							{
+								*current_operation = ( use_ssl ? IO_Shutdown : IO_Close );
+							}
 						}
 					}
 				}
@@ -2290,9 +2283,58 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 							{
 								if ( new_context->request_info.protocol == PROTOCOL_FTPS )	// Encrypted Data connections will always be FTPS (implicit).
 								{
-									new_context->overlapped.next_operation = IO_ClientHandshakeResponse;
+									// We need to perform a Connect here rather than Accept.
+									// The server connects back to us, but we're responsible for initiating the handshake.
 
-									SSL_WSAConnect( new_context, &new_context->overlapped, new_context->request_info.host, sent );
+									sent = false;
+
+									if ( g_use_openssl )
+									{
+										if ( new_context->_ssl_o != NULL && new_context->_ssl_o->ssl != NULL )
+										{
+											if ( _SSL_ctrl != NULL )
+											{
+												_SSL_ctrl( new_context->_ssl_o->ssl, SSL_CTRL_SET_TLSEXT_HOSTNAME, TLSEXT_NAMETYPE_host_name, ( void * )new_context->request_info.host );
+											}
+											else if ( _SSL_set_tlsext_host_name != NULL )	// BoringSSL function.
+											{
+												_SSL_set_tlsext_host_name( new_context->_ssl_o->ssl, new_context->request_info.host );
+											}
+
+											if ( new_context->ftp_context != NULL &&
+												 new_context->ftp_context->ftp_connection_type == FTP_CONNECTION_TYPE_CONTROL &&
+												 new_context->ftp_context->_ssl_o != NULL &&
+												 new_context->ftp_context->_ssl_o->ssl_session != NULL )
+											{
+												_SSL_set_session( new_context->_ssl_o->ssl, new_context->ftp_context->_ssl_o->ssl_session );
+											}
+
+											// This shouldn't return 1 here since we haven't sent the data in the BIO.
+											nRet = _SSL_connect( new_context->_ssl_o->ssl );
+											if ( nRet <= 0 )
+											{
+												int error = _SSL_get_error( new_context->_ssl_o->ssl, nRet );
+
+												if ( error == SSL_ERROR_WANT_READ )
+												{
+													int pending = _BIO_pending( new_context->_ssl_o->wbio );
+													if ( pending > 0 )
+													{
+														new_context->overlapped.current_operation = IO_Write;
+														new_context->overlapped.next_operation = IO_OpenSSLClientHandshake;
+													
+														OpenSSL_WSASend( new_context, &new_context->overlapped, &new_context->wsabuf, sent );
+													}
+												}
+											}
+										}
+									}
+									else
+									{
+										new_context->overlapped.next_operation = IO_ClientHandshakeResponse;
+
+										SSL_WSAConnect( new_context, &new_context->overlapped, new_context->request_info.host, sent );
+									}
 								}
 								else	// Non-encrypted connections.
 								{
@@ -2316,9 +2358,41 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 							{
 								if ( cfg_server_enable_ssl )	// Accept incoming SSL/TLS connections.
 								{
-									new_context->overlapped.current_operation = IO_ServerHandshakeReply;
+									sent = false;
 
-									SSL_WSAAccept( new_context, &new_context->overlapped, sent );
+									if ( g_use_openssl )
+									{
+										if ( new_context->_ssl_o != NULL && new_context->_ssl_o->ssl != NULL )
+										{
+											nRet = _SSL_accept( new_context->_ssl_o->ssl );
+											if ( nRet <= 0 )
+											{
+												int error = _SSL_get_error( new_context->_ssl_o->ssl, nRet );
+
+												if ( error == SSL_ERROR_WANT_READ )
+												{
+													sent = true;
+
+													new_context->overlapped.current_operation = IO_OpenSSLServerHandshake;
+
+													new_context->wsabuf.buf = new_context->buffer;
+													new_context->wsabuf.len = new_context->buffer_size;
+
+													nRet = _WSARecv( new_context->socket, &new_context->wsabuf, 1, NULL, &dwFlags, ( WSAOVERLAPPED * )&new_context->overlapped, NULL );
+													if ( nRet == SOCKET_ERROR && ( _WSAGetLastError() != ERROR_IO_PENDING ) )
+													{
+														sent = false;
+													}
+												}
+											}
+										}
+									}
+									else
+									{
+										new_context->overlapped.current_operation = IO_ServerHandshakeReply;
+
+										SSL_WSAAccept( new_context, &new_context->overlapped, sent );
+									}
 								}
 								else	// Non-encrypted connections.
 								{
@@ -2350,15 +2424,11 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 						else	// We've already shutdown and/or closed the connection.
 						{
 							InterlockedIncrement( &new_context->pending_operations );
-							new_context->overlapped.current_operation = IO_Close;
+							new_context->overlapped.current_operation = IO_Close;	// Handshake hasn't occurred so we need to close it.
 							PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )new_context, ( WSAOVERLAPPED * )&new_context->overlapped );
 						}
 
 						LeaveCriticalSection( &new_context->context_cs );
-					}
-					else	// Clean up the listen context.
-					{
-						free_context = true;
 					}
 				}
 				else if ( context->cleanup == 2 )	// If we've forced the cleanup, then allow it to continue its steps.
@@ -2399,26 +2469,85 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 						{
 							char shared_protocol = ( context->download_info != NULL ? context->download_info->ssl_version : ( g_can_use_tls_1_3 ? 5 : 4 ) );
 							DWORD protocol = 0;
-							switch ( shared_protocol )
-							{
-								case 5:	protocol |= SP_PROT_TLS1_3_CLIENT;
-								case 4:	protocol |= SP_PROT_TLS1_2_CLIENT;
-								case 3:	protocol |= SP_PROT_TLS1_1_CLIENT;
-								case 2:	protocol |= SP_PROT_TLS1_CLIENT;
-								case 1:	protocol |= SP_PROT_SSL3_CLIENT;
-								case 0:	{ if ( shared_protocol < 2 ) { protocol |= SP_PROT_SSL2_CLIENT; } }
-							}
 
-							SSL *ssl = SSL_new( protocol, false );
-							if ( ssl == NULL )
+							if ( g_use_openssl )
 							{
-								connection_failed = true;
+								context->_ssl_o = ( _SSL_O * )GlobalAlloc( GPTR, sizeof( _SSL_O ) );
+								if ( context->_ssl_o != NULL )
+								{
+									context->_ssl_o->ssl = _SSL_new( g_client_ssl_ctx[ shared_protocol ] );
+									if ( context->_ssl_o->ssl != NULL )
+									{
+										_SSL_set_ex_data( context->_ssl_o->ssl, 0, ( void * )context );
+
+										context->_ssl_o->rbio = _BIO_new( _BIO_s_mem() );
+										context->_ssl_o->wbio = _BIO_new( _BIO_s_mem() );
+
+										if ( context->_ssl_o->rbio != NULL && context->_ssl_o->wbio != NULL )
+										{
+											_SSL_set_bio( context->_ssl_o->ssl, context->_ssl_o->rbio, context->_ssl_o->wbio );
+
+											if ( _SSL_ctrl != NULL )
+											{
+												_SSL_ctrl( context->_ssl_o->ssl, SSL_CTRL_SET_TLSEXT_HOSTNAME, TLSEXT_NAMETYPE_host_name, ( void * )context->request_info.host );
+											}
+											else if ( _SSL_set_tlsext_host_name != NULL )	// BoringSSL function.
+											{
+												_SSL_set_tlsext_host_name( context->_ssl_o->ssl, context->request_info.host );
+											}
+
+											if ( context->ftp_context != NULL &&
+												 context->ftp_context->ftp_connection_type == FTP_CONNECTION_TYPE_CONTROL &&
+												 context->ftp_context->_ssl_o != NULL &&
+												 context->ftp_context->_ssl_o->ssl_session != NULL )
+											{
+												_SSL_set_session( context->_ssl_o->ssl, context->ftp_context->_ssl_o->ssl_session );
+											}
+										}
+										else
+										{
+											_BIO_free( context->_ssl_o->rbio );
+											_BIO_free( context->_ssl_o->wbio );
+
+											context->_ssl_o->rbio = NULL;
+											context->_ssl_o->wbio = NULL;
+
+											connection_failed = true;
+										}
+									}
+									else
+									{
+										connection_failed = true;
+									}
+								}
+								else
+								{
+									connection_failed = true;
+								}
 							}
 							else
 							{
-								ssl->s = context->socket;
+								switch ( shared_protocol )
+								{
+									case 5:	protocol |= SP_PROT_TLS1_3_CLIENT;
+									case 4:	protocol |= SP_PROT_TLS1_2_CLIENT;
+									case 3:	protocol |= SP_PROT_TLS1_1_CLIENT;
+									case 2:	protocol |= SP_PROT_TLS1_CLIENT;
+									case 1:	protocol |= SP_PROT_SSL3_CLIENT;
+									case 0:	{ if ( shared_protocol < 2 ) { protocol |= SP_PROT_SSL2_CLIENT; } }
+								}
 
-								context->ssl = ssl;
+								_SSL_S *_ssl_s = __SSL_new( protocol, false );
+								if ( _ssl_s != NULL )
+								{
+									_ssl_s->s = context->socket;
+
+									context->_ssl_s = _ssl_s;
+								}
+								else
+								{
+									connection_failed = true;
+								}
 							}
 						}
 						else if ( context->request_info.protocol == PROTOCOL_SFTP )
@@ -2471,11 +2600,6 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 						if ( context->download_info != NULL )
 						{
 							EnterCriticalSection( &context->download_info->di_cs );
-
-							/*if ( context->ssl == NULL )
-							{
-								context->download_info->ssl_version = -1;
-							}*/
 
 							if ( !connection_failed )
 							{
@@ -2532,9 +2656,39 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 								   context->request_info.protocol == PROTOCOL_FTPS ) &&
 								   !use_https_proxy && !use_socks_proxy )
 							{
-								*next_operation = IO_ClientHandshakeResponse;
+								sent = false;
 
-								SSL_WSAConnect( context, overlapped, context->request_info.host, sent );
+								if ( g_use_openssl )
+								{
+									if ( context->_ssl_o != NULL && context->_ssl_o->ssl != NULL )
+									{
+										// This shouldn't return 1 here since we haven't sent the data in the BIO.
+										nRet = _SSL_connect( context->_ssl_o->ssl );
+										if ( nRet <= 0 )
+										{
+											int error = _SSL_get_error( context->_ssl_o->ssl, nRet );
+
+											if ( error == SSL_ERROR_WANT_READ )
+											{
+												int pending = _BIO_pending( context->_ssl_o->wbio );
+												if ( pending > 0 )
+												{
+													*current_operation = IO_Write;
+													*next_operation = IO_OpenSSLClientHandshake;
+												
+													OpenSSL_WSASend( context, overlapped, &context->wsabuf, sent );
+												}
+											}
+										}
+									}
+								}
+								else
+								{
+									*next_operation = IO_ClientHandshakeResponse;
+
+									SSL_WSAConnect( context, overlapped, context->request_info.host, sent );
+								}
+
 								if ( !sent )
 								{
 									InterlockedDecrement( &context->pending_operations );
@@ -2649,6 +2803,264 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 				if ( connection_failed )
 				{
 					InterlockedIncrement( &context->pending_operations );
+					*current_operation = IO_Close;	// Handshake hasn't occurred so we need to close it.
+					PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
+				}
+
+				LeaveCriticalSection( &context->context_cs );
+			}
+			break;
+
+			case IO_OpenSSLClientHandshake:
+			{
+				EnterCriticalSection( &context->context_cs );
+
+				if ( context->cleanup == 0 )
+				{
+					if ( io_size > 0 && context->_ssl_o != NULL && context->_ssl_o->ssl != NULL )
+					{
+						// The data we received needs to be written to the read BIO for processing by the _SSL_() functions.
+						int write = _BIO_write( context->_ssl_o->rbio, context->wsabuf.buf, io_size );
+
+						nRet = _SSL_connect( context->_ssl_o->ssl );
+						if ( nRet == 1 )	// Successfully connected, now send our request.
+						{
+							if ( context->request_info.protocol == PROTOCOL_FTPS ||
+								 context->request_info.protocol == PROTOCOL_FTPES )
+							{
+								*current_operation = IO_GetContent;
+								*next_operation = IO_GetContent;
+
+								if ( context->request_info.protocol == PROTOCOL_FTPES )
+								{
+									if ( MakeFTPResponse( context ) == FTP_CONTENT_STATUS_FAILED )
+									{
+										InterlockedIncrement( &context->pending_operations );
+										*current_operation = IO_Shutdown;
+										PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
+									}
+								}
+								else
+								{
+									sent = false;
+
+									InterlockedIncrement( &context->pending_operations );
+
+									context->wsabuf.buf = context->buffer;
+									context->wsabuf.len = context->buffer_size;
+
+									// Make sure we have encrypted data to send.
+									int pending = _BIO_pending( context->_ssl_o->wbio );
+									if ( pending > 0 )
+									{
+										*current_operation = IO_Write;
+
+										OpenSSL_WSASend( context, overlapped, &context->wsabuf, sent );
+									}
+									else
+									{
+										sent = true;
+
+										nRet = _WSARecv( context->socket, &context->wsabuf, 1, NULL, &dwFlags, ( WSAOVERLAPPED * )overlapped, NULL );
+										if ( nRet == SOCKET_ERROR && ( _WSAGetLastError() != ERROR_IO_PENDING ) )
+										{
+											sent = false;
+										}
+									}
+
+									if ( !sent )
+									{
+										*current_operation = IO_Shutdown;
+										PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
+									}
+								}
+							}
+							else
+							{
+								sent = false;
+
+								InterlockedIncrement( &context->pending_operations );
+
+								context->wsabuf.buf = context->buffer;
+								context->wsabuf.len = context->buffer_size;
+
+								ConstructRequest( context, false );
+
+								// Encrypts the buffer and writes it to the write BIO.
+								write = _SSL_write( context->_ssl_o->ssl, context->wsabuf.buf, context->wsabuf.len );
+								if ( write > 0 )
+								{
+									// Make sure we have encrypted data to send.
+									int pending = _BIO_pending( context->_ssl_o->wbio );
+									if ( pending > 0 )
+									{
+										*current_operation = IO_Write;
+										*next_operation = IO_GetContent;
+
+										OpenSSL_WSASend( context, overlapped, &context->wsabuf, sent );
+									}
+								}
+
+								if ( !sent )
+								{
+									*current_operation = IO_Shutdown;
+									PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
+								}
+							}
+						}
+						else
+						{
+							sent = false;
+
+							InterlockedIncrement( &context->pending_operations );
+
+							int error = _SSL_get_error( context->_ssl_o->ssl, nRet );
+
+							if ( error == SSL_ERROR_WANT_READ )
+							{
+								int pending = _BIO_pending( context->_ssl_o->wbio );
+								if ( pending > 0 )
+								{
+									*current_operation = IO_Write;
+									*next_operation = IO_OpenSSLClientHandshake;
+
+									OpenSSL_WSASend( context, overlapped, &context->wsabuf, sent );
+								}
+								else
+								{
+									sent = true;
+
+									nRet = _WSARecv( context->socket, &context->wsabuf, 1, NULL, &dwFlags, ( WSAOVERLAPPED * )overlapped, NULL );
+									if ( nRet == SOCKET_ERROR && ( _WSAGetLastError() != ERROR_IO_PENDING ) )
+									{
+										sent = false;
+									}
+								}
+							}
+
+							if ( !sent )
+							{
+								*current_operation = IO_Close;	// Handshake hasn't occurred so we need to close it.
+								PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
+							}
+						}
+					}
+					else
+					{
+						*current_operation = IO_Close;	// Handshake hasn't occurred so we need to close it.
+						PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
+					}
+				}
+				else if ( context->cleanup == 2 )	// If we've forced the cleanup, then allow it to continue its steps.
+				{
+					context->cleanup = 1;	// Auto cleanup.
+				}
+				else	// We've already shutdown and/or closed the connection.
+				{
+					InterlockedIncrement( &context->pending_operations );
+					*current_operation = IO_Close;
+					PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
+				}
+
+				LeaveCriticalSection( &context->context_cs );
+			}
+			break;
+
+			case IO_OpenSSLServerHandshake:
+			{
+				EnterCriticalSection( &context->context_cs );
+
+				if ( context->cleanup == 0 )
+				{
+					// We could detect if the payload is an HTTP here and redirect them to an HTTPS URL.
+
+					if ( io_size > 0 && context->_ssl_o != NULL && context->_ssl_o->ssl != NULL )
+					{
+						// The data we received needs to be written to the read BIO for processing by the _SSL_() functions.
+						/*int write = */_BIO_write( context->_ssl_o->rbio, context->wsabuf.buf, io_size );
+
+						nRet = _SSL_accept( context->_ssl_o->ssl );
+						if ( nRet == 1 )	// Successfully connected, now get the request.
+						{
+							sent = false;
+
+							InterlockedIncrement( &context->pending_operations );
+
+							int pending = _BIO_pending( context->_ssl_o->wbio );
+							if ( pending > 0 )
+							{
+								*current_operation = IO_Write;
+								*next_operation = IO_GetRequest;
+
+								OpenSSL_WSASend( context, overlapped, &context->wsabuf, sent );
+							}
+							else
+							{
+								sent = true;
+
+								nRet = _WSARecv( context->socket, &context->wsabuf, 1, NULL, &dwFlags, ( WSAOVERLAPPED * )overlapped, NULL );
+								if ( nRet == SOCKET_ERROR && ( _WSAGetLastError() != ERROR_IO_PENDING ) )
+								{
+									sent = false;
+								}
+							}
+
+							if ( !sent )
+							{
+								*current_operation = IO_Shutdown;
+								PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
+							}
+						}
+						else
+						{
+							sent = false;
+
+							InterlockedIncrement( &context->pending_operations );
+
+							int error = _SSL_get_error( context->_ssl_o->ssl, nRet );
+
+							if ( error == SSL_ERROR_WANT_READ )
+							{
+								int pending = _BIO_pending( context->_ssl_o->wbio );
+								if ( pending > 0 )
+								{
+									*current_operation = IO_Write;
+									*next_operation = IO_OpenSSLServerHandshake;
+
+									OpenSSL_WSASend( context, overlapped, &context->wsabuf, sent );
+								}
+								else
+								{
+									sent = true;
+
+									nRet = _WSARecv( context->socket, &context->wsabuf, 1, NULL, &dwFlags, ( WSAOVERLAPPED * )overlapped, NULL );
+									if ( nRet == SOCKET_ERROR && ( _WSAGetLastError() != ERROR_IO_PENDING ) )
+									{
+										sent = false;
+									}
+								}
+							}
+
+							if ( !sent )
+							{
+								*current_operation = IO_Close;	// Handshake hasn't occurred so we need to close it.
+								PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
+							}
+						}
+					}
+					else
+					{
+						*current_operation = IO_Close;	// Handshake hasn't occurred so we need to close it.
+						PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
+					}
+				}
+				else if ( context->cleanup == 2 )	// If we've forced the cleanup, then allow it to continue its steps.
+				{
+					context->cleanup = 1;	// Auto cleanup.
+				}
+				else	// We've already shutdown and/or closed the connection.
+				{
+					InterlockedIncrement( &context->pending_operations );
 					*current_operation = IO_Close;
 					PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
 				}
@@ -2671,19 +3083,20 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 
 					if ( *current_operation == IO_ClientHandshakeReply )
 					{
-						context->ssl->cbIoBuffer += io_size;
+						sent = false;
+						scRet = SEC_E_INTERNAL_ERROR;
 
-						if ( context->ssl->cbIoBuffer > 0 )
+						if ( context->_ssl_s != NULL )
 						{
-							*current_operation = IO_ClientHandshakeResponse;
-							*next_operation = IO_ClientHandshakeResponse;	// SSL_WSAConnect_Reply() might do a _WSASend() so we'll need to handle IO_ClientHandshakeResponse after it completes.
+							context->_ssl_s->cbIoBuffer += io_size;
 
-							scRet = SSL_WSAConnect_Reply( context, overlapped, sent );
-						}
-						else
-						{
-							sent = false;
-							scRet = SEC_E_INTERNAL_ERROR;
+							if ( context->_ssl_s->cbIoBuffer > 0 )
+							{
+								*current_operation = IO_ClientHandshakeResponse;
+								*next_operation = IO_ClientHandshakeResponse;	// SSL_WSAConnect_Reply() might do a _WSASend() so we'll need to handle IO_ClientHandshakeResponse after it completes.
+
+								scRet = SSL_WSAConnect_Reply( context, overlapped, sent );
+							}
 						}
 					}
 					else
@@ -2708,13 +3121,13 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 
 						*next_operation = IO_GetContent;
 
-						if ( context->ssl != NULL && context->ssl->acd.fRenegotiate )	// This shouldn't happen, but we'll handle it just in case.
+						if ( context->_ssl_s != NULL && context->_ssl_s->acd.fRenegotiate )	// This shouldn't happen, but we'll handle it just in case.
 						{
-							context->ssl->acd.fRenegotiate = false;	// Reset.
-
-							*next_operation = IO_GetContent;	// Continue where we left off before we had to renegotiate.
+							context->_ssl_s->acd.fRenegotiate = false;	// Reset.
 
 							InterlockedIncrement( &context->pending_operations );
+
+							*next_operation = IO_GetContent;	// Continue where we left off before we had to renegotiate.
 
 							SSL_WSARecv( context, overlapped, sent );
 							if ( !sent )
@@ -2752,6 +3165,8 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 						else	// HTTP
 						{
 							InterlockedIncrement( &context->pending_operations );
+
+							*current_operation = IO_Write;
 
 							ConstructRequest( context, false );
 
@@ -2799,12 +3214,18 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 
 					if ( *current_operation == IO_ServerHandshakeReply )
 					{
-						context->ssl->cbIoBuffer += io_size;
+						sent = false;
+						scRet = SEC_E_INTERNAL_ERROR;
 
-						*current_operation = IO_ServerHandshakeResponse;
-						*next_operation = IO_ServerHandshakeResponse;
+						if ( context->_ssl_s != NULL )
+						{
+							context->_ssl_s->cbIoBuffer += io_size;
 
-						scRet = SSL_WSAAccept_Reply( context, overlapped, sent );
+							*current_operation = IO_ServerHandshakeResponse;
+							*next_operation = IO_ServerHandshakeResponse;
+
+							scRet = SSL_WSAAccept_Reply( context, overlapped, sent );
+						}
 					}
 					else
 					{
@@ -2820,26 +3241,34 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 
 					if ( scRet == SEC_E_OK )	// If true, then no send was made.
 					{
+						sent = false;
+
 						InterlockedIncrement( &context->pending_operations );
 
 						*current_operation = IO_GetRequest;
 
-						if ( context->ssl->cbIoBuffer > 0 )
+						if ( context->_ssl_s != NULL )
 						{
-							// The request was sent with the handshake.
-							PostQueuedCompletionStatus( hIOCP, context->ssl->cbIoBuffer, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
-						}
-						else
-						{
-							context->wsabuf.buf = context->buffer;
-							context->wsabuf.len = context->buffer_size;
-
-							/*scRet =*/ SSL_WSARecv( context, overlapped, sent );
-							if ( /*scRet != SEC_E_OK ||*/ !sent )
+							if ( context->_ssl_s->cbIoBuffer > 0 )
 							{
-								*current_operation = IO_Shutdown;
-								PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
+								sent = true;
+
+								// The request was sent with the handshake.
+								PostQueuedCompletionStatus( hIOCP, context->_ssl_s->cbIoBuffer, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
 							}
+							else
+							{
+								context->wsabuf.buf = context->buffer;
+								context->wsabuf.len = context->buffer_size;
+
+								SSL_WSARecv( context, overlapped, sent );
+							}
+						}
+
+						if ( !sent )
+						{
+							*current_operation = IO_Shutdown;
+							PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
 						}
 					}
 					else if ( scRet == SEC_E_INCOMPLETE_MESSAGE && *current_operation == IO_ServerHandshakeResponse )
@@ -2851,13 +3280,13 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 						context->wsabuf.buf = context->buffer;
 						context->wsabuf.len = context->buffer_size;
 
-						DWORD bytes_read = min( context->buffer_size, context->ssl->cbIoBuffer );
+						DWORD bytes_read = min( context->buffer_size, context->_ssl_s->cbIoBuffer );
 
-						_memcpy_s( context->wsabuf.buf, context->buffer_size, context->ssl->pbIoBuffer, bytes_read );
+						_memcpy_s( context->wsabuf.buf, context->buffer_size, context->_ssl_s->pbIoBuffer, bytes_read );
 						*current_operation = IO_GetRequest;
 
-						SSL_free( context->ssl );
-						context->ssl = NULL;
+						__SSL_free( context->_ssl_s );
+						context->_ssl_s = NULL;
 
 						PostQueuedCompletionStatus( hIOCP, bytes_read, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );*/
 
@@ -2944,6 +3373,7 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 					context->wsabuf.buf = context->buffer;
 					context->wsabuf.len = context->buffer_size;
 
+					// Ensure it's NULL terminated so our parsers (ParseHTTPHeader(), etc.) don't read beyond it.
 					context->wsabuf.buf[ context->current_bytes_read ] = 0;	// Sanity.
 
 					char content_status = ParseHTTPHeader( context, context->wsabuf.buf, context->current_bytes_read );
@@ -2952,7 +3382,7 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 					{
 						InterlockedIncrement( &context->pending_operations );
 
-						// wsabuf will be offset in ParseHTTPHeader to handle more data.
+						// wsabuf will be offset in ParseHTTPHeader() to handle more data.
 						nRet = _WSARecv( context->socket, &context->wsabuf, 1, NULL, &dwFlags, ( WSAOVERLAPPED * )overlapped, NULL );
 						if ( nRet == SOCKET_ERROR && ( _WSAGetLastError() != ERROR_IO_PENDING ) )
 						{
@@ -2997,12 +3427,42 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 
 							InterlockedIncrement( &context->pending_operations );
 
-							*next_operation = IO_ClientHandshakeResponse;
+							sent = false;
 
-							SSL_WSAConnect( context, overlapped, context->request_info.host, sent );
+							if ( g_use_openssl )
+							{
+								if ( context->_ssl_o != NULL && context->_ssl_o->ssl != NULL )
+								{
+									// This shouldn't return 1 here since we haven't sent the data in the BIO.
+									nRet = _SSL_connect( context->_ssl_o->ssl );
+									if ( nRet <= 0 )
+									{
+										int error = _SSL_get_error( context->_ssl_o->ssl, nRet );
+
+										if ( error == SSL_ERROR_WANT_READ )
+										{
+											int pending = _BIO_pending( context->_ssl_o->wbio );
+											if ( pending > 0 )
+											{
+												*current_operation = IO_Write;
+												*next_operation = IO_OpenSSLClientHandshake;
+											
+												OpenSSL_WSASend( context, overlapped, &context->wsabuf, sent );
+											}
+										}
+									}
+								}
+							}
+							else
+							{
+								*next_operation = IO_ClientHandshakeResponse;
+
+								SSL_WSAConnect( context, overlapped, context->request_info.host, sent );
+							}
+
 							if ( !sent )
 							{
-								*current_operation = IO_Shutdown;
+								*current_operation = IO_Close; // The tunneled HTTPS connection should be closed and not shutdown.
 								PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
 							}
 						}
@@ -3109,7 +3569,7 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 							context->wsabuf.buf += context->current_bytes_read;
 							context->wsabuf.len -= context->current_bytes_read;
 
-							// wsabuf will be offset in ParseHTTPHeader to handle more data.
+							// wsabuf will be offset in ParseHTTPHeader() to handle more data.
 							nRet = _WSARecv( context->socket, &context->wsabuf, 1, NULL, &dwFlags, ( WSAOVERLAPPED * )overlapped, NULL );
 							if ( nRet == SOCKET_ERROR && ( _WSAGetLastError() != ERROR_IO_PENDING ) )
 							{
@@ -3204,9 +3664,39 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 							if ( context->request_info.protocol == PROTOCOL_HTTPS ||
 								 context->request_info.protocol == PROTOCOL_FTPS )	// FTPES starts out unencrypted and is upgraded later.
 							{
-								*next_operation = IO_ClientHandshakeResponse;
+								sent = false;
 
-								SSL_WSAConnect( context, overlapped, context->request_info.host, sent );
+								if ( g_use_openssl )
+								{
+									if ( context->_ssl_o != NULL && context->_ssl_o->ssl != NULL )
+									{
+										// This shouldn't return 1 here since we haven't sent the data in the BIO.
+										nRet = _SSL_connect( context->_ssl_o->ssl );
+										if ( nRet <= 0 )
+										{
+											int error = _SSL_get_error( context->_ssl_o->ssl, nRet );
+
+											if ( error == SSL_ERROR_WANT_READ )
+											{
+												int pending = _BIO_pending( context->_ssl_o->wbio );
+												if ( pending > 0 )
+												{
+													*current_operation = IO_Write;
+													*next_operation = IO_OpenSSLClientHandshake;
+												
+													OpenSSL_WSASend( context, overlapped, &context->wsabuf, sent );
+												}
+											}
+										}
+									}
+								}
+								else
+								{
+									*next_operation = IO_ClientHandshakeResponse;
+
+									SSL_WSAConnect( context, overlapped, context->request_info.host, sent );
+								}
+
 								if ( !sent )
 								{
 									connection_status = 1;	// Failed.
@@ -3289,15 +3779,19 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 					{
 						context->current_bytes_read = 0;
 
-						if ( use_ssl )
+						if ( context->_ssl_s != NULL )
 						{
 							// We'll need to decrypt any remaining undecrypted data as well as copy the decrypted data to our wsabuf.
-							if ( context->ssl->continue_decrypt )
+							if ( context->_ssl_s->continue_decrypt )
 							{
-								bytes_decrypted = context->ssl->cbIoBuffer;
+								bytes_decrypted = context->_ssl_s->cbIoBuffer;
 							}
 
 							scRet = DecryptRecv( context, bytes_decrypted );
+						}
+						else if ( context->_ssl_o != NULL )
+						{
+							content_status = OpenSSL_DecryptRecv( context, bytes_decrypted );
 						}
 					}
 					else if ( *next_operation == IO_SparseFileAllocate )
@@ -3316,6 +3810,7 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 							context->wsabuf.buf = context->buffer;
 							context->wsabuf.len = context->buffer_size;
 
+							// Ensure it's NULL terminated so our parsers (ParseHTTPHeader(), etc.) don't read beyond it.
 							context->wsabuf.buf[ context->current_bytes_read ] = 0;	// Sanity.
 						}
 						else
@@ -3346,7 +3841,7 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 							}
 						}
 					}
-					else if ( use_ssl )	// Handle responses from DecryptRecv().
+					else if ( context->_ssl_s != NULL )	// Handle responses from DecryptRecv().
 					{
 						if ( scRet == SEC_E_INCOMPLETE_MESSAGE )
 						{
@@ -3416,13 +3911,15 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 					}
 					else if ( content_status == CONTENT_STATUS_READ_MORE_CONTENT || content_status == CONTENT_STATUS_READ_MORE_HEADER ) // Read more header information, or continue to read more content. Do not reset context->wsabuf since it may have been offset to handle partial data.
 					{
+						sent = true;
+
 						InterlockedIncrement( &context->pending_operations );
 
 						//*current_operation = IO_GetContent;
 
-						if ( use_ssl )
+						if ( context->_ssl_s != NULL )
 						{
-							if ( context->ssl->continue_decrypt )
+							if ( context->_ssl_s->continue_decrypt )
 							{
 								// We need to post a non-zero status to avoid our code shutting down the connection.
 								// We'll use context->current_bytes_read for that, but it can be anything that's not zero.
@@ -3431,10 +3928,23 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 							else
 							{
 								SSL_WSARecv( context, overlapped, sent );
-								if ( !sent )
+							}
+						}
+						else if ( context->_ssl_o != NULL )
+						{
+							// There's more data to be read with _SSL_read().
+							if ( context->_ssl_o->continue_decrypt )
+							{
+								// We need to post a non-zero status to avoid our code shutting down the connection.
+								// We'll use context->current_bytes_read for that, but it can be anything that's not zero.
+								PostQueuedCompletionStatus( hIOCP, context->current_bytes_read, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
+							}
+							else
+							{
+								nRet = _WSARecv( context->socket, &context->wsabuf, 1, NULL, &dwFlags, ( WSAOVERLAPPED * )overlapped, NULL );
+								if ( nRet == SOCKET_ERROR && ( _WSAGetLastError() != ERROR_IO_PENDING ) )
 								{
-									*current_operation = IO_Shutdown;
-									PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
+									sent = false;
 								}
 							}
 						}
@@ -3443,9 +3953,14 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 							nRet = _WSARecv( context->socket, &context->wsabuf, 1, NULL, &dwFlags, ( WSAOVERLAPPED * )overlapped, NULL );
 							if ( nRet == SOCKET_ERROR && ( _WSAGetLastError() != ERROR_IO_PENDING ) )
 							{
-								*current_operation = IO_Close;
-								PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
+								sent = false;
 							}
+						}
+
+						if ( !sent )
+						{
+							*current_operation = ( use_ssl ? IO_Shutdown : IO_Close );
+							PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
 						}
 					}
 				}
@@ -3708,9 +4223,9 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 
 								*current_operation = IO_GetContent;
 
-								if ( use_ssl )
+								if ( context->_ssl_s != NULL )
 								{
-									if ( context->ssl->continue_decrypt )
+									if ( context->_ssl_s->continue_decrypt )
 									{
 										// We need to post a non-zero status to avoid our code shutting down the connection.
 										// We'll use context->current_bytes_read for that, but it can be anything that's not zero.
@@ -3720,6 +4235,25 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 									{
 										SSL_WSARecv( context, overlapped, sent );
 										if ( !sent )
+										{
+											*current_operation = IO_Shutdown;
+											PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
+										}
+									}
+								}
+								else if ( context->_ssl_o != NULL )
+								{
+									// There's more data to be read with _SSL_read().
+									if ( context->_ssl_o->continue_decrypt )
+									{
+										// We need to post a non-zero status to avoid our code shutting down the connection.
+										// We'll use context->current_bytes_read for that, but it can be anything that's not zero.
+										PostQueuedCompletionStatus( hIOCP, context->current_bytes_read, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
+									}
+									else
+									{
+										nRet = _WSARecv( context->socket, &context->wsabuf, 1, NULL, &dwFlags, ( WSAOVERLAPPED * )overlapped, NULL );
+										if ( nRet == SOCKET_ERROR && ( _WSAGetLastError() != ERROR_IO_PENDING ) )
 										{
 											*current_operation = IO_Shutdown;
 											PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
@@ -3773,7 +4307,7 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 						context->wsabuf.buf += io_size;
 						context->wsabuf.len -= io_size;
 
-						// We do a regular WSASend here since that's what we last did in SSL_WSASend.
+						// We do a regular WSASend here since that's what we last did in SSL_WSASend/OpenSSL_WSASend.
 						nRet = _WSASend( context->socket, &context->wsabuf, 1, NULL, dwFlags, ( WSAOVERLAPPED * )overlapped, NULL );
 						if ( nRet == SOCKET_ERROR && ( _WSAGetLastError() != ERROR_IO_PENDING ) )
 						{
@@ -3820,10 +4354,32 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 								 *current_operation != IO_SOCKSResponse &&
 								  use_ssl )
 							{
-								SSL_WSARecv( context, overlapped, sent );
+								if ( context->_ssl_s != NULL )
+								{
+									SSL_WSARecv( context, overlapped, sent );
+								}
+								else// if ( context->_ssl_o != NULL )
+								{
+									sent = true;
+
+									nRet = _WSARecv( context->socket, &context->wsabuf, 1, NULL, &dwFlags, ( WSAOVERLAPPED * )overlapped, NULL );
+									if ( nRet == SOCKET_ERROR && ( _WSAGetLastError() != ERROR_IO_PENDING ) )
+									{
+										sent = false;
+									}
+								}
+
 								if ( !sent )
 								{
-									*current_operation = IO_Shutdown;
+									if ( *current_operation == IO_OpenSSLClientHandshake ||
+										 *current_operation == IO_OpenSSLServerHandshake )
+									{
+										*current_operation = IO_Close;	// The handshake will not have completed so we should close it.
+									}
+									else
+									{
+										*current_operation = IO_Shutdown;
+									}
 									PostQueuedCompletionStatus( hIOCP, 0, ( ULONG_PTR )context, ( WSAOVERLAPPED * )overlapped );
 								}
 							}
@@ -3902,14 +4458,39 @@ DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext )
 				{
 					context->cleanup += 10;	// Allow IO_Write to continue to process.
 
-					*next_operation = IO_Close;
+					sent = false;
 
 					InterlockedIncrement( &context->pending_operations );
 
-					context->wsabuf.buf = context->buffer;
-					context->wsabuf.len = context->buffer_size;
+					if ( context->_ssl_s != NULL )
+					{
+						*next_operation = IO_Close;
 
-					SSL_WSAShutdown( context, overlapped, sent );
+						context->wsabuf.buf = context->buffer;
+						context->wsabuf.len = context->buffer_size;
+
+						SSL_WSAShutdown( context, overlapped, sent );
+					}
+					else if ( context->_ssl_o != NULL && context->_ssl_o->ssl != NULL )
+					{
+						nRet = _SSL_shutdown( context->_ssl_o->ssl );
+						if ( nRet <= 0 )
+						{
+							int error = _SSL_get_error( context->_ssl_o->ssl, nRet );
+
+							if ( error == SSL_ERROR_SYSCALL )
+							{
+								int pending = _BIO_pending( context->_ssl_o->wbio );
+								if ( pending > 0 )
+								{
+									*current_operation = IO_Write;
+									*next_operation = IO_Close;	// _SSL_shutdown() must not be called again if _SSL_get_error() is SSL_ERROR_SYSCALL or SSL_ERROR_SSL.
+
+									OpenSSL_WSASend( context, overlapped, &context->wsabuf, sent );
+								}
+							}
+						}
+					}
 
 					// We'll fall through the IO_Shutdown to IO_Close.
 					if ( !sent )
@@ -7808,11 +8389,13 @@ bool RetryTimedOut( SOCKET_CONTEXT *context )
 			context->socket = INVALID_SOCKET;
 		}
 
-		if ( context->ssl != NULL )
+		if ( context->_ssl_s != NULL )
 		{
-			SSL_free( context->ssl );
-			context->ssl = NULL;
+			__SSL_free( context->_ssl_s );
+			context->_ssl_s = NULL;
 		}
+
+		OpenSSL_FreeInfo( &context->_ssl_o );
 
 		if ( context->address_info != NULL )
 		{
@@ -8642,11 +9225,13 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 						context->socket = INVALID_SOCKET;
 					}
 
-					if ( context->ssl != NULL )
+					if ( context->_ssl_s != NULL )
 					{
-						SSL_free( context->ssl );
-						context->ssl = NULL;
+						__SSL_free( context->_ssl_s );
+						context->_ssl_s = NULL;
 					}
+
+					OpenSSL_FreeInfo( &context->_ssl_o );
 
 					EnterCriticalSection( &context_list_cs );
 
@@ -8752,11 +9337,13 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 								context->socket = INVALID_SOCKET;
 							}
 
-							if ( context->ssl != NULL )
+							if ( context->_ssl_s != NULL )
 							{
-								SSL_free( context->ssl );
-								context->ssl = NULL;
+								__SSL_free( context->_ssl_s );
+								context->_ssl_s = NULL;
 							}
+
+							OpenSSL_FreeInfo( &context->_ssl_o );
 
 							EnterCriticalSection( &context_list_cs );
 
@@ -9314,7 +9901,9 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 				context->listen_socket = INVALID_SOCKET;
 			}
 
-			if ( context->ssl != NULL ) { SSL_free( context->ssl ); }
+			if ( context->_ssl_s != NULL ) { __SSL_free( context->_ssl_s ); }
+
+			OpenSSL_FreeInfo( &context->_ssl_o );
 
 			if ( context->ssh != NULL && psftp_state == PSFTP_STATE_RUNNING ) { _SFTP_FreeSSHHandle( context->ssh ); }
 
@@ -9370,6 +9959,7 @@ void CleanupConnection( SOCKET_CONTEXT *context )
 			DeleteCriticalSection( &context->context_cs );
 
 			if ( context->buffer != NULL ){ GlobalFree( context->buffer ); }
+			if ( context->keep_alive_buffer != NULL ){ GlobalFree( context->keep_alive_buffer ); }
 
 			GlobalFree( context );
 		}

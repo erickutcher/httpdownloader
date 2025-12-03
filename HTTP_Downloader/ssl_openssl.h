@@ -16,24 +16,37 @@
 	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef _FILE_OPERATIONS_H
-#define _FILE_OPERATIONS_H
+#ifndef _SSL_OPENSSL_H
+#define _SSL_OPENSSL_H
 
-#define MAGIC_ID_SETTINGS			"HDM\x09"	// Version 10
-#define MAGIC_ID_DOWNLOADS			"HDM\x18"	// Version 9
-#define MAGIC_ID_SITES				"HDM\x23"	// Version 4
-#define MAGIC_ID_SFTP_HOSTS			"HDM\x30"	// Version 1
-#define MAGIC_ID_SFTP_KEYS			"HDM\x40"	// Version 1
-#define MAGIC_ID_CATEGORIES			"HDM\x50"	// Version 1
+#include "connection.h"
 
-char read_config();
-char save_config();
+#include "lite_libssl.h"
+#include "lite_libcrypto.h"
 
-char read_download_history( wchar_t *file_path, bool scroll_to_last_item = false );
-char save_download_history( wchar_t *file_path );
+struct _SSL_O
+{
+	SSL					*ssl;
+	BIO					*rbio;
+	BIO					*wbio;
+	SSL_SESSION			*ssl_session;
+	bool				continue_decrypt;
+};
 
-char save_download_history_csv_file( wchar_t *file_path );
+void InitializeSSL_CTXs();
+void FreeSSL_CTXs();
 
-wchar_t *read_url_list_file( wchar_t *file_path, unsigned int &url_list_length );
+void InitializeServerSSL_CTX( unsigned char ssl_version, unsigned char certificate_type );
+
+int WINAPIV new_session_cb( SSL *ssl, SSL_SESSION *sess );
+
+void OpenSSL_WSASend( SOCKET_CONTEXT *context, OVERLAPPEDEX *overlapped, WSABUF *send_buf, bool &sent );
+
+char OpenSSL_DecryptRecv( SOCKET_CONTEXT *context, DWORD &io_size );
+
+void OpenSSL_FreeInfo( _SSL_O **_ssl_o );
+
+extern SSL_CTX *g_client_ssl_ctx[ PROTOCOL_COUNT ];
+extern SSL_CTX *g_server_ssl_ctx;
 
 #endif

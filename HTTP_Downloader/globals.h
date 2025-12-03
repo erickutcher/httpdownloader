@@ -127,17 +127,17 @@
 #define CURRENT_VERSION_A	1
 #define CURRENT_VERSION_B	0
 #define CURRENT_VERSION_C	6
-#define CURRENT_VERSION_D	8
+#define CURRENT_VERSION_D	9
 
 #define CURRENT_VERSION		( ( CURRENT_VERSION_A << 24 ) | \
 							  ( CURRENT_VERSION_B << 16 ) | \
 							  ( CURRENT_VERSION_C << 8 )  | \
 							  ( CURRENT_VERSION_D ) )
 
-//#define IS_BETA
+#define IS_BETA
 
 #ifdef IS_BETA
-#define BETA_VERSION		0
+#define BETA_VERSION		1
 #define UPDATE_CHECK_URL_BETA	"https://raw.githubusercontent.com/erickutcher/httpdownloader/master/HTTP_Downloader/version_beta.txt"
 #endif
 
@@ -306,7 +306,7 @@ extern bool kill_worker_thread_flag;	// Allow for a clean shutdown.
 
 extern bool g_download_history_changed;
 
-extern HANDLE downloader_ready_semaphore;
+extern HANDLE g_downloader_ready_semaphore;
 
 extern CRITICAL_SECTION worker_cs;				// Worker thread critical section.
 
@@ -505,6 +505,12 @@ extern wchar_t *cfg_certificate_pkcs_password;
 extern wchar_t *cfg_certificate_cer_file_name;
 extern wchar_t *cfg_certificate_key_file_name;
 
+extern char *g_certificate_pkcs_file_name;
+extern char *g_certificate_pkcs_password;
+
+extern char *g_certificate_cer_file_name;
+extern char *g_certificate_key_file_name;
+
 extern bool cfg_use_authentication;
 extern wchar_t *cfg_authentication_username;
 extern wchar_t *cfg_authentication_password;
@@ -682,6 +688,8 @@ extern SYSTEMTIME g_compile_time;
 
 extern bool g_is_windows_8_or_higher;
 extern bool g_can_use_tls_1_3;
+
+extern bool g_use_openssl;
 
 extern bool g_can_perform_shutdown_action;
 extern bool g_perform_shutdown_action;

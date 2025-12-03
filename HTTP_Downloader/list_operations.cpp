@@ -118,7 +118,7 @@ void SetContextStatus( SOCKET_CONTEXT *context, unsigned int status )
 					context->cleanup = cleanup_type;
 
 					InterlockedIncrement( &context->pending_operations );
-					context->overlapped_close.current_operation = ( context->ssl != NULL ? IO_Shutdown : IO_Close );
+					context->overlapped_close.current_operation = ( context->_ssl_s != NULL || context->_ssl_o != NULL ? IO_Shutdown : IO_Close );
 					PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped_close );
 				}
 			}
@@ -1552,7 +1552,7 @@ THREAD_RETURN handle_connection( void *pArguments )
 												context->cleanup = 2;	// Force the cleanup.
 
 												InterlockedIncrement( &context->pending_operations );
-												context->overlapped_close.current_operation = ( context->ssl != NULL ? IO_Shutdown : IO_Close );
+												context->overlapped_close.current_operation = ( context->_ssl_s != NULL || context->_ssl_o != NULL ? IO_Shutdown : IO_Close );
 												PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped_close );
 											}
 										}

@@ -16,8 +16,8 @@
 	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef _SCHANNEL_SSL_H
-#define _SCHANNEL_SSL_H
+#ifndef _SSL_SCHANNEL_H
+#define _SSL_SCHANNEL_H
 
 #define STRICT
 #define WIN32_LEAN_AND_MEAN
@@ -87,6 +87,8 @@ typedef struct _SCH_CREDENTIALS
 
 #include "lite_ws2_32.h"
 
+#include "connection.h"
+
 #define SSL_STATE_SHUTDOWN		0
 #define SSL_STATE_RUNNING		1
 
@@ -99,8 +101,6 @@ typedef struct _SCH_CREDENTIALS
 #define SP_PROT_TLS1_3_SERVER		0x00001000
 #define SP_PROT_TLS1_3_CLIENT		0x00002000
 #define SP_PROT_TLS1_3				( SP_PROT_TLS1_3_SERVER | SP_PROT_TLS1_3_CLIENT )
-
-#define PROTOCOL_COUNT				6
 
 /*struct ACCEPT_DATA
 {
@@ -151,10 +151,10 @@ struct SEND_DATA
 
 struct SHUTDOWN_DATA
 {
-    SecBuffer		OutBuffers[ 1 ];
+	SecBuffer		OutBuffers[ 1 ];
 };
 
-struct SSL
+struct _SSL_S
 {
 	SEND_DATA				sd;
 	ACCEPT_CONNECT_DATA		acd;
@@ -182,14 +182,29 @@ struct SSL
 	bool continue_decrypt;
 };
 
-int SSL_library_init( void );
-int SSL_library_uninit( void );
+int __SSL_library_init( void );
+int __SSL_library_uninit( void );
 
-SSL *SSL_new( DWORD protocol, bool is_server );
-void SSL_free( SSL *ssl );
+_SSL_S *__SSL_new( DWORD protocol, bool is_server );
+void __SSL_free( _SSL_S *_ssl_s );
 
 void ResetServerCredentials();
 void ResetClientCredentials( unsigned char index );
+
+SECURITY_STATUS SSL_WSAAccept( SOCKET_CONTEXT *context, OVERLAPPEDEX *overlapped, bool &sent );
+SECURITY_STATUS SSL_WSAAccept_Reply( SOCKET_CONTEXT *context, OVERLAPPEDEX *overlapped, bool &sent );
+SECURITY_STATUS SSL_WSAAccept_Response( SOCKET_CONTEXT *context, OVERLAPPEDEX *overlapped, bool &sent );
+
+SECURITY_STATUS SSL_WSAConnect( SOCKET_CONTEXT *context, OVERLAPPEDEX *overlapped, char *host, bool &sent );
+SECURITY_STATUS SSL_WSAConnect_Response( SOCKET_CONTEXT *context, OVERLAPPEDEX *overlapped, bool &sent );
+SECURITY_STATUS SSL_WSAConnect_Reply( SOCKET_CONTEXT *context, OVERLAPPEDEX *overlapped, bool &sent );
+
+SECURITY_STATUS SSL_WSAShutdown( SOCKET_CONTEXT *context, OVERLAPPEDEX *overlapped, bool &sent );
+
+SECURITY_STATUS SSL_WSASend( SOCKET_CONTEXT *context, OVERLAPPEDEX *overlapped, WSABUF *send_buf, bool &sent );
+SECURITY_STATUS SSL_WSARecv( SOCKET_CONTEXT *context, OVERLAPPEDEX *overlapped, bool &sent );
+SECURITY_STATUS SSL_WSARecv_Decrypt( _SSL_S *_ssl_s, LPWSABUF lpBuffers, DWORD &lpNumberOfBytesDecrypted );
+SECURITY_STATUS DecryptRecv( SOCKET_CONTEXT *context, DWORD &io_size );
 
 PCCERT_CONTEXT LoadPublicPrivateKeyPair( wchar_t *cer, wchar_t *key );
 PCCERT_CONTEXT LoadPKCS12( wchar_t *p12_file, wchar_t *password );

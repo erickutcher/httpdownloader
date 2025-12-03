@@ -24,8 +24,6 @@
 #include "file_operations.h"
 #include "string_tables.h"
 
-#include "ssl.h"
-
 #include "lite_kernel32.h"
 #include "lite_shell32.h"
 #include "lite_advapi32.h"
@@ -42,6 +40,8 @@
 #include "lite_normaliz.h"
 #include "lite_pcre2.h"
 #include "lite_psftp.h"
+#include "lite_libssl.h"
+#include "lite_libcrypto.h"
 
 #include "treelistview.h"
 #include "cmessagebox.h"
@@ -66,7 +66,7 @@
 
 SYSTEMTIME g_compile_time;
 
-HANDLE downloader_ready_semaphore = NULL;
+HANDLE g_downloader_ready_semaphore = NULL;
 
 CRITICAL_SECTION worker_cs;				// Worker thread critical section.
 
@@ -106,6 +106,8 @@ bool g_can_fast_allocate = false;
 
 bool g_is_windows_8_or_higher = false;
 bool g_can_use_tls_1_3 = false;
+
+bool g_use_openssl = false;
 
 bool g_can_perform_shutdown_action = false;
 bool g_perform_shutdown_action = false;
@@ -230,10 +232,6 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 		UnixTimeToSystemTime( inth->FileHeader.TimeDateStamp, &g_compile_time );
 	}
 
-	g_is_windows_8_or_higher = IsWindowsVersionOrGreater( HIBYTE( _WIN32_WINNT_WIN8 ), LOBYTE( _WIN32_WINNT_WIN8 ), 0 );
-
-	g_can_use_tls_1_3 = IsWindowsVersionOrGreater( HIBYTE( _WIN32_WINNT_WIN_SERVER_2022 ), LOBYTE( _WIN32_WINNT_WIN_SERVER_2022 ), _WIN32_WINNT_WIN_SERVER_2022_BUILD );
-
 	unsigned char fail_type = 0;
 
 	CL_ARGS *cla = NULL;
@@ -253,6 +251,8 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 	}
 
 	bool override_shutdown_action = false;
+
+	bool load_openssl = true;	// Load the OpenSSL/BoringSSL DLLs.
 
 	// Get the new base directory if the user supplied a path.
 	bool default_directory = true;
@@ -333,17 +333,8 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 				{
 					++arg;
 
-					unsigned char version = ( unsigned char )_wcstoul( szArgList[ arg ], NULL, 10 );
-					if ( g_can_use_tls_1_3 && version >= 6 )
-					{
-						version = 6;	// TLS 1.3
-					}
-					else if ( version > 5 )
-					{
-						version = 5;	// TLS 1.2
-					}
-
-					cla->ssl_version = version;
+					// We validate this after we know whether TLS 1.3 is supported.
+					cla->ssl_version = ( unsigned char )_wcstoul( szArgList[ arg ], NULL, 10 );
 				}
 				else if ( arg_name_length == 8 && _StrCmpNIW( arg_name, L"simulate", 8 ) == 0 )	// Simulate the download.
 				{
@@ -641,6 +632,10 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 				{
 					g_allow_rename = true;
 				}
+				else if ( arg_name_length == 15 && _StrCmpNIW( arg_name, L"disable-openssl", 15 ) == 0 )	// Don't use OpenSSL/BoringSSL functions.
+				{
+					load_openssl = false;
+				}
 #ifdef ENABLE_LOGGING
 				else if ( ( arg + 1 ) < argCount &&
 					 arg_name_length == 3 && _StrCmpNIW( arg_name, L"log", 3 ) == 0 )	// Log file.
@@ -696,6 +691,57 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 
 		// Free the parameter list.
 		LocalFree( szArgList );
+	}
+
+	if ( load_openssl )
+	{
+		#ifndef LIBSSL_USE_STATIC_LIB
+			unsigned char ssl_type = 0;	// 0 = BoringSSL, 1 = OpenSSL
+			g_use_openssl = InitializeLibSSL( L"ssl.dll" );
+			if ( !g_use_openssl )
+			{
+#ifdef _WIN64
+				g_use_openssl = InitializeLibSSL( L"libssl-3-x64.dll" );
+#else
+				g_use_openssl = InitializeLibSSL( L"libssl-3.dll" );
+#endif
+				if ( !g_use_openssl )
+				{
+					UnInitializeLibSSL();
+				}
+				else
+				{
+					ssl_type = 1;
+				}
+			}
+		#else
+			// Set the type to whatever is statically linked.
+			unsigned char ssl_type = 0;	// 0 = BoringSSL (default), 1 = OpenSSL
+			g_use_openssl = true;
+		#endif
+		#ifndef LIBCRYPTO_USE_STATIC_LIB
+			if ( g_use_openssl )
+			{
+				if ( ssl_type == 0 )
+				{
+					g_use_openssl = InitializeLibCrypto( L"crypto.dll" );
+				}
+				else if ( ssl_type == 1 )
+				{
+#ifdef _WIN64
+					g_use_openssl = InitializeLibCrypto( L"libcrypto-3-x64.dll" );
+#else
+					g_use_openssl = InitializeLibCrypto( L"libcrypto-3.dll" );
+#endif
+				}
+
+				if ( !g_use_openssl )
+				{
+					UnInitializeLibCrypto();
+					UnInitializeLibSSL();
+				}
+			}
+		#endif
 	}
 
 #ifdef ENABLE_DARK_MODE
@@ -845,6 +891,10 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 	CF_HTML = _RegisterClipboardFormatW( L"HTML Format" );
 	CF_TREELISTVIEW = _RegisterClipboardFormatW( L"TreeListView Format" );
 
+	g_is_windows_8_or_higher = IsWindowsVersionOrGreater( HIBYTE( _WIN32_WINNT_WIN8 ), LOBYTE( _WIN32_WINNT_WIN8 ), 0 );
+
+	g_can_use_tls_1_3 = ( g_use_openssl || IsWindowsVersionOrGreater( HIBYTE( _WIN32_WINNT_WIN_SERVER_2022 ), LOBYTE( _WIN32_WINNT_WIN_SERVER_2022 ), _WIN32_WINNT_WIN_SERVER_2022_BUILD ) );
+
 	InitializeLocaleValues();
 
 	read_config();
@@ -852,6 +902,12 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 	if ( !override_shutdown_action )
 	{
 		g_shutdown_action = cfg_shutdown_action;
+	}
+
+	if ( cla != NULL )
+	{
+		if ( g_can_use_tls_1_3 && cla->ssl_version >= 6 ) { cla->ssl_version = 6; }	// TLS 1.3
+		else if ( cla->ssl_version > 5 ) { cla->ssl_version = 5; }					// TLS 1.2
 	}
 
 	// See if there's an instance of the program running.
@@ -1317,7 +1373,7 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 	WriteLog( ( pcre2_state == PCRE2_STATE_RUNNING ? LOG_INFO_MISC : LOG_WARNING ), "libpcre2-16-0.dll %s", ( pcre2_state == PCRE2_STATE_RUNNING ? "loaded" : "not loaded" ) );
 #endif
 
-	downloader_ready_semaphore = CreateSemaphore( NULL, 0, 1, NULL );
+	g_downloader_ready_semaphore = CreateSemaphore( NULL, 0, 1, NULL );
 
 	HANDLE thread = ( HANDLE )_CreateThread( NULL, 0, IOCPDownloader, NULL, 0, NULL );
 	if ( thread != NULL )
@@ -1325,12 +1381,13 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 		CloseHandle( thread );
 
 		// Wait for IOCPDownloader to set up the completion port. 10 second timeout in case we miss the release.
-		WaitForSingleObject( downloader_ready_semaphore, 10000 );
-		CloseHandle( downloader_ready_semaphore );
+		WaitForSingleObject( g_downloader_ready_semaphore, 10000 );
+		CloseHandle( g_downloader_ready_semaphore );
+		g_downloader_ready_semaphore = NULL;
 	}
 	else
 	{
-		CloseHandle( downloader_ready_semaphore );
+		CloseHandle( g_downloader_ready_semaphore );
 
 		fail_type = 3;
 		goto CLEANUP;
@@ -1680,6 +1737,12 @@ CLEANUP:
 	if ( cfg_certificate_cer_file_name != NULL ) { GlobalFree( cfg_certificate_cer_file_name ); }
 	if ( cfg_certificate_key_file_name != NULL ) { GlobalFree( cfg_certificate_key_file_name ); }
 
+	if ( g_certificate_pkcs_file_name != NULL ) { GlobalFree( g_certificate_pkcs_file_name ); }
+	if ( g_certificate_pkcs_password != NULL ) { GlobalFree( g_certificate_pkcs_password ); }
+
+	if ( g_certificate_cer_file_name != NULL ) { GlobalFree( g_certificate_cer_file_name ); }
+	if ( g_certificate_key_file_name != NULL ) { GlobalFree( g_certificate_key_file_name ); }
+
 	if ( cfg_authentication_username != NULL ) { GlobalFree( cfg_authentication_username ); }
 	if ( cfg_authentication_password != NULL ) { GlobalFree( cfg_authentication_password ); }
 
@@ -1888,7 +1951,7 @@ CLEANUP:
 	}
 
 	// Delay loaded DLLs
-	SSL_library_uninit();
+	__SSL_library_uninit();
 
 	// Wine crashes on exit if this is before SSL_library_uninit().
 	if ( psftp_state == PSFTP_STATE_RUNNING )
@@ -1915,6 +1978,12 @@ UNLOAD_DLLS:
 
 	UnInitializeDPIFunctions();
 
+	#ifndef LIBCRYPTO_USE_STATIC_LIB
+		UnInitializeLibCrypto();
+	#endif
+	#ifndef LIBSSL_USE_STATIC_LIB
+		UnInitializeLibSSL();
+	#endif
 	#ifndef PSFTP_USE_STATIC_LIB
 		UnInitializePSFTP();
 	#endif

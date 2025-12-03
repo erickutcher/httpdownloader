@@ -68,6 +68,9 @@ HFONT UpdateFont( UINT dpi );
 char *GlobalStrDupA( const char *_Str );
 wchar_t *GlobalStrDupW( const wchar_t *_Str );
 
+wchar_t *UTF8StringToWideString( char *utf8_string, int string_length );
+char *WideStringToUTF8String( wchar_t *wide_string, int *utf8_string_length, int buffer_offset = 0 );
+
 char *strnchr( const char *s, int c, int n );
 
 void EscapeFilename( wchar_t *filename );

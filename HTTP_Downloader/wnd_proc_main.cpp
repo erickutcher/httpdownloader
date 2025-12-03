@@ -96,6 +96,7 @@ wchar_t *g_size_prefix[] = { L"B", L"KB", L"MB", L"GB", L"TB", L"PB", L"EB" };
 bool last_menu = false;					// true if context menu was last open, false if main menu was last open. See: WM_ENTERMENULOOP
 
 HANDLE g_timer_semaphore = NULL;
+HANDLE g_timer_exit_semaphore = NULL;
 
 bool use_drag_and_drop_main = true;		// Assumes OLE32_STATE_RUNNING is true.
 IDropTarget *List_DropTarget;
@@ -918,6 +919,11 @@ DWORD WINAPI UpdateWindow( LPVOID /*WorkThreadContext*/ )
 				SetThreadExecutionState( ES_CONTINUOUS | ES_SYSTEM_REQUIRED );
 			}
 		}
+	}
+
+	if ( g_timer_exit_semaphore != NULL )
+	{
+		ReleaseSemaphore( g_timer_exit_semaphore, 1, NULL );
 	}
 
 	CloseHandle( g_timer_semaphore );
@@ -2975,6 +2981,9 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 
 			_ShowWindow( hWnd, SW_HIDE );
 
+
+			g_timer_exit_semaphore = CreateSemaphore( NULL, 0, 1, NULL );
+
 			g_end_program = true;
 
 			// Exit our timer thread if it's active.
@@ -2982,6 +2991,11 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 			{
 				ReleaseSemaphore( g_timer_semaphore, 1, NULL );
 			}
+
+			// 10 second timeout in case we miss the release.
+			WaitForSingleObject( g_timer_exit_semaphore, 10000 );
+			CloseHandle( g_timer_exit_semaphore );
+			g_timer_exit_semaphore = NULL;
 
 			// Release the semaphore to complete the update check.
 			if ( g_update_semaphore != NULL )
@@ -3010,17 +3024,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 
 		case WM_DESTROY_ALT:
 		{
-			if ( ws2_32_state == WS2_32_STATE_RUNNING )
-			{
-				downloader_ready_semaphore = CreateSemaphore( NULL, 0, 1, NULL );
-
-				_WSASetEvent( g_cleanup_event[ 0 ] );
-
-				// Wait for IOCPDownloader to clean up. 10 second timeout in case we miss the release.
-				WaitForSingleObject( downloader_ready_semaphore, 10000 );
-				CloseHandle( downloader_ready_semaphore );
-				downloader_ready_semaphore = NULL;
-			}
+			StopIOCPDownloader();
 
 			if ( g_hWnd_add_urls != NULL )
 			{
@@ -3161,6 +3165,7 @@ LRESULT CALLBACK MainWndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam 
 				if ( g_taskbar != NULL )
 				{
 					g_taskbar->lpVtbl->Release( g_taskbar );
+					g_taskbar = NULL;
 				}
 
 				_CoUninitialize();

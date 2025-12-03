@@ -20,13 +20,24 @@
 #define _CONNECTION_H
 
 #include "globals.h"
-#include "ssl.h"
 #include "doublylinkedlist.h"
 #include "dllrbt.h"
 #include "zlib.h"
 #include "lite_psftp.h"
 
+#include <ws2tcpip.h>
 #include <mswsock.h>
+#include <winsock2.h>
+
+struct SOCKET_CONTEXT;
+struct OVERLAPPEDEX;
+struct _SSL_S;	// Schannel SSL wrapper
+struct _SSL_O;	// OpenSSL SSL wrapper
+
+#define PROTOCOL_COUNT			6
+
+#include "ssl_schannel.h"
+#include "ssl_openssl.h"
 
 #define BUFFER_SIZE				16384	// Maximum size of an SSL record.
 
@@ -162,6 +173,8 @@ enum IO_OPERATION
 	IO_ClientHandshakeResponse,
 	IO_ServerHandshakeResponse,
 	IO_ServerHandshakeReply,
+	IO_OpenSSLClientHandshake,
+	IO_OpenSSLServerHandshake,
 	IO_GetCONNECTResponse,
 	IO_SOCKSResponse,
 	IO_GetRequest,
@@ -289,8 +302,6 @@ struct POST_INFO
 	char				*proxy_use_authentication;
 };
 
-struct SOCKET_CONTEXT;
-
 struct OVERLAPPEDEX
 {
 	WSAOVERLAPPED		overlapped;
@@ -325,8 +336,6 @@ struct SOCKET_CONTEXT
 
 	unsigned long long	content_offset;
 
-	char				keep_alive_buffer[ 8 ];
-
 	SOCKET_CONTEXT		*ftp_context;
 
 	addrinfoW			*address_info;			// Address info of the server we're connecting to.
@@ -334,6 +343,7 @@ struct SOCKET_CONTEXT
 
 	char				*buffer;
 	char				*decompressed_buf;
+	char				*keep_alive_buffer;
 
 	DOWNLOAD_INFO		*download_info;
 
@@ -341,7 +351,9 @@ struct SOCKET_CONTEXT
 
 	SSH					*ssh;
 
-	SSL					*ssl;
+	_SSL_S				*_ssl_s;	// For Schannel functions
+	_SSL_O				*_ssl_o;	// For OpenSSL functions
+
 	SOCKET				socket;
 	SOCKET				listen_socket;	// Used for active (EPRT/PORT) FTP connections.
 
@@ -471,23 +483,10 @@ struct DOWNLOAD_INFO
 	unsigned char		active_hosts;
 };
 
-SECURITY_STATUS SSL_WSAAccept( SOCKET_CONTEXT *context, OVERLAPPEDEX *overlapped, bool &sent );
-SECURITY_STATUS SSL_WSAAccept_Reply( SOCKET_CONTEXT *context, OVERLAPPEDEX *overlapped, bool &sent );
-SECURITY_STATUS SSL_WSAAccept_Response( SOCKET_CONTEXT *context, OVERLAPPEDEX *overlapped, bool &sent );
-
-SECURITY_STATUS SSL_WSAConnect( SOCKET_CONTEXT *context, OVERLAPPEDEX *overlapped, char *host, bool &sent );
-SECURITY_STATUS SSL_WSAConnect_Response( SOCKET_CONTEXT *context, OVERLAPPEDEX *overlapped, bool &sent );
-SECURITY_STATUS SSL_WSAConnect_Reply( SOCKET_CONTEXT *context, OVERLAPPEDEX *overlapped, bool &sent );
-
-SECURITY_STATUS SSL_WSASend( SOCKET_CONTEXT *context, OVERLAPPEDEX *overlapped, WSABUF *send_buf, bool &sent );
-SECURITY_STATUS SSL_WSARecv( SOCKET_CONTEXT *context, OVERLAPPEDEX *overlapped, bool &sent );
-
-SECURITY_STATUS SSL_WSARecv_Decrypt( SSL *ssl, LPWSABUF lpBuffers, DWORD &lpNumberOfBytesDecrypted );
-
-SECURITY_STATUS SSL_WSAShutdown( SOCKET_CONTEXT *context, OVERLAPPEDEX *overlapped, bool &sent );
-
 DWORD WINAPI IOCPDownloader( LPVOID pArgs );
 DWORD WINAPI IOCPConnection( LPVOID WorkThreadContext );
+
+void StopIOCPDownloader();
 
 SOCKET CreateListenSocket();
 char CreateAcceptSocket( SOCKET listen_socket, bool use_ipv6 );

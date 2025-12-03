@@ -2633,6 +2633,7 @@ char *GetETag( char *header )
 //
 //
 //
+// header_buffer needs to be NULL terminated.
 char ParseHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int header_buffer_length, bool request )
 {
 	if ( context == NULL )
@@ -3573,11 +3574,6 @@ char GetHTTPHeader( SOCKET_CONTEXT *context, char *header_buffer, unsigned int h
 
 				context->download_info->parts = context->parts;
 
-				/*if ( context->ssl == NULL )
-				{
-					context->download_info->ssl_version = -1;
-				}*/
-
 				if ( IS_GROUP( context->download_info ) )
 				{
 					context->download_info->file_size = context->header_info.range_info->content_length;
@@ -3922,7 +3918,7 @@ char HandleRedirect( SOCKET_CONTEXT *context )
 
 		InterlockedIncrement( &context->pending_operations );
 
-		context->overlapped.current_operation = ( context->ssl != NULL ? IO_Shutdown : IO_Close );
+		context->overlapped.current_operation = ( context->_ssl_s != NULL || context->_ssl_o != NULL ? IO_Shutdown : IO_Close );
 
 		PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped );
 
@@ -4411,6 +4407,7 @@ char MakeRequest( SOCKET_CONTEXT *context, IO_OPERATION next_operation, bool use
 			context->wsabuf.buf = context->buffer;
 			context->wsabuf.len = context->buffer_size;
 
+			context->overlapped.current_operation = IO_Write;
 			context->overlapped.next_operation = next_operation;
 
 			ConstructRequest( context, use_connect );
@@ -4419,9 +4416,30 @@ char MakeRequest( SOCKET_CONTEXT *context, IO_OPERATION next_operation, bool use
 			int nRet = 0;
 			DWORD dwFlags = 0;
 
-			if ( context->ssl != NULL )
+			if ( context->_ssl_s != NULL || context->_ssl_o != NULL )
 			{
-				SSL_WSASend( context, &context->overlapped, &context->wsabuf, sent );
+				if ( context->_ssl_s != NULL )
+				{
+					SSL_WSASend( context, &context->overlapped, &context->wsabuf, sent );
+				}
+				else// if ( context->_ssl_o != NULL )
+				{
+					if ( context->_ssl_o->ssl != NULL )
+					{
+						// Encrypts the buffer and writes it to the write BIO.
+						int write = _SSL_write( context->_ssl_o->ssl, context->wsabuf.buf, context->wsabuf.len );
+						if ( write > 0 )
+						{
+							// Make sure we have encrypted data to send.
+							int pending = _BIO_pending( context->_ssl_o->wbio );
+							if ( pending > 0 )
+							{
+								OpenSSL_WSASend( context, &context->overlapped, &context->wsabuf, sent );
+							}
+						}
+					}
+				}
+
 				if ( !sent )
 				{
 					context->overlapped.current_operation = IO_Shutdown;
@@ -4431,8 +4449,6 @@ char MakeRequest( SOCKET_CONTEXT *context, IO_OPERATION next_operation, bool use
 			}
 			else
 			{
-				context->overlapped.current_operation = IO_Write;
-
 				nRet = _WSASend( context->socket, &context->wsabuf, 1, NULL, dwFlags, ( OVERLAPPED * )&context->overlapped, NULL );
 				if ( nRet == SOCKET_ERROR && ( _WSAGetLastError() != ERROR_IO_PENDING ) )
 				{
@@ -4550,7 +4566,7 @@ char MakeRequest( SOCKET_CONTEXT *context, IO_OPERATION next_operation, bool use
 
 			InterlockedIncrement( &context->pending_operations );
 
-			context->overlapped.current_operation = ( context->ssl != NULL ? IO_Shutdown : IO_Close );
+			context->overlapped.current_operation = ( context->_ssl_s != NULL || context->_ssl_o != NULL ? IO_Shutdown : IO_Close );
 
 			PostQueuedCompletionStatus( g_hIOCP, 0, ( ULONG_PTR )context, ( OVERLAPPED * )&context->overlapped );
 		}
@@ -4645,8 +4661,10 @@ char MakeResponse( SOCKET_CONTEXT *context )
 		int nRet = 0;
 		DWORD dwFlags = 0;
 
-		if ( context->ssl != NULL )
+		if ( context->_ssl_s != NULL || context->_ssl_o != NULL )
 		{
+			context->overlapped.current_operation = IO_Write;
+
 			if ( use_keep_alive )
 			{
 				context->overlapped.next_operation = IO_GetRequest;
@@ -4656,7 +4674,28 @@ char MakeResponse( SOCKET_CONTEXT *context )
 				context->overlapped.next_operation = IO_Shutdown;
 			}
 
-			SSL_WSASend( context, &context->overlapped, &context->wsabuf, sent );
+			if ( context->_ssl_s != NULL )
+			{
+				SSL_WSASend( context, &context->overlapped, &context->wsabuf, sent );
+			}
+			else// if ( context->_ssl_o != NULL )
+			{
+				if ( context->_ssl_o->ssl != NULL )
+				{
+					// Encrypts the buffer and writes it to the write BIO.
+					int write = _SSL_write( context->_ssl_o->ssl, context->wsabuf.buf, context->wsabuf.len );
+					if ( write > 0 )
+					{
+						// Make sure we have encrypted data to send.
+						int pending = _BIO_pending( context->_ssl_o->wbio );
+						if ( pending > 0 )
+						{
+							OpenSSL_WSASend( context, &context->overlapped, &context->wsabuf, sent );
+						}
+					}
+				}
+			}
+
 			if ( !sent )
 			{
 				context->overlapped.current_operation = IO_Shutdown;

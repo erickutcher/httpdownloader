@@ -272,9 +272,10 @@ void SetServerSettings()
 		ssl_info_changed = true;
 	}
 
+	unsigned int cfg_certificate_pkcs_file_name_length;
 	if ( cfg_certificate_pkcs_file_name != NULL )
 	{
-		unsigned int cfg_certificate_pkcs_file_name_length = lstrlenW( cfg_certificate_pkcs_file_name );
+		cfg_certificate_pkcs_file_name_length = lstrlenW( cfg_certificate_pkcs_file_name );
 
 		if ( cfg_certificate_pkcs_file_name_length != certificate_pkcs_file_name_length || _StrCmpNW( cfg_certificate_pkcs_file_name, certificate_pkcs_file_name, cfg_certificate_pkcs_file_name_length ) != 0 )
 		{
@@ -286,6 +287,9 @@ void SetServerSettings()
 				_wmemcpy_s( cfg_certificate_pkcs_file_name, certificate_pkcs_file_name_length, certificate_pkcs_file_name, certificate_pkcs_file_name_length );
 				cfg_certificate_pkcs_file_name[ certificate_pkcs_file_name_length ] = 0;	// Sanity.
 			}
+
+			GlobalFree( g_certificate_pkcs_file_name );
+			g_certificate_pkcs_file_name = WideStringToUTF8String( cfg_certificate_pkcs_file_name, ( int * )&cfg_certificate_pkcs_file_name_length );
 
 			ssl_info_changed = true;
 		}
@@ -299,6 +303,8 @@ void SetServerSettings()
 			cfg_certificate_pkcs_file_name[ certificate_pkcs_file_name_length ] = 0;	// Sanity.
 		}
 
+		g_certificate_pkcs_file_name = WideStringToUTF8String( cfg_certificate_pkcs_file_name, ( int * )&cfg_certificate_pkcs_file_name_length );
+
 		ssl_info_changed = true;
 	}
 
@@ -306,15 +312,19 @@ void SetServerSettings()
 	wchar_t *certificate_pkcs_password = ( wchar_t * )GlobalAlloc( GMEM_FIXED, sizeof( wchar_t ) * ( certificate_pkcs_password_length + 1 ) );
 	_SendMessageW( g_hWnd_certificate_pkcs_password, WM_GETTEXT, certificate_pkcs_password_length + 1, ( LPARAM )certificate_pkcs_password );
 
+	unsigned int cfg_certificate_pkcs_password_length;
 	if ( cfg_certificate_pkcs_password != NULL )
 	{
-		unsigned int cfg_certificate_pkcs_password_length = lstrlenW( cfg_certificate_pkcs_password );
+		cfg_certificate_pkcs_password_length = lstrlenW( cfg_certificate_pkcs_password );
 
 		if ( cfg_certificate_pkcs_password_length != certificate_pkcs_password_length || _StrCmpNW( cfg_certificate_pkcs_password, certificate_pkcs_password, cfg_certificate_pkcs_password_length ) != 0 )
 		{
 			GlobalFree( cfg_certificate_pkcs_password );
 
 			cfg_certificate_pkcs_password = certificate_pkcs_password;
+
+			GlobalFree( g_certificate_pkcs_password );
+			g_certificate_pkcs_password = WideStringToUTF8String( cfg_certificate_pkcs_password, ( int * )&cfg_certificate_pkcs_password_length );
 
 			ssl_info_changed = true;
 		}
@@ -327,12 +337,15 @@ void SetServerSettings()
 	{
 		cfg_certificate_pkcs_password = certificate_pkcs_password;
 
+		g_certificate_pkcs_password = WideStringToUTF8String( cfg_certificate_pkcs_password, ( int * )&cfg_certificate_pkcs_password_length );
+
 		ssl_info_changed = true;
 	}
 
+	unsigned int cfg_certificate_cer_file_name_length;
 	if ( cfg_certificate_cer_file_name != NULL )
 	{
-		unsigned int cfg_certificate_cer_file_name_length = lstrlenW( cfg_certificate_cer_file_name );
+		cfg_certificate_cer_file_name_length = lstrlenW( cfg_certificate_cer_file_name );
 
 		if ( cfg_certificate_cer_file_name_length != certificate_cer_file_name_length || _StrCmpNW( cfg_certificate_cer_file_name, certificate_cer_file_name, cfg_certificate_cer_file_name_length ) != 0 )
 		{
@@ -344,6 +357,9 @@ void SetServerSettings()
 				_wmemcpy_s( cfg_certificate_cer_file_name, certificate_cer_file_name_length, certificate_cer_file_name, certificate_cer_file_name_length );
 				cfg_certificate_cer_file_name[ certificate_cer_file_name_length ] = 0;	// Sanity.
 			}
+
+			GlobalFree( g_certificate_cer_file_name );
+			g_certificate_cer_file_name = WideStringToUTF8String( cfg_certificate_cer_file_name, ( int * )&cfg_certificate_cer_file_name_length );
 
 			ssl_info_changed = true;
 		}
@@ -357,13 +373,15 @@ void SetServerSettings()
 			cfg_certificate_cer_file_name[ certificate_cer_file_name_length ] = 0;	// Sanity.
 		}
 
+		g_certificate_cer_file_name = WideStringToUTF8String( cfg_certificate_cer_file_name, ( int * )&cfg_certificate_cer_file_name_length );
+
 		ssl_info_changed = true;
 	}
 
-
+	unsigned int cfg_certificate_key_file_name_length;
 	if ( cfg_certificate_key_file_name != NULL )
 	{
-		unsigned int cfg_certificate_key_file_name_length = lstrlenW( cfg_certificate_key_file_name );
+		cfg_certificate_key_file_name_length = lstrlenW( cfg_certificate_key_file_name );
 
 		if ( cfg_certificate_key_file_name_length != certificate_key_file_name_length || _StrCmpNW( cfg_certificate_key_file_name, certificate_key_file_name, cfg_certificate_key_file_name_length ) != 0 )
 		{
@@ -376,6 +394,9 @@ void SetServerSettings()
 				cfg_certificate_key_file_name[ certificate_key_file_name_length ] = 0;	// Sanity.
 			}
 
+			GlobalFree( g_certificate_key_file_name );
+			g_certificate_key_file_name = WideStringToUTF8String( cfg_certificate_key_file_name, ( int * )&cfg_certificate_key_file_name_length );
+
 			ssl_info_changed = true;
 		}
 	}
@@ -387,6 +408,8 @@ void SetServerSettings()
 			_wmemcpy_s( cfg_certificate_key_file_name, certificate_key_file_name_length, certificate_key_file_name, certificate_key_file_name_length );
 			cfg_certificate_key_file_name[ certificate_key_file_name_length ] = 0;	// Sanity.
 		}
+
+		g_certificate_key_file_name = WideStringToUTF8String( cfg_certificate_key_file_name, ( int * )&cfg_certificate_key_file_name_length );
 
 		ssl_info_changed = true;
 	}
@@ -444,30 +467,46 @@ void SetServerSettings()
 
 	if ( ssl_info_changed )
 	{
-		if ( g_pCertContext != NULL )
+		if ( g_use_openssl )
 		{
-			_CertFreeCertificateContext( g_pCertContext );
-			g_pCertContext = NULL;
-		}
-
-		if ( cfg_server_enable_ssl )
-		{
-			if ( cfg_certificate_type == 1 )	// Public/Private Key Pair.
+			if ( g_server_ssl_ctx != NULL )
 			{
-				g_pCertContext = LoadPublicPrivateKeyPair( cfg_certificate_cer_file_name, cfg_certificate_key_file_name );
+				_SSL_CTX_free( g_server_ssl_ctx );
+				g_server_ssl_ctx = NULL;
 			}
-			else	// PKCS #12 File.
+
+			if ( cfg_server_enable_ssl )
 			{
-				g_pCertContext = LoadPKCS12( cfg_certificate_pkcs_file_name, cfg_certificate_pkcs_password );
+				InitializeServerSSL_CTX( cfg_server_ssl_version, cfg_certificate_type );
 			}
 		}
+		else
+		{
+			if ( g_pCertContext != NULL )
+			{
+				_CertFreeCertificateContext( g_pCertContext );
+				g_pCertContext = NULL;
+			}
 
-		ResetServerCredentials();
+			if ( cfg_server_enable_ssl )
+			{
+				if ( cfg_certificate_type == 1 )	// Public/Private Key Pair.
+				{
+					g_pCertContext = LoadPublicPrivateKeyPair( cfg_certificate_cer_file_name, cfg_certificate_key_file_name );
+				}
+				else	// PKCS #12 File.
+				{
+					g_pCertContext = LoadPKCS12( cfg_certificate_pkcs_file_name, cfg_certificate_pkcs_password );
+				}
+			}
+
+			ResetServerCredentials();
+		}
 	}
 
 	cfg_show_remote_connection_notification = ( _SendMessageW( g_hWnd_chk_remote_connection_notification, BM_GETCHECK, 0, 0 ) == BST_CHECKED ? true : false );
 
-	if ( server_info_changed )
+	if ( server_info_changed || ssl_info_changed )
 	{
 		CleanupServer();	// Stop the server.
 

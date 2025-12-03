@@ -19,6 +19,8 @@
 #include "ftp_parsing.h"
 #include "http_parsing.h"
 
+#include "ssl_openssl.h"
+
 #include "utilities.h"
 
 CRITICAL_SECTION ftp_listen_info_cs;
@@ -831,9 +833,30 @@ char MakeFTPResponse( SOCKET_CONTEXT *context )
 		context->overlapped.current_operation = IO_Write;
 		context->overlapped.next_operation = IO_GetContent;
 
-		if ( context->ssl != NULL )
+		if ( context->_ssl_s != NULL || context->_ssl_o != NULL )
 		{
-			SSL_WSASend( context, &context->overlapped, &context->wsabuf, sent );
+			if ( context->_ssl_s != NULL )
+			{
+				SSL_WSASend( context, &context->overlapped, &context->wsabuf, sent );
+			}
+			else// if ( context->_ssl_o != NULL )
+			{
+				if ( context->_ssl_o->ssl != NULL )
+				{
+					// Encrypts the buffer and writes it to the write BIO.
+					int write = _SSL_write( context->_ssl_o->ssl, context->wsabuf.buf, context->wsabuf.len );
+					if ( write > 0 )
+					{
+						// Make sure we have encrypted data to send.
+						int pending = _BIO_pending( context->_ssl_o->wbio );
+						if ( pending > 0 )
+						{
+							OpenSSL_WSASend( context, &context->overlapped, &context->wsabuf, sent );
+						}
+					}
+				}
+			}
+
 			if ( !sent )
 			{
 				InterlockedDecrement( &context->pending_operations );
@@ -870,100 +893,128 @@ char SendFTPKeepAlive( SOCKET_CONTEXT *context )
 
 	if ( context != NULL )
 	{
-		context->content_status = FTP_CONTENT_STATUS_SEND_KEEP_ALIVE;
-
-		context->keep_alive_wsabuf.buf = context->keep_alive_buffer;
-
-
-		unsigned char random_number = 0;
-
-		HCRYPTPROV hProvider = NULL;
-
-		if ( _CryptAcquireContextW( &hProvider, NULL, NULL, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT | CRYPT_SILENT ) )
+		if ( context->keep_alive_buffer == NULL )
 		{
-			BYTE rbuffer[ 1 ];
-			rbuffer[ 0 ] = 0;
-
-			if ( _CryptGenRandom( hProvider, 1, ( BYTE * )&rbuffer ) )
-			{
-				random_number = rbuffer[ 0 ] % 4;
-			}
+			context->keep_alive_buffer = ( char * )GlobalAlloc( GPTR, sizeof( char ) * ( BUFFER_SIZE + 1 ) );
 		}
 
-		if ( hProvider != NULL )
+		if ( context->keep_alive_buffer != NULL )
 		{
-			_CryptReleaseContext( hProvider, 0 );
-		}
+			context->content_status = FTP_CONTENT_STATUS_SEND_KEEP_ALIVE;
 
-		switch ( random_number )
-		{
-			case 1:
+			context->keep_alive_wsabuf.buf = context->keep_alive_buffer;
+
+			unsigned char random_number = 0;
+
+			HCRYPTPROV hProvider = NULL;
+
+			if ( _CryptAcquireContextW( &hProvider, NULL, NULL, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT | CRYPT_SILENT ) )
 			{
-				_memcpy_s( context->keep_alive_wsabuf.buf, 8, "PWD\r\n", 5 );
-				context->keep_alive_wsabuf.len = 5;
+				BYTE rbuffer[ 1 ];
+				rbuffer[ 0 ] = 0;
+
+				if ( _CryptGenRandom( hProvider, 1, ( BYTE * )&rbuffer ) )
+				{
+					random_number = rbuffer[ 0 ] % 4;
+				}
 			}
-			break;
 
-			case 2:
+			if ( hProvider != NULL )
 			{
-				_memcpy_s( context->keep_alive_wsabuf.buf, 8, "TYPE I\r\n", 8 );
-				context->keep_alive_wsabuf.len = 8;
+				_CryptReleaseContext( hProvider, 0 );
 			}
-			break;
 
-			case 3:
+			switch ( random_number )
 			{
-				_memcpy_s( context->keep_alive_wsabuf.buf, 8, "TYPE A\r\n", 8 );
-				context->keep_alive_wsabuf.len = 8;
+				case 1:
+				{
+					_memcpy_s( context->keep_alive_wsabuf.buf, 8, "PWD\r\n", 5 );
+					context->keep_alive_wsabuf.len = 5;
+				}
+				break;
+
+				case 2:
+				{
+					_memcpy_s( context->keep_alive_wsabuf.buf, 8, "TYPE I\r\n", 8 );
+					context->keep_alive_wsabuf.len = 8;
+				}
+				break;
+
+				case 3:
+				{
+					_memcpy_s( context->keep_alive_wsabuf.buf, 8, "TYPE A\r\n", 8 );
+					context->keep_alive_wsabuf.len = 8;
+				}
+				break;
+
+				case 0:
+				default:
+				{
+					_memcpy_s( context->keep_alive_wsabuf.buf, 8, "NOOP\r\n", 6 );
+					context->keep_alive_wsabuf.len = 6;
+				}
+				break;
 			}
-			break;
 
-			case 0:
-			default:
+			bool sent = false;
+			int nRet = 0;
+			DWORD dwFlags = 0;
+
+			InterlockedIncrement( &context->pending_operations );
+
+			// We'll receive the reply/replies on the regular wsabuf buffer. A read operation should be pending while a Data connection is downloading.
+			// All that IO_KeepAlive does is send any remaining data in the keep_alive_wsabuf buffer that hasn't been sent.
+			context->overlapped_keep_alive.current_operation = IO_KeepAlive;
+			context->overlapped_keep_alive.next_operation = IO_KeepAlive;
+
+			if ( context->_ssl_s != NULL || context->_ssl_o != NULL )
 			{
-				_memcpy_s( context->keep_alive_wsabuf.buf, 8, "NOOP\r\n", 6 );
-				context->keep_alive_wsabuf.len = 6;
-			}
-			break;
-		}
+				if ( context->_ssl_s != NULL )
+				{
+					SSL_WSASend( context, &context->overlapped_keep_alive, &context->keep_alive_wsabuf, sent );
+				}
+				else// if ( context->_ssl_o != NULL )
+				{
+					if ( context->_ssl_o->ssl != NULL )
+					{
+						// Encrypts the buffer and writes it to the write BIO.
+						int write = _SSL_write( context->_ssl_o->ssl, context->keep_alive_wsabuf.buf, context->keep_alive_wsabuf.len );
+						if ( write > 0 )
+						{
+							// Make sure we have encrypted data to send.
+							int pending = _BIO_pending( context->_ssl_o->wbio );
+							if ( pending > 0 )
+							{
+								OpenSSL_WSASend( context, &context->overlapped_keep_alive, &context->keep_alive_wsabuf, sent );
+							}
+						}
+					}
+				}
 
-		bool sent = false;
-		int nRet = 0;
-		DWORD dwFlags = 0;
+				if ( !sent )
+				{
+					InterlockedDecrement( &context->pending_operations );
 
-		InterlockedIncrement( &context->pending_operations );
-
-		// We'll receive the reply/replies on the regular wsabuf buffer. A read operation should be pending while a Data connection is downloading.
-		// All that IO_KeepAlive does is send any remaining data in the keep_alive_wsabuf buffer that hasn't been sent.
-		context->overlapped_keep_alive.current_operation = IO_KeepAlive;
-		context->overlapped_keep_alive.next_operation = IO_KeepAlive;
-
-		if ( context->ssl != NULL )
-		{
-			SSL_WSASend( context, &context->overlapped_keep_alive, &context->keep_alive_wsabuf, sent );
-			if ( !sent )
-			{
-				InterlockedDecrement( &context->pending_operations );
-
-				content_status = FTP_CONTENT_STATUS_FAILED;
+					content_status = FTP_CONTENT_STATUS_FAILED;
+				}
+				else
+				{
+					content_status = FTP_CONTENT_STATUS_NONE;
+				}
 			}
 			else
 			{
-				content_status = FTP_CONTENT_STATUS_NONE;
-			}
-		}
-		else
-		{
-			nRet = _WSASend( context->socket, &context->keep_alive_wsabuf, 1, NULL, dwFlags, ( OVERLAPPED * )&context->overlapped_keep_alive, NULL );
-			if ( nRet == SOCKET_ERROR && ( _WSAGetLastError() != ERROR_IO_PENDING ) )
-			{
-				InterlockedDecrement( &context->pending_operations );
+				nRet = _WSASend( context->socket, &context->keep_alive_wsabuf, 1, NULL, dwFlags, ( OVERLAPPED * )&context->overlapped_keep_alive, NULL );
+				if ( nRet == SOCKET_ERROR && ( _WSAGetLastError() != ERROR_IO_PENDING ) )
+				{
+					InterlockedDecrement( &context->pending_operations );
 
-				content_status = FTP_CONTENT_STATUS_FAILED;
-			}
-			else
-			{
-				content_status = FTP_CONTENT_STATUS_NONE;
+					content_status = FTP_CONTENT_STATUS_FAILED;
+				}
+				else
+				{
+					content_status = FTP_CONTENT_STATUS_NONE;
+				}
 			}
 		}
 	}
@@ -1321,32 +1372,128 @@ char GetFTPResponseContent( SOCKET_CONTEXT *context, char *response_buffer, unsi
 				{
 					context->content_status = FTP_CONTENT_STATUS_SET_PBSZ;			// 200 if successful.
 
+					bool connection_failed = false;
+
 					char shared_protocol = ( context->download_info != NULL ? context->download_info->ssl_version : ( g_can_use_tls_1_3 ? 5 : 4 ) );
 					DWORD protocol = 0;
-					switch ( shared_protocol )
+
+					if ( g_use_openssl )
 					{
-						case 5:	protocol |= SP_PROT_TLS1_3_CLIENT;
-						case 4:	protocol |= SP_PROT_TLS1_2_CLIENT;
-						case 3:	protocol |= SP_PROT_TLS1_1_CLIENT;
-						case 2:	protocol |= SP_PROT_TLS1_CLIENT;
-						case 1:	protocol |= SP_PROT_SSL3_CLIENT;
-						case 0:	{ if ( shared_protocol < 4 ) { protocol |= SP_PROT_SSL2_CLIENT; } }
+						context->_ssl_o = ( _SSL_O * )GlobalAlloc( GPTR, sizeof( _SSL_O ) );
+						if ( context->_ssl_o != NULL )
+						{
+							context->_ssl_o->ssl = _SSL_new( g_client_ssl_ctx[ shared_protocol ] );
+							if ( context->_ssl_o->ssl != NULL )
+							{
+								_SSL_set_ex_data( context->_ssl_o->ssl, 0, ( void * )context );
+
+								context->_ssl_o->rbio = _BIO_new( _BIO_s_mem() );
+								context->_ssl_o->wbio = _BIO_new( _BIO_s_mem() );
+
+								if ( context->_ssl_o->rbio != NULL && context->_ssl_o->wbio != NULL )
+								{
+									_SSL_set_bio( context->_ssl_o->ssl, context->_ssl_o->rbio, context->_ssl_o->wbio );
+
+									if ( _SSL_ctrl != NULL )
+									{
+										_SSL_ctrl( context->_ssl_o->ssl, SSL_CTRL_SET_TLSEXT_HOSTNAME, TLSEXT_NAMETYPE_host_name, ( void * )context->request_info.host );
+									}
+									else if ( _SSL_set_tlsext_host_name != NULL )	// BoringSSL function.
+									{
+										_SSL_set_tlsext_host_name( context->_ssl_o->ssl, context->request_info.host );
+									}
+
+									if ( context->ftp_context != NULL &&
+										 context->ftp_context->ftp_connection_type == FTP_CONNECTION_TYPE_CONTROL &&
+										 context->ftp_context->_ssl_o != NULL &&
+										 context->ftp_context->_ssl_o->ssl_session != NULL )
+									{
+										_SSL_set_session( context->_ssl_o->ssl, context->ftp_context->_ssl_o->ssl_session );
+									}
+								}
+								else
+								{
+									_BIO_free( context->_ssl_o->rbio );
+									_BIO_free( context->_ssl_o->wbio );
+
+									context->_ssl_o->rbio = NULL;
+									context->_ssl_o->wbio = NULL;
+
+									connection_failed = true;
+								}
+							}
+							else
+							{
+								connection_failed = true;
+							}
+						}
+						else
+						{
+							connection_failed = true;
+						}
+					}
+					else
+					{
+						switch ( shared_protocol )
+						{
+							case 5:	protocol |= SP_PROT_TLS1_3_CLIENT;
+							case 4:	protocol |= SP_PROT_TLS1_2_CLIENT;
+							case 3:	protocol |= SP_PROT_TLS1_1_CLIENT;
+							case 2:	protocol |= SP_PROT_TLS1_CLIENT;
+							case 1:	protocol |= SP_PROT_SSL3_CLIENT;
+							case 0:	{ if ( shared_protocol < 4 ) { protocol |= SP_PROT_SSL2_CLIENT; } }
+						}
+
+						_SSL_S *_ssl_s = __SSL_new( protocol, false );
+						if ( _ssl_s != NULL )
+						{
+							_ssl_s->s = context->socket;
+
+							context->_ssl_s = _ssl_s;
+						}
+						else
+						{
+							connection_failed = true;
+						}
 					}
 
-					SSL *ssl = SSL_new( protocol, false );
-					if ( ssl != NULL )
+					if ( !connection_failed )
 					{
-						ssl->s = context->socket;
-
-						context->ssl = ssl;
-
 						bool sent = false;
 
 						InterlockedIncrement( &context->pending_operations );
 
-						context->overlapped.next_operation = IO_ClientHandshakeResponse;
+						if ( g_use_openssl )
+						{
+							if ( context->_ssl_o != NULL && context->_ssl_o->ssl != NULL )
+							{
+								// This shouldn't return 1 here since we haven't sent the data in the BIO.
+								int nRet = _SSL_connect( context->_ssl_o->ssl );
+								if ( nRet <= 0 )
+								{
+									int error = _SSL_get_error( context->_ssl_o->ssl, nRet );
 
-						SSL_WSAConnect( context, &context->overlapped, context->request_info.host, sent );
+									if ( error == SSL_ERROR_WANT_READ )
+									{
+										int pending = _BIO_pending( context->_ssl_o->wbio );
+										if ( pending > 0 )
+										{
+											context->overlapped.current_operation = IO_Write;
+											context->overlapped.next_operation = IO_OpenSSLClientHandshake;
+										
+											OpenSSL_WSASend( context, &context->overlapped, &context->wsabuf, sent );
+										}
+									}
+								}
+							}
+						}
+						else
+						{
+							context->overlapped.next_operation = IO_ClientHandshakeResponse;
+
+							SSL_WSAConnect( context, &context->overlapped, context->request_info.host, sent );
+						}
+
 						if ( !sent )
 						{
 							InterlockedDecrement( &context->pending_operations );
