@@ -1605,7 +1605,7 @@ SECURITY_STATUS DecryptRecv( SOCKET_CONTEXT *context, DWORD &io_size )
 						context->overlapped.current_operation = last_current_operation;
 						context->overlapped.next_operation = last_next_operation;
 
-						scRet = SEC_E_INTERNAL_ERROR;	// Reset.
+						scRet = SEC_E_INCOMPLETE_MESSAGE;	// If we return with this, then a SSL_WSARecv() will be performed.
 					}
 					else	// This shouldn't happen, but we'll handle it if it does. SSL_WSAConnect_Reply() will have performed a _WSASend().
 					{
