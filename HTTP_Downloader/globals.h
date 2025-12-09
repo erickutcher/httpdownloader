@@ -134,10 +134,10 @@
 							  ( CURRENT_VERSION_C << 8 )  | \
 							  ( CURRENT_VERSION_D ) )
 
-#define IS_BETA
+//#define IS_BETA
 
 #ifdef IS_BETA
-#define BETA_VERSION		2
+#define BETA_VERSION		0
 #define UPDATE_CHECK_URL_BETA	"https://raw.githubusercontent.com/erickutcher/httpdownloader/master/HTTP_Downloader/version_beta.txt"
 #endif
 

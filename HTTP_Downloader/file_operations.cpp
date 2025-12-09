@@ -2334,7 +2334,7 @@ RETRY_OPEN:
 
 			if ( read == 4 && _memcmp( magic_identifier, MAGIC_ID_DOWNLOADS, 3 ) == 0 && version <= 0x0F )
 			{
-				char *history_buf = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( 524288 + 1 ) );	// 512 KB buffer.
+				char *history_buf = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( 524288 + 3 ) );	// 512 KB buffer.
 				if ( history_buf != NULL )
 				{
 					DWORD fz = GetFileSize( hFile_read, NULL ) - 4;
@@ -2352,6 +2352,10 @@ RETRY_OPEN:
 #endif
 
 						history_buf[ read ] = 0;	// Guarantee a NULL terminated buffer.
+
+						// This terminates wide character strings so we don't read past the buffer.
+						history_buf[ read + 1 ] = 0;
+						history_buf[ read + 2 ] = 0;
 
 						total_read += read;
 
@@ -2748,6 +2752,9 @@ RETRY_OPEN:
 										}
 										else
 										{
+											offset += sizeof( wchar_t );
+											if ( offset >= read ) { goto CLEANUP; }
+
 											p += sizeof( wchar_t );
 										}
 									}

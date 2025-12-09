@@ -5509,6 +5509,9 @@ void StartDownload( DOWNLOAD_INFO *di, unsigned char start_type, unsigned char s
 	di->print_range_list = di->range_list;
 	di->range_queue = NULL;
 
+	// The download completed, but its status was not set to STATUS_COMPLETED.
+	bool finish_cleanup = ( di->shared_info->downloaded >= di->shared_info->file_size && di->shared_info->file_size != 0 );
+
 	DoublyLinkedList *range_node = di->range_list;
 
 	while ( range_node != di->range_list_end )
@@ -5516,7 +5519,7 @@ void StartDownload( DOWNLOAD_INFO *di, unsigned char start_type, unsigned char s
 		RANGE_INFO *ri = ( RANGE_INFO * )range_node->data;
 
 		// Check if our range still needs to download.
-		if ( ri != NULL && ( ri->content_offset < ( ( ri->range_end - ri->range_start ) + 1 ) ) )
+		if ( ( ri != NULL && ( ri->content_offset < ( ( ri->range_end - ri->range_start ) + 1 ) ) ) || finish_cleanup )
 		{
 			// Split the remaining range_list off into the range_queue.
 			if ( di->parts_limit > 0 && part > di->parts_limit )
@@ -5781,9 +5784,9 @@ void StartDownload( DOWNLOAD_INFO *di, unsigned char start_type, unsigned char s
 
 				context->status = STATUS_CONNECTING;
 
-				if ( !CreateConnection( context, context->request_info.host, context->request_info.port ) )
+				if ( finish_cleanup || !CreateConnection( context, context->request_info.host, context->request_info.port ) )
 				{
-					context->status = STATUS_FAILED;
+					context->status = ( finish_cleanup ? STATUS_NONE : STATUS_FAILED );
 
 					InterlockedIncrement( &context->pending_operations );
 					context->overlapped.current_operation = IO_Close;

@@ -179,7 +179,7 @@ void UpdateMenus( bool enable )
 		{
 			// Allow start if paused, queued, stopped, timed out, failed, file IO error, skipped, proxy authorization required, or insufficient disk space.
 			if ( di != NULL &&
-			   ( di->shared_info->file_size == 0 || ( di->shared_info->downloaded < di->shared_info->file_size ) ) &&
+			 ( ( di->shared_info->file_size == 0 || ( di->shared_info->downloaded < di->shared_info->file_size ) ) &&
 			   ( IS_STATUS( di->status, STATUS_PAUSED ) ||
 			   ( IS_STATUS( di->status, STATUS_QUEUED ) && ( g_total_downloading < cfg_max_downloads ) ) ||
 			   ( di->active_parts == 0 &&
@@ -191,7 +191,8 @@ void UpdateMenus( bool enable )
 					STATUS_SKIPPED |
 					STATUS_AUTH_REQUIRED |
 					STATUS_PROXY_AUTH_REQUIRED |
-					STATUS_INSUFFICIENT_DISK_SPACE ) ) ) )
+					STATUS_INSUFFICIENT_DISK_SPACE ) ) ) ) ||
+			   ( di->shared_info->downloaded >= di->shared_info->file_size && di->shared_info->file_size != 0 && IS_STATUS_NOT( di->shared_info->status, STATUS_COMPLETED | STATUS_QUEUED ) ) )
 			{
 				_EnableMenuItem( g_hMenuSub_download, MENU_START, MF_ENABLED );
 				_EnableMenuItem( g_hMenuSub_edit, MENU_START, MF_ENABLED );

@@ -2383,7 +2383,7 @@ RETRY_OPEN:
 
 			if ( read == 4 && _memcmp( magic_identifier, MAGIC_ID_SFTP_HOSTS, 3 ) == 0 && version <= 0x0F )
 			{
-				char *buf = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( 524288 + 1 ) );	// 512 KB buffer.
+				char *buf = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( 524288 + 3 ) );	// 512 KB buffer.
 				if ( buf != NULL )
 				{
 					DWORD fz = GetFileSize( hFile_read, NULL ) - 4;
@@ -2401,6 +2401,10 @@ RETRY_OPEN:
 	#endif
 
 						buf[ read ] = 0;	// Guarantee a NULL terminated buffer.
+
+						// This terminates wide character strings so we don't read past the buffer.
+						buf[ read + 1 ] = 0;
+						buf[ read + 2 ] = 0;
 
 						total_read += read;
 
@@ -3074,7 +3078,7 @@ RETRY_OPEN:
 
 			if ( read == 4 && _memcmp( magic_identifier, MAGIC_ID_SFTP_KEYS, 3 ) == 0 && version <= 0x0F )
 			{
-				char *buf = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( 524288 + 1 ) );	// 512 KB buffer.
+				char *buf = ( char * )GlobalAlloc( GMEM_FIXED, sizeof( char ) * ( 524288 + 3 ) );	// 512 KB buffer.
 				if ( buf != NULL )
 				{
 					DWORD fz = GetFileSize( hFile_read, NULL ) - 4;
@@ -3092,6 +3096,10 @@ RETRY_OPEN:
 	#endif
 
 						buf[ read ] = 0;	// Guarantee a NULL terminated buffer.
+
+						// This terminates wide character strings so we don't read past the buffer.
+						buf[ read + 1 ] = 0;
+						buf[ read + 2 ] = 0;
 
 						total_read += read;
 
