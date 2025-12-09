@@ -221,7 +221,7 @@ Controlla aggiornamenti all'avvio
 Vicino alla barra di sistema
 Abilita icona nella barra delle applicazioni:
 Abilita finestra rilascio URL:
-Failure:
+Errore:
 Carica file audio download completato
 Riduci ad icona nella barra di sistema
 Riproduci audio a download completati
