@@ -462,7 +462,7 @@ Il percorso specificato non è stato trovato.
 Il sito specificato esiste già.
 Il sito specificato non è valido.
 Il nome utente e l'host specificati esistono già.
- In questo percorso esiste già un file con lo stesso nome.
+In questo percorso esiste già un file con lo stesso nome.
 È necessario impostare un cartella download.
 Beta
 Build:
